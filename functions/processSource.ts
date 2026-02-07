@@ -43,6 +43,10 @@ Deno.serve(async (req) => {
           headers.forEach((header, idx) => {
             product[header] = values[idx];
           });
+          
+          // Mark if product has image
+          product.has_image = !!(product['Image URL'] || product['ImageURL'] || product['Product Image']);
+          
           gnpd_data.push(product);
         }
       } catch (error) {

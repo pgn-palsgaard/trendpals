@@ -29,6 +29,8 @@ Customer Priorities: ${project.customer_priorities?.join(', ') || 'None specifie
 
 `;
 
+    // Collect GNPD products with images
+    const gnpdProducts = [];
     sources.forEach(source => {
       evidenceText += `\n=== ${source.source_type.toUpperCase()}: ${source.title} ===\n`;
       if (source.excerpts) {
@@ -37,10 +39,11 @@ Customer Priorities: ${project.customer_priorities?.join(', ') || 'None specifie
         });
       }
       if (source.gnpd_data) {
-        evidenceText += `GNPD Products: ${source.gnpd_data.length} launches available\n`;
+        evidenceText += `GNPD Products: ${source.gnpd_data.length} launches available (${source.gnpd_data.filter(p => p.has_image).length} with images)\n`;
         source.gnpd_data.slice(0, 5).forEach(product => {
-          evidenceText += `- ${product.Brand || ''} ${product['Product name'] || product.Product || ''}\n`;
+          evidenceText += `- ${product.Brand || ''} ${product['Product name'] || product.Product || ''} ${product.has_image ? '📷' : ''}\n`;
         });
+        gnpdProducts.push(...source.gnpd_data);
       }
     });
 
@@ -54,15 +57,18 @@ Generate exactly 5-7 trend candidates. For each trend:
 1. Give it a compelling name (max 5 words)
 2. Explain what's changing (2-4 concise bullets)
 3. Explain why now (1-2 bullets)
-4. Link to evidence (cite specific excerpts or GNPD examples)
-5. Assess confidence based on evidence strength
-6. Provide a self-critique: what could be wrong about this trend?
+4. Link to evidence (cite specific excerpts AND match 3-6 GNPD products that exemplify this trend)
+5. For GNPD products: prioritize those with images (has_image: true), include brand, product_name, market, and ingredients if relevant
+6. Assess confidence based on evidence strength
+7. Provide a self-critique: what could be wrong about this trend?
 
 CRITICAL RULES:
 - Use ONLY evidence from the provided sources
+- PRIORITIZE GNPD products that have images (has_image: true)
+- Match products that genuinely exemplify the trend
+- Include ingredient information when it supports the trend narrative
 - Do NOT invent statistics or claims
 - If evidence is weak, mark confidence as "low"
-- Be honest about limitations
 
 Return JSON with this exact structure.`,
       response_json_schema: {
@@ -80,7 +86,19 @@ Return JSON with this exact structure.`,
                   type: "object",
                   properties: {
                     mintel_excerpts: { type: "array", items: { type: "string" } },
-                    gnpd_product_ids: { type: "array", items: { type: "string" } }
+                    gnpd_products: {
+                      type: "array",
+                      items: {
+                        type: "object",
+                        properties: {
+                          brand: { type: "string" },
+                          product_name: { type: "string" },
+                          market: { type: "string" },
+                          has_image: { type: "boolean" },
+                          ingredients: { type: "string" }
+                        }
+                      }
+                    }
                   }
                 },
                 confidence: { type: "string", enum: ["high", "medium", "low"] },

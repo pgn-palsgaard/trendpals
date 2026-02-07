@@ -155,6 +155,37 @@ Evidence: ${slide.evidence_footer || ''}
                 </div>
               )}
 
+              {slide.product_examples && slide.product_examples.length > 0 && (
+                <div className="mb-6">
+                  <h4 className="font-semibold text-slate-900 mb-3">Product Examples</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {slide.product_examples.map((product, pidx) => (
+                      <div key={pidx} className="p-4 border border-slate-200 rounded-lg bg-slate-50">
+                        {product.image_url && (
+                          <img 
+                            src={product.image_url} 
+                            alt={product.product_name}
+                            className="w-full h-32 object-contain mb-3 bg-white rounded"
+                          />
+                        )}
+                        <h5 className="font-semibold text-sm text-slate-900 mb-1">
+                          {product.brand} - {product.product_name}
+                        </h5>
+                        <p className="text-xs text-slate-600 mb-2">{product.market}</p>
+                        {product.key_ingredients && (
+                          <p className="text-xs text-slate-600 mb-2">
+                            <span className="font-medium">Key ingredients:</span> {product.key_ingredients}
+                          </p>
+                        )}
+                        {product.relevance && (
+                          <p className="text-xs text-blue-700 italic">{product.relevance}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {slide.so_what && slide.so_what.length > 0 && (
                 <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <h4 className="font-semibold text-blue-900 mb-3">So What for Manufacturers?</h4>

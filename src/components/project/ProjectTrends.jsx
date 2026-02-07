@@ -184,9 +184,10 @@ export default function ProjectTrends({ project, trendCandidates, sources }) {
                               Mintel: {trend.evidence_anchors.mintel_excerpts.length} excerpts
                             </p>
                           )}
-                          {trend.evidence_anchors.gnpd_product_ids?.length > 0 && (
+                          {trend.evidence_anchors.gnpd_products?.length > 0 && (
                             <p className="text-slate-600">
-                              GNPD: {trend.evidence_anchors.gnpd_product_ids.length} products
+                              GNPD: {trend.evidence_anchors.gnpd_products.length} products
+                              ({trend.evidence_anchors.gnpd_products.filter(p => p.has_image).length} with images 📷)
                             </p>
                           )}
                         </div>

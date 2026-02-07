@@ -17,6 +17,14 @@ Deno.serve(async (req) => {
     const sources = await base44.entities.Source.filter({ project_id });
     const allTrends = await base44.entities.TrendCandidate.filter({ project_id });
     const selectedTrends = allTrends.filter(t => t.is_selected);
+    
+    // Collect all GNPD products with images
+    const gnpdProducts = [];
+    sources.forEach(source => {
+      if (source.gnpd_data) {
+        gnpdProducts.push(...source.gnpd_data.filter(p => p.has_image));
+      }
+    });
 
     if (!project || selectedTrends.length < 3) {
       return Response.json({ error: 'Need 3-5 selected trends' }, { status: 400 });
@@ -29,8 +37,13 @@ Region: ${project.region}
 Audience: ${project.audience}
 Objective: ${project.objective}
 
-Selected Trends:
-${selectedTrends.map(t => `- ${t.trend_name}: ${t.whats_changing?.join('; ')}`).join('\n')}
+Selected Trends with Matched Products:
+${selectedTrends.map(t => {
+  const products = t.evidence_anchors?.gnpd_products || [];
+  return `- ${t.trend_name}: ${products.length} products with images mapped`;
+}).join('\n')}
+
+Available GNPD Products with Images: ${gnpdProducts.length}
 
 SLIDE STRUCTURE:
 1. Cover (title, category, region, time windows)
@@ -42,9 +55,11 @@ For each deep dive slide:
 - Title: trend name
 - Subtitle: category | region | time window
 - 3-5 bullets: what's changing + why now
+- Include 1-2 product examples from the matched GNPD products (with images) that exemplify this trend
+- Mention key ingredients if they support the trend narrative
 - "So what for manufacturers?" box (2-3 bullets: technical implications)
 - "Where Palsgaard supports" box (2-3 capabilities, NO product names)
-- Evidence footer (cite sources)
+- Evidence footer (cite sources + product examples)
 
 Return slides as structured JSON.`;
 
@@ -63,6 +78,20 @@ Return slides as structured JSON.`;
                 title: { type: "string" },
                 subtitle: { type: "string" },
                 bullets: { type: "array", items: { type: "string" } },
+                product_examples: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      brand: { type: "string" },
+                      product_name: { type: "string" },
+                      market: { type: "string" },
+                      image_url: { type: "string" },
+                      key_ingredients: { type: "string" },
+                      relevance: { type: "string" }
+                    }
+                  }
+                },
                 so_what: { type: "array", items: { type: "string" } },
                 where_palsgaard_supports: { type: "array", items: { type: "string" } },
                 evidence_footer: { type: "string" }
@@ -77,6 +106,21 @@ Return slides as structured JSON.`;
                 bullet: { type: "string" },
                 source_type: { type: "string" },
                 confidence: { type: "string" }
+              }
+            }
+          },
+          product_shortlist: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                trend_name: { type: "string" },
+                brand: { type: "string" },
+                product_name: { type: "string" },
+                market: { type: "string" },
+                image_url: { type: "string" },
+                key_ingredients: { type: "string" },
+                role: { type: "string" }
               }
             }
           }
@@ -101,7 +145,7 @@ Return slides as structured JSON.`;
       region: project.region,
       slides: response.slides,
       evidence_pack: response.evidence_pack || [],
-      product_shortlist: [],
+      product_shortlist: response.product_shortlist || [],
       image_map: {},
       version: 1,
       status: 'draft',
