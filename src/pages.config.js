@@ -50,12 +50,18 @@
 import Home from './pages/Home';
 import NewProject from './pages/NewProject';
 import Projects from './pages/Projects';
+import ProjectDetail from './pages/ProjectDetail';
+import ReportsLibrary from './pages/ReportsLibrary';
+import ReportView from './pages/ReportView';
 
 
 export const PAGES = {
     "Home": Home,
     "NewProject": NewProject,
     "Projects": Projects,
+    "ProjectDetail": ProjectDetail,
+    "ReportsLibrary": ReportsLibrary,
+    "ReportView": ReportView,
 }
 
 export const pagesConfig = {
