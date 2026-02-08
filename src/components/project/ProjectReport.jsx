@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, Loader2, CheckCircle2, Download } from 'lucide-react';
+import { FileText, Loader2, CheckCircle2, Download, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -45,6 +45,22 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
       queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
       queryClient.invalidateQueries({ queryKey: ['project', project.id] });
       toast.success('Report published to library');
+    }
+  });
+
+  const generateGammaMutation = useMutation({
+    mutationFn: async (reportId) => {
+      const response = await base44.functions.invoke('generateGammaReport', {
+        report_id: reportId
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
+      toast.success('Gamma report generated successfully');
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to generate Gamma report');
     }
   });
 
@@ -106,15 +122,62 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
                 </Button>
               </div>
 
-              {latestReport.status === 'draft' && (
+              <div className="flex gap-2">
+                {latestReport.status === 'draft' && (
+                  <Button
+                    onClick={() => publishReportMutation.mutate(latestReport.id)}
+                    disabled={publishReportMutation.isPending}
+                    className="flex-1 bg-purple-600 hover:bg-purple-700"
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-2" />
+                    Publish to Library
+                  </Button>
+                )}
                 <Button
-                  onClick={() => publishReportMutation.mutate(latestReport.id)}
-                  disabled={publishReportMutation.isPending}
-                  className="w-full bg-purple-600 hover:bg-purple-700"
+                  onClick={() => generateGammaMutation.mutate(latestReport.id)}
+                  disabled={generateGammaMutation.isPending}
+                  variant="outline"
+                  className="flex-1"
                 >
-                  <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Publish to Library
+                  {generateGammaMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    'Generate Gamma Report'
+                  )}
                 </Button>
+              </div>
+
+              {latestReport.gamma_url && (
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
+                  <h4 className="font-semibold text-blue-900">Gamma Report</h4>
+                  <div className="flex flex-wrap gap-2">
+                    <a href={latestReport.gamma_url} target="_blank" rel="noopener noreferrer">
+                      <Button variant="outline" size="sm">
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        View in Gamma
+                      </Button>
+                    </a>
+                    {latestReport.gamma_pptx_url && (
+                      <a href={latestReport.gamma_pptx_url} download>
+                        <Button variant="outline" size="sm">
+                          <Download className="w-4 h-4 mr-2" />
+                          Download PPTX
+                        </Button>
+                      </a>
+                    )}
+                    {latestReport.gamma_pdf_url && (
+                      <a href={latestReport.gamma_pdf_url} download>
+                        <Button variant="outline" size="sm">
+                          <Download className="w-4 h-4 mr-2" />
+                          Download PDF
+                        </Button>
+                      </a>
+                    )}
+                  </div>
+                </div>
               )}
 
               <Link to={createPageUrl(`ReportView?id=${latestReport.id}`)}>
