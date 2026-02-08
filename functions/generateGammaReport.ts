@@ -102,16 +102,17 @@ Deno.serve(async (req) => {
     }
 
     // Call Gamma API - Create from template
-    const createResponse = await fetch('https://api.gamma.app/api/v1/create-from-template', {
+    const createResponse = await fetch('https://public-api.gamma.app/v1.0/generations/from-template', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${GAMMA_API_KEY}`,
-        'Content-Type': 'application/json'
+        'X-API-KEY': GAMMA_API_KEY,
+        'Content-Type': 'application/json',
+        'accept': 'application/json'
       },
       body: JSON.stringify({
         gammaId: GAMMA_TEMPLATE_ID,
-        text: prompt,
-        exportAs: ['pptx', 'pdf']
+        prompt: prompt,
+        exportAs: 'pptx'
       })
     });
 
@@ -119,48 +120,49 @@ Deno.serve(async (req) => {
       const errorText = await createResponse.text();
       return Response.json({ 
         error: 'Failed to create Gamma report', 
-        details: errorText 
+        details: errorText,
+        status_code: createResponse.status
       }, { status: createResponse.status });
     }
 
     const createResult = await createResponse.json();
-    const jobId = createResult.jobId;
+    const generationId = createResult.generationId;
 
     // Poll for completion
     let attempts = 0;
-    const maxAttempts = 60; // 5 minutes max (5 seconds * 60)
-    let jobStatus = 'pending';
+    const maxAttempts = 120; // 10 minutes max (5 seconds * 120)
+    let generationStatus = 'pending';
     let gammaUrl = null;
     let pptxUrl = null;
-    let pdfUrl = null;
 
-    while (attempts < maxAttempts && jobStatus !== 'completed' && jobStatus !== 'failed') {
+    while (attempts < maxAttempts && generationStatus !== 'completed' && generationStatus !== 'failed') {
       await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
       
-      const statusResponse = await fetch(`https://api.gamma.app/api/v1/job-status/${jobId}`, {
+      const statusResponse = await fetch(`https://public-api.gamma.app/v1.0/generations/${generationId}`, {
         headers: {
-          'Authorization': `Bearer ${GAMMA_API_KEY}`
+          'X-API-KEY': GAMMA_API_KEY,
+          'accept': 'application/json'
         }
       });
       
       if (statusResponse.ok) {
         const statusResult = await statusResponse.json();
-        jobStatus = statusResult.status;
+        generationStatus = statusResult.status;
         
-        if (jobStatus === 'completed') {
-          gammaUrl = statusResult.url;
-          pptxUrl = statusResult.exports?.pptx || null;
-          pdfUrl = statusResult.exports?.pdf || null;
+        if (generationStatus === 'completed') {
+          gammaUrl = statusResult.webUrl;
+          pptxUrl = statusResult.pptxUrl || null;
         }
       }
       
       attempts++;
     }
 
-    if (jobStatus !== 'completed') {
+    if (generationStatus !== 'completed') {
       return Response.json({ 
         error: 'Gamma report generation timed out or failed',
-        job_status: jobStatus 
+        generation_status: generationStatus,
+        generation_id: generationId
       }, { status: 500 });
     }
 
@@ -168,7 +170,7 @@ Deno.serve(async (req) => {
     await base44.entities.Report.update(report_id, {
       gamma_url: gammaUrl,
       gamma_pptx_url: pptxUrl,
-      gamma_pdf_url: pdfUrl,
+      gamma_pdf_url: null,
       gamma_prompt: prompt
     });
 
@@ -176,7 +178,7 @@ Deno.serve(async (req) => {
       success: true,
       gamma_url: gammaUrl,
       pptx_url: pptxUrl,
-      pdf_url: pdfUrl
+      pdf_url: null
     });
 
   } catch (error) {
