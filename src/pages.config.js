@@ -49,19 +49,19 @@
  */
 import Home from './pages/Home';
 import NewProject from './pages/NewProject';
-import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
-import ReportsLibrary from './pages/ReportsLibrary';
+import Projects from './pages/Projects';
 import ReportView from './pages/ReportView';
+import ReportsLibrary from './pages/ReportsLibrary';
 
 
 export const PAGES = {
     "Home": Home,
     "NewProject": NewProject,
-    "Projects": Projects,
     "ProjectDetail": ProjectDetail,
-    "ReportsLibrary": ReportsLibrary,
+    "Projects": Projects,
     "ReportView": ReportView,
+    "ReportsLibrary": ReportsLibrary,
 }
 
 export const pagesConfig = {
