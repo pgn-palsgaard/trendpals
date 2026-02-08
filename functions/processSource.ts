@@ -27,29 +27,114 @@ Deno.serve(async (req) => {
 
     // Process based on source type
     if (source_type === 'gnpd' && file_url) {
-      // For GNPD, we need to parse the CSV/Excel
+      // Check if it's an HTML file
+      const isHtml = file_url.toLowerCase().endsWith('.html') || title.toLowerCase().endsWith('.html');
+      
       try {
         const fileResponse = await fetch(file_url);
         const fileText = await fileResponse.text();
         
-        // Simple CSV parsing
-        const lines = fileText.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-        
-        for (let i = 1; i < lines.length; i++) {
-          if (!lines[i].trim()) continue;
-          const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
-          const product = {};
-          headers.forEach((header, idx) => {
-            product[header] = values[idx];
+        if (isHtml) {
+          // Parse HTML to extract images
+          const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+          const imageUrls = [];
+          let match;
+          
+          while ((match = imgRegex.exec(fileText)) !== null) {
+            imageUrls.push(match[1]);
+          }
+          
+          // Process each image URL - download and re-upload to get public URL
+          const processedImages = [];
+          for (const imgUrl of imageUrls) {
+            try {
+              // Check if URL is absolute
+              let fullUrl = imgUrl;
+              if (!imgUrl.startsWith('http')) {
+                // Skip relative URLs or data URLs
+                continue;
+              }
+              
+              // Download image
+              const imgResponse = await fetch(fullUrl);
+              if (imgResponse.ok) {
+                const blob = await imgResponse.blob();
+                
+                // Convert blob to File for upload
+                const arrayBuffer = await blob.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+                
+                // Upload to Base44 storage
+                const uploadResult = await base44.integrations.Core.UploadFile({
+                  file: uint8Array
+                });
+                
+                processedImages.push({
+                  original_url: imgUrl,
+                  hosted_url: uploadResult.file_url
+                });
+              }
+            } catch (err) {
+              console.error(`Failed to process image: ${imgUrl}`, err);
+            }
+          }
+          
+          // Extract product data from HTML using LLM
+          const llmResponse = await base44.integrations.Core.InvokeLLM({
+            prompt: `Extract GNPD product data from this HTML file. 
+            Look for product information including: product name, brand, market/country, launch date, category, key ingredients, claims, etc.
+            Return as a JSON array of products with all available fields.`,
+            file_urls: [file_url],
+            response_json_schema: {
+              type: "object",
+              properties: {
+                products: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      product_name: { type: "string" },
+                      brand: { type: "string" },
+                      market: { type: "string" },
+                      launch_date: { type: "string" },
+                      category: { type: "string" },
+                      key_ingredients: { type: "string" },
+                      claims: { type: "string" }
+                    }
+                  }
+                }
+              }
+            }
           });
           
-          // Mark if product has image
-          product.has_image = !!(product['Image URL'] || product['ImageURL'] || product['Product Image']);
+          gnpd_data = (llmResponse.products || []).map((product, idx) => ({
+            ...product,
+            has_image: idx < processedImages.length,
+            image_url: processedImages[idx]?.hosted_url || null,
+            original_image_url: processedImages[idx]?.original_url || null
+          }));
           
-          gnpd_data.push(product);
+        } else {
+          // CSV parsing (existing logic)
+          const lines = fileText.split('\n');
+          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+          
+          for (let i = 1; i < lines.length; i++) {
+            if (!lines[i].trim()) continue;
+            const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+            const product = {};
+            headers.forEach((header, idx) => {
+              product[header] = values[idx];
+            });
+            
+            // Mark if product has image
+            product.has_image = !!(product['Image URL'] || product['ImageURL'] || product['Product Image']);
+            
+            gnpd_data.push(product);
+          }
         }
       } catch (error) {
+        console.error('Error processing GNPD file:', error);
         status = 'error';
       }
     } else if ((source_type === 'mintel' || source_type === 'report') && file_url) {
