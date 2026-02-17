@@ -47,6 +47,12 @@ export default function ProjectDetail() {
     enabled: !!projectId
   });
 
+  const { data: imageExtractions = [] } = useQuery({
+    queryKey: ['imageExtractions', projectId],
+    queryFn: () => base44.entities.GNPDImageExtraction.filter({ project_id: projectId }),
+    enabled: !!projectId
+  });
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
@@ -138,7 +144,7 @@ export default function ProjectDetail() {
           </TabsContent>
 
           <TabsContent value="sources">
-            <ProjectSources project={project} sources={sources} />
+            <ProjectSources project={project} sources={sources} imageExtractions={imageExtractions} />
           </TabsContent>
 
           <TabsContent value="trends">

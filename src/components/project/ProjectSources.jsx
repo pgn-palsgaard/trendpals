@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, FileText, AlertCircle, CheckCircle2, Loader2, ExternalLink, Trash2, History } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function ProjectSources({ project, sources }) {
+export default function ProjectSources({ project, sources, imageExtractions = [] }) {
   const queryClient = useQueryClient();
   const [uploading, setUploading] = useState(false);
   const [sourceType, setSourceType] = useState('mintel');
@@ -298,6 +298,83 @@ export default function ProjectSources({ project, sources }) {
           </Button>
         </CardContent>
       </Card>
+
+      {/* Image Extraction Jobs Status */}
+      {imageExtractions.length > 0 && (
+        <Card className="border-purple-200 bg-purple-50/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span>📷 Zapier Image Extraction Jobs</span>
+              <span className="text-xs font-normal text-slate-600 bg-white px-2 py-1 rounded">
+                {imageExtractions.length} job(s)
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {imageExtractions.map(job => (
+              <Card key={job.id} className={`border ${
+                job.status === 'completed' ? 'border-green-300 bg-green-50' :
+                job.status === 'failed' ? 'border-red-300 bg-red-50' :
+                job.status === 'processing' ? 'border-blue-300 bg-blue-50' :
+                'border-slate-300 bg-slate-50'
+              }`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`text-sm font-medium px-2 py-1 rounded ${
+                          job.status === 'completed' ? 'bg-green-600 text-white' :
+                          job.status === 'failed' ? 'bg-red-600 text-white' :
+                          job.status === 'processing' ? 'bg-blue-600 text-white' :
+                          'bg-slate-600 text-white'
+                        }`}>
+                          {job.status.toUpperCase()}
+                        </span>
+                        {job.status === 'completed' && job.extracted_images?.length > 0 && (
+                          <span className="text-sm font-medium text-green-700">
+                            ✓ {job.extracted_images.length} images extracted
+                          </span>
+                        )}
+                      </div>
+                      
+                      <p className="text-xs text-slate-600 mb-1">
+                        <span className="font-medium">Job ID:</span> {job.id}
+                      </p>
+                      
+                      {job.html_file_url && (
+                        <p className="text-xs text-slate-600 mb-1">
+                          <span className="font-medium">HTML:</span>{' '}
+                          <a href={job.html_file_url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            View file
+                          </a>
+                        </p>
+                      )}
+                      
+                      {job.error_message && (
+                        <div className="mt-2 p-2 bg-red-100 border border-red-200 rounded">
+                          <p className="text-xs text-red-800">
+                            <span className="font-medium">Error:</span> {job.error_message}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {job.status === 'pending' && (
+                        <p className="text-xs text-slate-500 mt-2">
+                          ⏳ Waiting for Zapier to process...
+                        </p>
+                      )}
+                      
+                      <p className="text-xs text-slate-500 mt-2">
+                        Created: {new Date(job.created_date).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Sources List */}
       <Card>
