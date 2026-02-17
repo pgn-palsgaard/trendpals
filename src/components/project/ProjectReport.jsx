@@ -13,6 +13,7 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
   const queryClient = useQueryClient();
   const [generatingReport, setGeneratingReport] = useState(false);
   const [generatingGamma, setGeneratingGamma] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   const selectedTrends = trendCandidates.filter(t => t.is_selected);
   const canGenerateReport = selectedTrends.length >= 3 && selectedTrends.length <= 5;
@@ -52,6 +53,35 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
     onError: (error) => {
       toast.error(error.message || 'Failed to create Gamma deck');
       setGeneratingGamma(false);
+    }
+  });
+
+  const publishReportMutation = useMutation({
+    mutationFn: async (reportId) => {
+      setPublishing(true);
+      const response = await base44.functions.invoke('publishReport', {
+        report_id: reportId
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
+      queryClient.invalidateQueries({ queryKey: ['project', project.id] });
+      if (data.warnings && data.warnings.length > 0) {
+        toast.success('Report published with warnings');
+      } else {
+        toast.success('Report published successfully');
+      }
+      setPublishing(false);
+    },
+    onError: (error) => {
+      const errorData = error.response?.data;
+      if (errorData?.blocked) {
+        toast.error('Cannot publish: ' + errorData.errors.join(', '));
+      } else {
+        toast.error(error.message || 'Failed to publish report');
+      }
+      setPublishing(false);
     }
   });
 
@@ -250,6 +280,36 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
                 </div>
               )}
             </div>
+
+            {/* Publish Section */}
+            {latestReport.status === 'draft' && (
+              <div className="border-t pt-6">
+                <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-lg border border-blue-200 mb-4">
+                  <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-blue-900 mb-1">Ready to Publish?</p>
+                    <p className="text-sm text-blue-800">
+                      Publishing will make this report immutable and add it to the library. 
+                      All validation checks will be run.
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => publishReportMutation.mutate(latestReport.id)}
+                  disabled={publishing}
+                  className="w-full bg-green-600 hover:bg-green-700"
+                >
+                  {publishing ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Publishing...
+                    </>
+                  ) : (
+                    'Publish Report'
+                  )}
+                </Button>
+              </div>
+            )}
 
             {/* View Full Report */}
             <div className="border-t pt-6">
