@@ -94,11 +94,11 @@ export default function ProjectSources({ project, sources }) {
 
           {sourceType !== 'url' ? (
             <div className="space-y-2">
-              <Label>Upload File (PDF, CSV, XLSX)</Label>
+              <Label>Upload File (PDF, CSV, XLSX, XLS, HTML)</Label>
               <div className="flex items-center gap-4">
                 <Input
                   type="file"
-                  accept=".pdf,.csv,.xlsx,.xls"
+                  accept=".pdf,.csv,.xlsx,.xls,.html,.htm"
                   onChange={handleFileUpload}
                   disabled={uploading}
                 />
