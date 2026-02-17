@@ -15,59 +15,97 @@ Deno.serve(async (req) => {
     const projects = await base44.entities.Project.filter({ id: project_id });
     const project = projects[0];
     const sources = await base44.entities.Source.filter({ project_id });
-    const allTrends = await base44.entities.TrendCandidate.filter({ project_id });
-    const selectedTrends = allTrends.filter(t => t.is_selected);
-    
-    // Collect all GNPD products with images
-    const gnpdProducts = [];
+    const trendCandidates = await base44.entities.TrendCandidate.filter({ project_id });
+    const selectedTrends = trendCandidates.filter(t => t.is_selected);
+
+    if (!project) {
+      return Response.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    if (selectedTrends.length < 3 || selectedTrends.length > 5) {
+      return Response.json({ 
+        error: 'Must select 3-5 trends for report generation' 
+      }, { status: 400 });
+    }
+
+    // Compile evidence context
+    let evidenceContext = `Project: ${project.name}
+Category: ${project.category}
+Region: ${project.region}
+Objective: ${project.objective}
+Audience: ${project.audience}
+
+Selected Trends:
+${selectedTrends.map((t, i) => `${i+1}. ${t.trend_name}
+   What's changing: ${t.whats_changing?.join('; ')}
+   Why now: ${t.why_now?.join('; ')}
+   Evidence: ${t.evidence_anchors?.mintel_excerpts?.length || 0} excerpts, ${t.evidence_anchors?.gnpd_products?.length || 0} products
+`).join('\n')}
+
+Available Evidence:
+`;
+
     sources.forEach(source => {
-      if (source.gnpd_data) {
-        gnpdProducts.push(...source.gnpd_data.filter(p => p.has_image));
+      if (source.excerpts) {
+        evidenceContext += `\n${source.title}:\n`;
+        source.excerpts.forEach(excerpt => {
+          evidenceContext += `- ${excerpt.text.substring(0, 200)}\n`;
+        });
       }
     });
 
-    if (!project || selectedTrends.length < 3) {
-      return Response.json({ error: 'Need 3-5 selected trends' }, { status: 400 });
-    }
+    // Collect all GNPD products
+    const allGnpdProducts = [];
+    sources.forEach(source => {
+      if (source.gnpd_data) {
+        allGnpdProducts.push(...source.gnpd_data);
+      }
+    });
 
-    // Compile context
-    let context = `Generate a ${5 + selectedTrends.length}-${10} slide trend report for:
-Category: ${project.category}
-Region: ${project.region}
-Audience: ${project.audience}
-Objective: ${project.objective}
-
-Selected Trends with Matched Products:
-${selectedTrends.map(t => {
-  const products = t.evidence_anchors?.gnpd_products || [];
-  return `- ${t.trend_name}: ${products.length} products with images mapped`;
-}).join('\n')}
-
-Available GNPD Products with Images: ${gnpdProducts.length}
-
-SLIDE STRUCTURE:
-1. Cover (title, category, region, time windows)
-2. Trend Landscape (5-7 themes overview)
-3-${2 + selectedTrends.length}. Deep Dives (one per selected trend)
-${selectedTrends.length + 3}. Discussion Guide
-
-For each deep dive slide:
-- Title: trend name
-- Subtitle: category | region | time window
-- 3-5 bullets: what's changing + why now
-- Include 1-2 product examples from the matched GNPD products (with images) that exemplify this trend
-- Mention key ingredients if they support the trend narrative
-- "So what for manufacturers?" box (2-3 bullets: technical implications)
-- "Where Palsgaard supports" box (2-3 capabilities, NO product names)
-- Evidence footer (cite sources + product examples)
-
-Return slides as structured JSON.`;
-
+    // Generate report pack using AI
     const response = await base44.integrations.Core.InvokeLLM({
-      prompt: context,
+      prompt: `Generate a professional trend report for ${project.category} in ${project.region}.
+
+${evidenceContext}
+
+Create a complete report pack with:
+
+1. SLIDES (5-10 slides total):
+   - Opening slide with report title
+   - One slide per selected trend (${selectedTrends.length} trends)
+   - Each slide must include:
+     * Title + subtitle (Category | Region | Time window)
+     * 3-6 concise bullets on the trend
+     * "So what for manufacturers?" section (2-3 bullets)
+     * "Where Palsgaard supports" section (capabilities only, NO product names)
+     * Evidence footer (cite sources)
+     * Image placement slots (hero + supporting products)
+
+2. EVIDENCE PACK (5-10 bullets):
+   - Key evidence bullets that support the deck
+   - Each with source citation and confidence level
+
+3. PRODUCT SHORTLIST (12-20 GNPD launches):
+   - Select diverse, relevant products that exemplify the trends
+   - Prioritize products with images
+   - Include: brand, product name, market, launch date, key claims
+   - Tag each product with which trend(s) it supports
+
+4. IMAGE PLACEMENT MAP:
+   - For each slide, specify which products to use as hero/supporting images
+
+CRITICAL RULES:
+- Use ONLY evidence from provided sources
+- NO invented statistics or product names
+- Palsgaard mentions: capabilities ONLY, no product grades
+- Every claim must be traceable to source material
+- Flag any weak evidence areas as warnings
+
+Return structured JSON.`,
       response_json_schema: {
         type: "object",
         properties: {
+          title: { type: "string" },
           slides: {
             type: "array",
             items: {
@@ -78,23 +116,10 @@ Return slides as structured JSON.`;
                 title: { type: "string" },
                 subtitle: { type: "string" },
                 bullets: { type: "array", items: { type: "string" } },
-                product_examples: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      brand: { type: "string" },
-                      product_name: { type: "string" },
-                      market: { type: "string" },
-                      image_url: { type: "string" },
-                      key_ingredients: { type: "string" },
-                      relevance: { type: "string" }
-                    }
-                  }
-                },
                 so_what: { type: "array", items: { type: "string" } },
                 where_palsgaard_supports: { type: "array", items: { type: "string" } },
-                evidence_footer: { type: "string" }
+                evidence_footer: { type: "string" },
+                image_placements: { type: "array", items: { type: "string" } }
               }
             }
           },
@@ -114,13 +139,24 @@ Return slides as structured JSON.`;
             items: {
               type: "object",
               properties: {
-                trend_name: { type: "string" },
                 brand: { type: "string" },
                 product_name: { type: "string" },
                 market: { type: "string" },
-                image_url: { type: "string" },
-                key_ingredients: { type: "string" },
-                role: { type: "string" }
+                launch_date: { type: "string" },
+                claims: { type: "array", items: { type: "string" } },
+                supporting_trends: { type: "array", items: { type: "string" } },
+                has_image: { type: "boolean" }
+              }
+            }
+          },
+          image_map: { type: "object" },
+          warnings: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: { type: "string" },
+                message: { type: "string" }
               }
             }
           }
@@ -128,36 +164,47 @@ Return slides as structured JSON.`;
       }
     });
 
-    // Calculate overall freshness
-    const oldestSource = sources.reduce((oldest, s) => {
-      if (!s.date) return oldest;
-      return new Date(s.date) < new Date(oldest) ? s.date : oldest;
-    }, new Date().toISOString());
+    // Determine freshness
+    const oldestSourceDate = sources
+      .filter(s => s.date)
+      .map(s => new Date(s.date))
+      .sort((a, b) => a - b)[0];
     
-    const monthsOld = (new Date() - new Date(oldestSource)) / (1000 * 60 * 60 * 24 * 30);
-    const freshness = monthsOld <= 12 ? 'fresh' : monthsOld <= 18 ? 'use_with_caution' : 'outdated';
+    let freshness = 'fresh';
+    if (oldestSourceDate) {
+      const ageMonths = (Date.now() - oldestSourceDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
+      if (ageMonths > 24) freshness = 'outdated';
+      else if (ageMonths > 12) freshness = 'use_with_caution';
+    }
 
-    // Create report
+    // Create report entity
     const report = await base44.entities.Report.create({
       project_id,
-      title: `${project.category} Trends - ${project.region} ${new Date().getFullYear()}`,
+      title: response.title || `${project.category} Trends - ${project.region}`,
       category: project.category,
       region: project.region,
-      slides: response.slides,
+      slides: response.slides || [],
       evidence_pack: response.evidence_pack || [],
       product_shortlist: response.product_shortlist || [],
-      image_map: {},
-      version: 1,
-      status: 'draft',
-      freshness,
+      image_map: response.image_map || {},
       selected_trends: selectedTrends.map(t => t.trend_name),
-      warnings: []
+      warnings: response.warnings || [],
+      freshness,
+      status: 'draft',
+      version: 1
     });
 
-    await base44.entities.Project.update(project_id, { state: 'publishable' });
-
-    return Response.json({ success: true, report });
+    return Response.json({ 
+      success: true, 
+      report_id: report.id,
+      slides_count: report.slides.length,
+      warnings: report.warnings.length
+    });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('Generate report error:', error);
+    return Response.json({ 
+      error: error.message || 'Failed to generate report',
+      details: error.stack
+    }, { status: 500 });
   }
 });

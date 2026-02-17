@@ -181,34 +181,81 @@ export default function ProjectSources({ project, sources }) {
         </CardContent>
       </Card>
 
-      {/* Data Coverage Panel */}
+      {/* Enhanced Data Coverage Panel */}
       {sources.length > 0 && (
         <Card className={project.data_sufficiency_score < 60 ? 'border-yellow-300 bg-yellow-50' : 'border-green-300 bg-green-50'}>
           <CardHeader>
             <CardTitle className={project.data_sufficiency_score < 60 ? 'text-yellow-900' : 'text-green-900'}>
-              Data Coverage
+              Data Coverage Check
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center justify-between">
-                <span>Mintel/Reports:</span>
-                <span className="font-medium">
-                  {sources.filter(s => s.source_type === 'mintel' || s.source_type === 'report').length} sources
-                </span>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between text-sm">
+                <span>Coverage Score:</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all ${
+                        project.data_sufficiency_score >= 60 ? 'bg-green-500' : 'bg-yellow-500'
+                      }`}
+                      style={{ width: `${project.data_sufficiency_score}%` }}
+                    />
+                  </div>
+                  <span className="font-medium">{project.data_sufficiency_score}%</span>
+                </div>
               </div>
-              <div className="flex items-center justify-between">
-                <span>GNPD Data:</span>
-                <span className="font-medium">
-                  {sources.find(s => s.source_type === 'gnpd')?.gnpd_data?.length || 0} products
-                </span>
+
+              <div className="space-y-2 text-sm pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <span>Mintel/Reports:</span>
+                  <span className="font-medium">
+                    {sources.filter(s => s.source_type === 'mintel' || s.source_type === 'report').length} sources
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>GNPD Products:</span>
+                  <span className="font-medium">
+                    {sources.reduce((sum, s) => sum + (s.gnpd_data?.length || 0), 0)} products
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Text Excerpts:</span>
+                  <span className="font-medium">
+                    {sources.reduce((sum, s) => sum + (s.excerpts?.length || 0), 0)} chunks
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Products with Images:</span>
+                  <span className="font-medium">
+                    {sources.reduce((sum, s) => sum + (s.gnpd_data?.filter(p => p.has_image).length || 0), 0)} 📷
+                  </span>
+                </div>
               </div>
+
+              {project.data_sufficiency_score < 60 && (
+                <div className="mt-4 p-3 bg-white rounded-lg border border-yellow-200">
+                  <p className="text-sm font-medium text-yellow-900 mb-2">⚠️ Recommendations:</p>
+                  <ul className="text-sm text-yellow-800 space-y-1">
+                    {sources.filter(s => s.source_type === 'mintel').length === 0 && (
+                      <li>• Add Mintel reports for stronger trend framing</li>
+                    )}
+                    {sources.reduce((sum, s) => sum + (s.gnpd_data?.length || 0), 0) < 20 && (
+                      <li>• Upload GNPD exports with at least 20 products</li>
+                    )}
+                    {sources.reduce((sum, s) => sum + (s.gnpd_data?.filter(p => p.has_image).length || 0), 0) < 10 && (
+                      <li>• Add GNPD HTML export or upload product images for visual proof</li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {project.data_sufficiency_score >= 60 && (
+                <div className="mt-3 text-sm text-green-800">
+                  ✓ Sufficient data for trend generation
+                </div>
+              )}
             </div>
-            {project.data_sufficiency_score < 60 && (
-              <p className="text-sm text-yellow-800 mt-4">
-                ⚠️ Consider adding more sources for stronger trend analysis
-              </p>
-            )}
           </CardContent>
         </Card>
       )}

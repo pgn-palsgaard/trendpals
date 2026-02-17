@@ -3,22 +3,23 @@ import { base44 } from '@/api/base44Client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, Loader2, CheckCircle2, Download, ExternalLink } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { FileText, Download, ExternalLink, Loader2, AlertCircle, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 
 export default function ProjectReport({ project, reports, trendCandidates }) {
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const [generating, setGenerating] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false);
+  const [generatingGamma, setGeneratingGamma] = useState(false);
 
   const selectedTrends = trendCandidates.filter(t => t.is_selected);
-  const latestReport = reports[0];
+  const canGenerateReport = selectedTrends.length >= 3 && selectedTrends.length <= 5;
 
   const generateReportMutation = useMutation({
     mutationFn: async () => {
-      setGenerating(true);
+      setGeneratingReport(true);
       const response = await base44.functions.invoke('generateReport', {
         project_id: project.id
       });
@@ -26,30 +27,18 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
-      queryClient.invalidateQueries({ queryKey: ['project', project.id] });
       toast.success('Report generated successfully');
-      setGenerating(false);
+      setGeneratingReport(false);
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to generate report');
-      setGenerating(false);
-    }
-  });
-
-  const publishReportMutation = useMutation({
-    mutationFn: async (reportId) => {
-      await base44.entities.Report.update(reportId, { status: 'published' });
-      await base44.entities.Project.update(project.id, { state: 'published' });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
-      queryClient.invalidateQueries({ queryKey: ['project', project.id] });
-      toast.success('Report published to library');
+      setGeneratingReport(false);
     }
   });
 
   const generateGammaMutation = useMutation({
     mutationFn: async (reportId) => {
+      setGeneratingGamma(true);
       const response = await base44.functions.invoke('generateGammaReport', {
         report_id: reportId
       });
@@ -57,171 +46,235 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
-      toast.success('Gamma report generated successfully');
+      toast.success('Gamma deck created');
+      setGeneratingGamma(false);
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to generate Gamma report');
+      toast.error(error.message || 'Failed to create Gamma deck');
+      setGeneratingGamma(false);
     }
   });
 
-  const canGenerate = selectedTrends.length >= 3 && selectedTrends.length <= 5;
+  const latestReport = reports.sort((a, b) => b.version - a.version)[0];
 
   return (
     <div className="space-y-6">
-      {/* Generate Report */}
+      {/* Generate Report Section */}
       <Card>
         <CardHeader>
-          <CardTitle>Final Report Generation</CardTitle>
+          <CardTitle>Report Generation</CardTitle>
         </CardHeader>
         <CardContent>
-          {!latestReport ? (
+          {!canGenerateReport ? (
             <div className="text-center py-8">
-              <FileText className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
+              <AlertCircle className="w-12 h-12 mx-auto mb-4 text-slate-400" />
+              <p className="text-slate-600 mb-2">
+                Select 3-5 trends to generate a report
+              </p>
+              <p className="text-sm text-slate-500">
+                Currently selected: {selectedTrends.length} trends
+              </p>
+            </div>
+          ) : !latestReport ? (
+            <div className="text-center py-8">
+              <FileText className="w-12 h-12 mx-auto mb-4 text-blue-400" />
               <p className="text-slate-600 mb-4">
-                Generate a 5-10 slide evidence-backed trend report
+                Ready to generate a 5-10 slide report pack
               </p>
               <Button
                 onClick={() => generateReportMutation.mutate()}
-                disabled={!canGenerate || generating}
-                className="bg-emerald-600 hover:bg-emerald-700"
+                disabled={generatingReport}
+                className="bg-blue-600 hover:bg-blue-700"
               >
-                {generating ? (
+                {generatingReport ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Generating Report...
+                    Generating...
                   </>
                 ) : (
                   <>
                     <FileText className="w-4 h-4 mr-2" />
-                    Generate Report
+                    Generate Report Pack
                   </>
                 )}
               </Button>
-              {!canGenerate && (
-                <p className="text-sm text-slate-500 mt-4">
-                  Select 3-5 trends in the Trends tab to enable report generation
-                </p>
-              )}
             </div>
           ) : (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold text-slate-900 mb-1">{latestReport.title}</h3>
-                  <p className="text-sm text-slate-600">
-                    {latestReport.slides?.length || 0} slides • Version {latestReport.version}
-                  </p>
-                </div>
+                <p className="text-sm text-slate-600">
+                  Report generated • Version {latestReport.version}
+                </p>
                 <Button
                   variant="outline"
                   onClick={() => generateReportMutation.mutate()}
-                  disabled={generating}
+                  disabled={generatingReport}
                   size="sm"
                 >
                   Regenerate
                 </Button>
               </div>
-
-              <div className="flex gap-2">
-                {latestReport.status === 'draft' && (
-                  <Button
-                    onClick={() => publishReportMutation.mutate(latestReport.id)}
-                    disabled={publishReportMutation.isPending}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700"
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-2" />
-                    Publish to Library
-                  </Button>
-                )}
-                <Button
-                  onClick={() => generateGammaMutation.mutate(latestReport.id)}
-                  disabled={generateGammaMutation.isPending}
-                  variant="outline"
-                  className="flex-1"
-                >
-                  {generateGammaMutation.isPending ? (
-                    <>
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Generating...
-                    </>
-                  ) : (
-                    'Generate Gamma Report'
-                  )}
-                </Button>
-              </div>
-
-              {latestReport.gamma_url && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg space-y-3">
-                  <h4 className="font-semibold text-blue-900">Gamma Report</h4>
-                  <div className="flex flex-wrap gap-2">
-                    <a href={latestReport.gamma_url} target="_blank" rel="noopener noreferrer">
-                      <Button variant="outline" size="sm">
-                        <ExternalLink className="w-4 h-4 mr-2" />
-                        View in Gamma
-                      </Button>
-                    </a>
-                    {latestReport.gamma_pptx_url && (
-                      <a href={latestReport.gamma_pptx_url} download>
-                        <Button variant="outline" size="sm">
-                          <Download className="w-4 h-4 mr-2" />
-                          Download PPTX
-                        </Button>
-                      </a>
-                    )}
-                    {latestReport.gamma_pdf_url && (
-                      <a href={latestReport.gamma_pdf_url} download>
-                        <Button variant="outline" size="sm">
-                          <Download className="w-4 h-4 mr-2" />
-                          Download PDF
-                        </Button>
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <Link to={createPageUrl(`ReportView?id=${latestReport.id}`)}>
-                <Button variant="outline" className="w-full">
-                  View Full Report
-                </Button>
-              </Link>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Report Preview */}
-      {latestReport && latestReport.slides && (
+      {/* Report Details */}
+      {latestReport && (
         <Card>
           <CardHeader>
-            <CardTitle>Report Preview</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {latestReport.slides.slice(0, 3).map((slide, idx) => (
-                <Card key={idx} className="border-slate-200 bg-slate-50">
-                  <CardContent className="p-4">
-                    <div className="text-xs text-slate-500 mb-2">Slide {slide.slide_number}</div>
-                    <h4 className="font-semibold text-slate-900 mb-2">{slide.title}</h4>
-                    {slide.subtitle && (
-                      <p className="text-sm text-slate-600 mb-2">{slide.subtitle}</p>
-                    )}
-                    {slide.bullets && slide.bullets.length > 0 && (
-                      <ul className="text-sm text-slate-700 space-y-1">
-                        {slide.bullets.slice(0, 3).map((bullet, bidx) => (
-                          <li key={bidx}>• {bullet}</li>
-                        ))}
-                      </ul>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-              {latestReport.slides.length > 3 && (
-                <p className="text-center text-sm text-slate-500">
-                  +{latestReport.slides.length - 3} more slides
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle>{latestReport.title}</CardTitle>
+                <p className="text-sm text-slate-600 mt-1">
+                  {latestReport.category} • {latestReport.region}
                 </p>
+              </div>
+              <div className="flex gap-2">
+                <Badge className={
+                  latestReport.freshness === 'fresh' ? 'bg-green-100 text-green-700' :
+                  latestReport.freshness === 'use_with_caution' ? 'bg-yellow-100 text-yellow-700' :
+                  'bg-red-100 text-red-700'
+                }>
+                  {latestReport.freshness}
+                </Badge>
+                <Badge variant="outline">v{latestReport.version}</Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Report Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="p-4 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600 mb-1">Slides</p>
+                <p className="text-2xl font-bold text-slate-900">{latestReport.slides?.length || 0}</p>
+              </div>
+              <div className="p-4 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600 mb-1">Evidence</p>
+                <p className="text-2xl font-bold text-slate-900">{latestReport.evidence_pack?.length || 0}</p>
+              </div>
+              <div className="p-4 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600 mb-1">Products</p>
+                <p className="text-2xl font-bold text-slate-900">{latestReport.product_shortlist?.length || 0}</p>
+              </div>
+              <div className="p-4 bg-slate-50 rounded-lg">
+                <p className="text-sm text-slate-600 mb-1">Trends</p>
+                <p className="text-2xl font-bold text-slate-900">{latestReport.selected_trends?.length || 0}</p>
+              </div>
+            </div>
+
+            {/* Gamma Integration */}
+            <div className="border-t pt-6">
+              <h3 className="font-semibold text-slate-900 mb-4">Gamma Deck</h3>
+              {!latestReport.gamma_url ? (
+                <div className="text-center py-6 bg-purple-50 rounded-lg border border-purple-200">
+                  <Sparkles className="w-10 h-10 mx-auto mb-3 text-purple-500" />
+                  <p className="text-slate-700 mb-4">Create a beautiful Gamma presentation</p>
+                  <Button
+                    onClick={() => generateGammaMutation.mutate(latestReport.id)}
+                    disabled={generatingGamma}
+                    className="bg-purple-600 hover:bg-purple-700"
+                  >
+                    {generatingGamma ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Creating Gamma Deck...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Create Gamma Deck
+                      </>
+                    )}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <a 
+                    href={latestReport.gamma_url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                        <ExternalLink className="w-5 h-5 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-slate-900">View in Gamma</p>
+                        <p className="text-sm text-slate-600">Open presentation</p>
+                      </div>
+                    </div>
+                    <ExternalLink className="w-5 h-5 text-slate-400" />
+                  </a>
+
+                  {latestReport.gamma_pptx_url && (
+                    <a 
+                      href={latestReport.gamma_pptx_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <Download className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">Download PPTX</p>
+                          <p className="text-sm text-slate-600">PowerPoint export</p>
+                        </div>
+                      </div>
+                      <Download className="w-5 h-5 text-slate-400" />
+                    </a>
+                  )}
+
+                  {latestReport.gamma_pdf_url && (
+                    <a 
+                      href={latestReport.gamma_pdf_url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
+                          <Download className="w-5 h-5 text-red-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-slate-900">Download PDF</p>
+                          <p className="text-sm text-slate-600">PDF export</p>
+                        </div>
+                      </div>
+                      <Download className="w-5 h-5 text-slate-400" />
+                    </a>
+                  )}
+                </div>
               )}
             </div>
+
+            {/* View Full Report */}
+            <div className="border-t pt-6">
+              <Link to={createPageUrl(`ReportView?id=${latestReport.id}`)}>
+                <Button variant="outline" className="w-full">
+                  <FileText className="w-4 h-4 mr-2" />
+                  View Full Report Details
+                </Button>
+              </Link>
+            </div>
+
+            {/* Warnings */}
+            {latestReport.warnings && latestReport.warnings.length > 0 && (
+              <div className="border-t pt-6">
+                <h3 className="font-semibold text-slate-900 mb-3">Quality Warnings</h3>
+                <div className="space-y-2">
+                  {latestReport.warnings.map((warning, idx) => (
+                    <div key={idx} className="flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                      <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-sm text-yellow-800">{warning.message || JSON.stringify(warning)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
