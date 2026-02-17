@@ -32,8 +32,6 @@ Deno.serve(async (req) => {
       name: `${originalProject.name} (Clone)`,
       category: originalProject.category,
       region: originalProject.region,
-      trend_time_window: originalProject.trend_time_window,
-      launch_time_window: originalProject.launch_time_window,
       audience: originalProject.audience,
       objective: originalProject.objective,
       meeting_context: originalProject.meeting_context,

@@ -24,7 +24,6 @@ Deno.serve(async (req) => {
     let evidenceText = `Project Context:
 Category: ${project.category}
 Region: ${project.region}
-Time Windows: Trends ${project.trend_time_window}, Launches ${project.launch_time_window}
 Customer Priorities: ${project.customer_priorities?.join(', ') || 'None specified'}
 
 `;
