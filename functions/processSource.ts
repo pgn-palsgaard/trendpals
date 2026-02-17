@@ -68,71 +68,66 @@ Deno.serve(async (req) => {
             }
           }
         } else if (fileContent.includes('<html') || fileContent.includes('<table')) {
-          // Parse HTML and extract images
-          const recordIdMatches = fileContent.match(/Record ID[:\s]*([0-9]+)/gi) || [];
-          const imageMatches = fileContent.match(/<img[^>]+src=["']([^"']+)["']/gi) || [];
-          
-          // Extract and upload images
-          const imageUrls = [];
-          for (const imgTag of imageMatches.slice(0, 50)) {
-            const srcMatch = imgTag.match(/src=["']([^"']+)["']/);
-            if (srcMatch && srcMatch[1]) {
-              let imageSrc = srcMatch[1];
-              
-              // Convert relative URLs to absolute if needed
-              if (imageSrc.startsWith('data:image')) {
-                // Handle base64 images
-                try {
-                  const base64Match = imageSrc.match(/^data:image\/([^;]+);base64,(.+)$/);
-                  if (base64Match) {
-                    const imageType = base64Match[1];
-                    const base64Data = base64Match[2];
-                    
-                    // Decode base64 to binary
-                    const binaryString = atob(base64Data);
-                    const bytes = new Uint8Array(binaryString.length);
-                    for (let i = 0; i < binaryString.length; i++) {
-                      bytes[i] = binaryString.charCodeAt(i);
-                    }
-                    
-                    // Create a Blob and File
-                    const blob = new Blob([bytes], { type: `image/${imageType}` });
-                    const file = new File([blob], `product_${Date.now()}.${imageType}`, { type: `image/${imageType}` });
-                    
-                    // Upload to Base44
-                    const uploadResult = await base44.integrations.Core.UploadFile({ file });
-                    if (uploadResult.file_url) {
-                      imageUrls.push(uploadResult.file_url);
-                    }
+          // Use ExtractDataFromUploadedFile for more robust HTML parsing
+          const extractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
+            file_url,
+            json_schema: {
+              type: "object",
+              properties: {
+                products: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      record_id: { type: "string" },
+                      product_name: { type: "string" },
+                      image_url: { type: "string" },
+                      brand: { type: "string" },
+                      launch_date: { type: "string" },
+                      country: { type: "string" }
+                    },
+                    required: ["record_id", "product_name"]
                   }
-                } catch (e) {
-                  console.error('Failed to process base64 image:', e);
                 }
-              } else if (imageSrc.startsWith('http')) {
-                // Direct URL - download and re-upload
+              },
+              required: ["products"]
+            }
+          });
+
+          if (extractResult.status === 'success' && extractResult.output?.products) {
+            const extractedProducts = extractResult.output.products;
+            
+            for (const product of extractedProducts) {
+              let has_image = false;
+              let uploaded_image_url = null;
+
+              if (product.image_url) {
                 try {
-                  const imgResponse = await fetch(imageSrc);
+                  const imgResponse = await fetch(product.image_url);
                   const imgBlob = await imgResponse.blob();
-                  const imgFile = new File([imgBlob], `product_${Date.now()}.jpg`, { type: imgBlob.type });
+                  const imgFile = new File([imgBlob], `gnpd_product_${product.record_id || Date.now()}.jpg`, { type: imgBlob.type });
                   
                   const uploadResult = await base44.integrations.Core.UploadFile({ file: imgFile });
                   if (uploadResult.file_url) {
-                    imageUrls.push(uploadResult.file_url);
+                    uploaded_image_url = uploadResult.file_url;
+                    has_image = true;
                   }
                 } catch (e) {
-                  console.error('Failed to download/upload image:', e);
+                  console.error(`Failed to download/upload image for product ${product.record_id}:`, e);
                 }
               }
+
+              gnpd_data.push({
+                record_id: product.record_id,
+                product_name: product.product_name,
+                brand: product.brand || null,
+                launch_date: product.launch_date || null,
+                country: product.country || null,
+                image_url: uploaded_image_url,
+                has_image: has_image,
+                parsed_from_html: true
+              });
             }
-          }
-          
-          for (let i = 0; i < Math.min(recordIdMatches.length, 200); i++) {
-            gnpd_data.push({
-              record_id: recordIdMatches[i].replace(/[^0-9]/g, ''),
-              parsed_from_html: true,
-              image_url: imageUrls[i] || null,
-              has_image: !!imageUrls[i]
-            });
           }
         }
 
