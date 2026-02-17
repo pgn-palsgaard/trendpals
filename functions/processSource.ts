@@ -68,14 +68,70 @@ Deno.serve(async (req) => {
             }
           }
         } else if (fileContent.includes('<html') || fileContent.includes('<table')) {
-          // Parse HTML
+          // Parse HTML and extract images
           const recordIdMatches = fileContent.match(/Record ID[:\s]*([0-9]+)/gi) || [];
-          const productMatches = fileContent.match(/<td[^>]*>([^<]+)<\/td>/gi) || [];
+          const imageMatches = fileContent.match(/<img[^>]+src=["']([^"']+)["']/gi) || [];
+          
+          // Extract and upload images
+          const imageUrls = [];
+          for (const imgTag of imageMatches.slice(0, 50)) {
+            const srcMatch = imgTag.match(/src=["']([^"']+)["']/);
+            if (srcMatch && srcMatch[1]) {
+              let imageSrc = srcMatch[1];
+              
+              // Convert relative URLs to absolute if needed
+              if (imageSrc.startsWith('data:image')) {
+                // Handle base64 images
+                try {
+                  const base64Match = imageSrc.match(/^data:image\/([^;]+);base64,(.+)$/);
+                  if (base64Match) {
+                    const imageType = base64Match[1];
+                    const base64Data = base64Match[2];
+                    
+                    // Decode base64 to binary
+                    const binaryString = atob(base64Data);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                      bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    
+                    // Create a Blob and File
+                    const blob = new Blob([bytes], { type: `image/${imageType}` });
+                    const file = new File([blob], `product_${Date.now()}.${imageType}`, { type: `image/${imageType}` });
+                    
+                    // Upload to Base44
+                    const uploadResult = await base44.integrations.Core.UploadFile({ file });
+                    if (uploadResult.file_url) {
+                      imageUrls.push(uploadResult.file_url);
+                    }
+                  }
+                } catch (e) {
+                  console.error('Failed to process base64 image:', e);
+                }
+              } else if (imageSrc.startsWith('http')) {
+                // Direct URL - download and re-upload
+                try {
+                  const imgResponse = await fetch(imageSrc);
+                  const imgBlob = await imgResponse.blob();
+                  const imgFile = new File([imgBlob], `product_${Date.now()}.jpg`, { type: imgBlob.type });
+                  
+                  const uploadResult = await base44.integrations.Core.UploadFile({ file: imgFile });
+                  if (uploadResult.file_url) {
+                    imageUrls.push(uploadResult.file_url);
+                  }
+                } catch (e) {
+                  console.error('Failed to download/upload image:', e);
+                }
+              }
+            }
+          }
           
           for (let i = 0; i < Math.min(recordIdMatches.length, 200); i++) {
             gnpd_data.push({
               record_id: recordIdMatches[i].replace(/[^0-9]/g, ''),
-              parsed_from_html: true
+              parsed_from_html: true,
+              image_url: imageUrls[i] || null,
+              has_image: !!imageUrls[i]
             });
           }
         }
