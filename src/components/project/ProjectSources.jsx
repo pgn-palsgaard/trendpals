@@ -338,14 +338,26 @@ export default function ProjectSources({ project, sources }) {
                               </p>
                             )}
                             {source.gnpd_data && source.gnpd_data.length > 0 && (
-                              <p className="text-xs text-slate-600">
-                                🛒 {source.gnpd_data.length} GNPD product launches
+                              <div className="space-y-1">
+                                <p className="text-xs text-slate-600">
+                                  🛒 {source.gnpd_data.length} GNPD product launches
+                                </p>
                                 {source.gnpd_data.filter(p => p.has_image).length > 0 && (
-                                  <span className="ml-1">
-                                    ({source.gnpd_data.filter(p => p.has_image).length} with images 📷)
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <div className="text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded border border-green-200">
+                                      ✓ {source.gnpd_data.filter(p => p.has_image).length} products with images
+                                    </div>
+                                    <div className="text-xs text-slate-500">
+                                      ({Math.round((source.gnpd_data.filter(p => p.has_image).length / source.gnpd_data.length) * 100)}% match rate)
+                                    </div>
+                                  </div>
                                 )}
-                              </p>
+                                {source.gnpd_data.filter(p => !p.has_image).length > 0 && (
+                                  <p className="text-xs text-slate-500">
+                                    {source.gnpd_data.filter(p => !p.has_image).length} products without images
+                                  </p>
+                                )}
+                              </div>
                             )}
                             
                             {/* Explanation of what this source provides */}
