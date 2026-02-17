@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Target, Users, Flag } from 'lucide-react';
+import { Calendar, Target, Users, Flag, Upload, TrendingUp, CheckCircle } from 'lucide-react';
 
 export default function ProjectOverview({ project, sources, trendCandidates }) {
   return (
