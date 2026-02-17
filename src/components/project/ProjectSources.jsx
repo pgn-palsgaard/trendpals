@@ -15,6 +15,8 @@ export default function ProjectSources({ project, sources }) {
   const [sourceType, setSourceType] = useState('mintel');
   const [url, setUrl] = useState('');
   const [failedUpload, setFailedUpload] = useState(null);
+  const [gnpdHtmlFile, setGnpdHtmlFile] = useState(null);
+  const [gnpdXlsxFile, setGnpdXlsxFile] = useState(null);
 
   const uploadSourceMutation = useMutation({
     mutationFn: async (data) => {
