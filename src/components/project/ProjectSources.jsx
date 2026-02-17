@@ -269,51 +269,6 @@ export default function ProjectSources({ project, sources, imageExtractions = []
 
 
 
-      {/* Image Extraction Overview */}
-      {imageExtractions.length > 0 && (
-        <Card className="border-purple-200 bg-purple-50/30">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <span>📷 Image Extraction Overview</span>
-              <span className="text-xs font-normal text-slate-600 bg-white px-2 py-1 rounded">
-                {imageExtractions.length} job(s)
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-3 rounded-lg bg-white border border-slate-200">
-                <p className="text-xs text-slate-600 font-medium">Pending</p>
-                <p className="text-xl font-semibold text-slate-700">{imageExtractions.filter(j => j.status === 'pending').length}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-white border border-slate-200">
-                <p className="text-xs text-slate-600 font-medium">Processing</p>
-                <p className="text-xl font-semibold text-slate-700">{imageExtractions.filter(j => j.status === 'processing').length}</p>
-              </div>
-              <div className="p-3 rounded-lg bg-white border border-slate-200">
-                <p className="text-xs text-slate-600 font-medium">Completed</p>
-                <p className="text-xl font-semibold text-green-700">{imageExtractions.filter(j => j.status === 'completed').length}</p>
-              </div>
-            </div>
-            
-            {imageExtractions.some(j => j.status === 'failed') && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-sm font-medium text-red-800">
-                  ⚠️ {imageExtractions.filter(j => j.status === 'failed').length} extraction(s) failed
-                </p>
-              </div>
-            )}
-
-            <div className="text-xs text-slate-600">
-              <p className="font-medium mb-2">Total images extracted:</p>
-              <p className="text-lg font-semibold text-slate-700">
-                {imageExtractions.reduce((sum, j) => sum + (j.extracted_images?.length || 0), 0)} 🖼️
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Sources List */}
       <Card>
         <CardHeader>
