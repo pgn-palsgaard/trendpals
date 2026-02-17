@@ -54,11 +54,18 @@ Available Evidence:
       }
     });
 
-    // Collect all GNPD products
+    // Collect all GNPD products with images
     const allGnpdProducts = [];
+    const imageMap = {};
     sources.forEach(source => {
       if (source.gnpd_data) {
-        allGnpdProducts.push(...source.gnpd_data);
+        source.gnpd_data.forEach(product => {
+          allGnpdProducts.push(product);
+          // Map product IDs to images for easy lookup
+          if (product.has_image && product.image_url) {
+            imageMap[product.record_id || product.id] = product.image_url;
+          }
+        });
       }
     });
 
