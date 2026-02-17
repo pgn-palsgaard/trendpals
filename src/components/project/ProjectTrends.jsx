@@ -249,18 +249,18 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
               )}
             </div>
 
-            {/* Image Extraction Jobs Status */}
+            {/* Image Extraction Jobs Status & Gallery */}
             {imageExtractions.length > 0 && (
               <div className="space-y-3 pt-4 border-t">
                 <p className="text-sm font-medium text-slate-700">Extraction Jobs ({imageExtractions.length})</p>
                 {imageExtractions.map(job => (
-                  <div key={job.id} className={`p-3 rounded-lg border ${
+                  <div key={job.id} className={`p-4 rounded-lg border ${
                     job.status === 'completed' ? 'border-green-300 bg-green-50' :
                     job.status === 'failed' ? 'border-red-300 bg-red-50' :
                     job.status === 'processing' ? 'border-blue-300 bg-blue-50' :
                     'border-slate-300 bg-slate-50'
                   }`}>
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <span className={`text-xs font-medium px-2 py-1 rounded ${
                           job.status === 'completed' ? 'bg-green-600 text-white' :
@@ -276,10 +276,37 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
                           </span>
                         )}
                       </div>
-                      {(job.status === 'failed' || job.status === 'completed') && (
-                        <Button size="sm" variant="outline">🔄 Retry</Button>
-                      )}
                     </div>
+                    
+                    {/* Image Gallery */}
+                    {job.status === 'completed' && job.extracted_images?.length > 0 && (
+                      <div className="grid grid-cols-4 gap-2">
+                        {job.extracted_images.map((img, idx) => (
+                          <a 
+                            key={idx}
+                            href={img.image_url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="group relative overflow-hidden rounded-lg bg-white border border-slate-200 hover:border-blue-400 transition-all"
+                          >
+                            <img 
+                              src={img.image_url} 
+                              alt={`Product ${img.record_id}`}
+                              className="w-full h-20 object-cover group-hover:opacity-75 transition-opacity"
+                              onError={(e) => {
+                                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80"%3E%3Crect fill="%23f3f4f6" width="80" height="80"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12"%3E{img.record_id}%3C/text%3E%3C/svg%3E';
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
+                              <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                {img.record_id}
+                              </span>
+                            </div>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                    
                     {job.error_message && (
                       <p className="text-xs text-red-700 mt-2">{job.error_message}</p>
                     )}
