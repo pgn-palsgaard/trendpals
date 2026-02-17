@@ -50,32 +50,38 @@ Deno.serve(async (req) => {
     `;
     }
 
-    // Compile evidence context
-    let evidenceContext = `Project: ${project.name}
-    Category: ${project.category}
-    Region: ${project.region}
-    Objective: ${project.objective}
-    Audience: ${project.audience}
-    ${analysisContext}
+    // Compile evidence context - optimized for token limit
+     let evidenceContext = `Project: ${project.name}
+     Category: ${project.category}
+     Region: ${project.region}
+     Objective: ${project.objective}
+     Audience: ${project.audience}
+     ${analysisContext}
 
-    Selected Trends:
-    ${selectedTrends.map((t, i) => `${i+1}. ${t.trend_name}
-    What's changing: ${t.whats_changing?.join('; ')}
-    Why now: ${t.why_now?.join('; ')}
-    Evidence: ${t.evidence_anchors?.mintel_excerpts?.length || 0} excerpts, ${t.evidence_anchors?.gnpd_products?.length || 0} products
-    `).join('\n')}
+     Selected Trends:
+     ${selectedTrends.map((t, i) => `${i+1}. ${t.trend_name}
+     What's changing: ${t.whats_changing?.join('; ')}
+     Why now: ${t.why_now?.join('; ')}
+     Evidence: ${t.evidence_anchors?.mintel_excerpts?.length || 0} excerpts, ${t.evidence_anchors?.gnpd_products?.length || 0} products
+     `).join('\n')}
 
-    Available Evidence:
-    `;
+     Available Evidence (Top excerpts per source):
+     `;
 
-    sources.forEach(source => {
-      if (source.excerpts) {
-        evidenceContext += `\n${source.title}:\n`;
-        source.excerpts.forEach(excerpt => {
-          evidenceContext += `- ${excerpt.text.substring(0, 200)}\n`;
-        });
-      }
-    });
+     // Optimize: limit excerpts per source to top 5, deduplicate, truncate
+     sources.forEach(source => {
+       if (source.excerpts && source.excerpts.length > 0) {
+         evidenceContext += `\n${source.title}:\n`;
+         const seenTexts = new Set();
+         source.excerpts.slice(0, 5).forEach(excerpt => {
+           const text = excerpt.text.substring(0, 150);
+           if (!seenTexts.has(text)) {
+             evidenceContext += `- ${text}...\n`;
+             seenTexts.add(text);
+           }
+         });
+       }
+     });
 
     // Collect all GNPD products with images
     const allGnpdProducts = [];
