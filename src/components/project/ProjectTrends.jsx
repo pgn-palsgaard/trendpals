@@ -357,7 +357,7 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
       )}
 
       {/* Trend Analysis */}
-      {selectedCount >= 3 && !showAnalysis && (
+      {selectedCount >= 3 && !trendAnalysis && (
         <Card className="border-indigo-200 bg-indigo-50/30">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -391,7 +391,7 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
       )}
 
       {/* Analysis Results */}
-      {showAnalysis && trendAnalysis && (
+      {trendAnalysis && (
         <Card className="border-indigo-300 bg-indigo-50">
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -399,24 +399,15 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
                 <Brain className="w-5 h-5 text-indigo-600" />
                 Trend Analysis Results
               </CardTitle>
-              <div className="flex gap-2">
-                <Button 
-                  variant="default"
-                  size="sm"
-                  onClick={() => addAnalysisToReportMutation.mutate()}
-                  disabled={addAnalysisToReportMutation.isPending || project.include_trend_analysis_in_report}
-                  className="bg-green-600 hover:bg-green-700"
-                >
-                  {project.include_trend_analysis_in_report ? '✓ Added to Report' : 'Add to Report'}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => setShowAnalysis(false)}
-                >
-                  Hide
-                </Button>
-              </div>
+              <Button 
+                variant="default"
+                size="sm"
+                onClick={() => addAnalysisToReportMutation.mutate()}
+                disabled={addAnalysisToReportMutation.isPending || project.include_trend_analysis_in_report}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {project.include_trend_analysis_in_report ? '✓ Added to Report' : 'Add to Report'}
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
