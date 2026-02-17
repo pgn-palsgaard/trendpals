@@ -311,23 +311,46 @@ export default function ProjectSources({ project, sources, imageExtractions = []
             </div>
           </div>
           
-          <Button 
-            onClick={handleMergeGNPD}
-            disabled={!gnpdHtmlFile || !gnpdXlsxFile || uploading}
-            className="w-full bg-blue-600 hover:bg-blue-700"
-            size="lg"
-          >
-            {uploading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Processing & Matching...
-              </>
-            ) : (
-              <>
-                🔗 Merge & Process Files
-              </>
+          <div className="flex gap-3">
+            <Button 
+              onClick={handleMergeGNPD}
+              disabled={!gnpdHtmlFile || !gnpdXlsxFile || uploading}
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
+              size="lg"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Processing & Matching...
+                </>
+              ) : (
+                <>
+                  🔗 Merge & Process Files
+                </>
+              )}
+            </Button>
+            {project.state !== 'published' && (
+              <Button 
+                onClick={() => {
+                  if (confirm('This will delete all image extraction attempts and remove extracted images from sources. Continue?')) {
+                    resetExtractionMutation.mutate();
+                  }
+                }}
+                disabled={resetExtractionMutation.isPending || imageExtractions.length === 0}
+                variant="outline"
+                size="lg"
+              >
+                {resetExtractionMutation.isPending ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Resetting...
+                  </>
+                ) : (
+                  <>🔄 Reset All</>
+                )}
+              </Button>
             )}
-          </Button>
+          </div>
         </CardContent>
       </Card>
 
