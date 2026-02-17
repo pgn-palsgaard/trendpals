@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, TrendingUp, CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Sparkles, TrendingUp, CheckCircle2, XCircle, AlertCircle, Loader2, Brain, Lightbulb, TrendingUpIcon } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ProjectTrends({ project, trendCandidates, sources, imageExtractions = [] }) {
