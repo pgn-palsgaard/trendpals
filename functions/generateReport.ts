@@ -234,6 +234,12 @@ Return structured JSON.`,
       return slideWithImages;
     });
 
+    // Get existing reports for this project to determine version
+    const existingReports = await base44.entities.Report.filter({ project_id });
+    const nextVersion = existingReports.length > 0 
+      ? Math.max(...existingReports.map(r => r.version || 1)) + 1
+      : 1;
+
     // Create report entity
     const report = await base44.entities.Report.create({
       project_id,
@@ -248,7 +254,7 @@ Return structured JSON.`,
       warnings: response.warnings || [],
       freshness,
       status: 'draft',
-      version: 1
+      version: nextVersion
     });
 
     return Response.json({ 
