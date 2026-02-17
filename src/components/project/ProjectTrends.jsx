@@ -398,13 +398,24 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
                 <Brain className="w-5 h-5 text-indigo-600" />
                 Trend Analysis Results
               </CardTitle>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => setShowAnalysis(false)}
-              >
-                Hide
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  variant="default"
+                  size="sm"
+                  onClick={() => addAnalysisToReportMutation.mutate()}
+                  disabled={addAnalysisToReportMutation.isPending || project.include_trend_analysis_in_report}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {project.include_trend_analysis_in_report ? '✓ Added to Report' : 'Add to Report'}
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setShowAnalysis(false)}
+                >
+                  Hide
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-6">
