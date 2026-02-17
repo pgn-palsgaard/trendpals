@@ -138,10 +138,17 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
                 <Button
                   variant="outline"
                   onClick={() => generateReportMutation.mutate()}
-                  disabled={generatingReport}
+                  disabled={generateReportMutation.isPending}
                   size="sm"
                 >
-                  Regenerate
+                  {generateReportMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Regenerating...
+                    </>
+                  ) : (
+                    'Regenerate'
+                  )}
                 </Button>
               </div>
             </div>
