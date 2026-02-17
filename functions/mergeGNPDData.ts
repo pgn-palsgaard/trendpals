@@ -12,43 +12,60 @@ Deno.serve(async (req) => {
     const { project_id, html_file_url, xlsx_file_url, title } = await req.json();
 
     console.log('Starting GNPD merge process...');
+    console.log('HTML URL:', html_file_url);
+    console.log('XLSX URL:', xlsx_file_url);
 
-    // Fetch and parse HTML directly
-    console.log('Fetching HTML from:', html_file_url);
+    // Fetch HTML content
+    console.log('Fetching HTML...');
     const htmlResponse = await fetch(html_file_url);
     const htmlText = await htmlResponse.text();
-    
-    // Parse HTML to extract record IDs and image URLs
-    const imageMap = {};
-    
-    // Match patterns like: record_id="12345" and img src="..."
-    // or data-record-id="12345" and corresponding images
-    const recordIdPattern = /(?:record[_-]?id|data-record[_-]?id|id)=["'](\d+)["']/gi;
-    const imgPattern = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-    
-    // Split HTML into sections by tables or divs
-    const sections = htmlText.split(/(?=<tr|<div[^>]*class=["'][^"']*product)/i);
-    
-    for (const section of sections) {
-      const recordMatch = section.match(/(?:record[_-]?id|data-record[_-]?id|id)=["'](\d+)["']/i);
-      const imgMatch = section.match(/<img[^>]+src=["']([^"']+)["'][^>]*>/i);
-      
-      if (recordMatch && imgMatch) {
-        const recordId = recordMatch[1];
-        let imageUrl = imgMatch[1];
-        
-        // Handle relative URLs
-        if (imageUrl.startsWith('/') || imageUrl.startsWith('..')) {
-          const baseUrl = new URL(html_file_url).origin;
-          imageUrl = new URL(imageUrl, baseUrl).href;
-        }
-        
-        imageMap[recordId] = imageUrl;
-        console.log(`Matched record ${recordId} to image: ${imageUrl}`);
-      }
-    }
+    console.log('HTML length:', htmlText.length);
 
-    console.log(`Found ${Object.keys(imageMap).length} image mappings`);
+    // Use AI to extract image mappings from HTML
+    console.log('Using AI to parse HTML and extract image mappings...');
+    const imageExtractionResult = await base44.integrations.Core.InvokeLLM({
+      prompt: `Parse this GNPD HTML export and extract all product record IDs with their corresponding image URLs.
+
+HTML content:
+${htmlText.substring(0, 50000)}
+
+Return a JSON object with this exact structure:
+{
+  "image_mappings": [
+    {
+      "record_id": "12345",
+      "image_url": "https://..."
+    }
+  ]
+}
+
+Important:
+- Extract ONLY the numeric record ID (like "12345", "67890", etc.)
+- Extract the full image URL from img src attributes
+- If an image URL is relative (starts with / or ..), include it but mark it
+- Return ALL products found in the HTML, even if they don't have images`,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          image_mappings: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                record_id: { type: "string" },
+                image_url: { type: "string" }
+              },
+              required: ["record_id"]
+            }
+          }
+        },
+        required: ["image_mappings"]
+      }
+    });
+
+    console.log('AI extraction complete');
+    const imageMappings = imageExtractionResult.image_mappings || [];
+    console.log(`Found ${imageMappings.length} product-image mappings`);
 
     // Extract full product data from XLSX
     console.log('Extracting data from XLSX...');
@@ -82,11 +99,20 @@ Deno.serve(async (req) => {
     if (xlsxExtractResult.status !== 'success') {
       return Response.json({ 
         error: 'Failed to extract data from Excel file',
-        xlsx_status: xlsxExtractResult.status
+        details: xlsxExtractResult.details
       }, { status: 400 });
     }
 
     console.log(`Extracted ${xlsxExtractResult.output?.products?.length || 0} products from Excel`);
+
+    // Create lookup map for images
+    const imageMap = {};
+    for (const mapping of imageMappings) {
+      if (mapping.record_id && mapping.image_url) {
+        imageMap[mapping.record_id.trim()] = mapping.image_url;
+      }
+    }
+    console.log(`Created image map with ${Object.keys(imageMap).length} entries`);
 
     // Merge data and upload images
     const mergedProducts = [];
@@ -100,15 +126,24 @@ Deno.serve(async (req) => {
         let uploaded_image_url = null;
 
         // Check if we have an image for this product
-        const imageUrl = imageMap[recordId];
+        let imageUrl = imageMap[recordId];
+        
         if (imageUrl) {
           try {
-            console.log(`Downloading image for product ${recordId}...`);
+            // Handle relative URLs
+            if (imageUrl.startsWith('/') || imageUrl.startsWith('..')) {
+              const baseUrl = new URL(html_file_url).origin;
+              imageUrl = new URL(imageUrl, baseUrl).href;
+            }
+
+            console.log(`Downloading image for product ${recordId} from ${imageUrl}...`);
             const imgResponse = await fetch(imageUrl);
             
             if (imgResponse.ok) {
               const imgBlob = await imgResponse.blob();
-              const imgFile = new File([imgBlob], `gnpd_${recordId}.jpg`, { type: imgBlob.type });
+              const contentType = imgResponse.headers.get('content-type') || 'image/jpeg';
+              const ext = contentType.includes('png') ? 'png' : 'jpg';
+              const imgFile = new File([imgBlob], `gnpd_${recordId}.${ext}`, { type: contentType });
               
               console.log(`Uploading image for product ${recordId}...`);
               const uploadResult = await base44.integrations.Core.UploadFile({ file: imgFile });
@@ -127,6 +162,8 @@ Deno.serve(async (req) => {
             console.error(`Failed to upload image for product ${recordId}:`, e.message);
             failedUploads++;
           }
+        } else {
+          console.log(`No image mapping found for product ${recordId}`);
         }
 
         mergedProducts.push({
@@ -181,7 +218,8 @@ Deno.serve(async (req) => {
       products_count: mergedProducts.length,
       images_count: successfulUploads,
       images_failed: failedUploads,
-      match_rate: Math.round((successfulUploads / mergedProducts.length) * 100)
+      mappings_found: imageMappings.length,
+      match_rate: mergedProducts.length > 0 ? Math.round((successfulUploads / mergedProducts.length) * 100) : 0
     });
   } catch (error) {
     console.error('Merge GNPD data error:', error);
