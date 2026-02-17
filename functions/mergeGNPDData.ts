@@ -11,7 +11,12 @@ Deno.serve(async (req) => {
 
     const { project_id, html_file_url, xlsx_file_url, title } = await req.json();
 
+    console.log('Starting GNPD merge process...');
+    console.log('HTML URL:', html_file_url);
+    console.log('XLSX URL:', xlsx_file_url);
+
     // Extract product data with images from HTML
+    console.log('Extracting data from HTML...');
     const htmlExtractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
       file_url: html_file_url,
       json_schema: {
@@ -23,6 +28,7 @@ Deno.serve(async (req) => {
               type: "object",
               properties: {
                 record_id: { type: "string" },
+                product_name: { type: "string" },
                 image_url: { type: "string" }
               },
               required: ["record_id"]
@@ -32,6 +38,8 @@ Deno.serve(async (req) => {
         required: ["products"]
       }
     });
+
+    console.log('HTML extraction result:', JSON.stringify(htmlExtractResult, null, 2));
 
     // Extract full product data from XLSX
     const xlsxExtractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
