@@ -113,6 +113,22 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
     }
   });
 
+  const addAnalysisToReportMutation = useMutation({
+    mutationFn: async () => {
+      await base44.entities.Project.update(project.id, {
+        trend_analysis: trendAnalysis,
+        include_trend_analysis_in_report: true
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', project.id] });
+      toast.success('Trend analysis added to report - it will be included in report generation');
+    },
+    onError: (error) => {
+      toast.error('Failed to add analysis to report');
+    }
+  });
+
   const confidenceColors = {
     high: 'bg-green-100 text-green-700 border-green-200',
     medium: 'bg-yellow-100 text-yellow-700 border-yellow-200',
