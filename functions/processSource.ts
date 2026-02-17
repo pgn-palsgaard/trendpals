@@ -11,141 +11,93 @@ Deno.serve(async (req) => {
 
     const { project_id, source_type, file_url, url, title } = await req.json();
 
-    // Calculate freshness based on current date
-    const calculateFreshness = (sourceDate) => {
-      if (!sourceDate) return 'recent';
-      const monthsOld = (new Date() - new Date(sourceDate)) / (1000 * 60 * 60 * 24 * 30);
-      if (monthsOld <= 12) return 'recent';
-      if (monthsOld <= 24) return 'aging';
-      return 'outdated';
+    // Create source record first
+    const sourceData = {
+      project_id,
+      source_type,
+      title,
+      file_url: file_url || null,
+      url: url || null,
+      status: 'processing',
+      excerpts: [],
+      gnpd_data: []
     };
 
-    let excerpts = [];
-    let gnpd_data = [];
-    let status = 'processed';
-    let sourceDate = new Date().toISOString().split('T')[0];
+    const source = await base44.entities.Source.create(sourceData);
 
     // Process based on source type
-    if (source_type === 'gnpd' && file_url) {
-      // Check if it's an HTML file
-      const isHtml = file_url.toLowerCase().endsWith('.html') || title.toLowerCase().endsWith('.html');
-      
-      try {
-        const fileResponse = await fetch(file_url);
-        const fileText = await fileResponse.text();
+    try {
+      if (source_type === 'url') {
+        // Fetch URL content
+        const response = await fetch(url);
+        const text = await response.text();
         
-        if (isHtml) {
-          // Parse HTML to extract images
-          const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
-          const imageUrls = [];
-          let match;
-          
-          while ((match = imgRegex.exec(fileText)) !== null) {
-            imageUrls.push(match[1]);
-          }
-          
-          // Process each image URL - download and re-upload to get public URL
-          const processedImages = [];
-          for (const imgUrl of imageUrls) {
-            try {
-              // Check if URL is absolute
-              let fullUrl = imgUrl;
-              if (!imgUrl.startsWith('http')) {
-                // Skip relative URLs or data URLs
-                continue;
-              }
-              
-              // Download image
-              const imgResponse = await fetch(fullUrl);
-              if (imgResponse.ok) {
-                const blob = await imgResponse.blob();
-                
-                // Convert blob to File for upload
-                const arrayBuffer = await blob.arrayBuffer();
-                const uint8Array = new Uint8Array(arrayBuffer);
-                
-                // Upload to Base44 storage
-                const uploadResult = await base44.integrations.Core.UploadFile({
-                  file: uint8Array
-                });
-                
-                processedImages.push({
-                  original_url: imgUrl,
-                  hosted_url: uploadResult.file_url
-                });
-              }
-            } catch (err) {
-              console.error(`Failed to process image: ${imgUrl}`, err);
-            }
-          }
-          
-          // Extract product data from HTML using LLM
-          const llmResponse = await base44.integrations.Core.InvokeLLM({
-            prompt: `Extract GNPD product data from this HTML file. 
-            Look for product information including: product name, brand, market/country, launch date, category, key ingredients, claims, etc.
-            Return as a JSON array of products with all available fields.`,
-            file_urls: [file_url],
-            response_json_schema: {
-              type: "object",
-              properties: {
-                products: {
-                  type: "array",
-                  items: {
-                    type: "object",
-                    properties: {
-                      product_name: { type: "string" },
-                      brand: { type: "string" },
-                      market: { type: "string" },
-                      launch_date: { type: "string" },
-                      category: { type: "string" },
-                      key_ingredients: { type: "string" },
-                      claims: { type: "string" }
-                    }
-                  }
-                }
-              }
-            }
-          });
-          
-          gnpd_data = (llmResponse.products || []).map((product, idx) => ({
-            ...product,
-            has_image: idx < processedImages.length,
-            image_url: processedImages[idx]?.hosted_url || null,
-            original_image_url: processedImages[idx]?.original_url || null
-          }));
-          
-        } else {
-          // CSV parsing (existing logic)
-          const lines = fileText.split('\n');
+        // Extract text chunks (simplified)
+        const excerpts = [{
+          id: `excerpt_${Date.now()}`,
+          text: text.substring(0, 1000),
+          page_ref: 'web'
+        }];
+
+        await base44.entities.Source.update(source.id, {
+          status: 'processed',
+          excerpts,
+          freshness: 'recent'
+        });
+      } else if (source_type === 'gnpd') {
+        // Process GNPD file
+        const fileResponse = await fetch(file_url);
+        const fileContent = await fileResponse.text();
+
+        let gnpd_data = [];
+
+        // Detect file type and parse
+        if (file_url.endsWith('.csv') || fileContent.includes(',')) {
+          // Parse CSV
+          const lines = fileContent.split('\n');
           const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
           
-          for (let i = 1; i < lines.length; i++) {
-            if (!lines[i].trim()) continue;
+          for (let i = 1; i < lines.length && i < 1000; i++) {
             const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
-            const product = {};
-            headers.forEach((header, idx) => {
-              product[header] = values[idx];
+            if (values.length === headers.length) {
+              const product = {};
+              headers.forEach((header, idx) => {
+                product[header] = values[idx];
+              });
+              gnpd_data.push(product);
+            }
+          }
+        } else if (fileContent.includes('<html') || fileContent.includes('<table')) {
+          // Parse HTML
+          const recordIdMatches = fileContent.match(/Record ID[:\s]*([0-9]+)/gi) || [];
+          const productMatches = fileContent.match(/<td[^>]*>([^<]+)<\/td>/gi) || [];
+          
+          for (let i = 0; i < Math.min(recordIdMatches.length, 200); i++) {
+            gnpd_data.push({
+              record_id: recordIdMatches[i].replace(/[^0-9]/g, ''),
+              parsed_from_html: true
             });
-            
-            // Mark if product has image
-            product.has_image = !!(product['Image URL'] || product['ImageURL'] || product['Product Image']);
-            
-            gnpd_data.push(product);
           }
         }
-      } catch (error) {
-        console.error('Error processing GNPD file:', error);
-        status = 'error';
-      }
-    } else if ((source_type === 'mintel' || source_type === 'report') && file_url) {
-      // For PDFs, extract text
-      try {
-        const response = await base44.integrations.Core.InvokeLLM({
-          prompt: `Extract key insights and statistics from this document as separate excerpts. 
-          Each excerpt should be a meaningful chunk (2-4 sentences).
-          Return as JSON array: [{"id": "EX1", "text": "...", "page_ref": "Page X"}]`,
-          file_urls: [file_url],
-          response_json_schema: {
+
+        // Calculate freshness based on dates in GNPD data
+        const currentYear = new Date().getFullYear();
+        const hasRecentProducts = gnpd_data.some(p => {
+          const dateStr = p.Date || p.date || p['Launch Date'] || '';
+          return dateStr.includes(String(currentYear)) || dateStr.includes(String(currentYear - 1));
+        });
+
+        await base44.entities.Source.update(source.id, {
+          status: 'processed',
+          gnpd_data,
+          freshness: hasRecentProducts ? 'recent' : 'aging'
+        });
+      } else {
+        // Process PDF or other report
+        // Use ExtractDataFromUploadedFile for PDFs
+        const extractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
+          file_url,
+          json_schema: {
             type: "object",
             properties: {
               excerpts: {
@@ -153,57 +105,89 @@ Deno.serve(async (req) => {
                 items: {
                   type: "object",
                   properties: {
-                    id: { type: "string" },
                     text: { type: "string" },
-                    page_ref: { type: "string" }
+                    page_number: { type: "number" }
                   }
                 }
-              }
+              },
+              publication_date: { type: "string" }
             }
           }
         });
-        
-        excerpts = response.excerpts || [];
-      } catch (error) {
-        // Fallback: basic extraction
-        excerpts = [{ id: "EX1", text: "Document uploaded successfully", page_ref: "Full document" }];
+
+        let excerpts = [];
+        let publicationDate = null;
+
+        if (extractResult.status === 'success' && extractResult.output) {
+          const data = extractResult.output;
+          
+          // Create excerpt chunks
+          if (data.excerpts && Array.isArray(data.excerpts)) {
+            excerpts = data.excerpts.map((excerpt, idx) => ({
+              id: `excerpt_${source.id}_${idx}`,
+              text: excerpt.text,
+              page_ref: excerpt.page_number ? `p${excerpt.page_number}` : `chunk_${idx}`
+            }));
+          }
+
+          publicationDate = data.publication_date;
+        }
+
+        // Determine freshness based on publication date
+        let freshness = 'recent';
+        if (publicationDate) {
+          const pubYear = new Date(publicationDate).getFullYear();
+          const currentYear = new Date().getFullYear();
+          const age = currentYear - pubYear;
+          
+          if (age > 2) freshness = 'outdated';
+          else if (age > 1) freshness = 'aging';
+        }
+
+        await base44.entities.Source.update(source.id, {
+          status: 'processed',
+          excerpts,
+          date: publicationDate,
+          freshness
+        });
       }
+
+      // Update project data sufficiency score
+      const allSources = await base44.entities.Source.filter({ project_id });
+      const mintelCount = allSources.filter(s => s.source_type === 'mintel').length;
+      const gnpdCount = allSources.filter(s => s.source_type === 'gnpd').length;
+      const totalExcerpts = allSources.reduce((sum, s) => sum + (s.excerpts?.length || 0), 0);
+      const totalGnpdProducts = allSources.reduce((sum, s) => sum + (s.gnpd_data?.length || 0), 0);
+
+      let score = 0;
+      if (mintelCount > 0) score += 30;
+      if (gnpdCount > 0) score += 20;
+      if (totalExcerpts > 10) score += 25;
+      if (totalGnpdProducts > 20) score += 25;
+
+      await base44.entities.Project.update(project_id, {
+        data_sufficiency_score: Math.min(score, 100)
+      });
+
+      return Response.json({ 
+        success: true, 
+        source_id: source.id,
+        excerpts_count: source.excerpts?.length || 0,
+        gnpd_count: source.gnpd_data?.length || 0
+      });
+    } catch (processingError) {
+      // Update source status to error
+      await base44.entities.Source.update(source.id, {
+        status: 'error'
+      });
+      
+      throw processingError;
     }
-
-    const freshness = calculateFreshness(sourceDate);
-
-    // Create source record
-    const source = await base44.entities.Source.create({
-      project_id,
-      source_type,
-      title,
-      file_url: file_url || null,
-      url: url || null,
-      date: sourceDate,
-      excerpts,
-      gnpd_data,
-      status,
-      freshness
-    });
-
-    // Update project data sufficiency score
-    const allSources = await base44.entities.Source.filter({ project_id });
-    const hasMintel = allSources.some(s => s.source_type === 'mintel' || s.source_type === 'report');
-    const hasGNPD = allSources.some(s => s.source_type === 'gnpd' && s.gnpd_data?.length > 0);
-    const gnpdCount = allSources.find(s => s.source_type === 'gnpd')?.gnpd_data?.length || 0;
-    
-    let score = 0;
-    if (hasMintel) score += 40;
-    if (hasGNPD && gnpdCount >= 10) score += 60;
-    else if (hasGNPD) score += 30;
-
-    await base44.entities.Project.update(project_id, {
-      data_sufficiency_score: score,
-      state: score >= 60 ? 'evidence_sufficient' : 'draft'
-    });
-
-    return Response.json({ success: true, source });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    console.error('Process source error:', error);
+    return Response.json({ 
+      error: error.message || 'Failed to process source',
+      details: error.stack
+    }, { status: 500 });
   }
 });
