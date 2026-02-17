@@ -31,8 +31,6 @@ const formSchema = z.object({
   name: z.string().min(1, { message: "Project name is required" }),
   category: z.string().min(1, { message: "Category is required" }),
   region: z.string().min(1, { message: "Region is required" }),
-  trend_time_window: z.string().min(1, { message: "Trend time window is required" }),
-  launch_time_window: z.string().min(1, { message: "Launch time window is required" }),
   audience: z.string().default("Industrial manufacturers"),
   objective: z.string().min(10, { message: "Please provide a clear objective (at least 10 characters)" }),
   meeting_context: z.string().optional(),
@@ -56,8 +54,6 @@ export default function NewProject() {
       name: "",
       category: "",
       region: "",
-      trend_time_window: "last 24 months",
-      launch_time_window: "last 12 months",
       audience: "Industrial manufacturers",
       objective: "",
       meeting_context: "",
@@ -162,59 +158,6 @@ export default function NewProject() {
                           {regions.map((reg) => (
                             <SelectItem key={reg} value={reg}>
                               {reg}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Time Windows Row */}
-              <div className="grid md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="trend_time_window"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Trend Time Window *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select time window" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {trendTimeWindows.map((window) => (
-                            <SelectItem key={window} value={window}>
-                              {window}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="launch_time_window"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Launch Time Window *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select launch window" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {launchTimeWindows.map((window) => (
-                            <SelectItem key={window} value={window}>
-                              {window}
                             </SelectItem>
                           ))}
                         </SelectContent>
