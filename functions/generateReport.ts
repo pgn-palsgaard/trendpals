@@ -184,13 +184,40 @@ Return structured JSON.`,
       else if (ageMonths > 12) freshness = 'use_with_caution';
     }
 
+    // Merge AI-generated image placements with actual image URLs
+    const enrichedSlides = (response.slides || []).map(slide => {
+      const slideWithImages = { ...slide };
+      // Add actual image URLs from extracted GNPD data
+      if (slide.image_placements && Array.isArray(slide.image_placements)) {
+        slideWithImages.product_examples = slide.image_placements
+          .map(productRef => {
+            // Find matching product in shortlist
+            const product = (response.product_shortlist || [])
+              .find(p => p.product_name && productRef.includes(p.product_name));
+            if (product && (product.image_url || imageMap[product.product_name])) {
+              return {
+                brand: product.brand,
+                product_name: product.product_name,
+                market: product.market,
+                launch_date: product.launch_date,
+                image_url: product.image_url || imageMap[product.product_name],
+                relevance: `Supports: ${product.supporting_trends?.join(', ')}`
+              };
+            }
+            return null;
+          })
+          .filter(Boolean);
+      }
+      return slideWithImages;
+    });
+
     // Create report entity
     const report = await base44.entities.Report.create({
       project_id,
       title: response.title || `${project.category} Trends - ${project.region}`,
       category: project.category,
       region: project.region,
-      slides: response.slides || [],
+      slides: enrichedSlides,
       evidence_pack: response.evidence_pack || [],
       product_shortlist: response.product_shortlist || [],
       image_map: response.image_map || {},
