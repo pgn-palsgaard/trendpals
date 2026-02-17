@@ -453,55 +453,104 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
               </div>
             )}
 
-            {/* Key Insights */}
-            {trendAnalysis.key_insights && (
-              <div>
+            {/* Customer Perspective */}
+            {trendAnalysis.perspective_customers && (
+              <div className="border-l-4 border-blue-400 pl-4 py-2">
                 <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                  <span className="text-xl">💡</span>
-                  Key Insights
+                  <span className="text-xl">👥</span>
+                  What Customers Are Seeking (Inspiration for CPG Portfolio)
                 </h3>
-                <div className="space-y-2">
-                  {trendAnalysis.key_insights.map((insight, idx) => (
-                    <div key={idx} className="p-3 bg-white rounded-lg border border-indigo-200">
-                      <p className="text-sm text-slate-700">{insight}</p>
+                <div className="space-y-3">
+                  {trendAnalysis.perspective_customers.what_consumers_want && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-700 mb-2">Consumer Desires:</h4>
+                      <ul className="space-y-1">
+                        {trendAnalysis.perspective_customers.what_consumers_want.map((item, idx) => (
+                          <li key={idx} className="text-sm text-slate-700 flex gap-2">
+                            <span className="text-blue-500">•</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                  ))}
+                  )}
+                  {trendAnalysis.perspective_customers.portfolio_directions && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-700 mb-2">Possible Portfolio Directions:</h4>
+                      <ul className="space-y-1">
+                        {trendAnalysis.perspective_customers.portfolio_directions.map((item, idx) => (
+                          <li key={idx} className="text-sm text-slate-700 flex gap-2">
+                            <span className="text-blue-500">→</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {trendAnalysis.perspective_customers.market_gaps && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-700 mb-2">Unmet Needs:</h4>
+                      <ul className="space-y-1">
+                        {trendAnalysis.perspective_customers.market_gaps.map((item, idx) => (
+                          <li key={idx} className="text-sm text-slate-700 flex gap-2">
+                            <span className="text-blue-500">◆</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
-            {/* Product Opportunities */}
-            {trendAnalysis.product_opportunities && (
-              <div>
+            {/* Palsgaard Perspective */}
+            {trendAnalysis.perspective_palsgaard && (
+              <div className="border-l-4 border-amber-400 pl-4 py-2 bg-amber-50">
                 <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                  <Lightbulb className="w-5 h-5 text-yellow-500" />
-                  Product Ideas & Market Opportunities
+                  <span className="text-xl">🧪</span>
+                  Palsgaard's Role & Value
                 </h3>
                 <div className="space-y-3">
-                  {trendAnalysis.product_opportunities.map((opp, idx) => (
-                    <div key={idx} className="p-4 bg-white rounded-lg border border-yellow-200">
-                      <div className="flex items-start justify-between mb-2">
-                        <h4 className="font-semibold text-slate-900">{opp.idea}</h4>
-                        <Badge className={`${
-                          opp.market_potential === 'high' ? 'bg-green-100 text-green-800' :
-                          opp.market_potential === 'medium' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-blue-100 text-blue-800'
-                        } border-0`}>
-                          {opp.market_potential} potential
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-slate-700 mb-2">{opp.description}</p>
-                      {opp.connected_trends && opp.connected_trends.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {opp.connected_trends.map((trend, tidx) => (
-                            <Badge key={tidx} variant="outline" className="text-xs">
-                              {trend}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
+                  {trendAnalysis.perspective_palsgaard.capability_alignment && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-700 mb-2">Our Capabilities Aligned with These Trends:</h4>
+                      <ul className="space-y-1">
+                        {trendAnalysis.perspective_palsgaard.capability_alignment.map((item, idx) => (
+                          <li key={idx} className="text-sm text-slate-700 flex gap-2">
+                            <span className="text-amber-600">✓</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                  ))}
+                  )}
+                  {trendAnalysis.perspective_palsgaard.value_propositions && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-700 mb-2">How We Help You Win:</h4>
+                      <ul className="space-y-1">
+                        {trendAnalysis.perspective_palsgaard.value_propositions.map((item, idx) => (
+                          <li key={idx} className="text-sm text-slate-700 flex gap-2">
+                            <span className="text-amber-600">★</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {trendAnalysis.perspective_palsgaard.innovation_support && (
+                    <div>
+                      <h4 className="text-sm font-medium text-slate-700 mb-2">Where We Can Partner:</h4>
+                      <ul className="space-y-1">
+                        {trendAnalysis.perspective_palsgaard.innovation_support.map((item, idx) => (
+                          <li key={idx} className="text-sm text-slate-700 flex gap-2">
+                            <span className="text-amber-600">⚡</span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
