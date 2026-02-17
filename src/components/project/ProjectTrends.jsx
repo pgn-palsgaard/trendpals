@@ -163,6 +163,134 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
         </CardContent>
       </Card>
 
+      {/* GNPD Image Extraction - Only show if trends selected */}
+      {selectedCount >= 3 && (
+        <Card className="border-blue-200 bg-blue-50/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <span>📷 Extract & Match Product Images</span>
+              <span className="text-xs font-normal text-slate-600 bg-white px-2 py-1 rounded">Next: Align with Trends</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-900 font-medium mb-2">Match product images to your selected trends</p>
+              <p className="text-xs text-blue-700">Upload GNPD HTML (with images) and Excel files to automatically extract and match product images to your data.</p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label className="font-medium">HTML File <span className="text-slate-500 text-xs">(with images)</span></Label>
+                <Input
+                  type="file"
+                  accept=".html,.htm"
+                  onChange={(e) => setGnpdHtmlFile(e.target.files?.[0] || null)}
+                  disabled={uploading}
+                  className="cursor-pointer"
+                />
+                {gnpdHtmlFile && (
+                  <p className="text-xs text-green-600 font-medium">✓ {gnpdHtmlFile.name}</p>
+                )}
+              </div>
+              
+              <div className="space-y-2">
+                <Label className="font-medium">Excel File <span className="text-slate-500 text-xs">(with product data)</span></Label>
+                <Input
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  onChange={(e) => setGnpdXlsxFile(e.target.files?.[0] || null)}
+                  disabled={uploading}
+                  className="cursor-pointer"
+                />
+                {gnpdXlsxFile && (
+                  <p className="text-xs text-green-600 font-medium">✓ {gnpdXlsxFile.name}</p>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <Button 
+                onClick={handleMergeGNPD}
+                disabled={!gnpdHtmlFile || !gnpdXlsxFile || uploading}
+                className="flex-1 bg-blue-600 hover:bg-blue-700"
+                size="lg"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Processing & Matching...
+                  </>
+                ) : (
+                  <>
+                    🔗 Merge & Extract Images
+                  </>
+                )}
+              </Button>
+              {project.state !== 'published' && imageExtractions.length > 0 && (
+                <Button 
+                  onClick={() => {
+                    if (confirm('This will delete all image extraction attempts and remove extracted images from sources. Continue?')) {
+                      resetExtractionMutation.mutate();
+                    }
+                  }}
+                  disabled={resetExtractionMutation.isPending}
+                  variant="outline"
+                  size="lg"
+                >
+                  {resetExtractionMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Resetting...
+                    </>
+                  ) : (
+                    <>🔄 Reset</>
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {/* Image Extraction Jobs Status */}
+            {imageExtractions.length > 0 && (
+              <div className="space-y-3 pt-4 border-t">
+                <p className="text-sm font-medium text-slate-700">Extraction Jobs ({imageExtractions.length})</p>
+                {imageExtractions.map(job => (
+                  <div key={job.id} className={`p-3 rounded-lg border ${
+                    job.status === 'completed' ? 'border-green-300 bg-green-50' :
+                    job.status === 'failed' ? 'border-red-300 bg-red-50' :
+                    job.status === 'processing' ? 'border-blue-300 bg-blue-50' :
+                    'border-slate-300 bg-slate-50'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-medium px-2 py-1 rounded ${
+                          job.status === 'completed' ? 'bg-green-600 text-white' :
+                          job.status === 'failed' ? 'bg-red-600 text-white' :
+                          job.status === 'processing' ? 'bg-blue-600 text-white' :
+                          'bg-slate-600 text-white'
+                        }`}>
+                          {job.status.toUpperCase()}
+                        </span>
+                        {job.status === 'completed' && job.extracted_images?.length > 0 && (
+                          <span className="text-xs text-green-700 font-medium">
+                            ✓ {job.extracted_images.length} images
+                          </span>
+                        )}
+                      </div>
+                      {(job.status === 'failed' || job.status === 'completed') && (
+                        <Button size="sm" variant="outline">🔄 Retry</Button>
+                      )}
+                    </div>
+                    {job.error_message && (
+                      <p className="text-xs text-red-700 mt-2">{job.error_message}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Trend Candidates */}
       {trendCandidates.length > 0 && (
         <div className="space-y-4">
