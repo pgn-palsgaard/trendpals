@@ -108,15 +108,17 @@ export default function Home() {
                   ))}
                 </div>
               ) : draftProjects.length === 0 ? (
-                <div className="text-center py-8 text-slate-500">
-                  <p>No active projects</p>
-                  <Link to={createPageUrl('NewProject')}>
-                    <Button className="mt-4 bg-blue-600 hover:bg-blue-700">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Your First Project
-                    </Button>
-                  </Link>
-                </div>
+               <div className="text-center py-8">
+                 <div className="text-4xl mb-4">📋</div>
+                 <p className="text-slate-900 font-medium mb-2">No active projects</p>
+                 <p className="text-slate-600 text-sm mb-4">Start by creating a new trend report project</p>
+                 <Link to={createPageUrl('NewProject')}>
+                   <Button className="bg-blue-600 hover:bg-blue-700">
+                     <Plus className="w-4 h-4 mr-2" />
+                     Create Your First Project
+                   </Button>
+                 </Link>
+               </div>
               ) : (
                 <div className="space-y-3">
                   {draftProjects.slice(0, 5).map(project => (
@@ -179,9 +181,11 @@ export default function Home() {
                   ))}
                 </div>
               ) : filteredReports.length === 0 ? (
-                <div className="text-center py-8 text-slate-500">
-                  <p>No published reports yet</p>
-                </div>
+               <div className="text-center py-8">
+                 <div className="text-4xl mb-4">📚</div>
+                 <p className="text-slate-900 font-medium mb-2">No published reports</p>
+                 <p className="text-slate-600 text-sm">Create projects and generate reports to see them here</p>
+               </div>
               ) : (
                 <div className="space-y-3">
                   {filteredReports.slice(0, 5).map(report => (
