@@ -92,9 +92,17 @@ Deno.serve(async (req) => {
       }
     });
 
+    // Abort if no sources have excerpts or products
+    const hasSources = sources.some(s => s.excerpts?.length > 0 || s.gnpd_data?.length > 0);
+    if (!hasSources) {
+      return Response.json({ 
+        error: 'No processed sources available. Please upload and process sources first.' 
+      }, { status: 400 });
+    }
+
     // Generate report pack using AI
-    const response = await base44.integrations.Core.InvokeLLM({
-      prompt: `Generate a professional trend report for ${project.category} in ${project.region}.
+     const response = await base44.integrations.Core.InvokeLLM({
+       prompt: `Generate a professional trend report for ${project.category} in ${project.region}.
 
 ${evidenceContext}
 
