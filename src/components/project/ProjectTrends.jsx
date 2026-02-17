@@ -15,6 +15,8 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
   const [gnpdHtmlFile, setGnpdHtmlFile] = useState(null);
   const [gnpdXlsxFile, setGnpdXlsxFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [trendAnalysis, setTrendAnalysis] = useState(null);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   const generateTrendsMutation = useMutation({
     mutationFn: async () => {
