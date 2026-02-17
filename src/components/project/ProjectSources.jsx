@@ -126,6 +126,42 @@ export default function ProjectSources({ project, sources }) {
     setUrl('');
   };
 
+  const handleMergeGNPD = async () => {
+    if (!gnpdHtmlFile || !gnpdXlsxFile) {
+      toast.error('Please select both HTML and Excel files');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Upload both files
+      const htmlUpload = await base44.integrations.Core.UploadFile({ file: gnpdHtmlFile });
+      const xlsxUpload = await base44.integrations.Core.UploadFile({ file: gnpdXlsxFile });
+
+      // Merge and process
+      const response = await base44.functions.invoke('mergeGNPDData', {
+        project_id: project.id,
+        html_file_url: htmlUpload.file_url,
+        xlsx_file_url: xlsxUpload.file_url,
+        title: `GNPD - ${gnpdXlsxFile.name}`
+      });
+
+      if (response.data.success) {
+        toast.success(`Processed ${response.data.products_count} products with ${response.data.images_count} images`);
+        queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
+        queryClient.invalidateQueries({ queryKey: ['project', project.id] });
+        setGnpdHtmlFile(null);
+        setGnpdXlsxFile(null);
+      } else {
+        toast.error('Failed to merge GNPD data');
+      }
+    } catch (error) {
+      toast.error(error.message || 'Failed to process files');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const freshnessIcons = {
     recent: <CheckCircle2 className="w-4 h-4 text-green-500" />,
     aging: <AlertCircle className="w-4 h-4 text-yellow-500" />,
