@@ -35,6 +35,21 @@ export default function ProjectSources({ project, sources, imageExtractions = []
     }
   });
 
+  const resetExtractionMutation = useMutation({
+    mutationFn: async () => {
+      const response = await base44.functions.invoke('resetImageExtraction', { project_id: project.id });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['imageExtractions', project.id] });
+      queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
+      toast.success(`Image extraction reset: removed ${data.deleted_extractions} jobs, cleared images from ${data.reset_sources} sources`);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to reset image extraction');
+    }
+  });
+
   const uploadSourceMutation = useMutation({
     mutationFn: async (data) => {
       const response = await base44.functions.invoke('processSource', data);
