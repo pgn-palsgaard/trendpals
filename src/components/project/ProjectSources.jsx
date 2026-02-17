@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, FileText, AlertCircle, CheckCircle2, Loader2, ExternalLink } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle2, Loader2, ExternalLink, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ProjectSources({ project, sources }) {
@@ -31,9 +31,31 @@ export default function ProjectSources({ project, sources }) {
     }
   });
 
+  const deleteSourceMutation = useMutation({
+    mutationFn: async (sourceId) => {
+      await base44.entities.Source.delete(sourceId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
+      queryClient.invalidateQueries({ queryKey: ['project', project.id] });
+      toast.success('Source removed');
+    },
+    onError: (error) => {
+      toast.error('Failed to remove source');
+    }
+  });
+
   const handleFileUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Check for duplicate by filename
+    const duplicate = sources.find(s => s.title === file.name);
+    if (duplicate) {
+      toast.error(`A file named "${file.name}" already exists`);
+      e.target.value = ''; // Reset input
+      return;
+    }
 
     setUploading(true);
     setFailedUpload(null);
@@ -46,6 +68,7 @@ export default function ProjectSources({ project, sources }) {
         file_url,
         title: file.name
       });
+      e.target.value = ''; // Reset input
     } catch (error) {
       toast.error('Upload failed');
       setFailedUpload({ file, sourceType, fileName: file.name });
@@ -77,6 +100,13 @@ export default function ProjectSources({ project, sources }) {
 
   const handleUrlSubmit = async () => {
     if (!url) return;
+    
+    // Check for duplicate URL
+    const duplicate = sources.find(s => s.title === url || s.url === url);
+    if (duplicate) {
+      toast.error('This URL has already been added');
+      return;
+    }
     
     await uploadSourceMutation.mutateAsync({
       project_id: project.id,
@@ -232,6 +262,17 @@ export default function ProjectSources({ project, sources }) {
                             </Button>
                           </a>
                         )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => {
+                            if (confirm('Remove this source? This cannot be undone.')) {
+                              deleteSourceMutation.mutate(source.id);
+                            }
+                          }}
+                        >
+                          <Trash2 className="w-4 h-4 text-red-500" />
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
