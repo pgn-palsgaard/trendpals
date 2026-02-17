@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, FileText, AlertCircle, CheckCircle2, Loader2, ExternalLink, Trash2 } from 'lucide-react';
+import { Upload, FileText, AlertCircle, CheckCircle2, Loader2, ExternalLink, Trash2, History } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ProjectSources({ project, sources }) {
@@ -120,7 +120,7 @@ export default function ProjectSources({ project, sources }) {
   const freshnessIcons = {
     recent: <CheckCircle2 className="w-4 h-4 text-green-500" />,
     aging: <AlertCircle className="w-4 h-4 text-yellow-500" />,
-    outdated: <AlertCircle className="w-4 h-4 text-red-500" />
+    outdated: <History className="w-4 h-4 text-slate-500" />
   };
 
   return (
