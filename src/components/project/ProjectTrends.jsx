@@ -45,6 +45,53 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
     }
   });
 
+  const handleMergeGNPD = async () => {
+    if (!gnpdHtmlFile || !gnpdXlsxFile) {
+      toast.error('Please select both HTML and Excel files');
+      return;
+    }
+
+    setUploading(true);
+    try {
+      // Upload both files
+      const htmlUpload = await base44.integrations.Core.UploadFile({ file: gnpdHtmlFile });
+      const xlsxUpload = await base44.integrations.Core.UploadFile({ file: gnpdXlsxFile });
+
+      // Create extraction job
+      const extraction = await base44.entities.GNPDImageExtraction.create({
+        project_id: project.id,
+        html_file_url: htmlUpload.file_url,
+        xlsx_file_url: xlsxUpload.file_url,
+        status: 'pending',
+        extracted_images: []
+      });
+
+      toast.success(`Files uploaded! Use Zapier to process extraction job ID: ${extraction.id}`);
+      queryClient.invalidateQueries({ queryKey: ['imageExtractions', project.id] });
+      setGnpdHtmlFile(null);
+      setGnpdXlsxFile(null);
+    } catch (error) {
+      toast.error(error.message || 'Failed to upload files');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const resetExtractionMutation = useMutation({
+    mutationFn: async () => {
+      const response = await base44.functions.invoke('resetImageExtraction', { project_id: project.id });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['imageExtractions', project.id] });
+      queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
+      toast.success(`Image extraction reset: removed ${data.deleted_extractions} jobs, cleared images from ${data.reset_sources} sources`);
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to reset image extraction');
+    }
+  });
+
   const confidenceColors = {
     high: 'bg-green-100 text-green-700 border-green-200',
     medium: 'bg-yellow-100 text-yellow-700 border-yellow-200',
