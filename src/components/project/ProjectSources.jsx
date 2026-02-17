@@ -190,16 +190,37 @@ export default function ProjectSources({ project, sources }) {
                             {source.date && <span>•</span>}
                             {source.date && <span>{new Date(source.date).toLocaleDateString()}</span>}
                           </div>
-                          {source.excerpts && (
-                            <p className="text-xs text-slate-500 mt-1">
-                              {source.excerpts.length} excerpts extracted
+                          
+                          {/* Data Summary */}
+                          <div className="mt-2 space-y-1">
+                            {source.excerpts && source.excerpts.length > 0 && (
+                              <p className="text-xs text-slate-600">
+                                📄 {source.excerpts.length} text excerpts extracted for trend analysis
+                              </p>
+                            )}
+                            {source.gnpd_data && source.gnpd_data.length > 0 && (
+                              <p className="text-xs text-slate-600">
+                                🛒 {source.gnpd_data.length} GNPD product launches
+                                {source.gnpd_data.filter(p => p.has_image).length > 0 && (
+                                  <span className="ml-1">
+                                    ({source.gnpd_data.filter(p => p.has_image).length} with images 📷)
+                                  </span>
+                                )}
+                              </p>
+                            )}
+                            
+                            {/* Explanation of what this source provides */}
+                            <p className="text-xs text-slate-500 italic mt-2 pt-2 border-t border-slate-100">
+                              {source.source_type === 'mintel' && 
+                                'Provides market insights, consumer trends, and strategic framing for trend narratives'}
+                              {source.source_type === 'gnpd' && 
+                                'Provides real product examples and launch data to validate trends with market evidence'}
+                              {source.source_type === 'report' && 
+                                'Provides additional market context and supporting evidence from industry reports'}
+                              {source.source_type === 'url' && 
+                                'Provides web-based insights and supplementary information'}
                             </p>
-                          )}
-                          {source.gnpd_data && (
-                            <p className="text-xs text-slate-500 mt-1">
-                              {source.gnpd_data.length} GNPD products
-                            </p>
-                          )}
+                          </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
