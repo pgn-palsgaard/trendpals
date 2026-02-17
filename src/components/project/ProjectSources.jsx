@@ -14,6 +14,7 @@ export default function ProjectSources({ project, sources }) {
   const [uploading, setUploading] = useState(false);
   const [sourceType, setSourceType] = useState('mintel');
   const [url, setUrl] = useState('');
+  const [failedUpload, setFailedUpload] = useState(null);
 
   const uploadSourceMutation = useMutation({
     mutationFn: async (data) => {
@@ -35,6 +36,7 @@ export default function ProjectSources({ project, sources }) {
     if (!file) return;
 
     setUploading(true);
+    setFailedUpload(null);
     try {
       const { file_url } = await base44.integrations.Core.UploadFile({ file });
       
@@ -46,6 +48,28 @@ export default function ProjectSources({ project, sources }) {
       });
     } catch (error) {
       toast.error('Upload failed');
+      setFailedUpload({ file, sourceType, fileName: file.name });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleRetryUpload = async () => {
+    if (!failedUpload) return;
+
+    setUploading(true);
+    try {
+      const { file_url } = await base44.integrations.Core.UploadFile({ file: failedUpload.file });
+      
+      await uploadSourceMutation.mutateAsync({
+        project_id: project.id,
+        source_type: failedUpload.sourceType,
+        file_url,
+        title: failedUpload.fileName
+      });
+      setFailedUpload(null);
+    } catch (error) {
+      toast.error('Retry failed');
     } finally {
       setUploading(false);
     }
@@ -104,6 +128,22 @@ export default function ProjectSources({ project, sources }) {
                 />
                 {uploading && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}
               </div>
+              {failedUpload && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-red-600" />
+                  <span className="text-sm text-red-700 flex-1">
+                    Failed to upload "{failedUpload.fileName}"
+                  </span>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={handleRetryUpload}
+                    disabled={uploading}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
