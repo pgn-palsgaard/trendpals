@@ -89,23 +89,20 @@ Format response as valid JSON only, no markdown or extra text.`;
             type: "array",
             items: { type: "string" }
           },
-          key_insights: {
-            type: "array",
-            items: { type: "string" }
+          perspective_customers: {
+            type: "object",
+            properties: {
+              what_consumers_want: { type: "array", items: { type: "string" } },
+              portfolio_directions: { type: "array", items: { type: "string" } },
+              market_gaps: { type: "array", items: { type: "string" } }
+            }
           },
-          product_opportunities: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                idea: { type: "string" },
-                description: { type: "string" },
-                connected_trends: {
-                  type: "array",
-                  items: { type: "string" }
-                },
-                market_potential: { type: "string" }
-              }
+          perspective_palsgaard: {
+            type: "object",
+            properties: {
+              capability_alignment: { type: "array", items: { type: "string" } },
+              value_propositions: { type: "array", items: { type: "string" } },
+              innovation_support: { type: "array", items: { type: "string" } }
             }
           },
           risk_factors: {
