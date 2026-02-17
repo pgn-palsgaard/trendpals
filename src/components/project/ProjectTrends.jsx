@@ -9,9 +9,12 @@ import { Label } from '@/components/ui/label';
 import { Sparkles, TrendingUp, CheckCircle2, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function ProjectTrends({ project, trendCandidates, sources }) {
+export default function ProjectTrends({ project, trendCandidates, sources, imageExtractions = [] }) {
   const queryClient = useQueryClient();
   const [generating, setGenerating] = useState(false);
+  const [gnpdHtmlFile, setGnpdHtmlFile] = useState(null);
+  const [gnpdXlsxFile, setGnpdXlsxFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
 
   const generateTrendsMutation = useMutation({
     mutationFn: async () => {
