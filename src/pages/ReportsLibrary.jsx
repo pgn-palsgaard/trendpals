@@ -139,12 +139,13 @@ export default function ReportsLibrary() {
         {filteredReports.length === 0 ? (
           <Card>
             <CardContent className="py-12 text-center">
-              <FileText className="w-16 h-16 mx-auto mb-4 text-slate-300" />
-              <p className="text-slate-600">No reports found</p>
+              <div className="text-5xl mb-4">📊</div>
+              <p className="text-slate-900 font-medium mb-2">No reports found</p>
+              <p className="text-sm text-slate-600">Try adjusting your filters or create a new project</p>
             </CardContent>
           </Card>
         ) : (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredReports.map(report => {
               const project = projects.find(p => p.id === report.project_id);
               return (
