@@ -337,6 +337,166 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
         </Card>
       )}
 
+      {/* Trend Analysis */}
+      {selectedCount >= 3 && !showAnalysis && (
+        <Card className="border-indigo-200 bg-indigo-50/30">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Brain className="w-5 h-5 text-indigo-600" />
+              AI-Powered Trend Analysis
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-slate-700">
+              Analyze your selected trends to identify overarching themes, key insights, and new product opportunities.
+            </p>
+            <Button 
+              onClick={() => analyzeTrendsMutation.mutate()}
+              disabled={analyzeTrendsMutation.isPending || selectedCount < 3}
+              className="bg-indigo-600 hover:bg-indigo-700"
+            >
+              {analyzeTrendsMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Analyzing Trends...
+                </>
+              ) : (
+                <>
+                  <Brain className="w-4 h-4 mr-2" />
+                  Run Trend Analysis
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Analysis Results */}
+      {showAnalysis && trendAnalysis && (
+        <Card className="border-indigo-300 bg-indigo-50">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="w-5 h-5 text-indigo-600" />
+                Trend Analysis Results
+              </CardTitle>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setShowAnalysis(false)}
+              >
+                Hide
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Overarching Themes */}
+            {trendAnalysis.overarching_themes && (
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <span className="text-xl">🎯</span>
+                  Overarching Themes
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {trendAnalysis.overarching_themes.map((theme, idx) => (
+                    <div key={idx} className="p-3 bg-white rounded-lg border border-indigo-200">
+                      <p className="text-sm font-medium text-slate-900">{theme}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Connections */}
+            {trendAnalysis.connections && (
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <span className="text-xl">🔗</span>
+                  Trend Connections
+                </h3>
+                <div className="space-y-2">
+                  {trendAnalysis.connections.map((connection, idx) => (
+                    <div key={idx} className="p-3 bg-white rounded-lg border border-indigo-200">
+                      <p className="text-sm text-slate-700">{connection}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Key Insights */}
+            {trendAnalysis.key_insights && (
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <span className="text-xl">💡</span>
+                  Key Insights
+                </h3>
+                <div className="space-y-2">
+                  {trendAnalysis.key_insights.map((insight, idx) => (
+                    <div key={idx} className="p-3 bg-white rounded-lg border border-indigo-200">
+                      <p className="text-sm text-slate-700">{insight}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Product Opportunities */}
+            {trendAnalysis.product_opportunities && (
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5 text-yellow-500" />
+                  Product Ideas & Market Opportunities
+                </h3>
+                <div className="space-y-3">
+                  {trendAnalysis.product_opportunities.map((opp, idx) => (
+                    <div key={idx} className="p-4 bg-white rounded-lg border border-yellow-200">
+                      <div className="flex items-start justify-between mb-2">
+                        <h4 className="font-semibold text-slate-900">{opp.idea}</h4>
+                        <Badge className={`${
+                          opp.market_potential === 'high' ? 'bg-green-100 text-green-800' :
+                          opp.market_potential === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
+                        } border-0`}>
+                          {opp.market_potential} potential
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-slate-700 mb-2">{opp.description}</p>
+                      {opp.connected_trends && opp.connected_trends.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {opp.connected_trends.map((trend, tidx) => (
+                            <Badge key={tidx} variant="outline" className="text-xs">
+                              {trend}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Risk Factors */}
+            {trendAnalysis.risk_factors && (
+              <div>
+                <h3 className="font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <span className="text-xl">⚠️</span>
+                  Risk Factors to Monitor
+                </h3>
+                <div className="space-y-2">
+                  {trendAnalysis.risk_factors.map((risk, idx) => (
+                    <div key={idx} className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                      <p className="text-sm text-amber-800">{risk}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Trend Candidates */}
       {trendCandidates.length > 0 && (
         <div className="space-y-4">
