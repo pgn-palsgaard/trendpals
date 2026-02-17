@@ -41,11 +41,11 @@ Deno.serve(async (req) => {
     if (report.slides && report.slides.length > 0) {
       for (const slide of report.slides) {
         prompt += `## Slide ${slide.slide_number}: ${slide.title}\n\n`;
-        
+
         if (slide.subtitle) {
           prompt += `**${slide.subtitle}**\n\n`;
         }
-        
+
         if (slide.bullets && slide.bullets.length > 0) {
           prompt += `### Key Points\n`;
           slide.bullets.forEach(bullet => {
@@ -53,14 +53,18 @@ Deno.serve(async (req) => {
           });
           prompt += `\n`;
         }
-        
-        // Add product images if available
+
+        // Add product images if available (from enriched slide data)
         if (slide.product_examples && slide.product_examples.length > 0) {
           prompt += `### Product Examples\n`;
           slide.product_examples.forEach(product => {
             if (product.image_url) {
+              // Include actual extracted image URLs
               prompt += `![${product.brand} - ${product.product_name}](${product.image_url})\n`;
               prompt += `**${product.brand} - ${product.product_name}** (${product.market})\n`;
+              if (product.launch_date) {
+                prompt += `Launched: ${product.launch_date}\n`;
+              }
               if (product.relevance) {
                 prompt += `*${product.relevance}*\n`;
               }
