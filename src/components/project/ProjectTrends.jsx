@@ -148,9 +148,10 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
         <CardContent>
           {trendCandidates.length === 0 ? (
             <div className="text-center py-8">
-              <Sparkles className="w-12 h-12 mx-auto mb-4 text-purple-400" />
-              <p className="text-slate-600 mb-4">
-                Generate 5-7 trend candidates from your uploaded sources
+              <div className="text-5xl mb-4">✨</div>
+              <p className="text-slate-900 font-medium mb-2">Generate trends from sources</p>
+              <p className="text-slate-600 text-sm mb-4">
+                AI will analyze your uploaded sources to identify 5-7 key trend candidates
               </p>
               <Button
                 onClick={() => generateTrendsMutation.mutate()}
@@ -171,7 +172,7 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
               </Button>
               {sources.length === 0 && (
                 <p className="text-sm text-slate-500 mt-4">
-                  Upload sources first to enable trend generation
+                  💡 Upload sources in the Sources tab first
                 </p>
               )}
             </div>
