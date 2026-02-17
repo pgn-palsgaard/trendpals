@@ -46,32 +46,39 @@ export default function ProjectSources({ project, sources }) {
   });
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    // Check for duplicate by filename
-    const duplicate = sources.find(s => s.title === file.name);
-    if (duplicate) {
-      toast.error(`A file named "${file.name}" already exists`);
+    // Check for duplicates
+    const duplicates = files.filter(file => 
+      sources.find(s => s.title === file.name)
+    );
+    
+    if (duplicates.length > 0) {
+      toast.error(`File(s) already exist: ${duplicates.map(f => f.name).join(', ')}`);
       e.target.value = ''; // Reset input
       return;
     }
 
     setUploading(true);
     setFailedUpload(null);
+    
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-      
-      await uploadSourceMutation.mutateAsync({
-        project_id: project.id,
-        source_type: sourceType,
-        file_url,
-        title: file.name
-      });
+      // Upload all files
+      for (const file of files) {
+        const { file_url } = await base44.integrations.Core.UploadFile({ file });
+        
+        await uploadSourceMutation.mutateAsync({
+          project_id: project.id,
+          source_type: sourceType,
+          file_url,
+          title: file.name
+        });
+      }
+      toast.success(`${files.length} file(s) uploaded successfully`);
       e.target.value = ''; // Reset input
     } catch (error) {
       toast.error('Upload failed');
-      setFailedUpload({ file, sourceType, fileName: file.name });
     } finally {
       setUploading(false);
     }
@@ -155,6 +162,7 @@ export default function ProjectSources({ project, sources }) {
                   accept=".pdf,.csv,.xlsx,.xls,.html,.htm"
                   onChange={handleFileUpload}
                   disabled={uploading}
+                  multiple
                 />
                 {uploading && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}
               </div>
