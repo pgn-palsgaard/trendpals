@@ -170,10 +170,10 @@ export default function ProjectSources({ project, sources }) {
 
   return (
     <div className="space-y-6">
-      {/* Upload Section */}
+      {/* General Sources Upload */}
       <Card>
         <CardHeader>
-          <CardTitle>Upload Sources</CardTitle>
+          <CardTitle>Upload Reports & Background Sources</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -184,75 +184,13 @@ export default function ProjectSources({ project, sources }) {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="mintel">Mintel Report</SelectItem>
-                <SelectItem value="gnpd">GNPD Export</SelectItem>
                 <SelectItem value="report">Other Report</SelectItem>
                 <SelectItem value="url">URL</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {sourceType === 'gnpd' ? (
-            <div className="space-y-4">
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <p className="text-sm text-blue-900 font-medium mb-2">Match GNPD Images to Products</p>
-                <p className="text-xs text-blue-700">Upload both the HTML file (with images) and Excel file (with product data) to automatically match and merge them.</p>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>HTML File (with images)</Label>
-                  <Input
-                    type="file"
-                    accept=".html,.htm"
-                    onChange={(e) => setGnpdHtmlFile(e.target.files?.[0] || null)}
-                    disabled={uploading}
-                  />
-                  {gnpdHtmlFile && (
-                    <p className="text-xs text-green-600">✓ {gnpdHtmlFile.name}</p>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label>Excel File (with data)</Label>
-                  <Input
-                    type="file"
-                    accept=".xlsx,.xls,.csv"
-                    onChange={(e) => setGnpdXlsxFile(e.target.files?.[0] || null)}
-                    disabled={uploading}
-                  />
-                  {gnpdXlsxFile && (
-                    <p className="text-xs text-green-600">✓ {gnpdXlsxFile.name}</p>
-                  )}
-                </div>
-              </div>
-              
-              <Button 
-                onClick={handleMergeGNPD}
-                disabled={!gnpdHtmlFile || !gnpdXlsxFile || uploading}
-                className="w-full"
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Processing & Matching...
-                  </>
-                ) : (
-                  'Merge & Process Files'
-                )}
-              </Button>
-              
-              <div className="border-t pt-4">
-                <p className="text-xs text-slate-500 mb-2">Or upload GNPD files individually:</p>
-                <Input
-                  type="file"
-                  accept=".pdf,.csv,.xlsx,.xls,.html,.htm"
-                  onChange={handleFileUpload}
-                  disabled={uploading}
-                  multiple
-                />
-              </div>
-            </div>
-          ) : sourceType !== 'url' ? (
+          {sourceType !== 'url' ? (
             <div className="space-y-2">
               <Label>Upload File (PDF, CSV, XLSX, XLS, HTML)</Label>
               <div className="flex items-center gap-4">
@@ -297,6 +235,70 @@ export default function ProjectSources({ project, sources }) {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* GNPD Merge Section */}
+      <Card className="border-blue-200 bg-blue-50/30">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <span>Upload & Merge GNPD Data</span>
+            <span className="text-xs font-normal text-slate-600 bg-white px-2 py-1 rounded">Product Launches</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-900 font-medium mb-2">📷 Match Product Images to Data</p>
+            <p className="text-xs text-blue-700">Upload both files to automatically extract images from HTML and match them to products in the Excel file by record ID.</p>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="font-medium">HTML File <span className="text-slate-500 text-xs">(with images)</span></Label>
+              <Input
+                type="file"
+                accept=".html,.htm"
+                onChange={(e) => setGnpdHtmlFile(e.target.files?.[0] || null)}
+                disabled={uploading}
+                className="cursor-pointer"
+              />
+              {gnpdHtmlFile && (
+                <p className="text-xs text-green-600 font-medium">✓ {gnpdHtmlFile.name}</p>
+              )}
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="font-medium">Excel File <span className="text-slate-500 text-xs">(with product data)</span></Label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                onChange={(e) => setGnpdXlsxFile(e.target.files?.[0] || null)}
+                disabled={uploading}
+                className="cursor-pointer"
+              />
+              {gnpdXlsxFile && (
+                <p className="text-xs text-green-600 font-medium">✓ {gnpdXlsxFile.name}</p>
+              )}
+            </div>
+          </div>
+          
+          <Button 
+            onClick={handleMergeGNPD}
+            disabled={!gnpdHtmlFile || !gnpdXlsxFile || uploading}
+            className="w-full bg-blue-600 hover:bg-blue-700"
+            size="lg"
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Processing & Matching...
+              </>
+            ) : (
+              <>
+                🔗 Merge & Process Files
+              </>
+            )}
+          </Button>
         </CardContent>
       </Card>
 
