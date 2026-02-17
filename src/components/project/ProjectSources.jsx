@@ -191,7 +191,68 @@ export default function ProjectSources({ project, sources }) {
             </Select>
           </div>
 
-          {sourceType !== 'url' ? (
+          {sourceType === 'gnpd' ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-900 font-medium mb-2">Match GNPD Images to Products</p>
+                <p className="text-xs text-blue-700">Upload both the HTML file (with images) and Excel file (with product data) to automatically match and merge them.</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>HTML File (with images)</Label>
+                  <Input
+                    type="file"
+                    accept=".html,.htm"
+                    onChange={(e) => setGnpdHtmlFile(e.target.files?.[0] || null)}
+                    disabled={uploading}
+                  />
+                  {gnpdHtmlFile && (
+                    <p className="text-xs text-green-600">✓ {gnpdHtmlFile.name}</p>
+                  )}
+                </div>
+                
+                <div className="space-y-2">
+                  <Label>Excel File (with data)</Label>
+                  <Input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={(e) => setGnpdXlsxFile(e.target.files?.[0] || null)}
+                    disabled={uploading}
+                  />
+                  {gnpdXlsxFile && (
+                    <p className="text-xs text-green-600">✓ {gnpdXlsxFile.name}</p>
+                  )}
+                </div>
+              </div>
+              
+              <Button 
+                onClick={handleMergeGNPD}
+                disabled={!gnpdHtmlFile || !gnpdXlsxFile || uploading}
+                className="w-full"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Processing & Matching...
+                  </>
+                ) : (
+                  'Merge & Process Files'
+                )}
+              </Button>
+              
+              <div className="border-t pt-4">
+                <p className="text-xs text-slate-500 mb-2">Or upload GNPD files individually:</p>
+                <Input
+                  type="file"
+                  accept=".pdf,.csv,.xlsx,.xls,.html,.htm"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                  multiple
+                />
+              </div>
+            </div>
+          ) : sourceType !== 'url' ? (
             <div className="space-y-2">
               <Label>Upload File (PDF, CSV, XLSX, XLS, HTML)</Label>
               <div className="flex items-center gap-4">
