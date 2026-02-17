@@ -12,6 +12,8 @@ import ProjectOverview from '@/components/project/ProjectOverview';
 import ProjectSources from '@/components/project/ProjectSources';
 import ProjectTrends from '@/components/project/ProjectTrends';
 import ProjectReport from '@/components/project/ProjectReport';
+import ProjectProgress from '@/components/project/ProjectProgress';
+import StatusTooltip from '@/components/project/StatusTooltip';
 
 export default function ProjectDetail() {
   const navigate = useNavigate();
@@ -132,9 +134,11 @@ export default function ProjectDetail() {
                 </div>
               </div>
               <div className="flex flex-col items-end gap-3">
-                <span className={`text-xs font-semibold px-4 py-2 rounded-full shadow-sm ${stateColors[project.state]}`}>
-                  {project.state.replace('_', ' ').toUpperCase()}
-                </span>
+                <StatusTooltip status={project.state}>
+                  <span className={`text-xs font-semibold px-4 py-2 rounded-full shadow-sm ${stateColors[project.state]}`}>
+                    {project.state.replace('_', ' ').toUpperCase()}
+                  </span>
+                </StatusTooltip>
                 {project.data_sufficiency_score !== undefined && (
                   <div className="text-right">
                     <div className="text-xs text-slate-500 mb-1">Data Coverage</div>
@@ -163,6 +167,14 @@ export default function ProjectDetail() {
             )}
           </div>
         </div>
+
+        {/* Progress Indicator */}
+        <ProjectProgress 
+          project={project}
+          sourcesCount={sources.length}
+          selectedTrendsCount={trendCandidates.filter(t => t.is_selected).length}
+          reportExists={reports.length > 0}
+        />
 
         {/* Modern Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
