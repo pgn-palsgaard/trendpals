@@ -127,11 +127,16 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
               </Button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
               <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-600">
-                  Report generated • Version {latestReport.version}
-                </p>
+                <div>
+                  <p className="text-sm font-medium text-slate-900">
+                    Current Version: <span className="text-lg font-bold text-blue-600">v{latestReport.version}</span>
+                  </p>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Updated {latestReport.updated_date ? new Date(latestReport.updated_date).toLocaleDateString() : 'recently'}
+                  </p>
+                </div>
                 <Button
                   variant="outline"
                   onClick={() => generateReportMutation.mutate()}
@@ -141,10 +146,10 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
                   {generateReportMutation.isPending ? (
                     <>
                       <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Regenerating...
+                      Creating v{latestReport.version + 1}...
                     </>
                   ) : (
-                    'Regenerate'
+                    <>Create v{latestReport.version + 1}</>
                   )}
                 </Button>
               </div>
