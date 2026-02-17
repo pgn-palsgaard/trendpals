@@ -7,11 +7,11 @@ export default function ProjectOverview({ project, sources, trendCandidates }) {
   return (
     <div className="space-y-6">
       {/* Project Context */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Project Context</CardTitle>
+      <Card className="border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
+        <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-transparent">
+          <CardTitle className="text-lg font-semibold text-slate-900">Project Context</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-slate-600">
@@ -60,32 +60,41 @@ export default function ProjectOverview({ project, sources, trendCandidates }) {
       </Card>
 
       {/* Progress Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="border-slate-200/60 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 duration-200 bg-gradient-to-br from-white to-blue-50/30">
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className="text-3xl font-bold text-blue-600 mb-1">{sources.length}</div>
-              <p className="text-sm text-slate-600">Sources Uploaded</p>
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <Upload className="w-7 h-7 text-white" />
+              </div>
+              <div className="text-4xl font-bold text-slate-900 mb-1">{sources.length}</div>
+              <p className="text-sm font-medium text-slate-600">Sources Uploaded</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-slate-200/60 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 duration-200 bg-gradient-to-br from-white to-purple-50/30">
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className="text-3xl font-bold text-purple-600 mb-1">{trendCandidates.length}</div>
-              <p className="text-sm text-slate-600">Trend Candidates</p>
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <TrendingUp className="w-7 h-7 text-white" />
+              </div>
+              <div className="text-4xl font-bold text-slate-900 mb-1">{trendCandidates.length}</div>
+              <p className="text-sm font-medium text-slate-600">Trend Candidates</p>
             </div>
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="border-slate-200/60 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 duration-200 bg-gradient-to-br from-white to-emerald-50/30">
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className="text-3xl font-bold text-emerald-600 mb-1">
+              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <CheckCircle className="w-7 h-7 text-white" />
+              </div>
+              <div className="text-4xl font-bold text-slate-900 mb-1">
                 {trendCandidates.filter(t => t.is_selected).length}
               </div>
-              <p className="text-sm text-slate-600">Selected Trends</p>
+              <p className="text-sm font-medium text-slate-600">Selected Trends</p>
             </div>
           </CardContent>
         </Card>

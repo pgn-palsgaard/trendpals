@@ -95,47 +95,111 @@ export default function ProjectDetail() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-8">
-      <div className="max-w-7xl mx-auto px-4">
-        {/* Header */}
-        <div className="mb-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50/30">
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        {/* Modern Header */}
+        <div className="mb-8">
           <Link to={createPageUrl('Projects')}>
-            <Button variant="ghost" className="mb-4">
+            <Button variant="ghost" size="sm" className="mb-6 hover:bg-slate-100 -ml-2">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Projects
             </Button>
           </Link>
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">{project.name}</h1>
-              <p className="text-slate-600">
-                {project.category} • {project.region}
-              </p>
+          
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200/60 p-8">
+            <div className="flex items-start justify-between mb-6">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                    {project.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{project.name}</h1>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-200">
+                    {project.category}
+                  </span>
+                  <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 font-medium border border-purple-200">
+                    {project.region}
+                  </span>
+                  {project.meeting_context && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200">
+                      {project.meeting_context.replace('_', ' ')}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-col items-end gap-3">
+                <span className={`text-xs font-semibold px-4 py-2 rounded-full shadow-sm ${stateColors[project.state]}`}>
+                  {project.state.replace('_', ' ').toUpperCase()}
+                </span>
+                {project.data_sufficiency_score !== undefined && (
+                  <div className="text-right">
+                    <div className="text-xs text-slate-500 mb-1">Data Coverage</div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-slate-200 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full transition-all ${
+                            project.data_sufficiency_score >= 80 ? 'bg-green-500' :
+                            project.data_sufficiency_score >= 60 ? 'bg-blue-500' :
+                            'bg-yellow-500'
+                          }`}
+                          style={{ width: `${project.data_sufficiency_score}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-700">{project.data_sufficiency_score}%</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <span className={`text-sm px-3 py-1.5 rounded-full ${stateColors[project.state]}`}>
-              {project.state.replace('_', ' ').toUpperCase()}
-            </span>
+            
+            {project.objective && (
+              <div className="pt-6 border-t border-slate-100">
+                <p className="text-slate-600 leading-relaxed">{project.objective}</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Tabs */}
+        {/* Modern Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
+          <TabsList className="mb-8 bg-white shadow-sm border border-slate-200/60 p-1.5 rounded-xl h-auto">
+            <TabsTrigger 
+              value="overview" 
+              className="flex items-center gap-2 px-5 py-3 rounded-lg data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
+            >
               <FileText className="w-4 h-4" />
-              Overview
+              <span className="font-medium">Overview</span>
             </TabsTrigger>
-            <TabsTrigger value="sources" className="flex items-center gap-2">
+            <TabsTrigger 
+              value="sources" 
+              className="flex items-center gap-2 px-5 py-3 rounded-lg data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
+            >
               <Upload className="w-4 h-4" />
-              Sources ({sources.length})
+              <span className="font-medium">Sources</span>
+              <span className="ml-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                {sources.length}
+              </span>
             </TabsTrigger>
-            <TabsTrigger value="trends" className="flex items-center gap-2">
+            <TabsTrigger 
+              value="trends" 
+              className="flex items-center gap-2 px-5 py-3 rounded-lg data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
+            >
               <TrendingUp className="w-4 h-4" />
-              Trends ({trendCandidates.length})
+              <span className="font-medium">Trends</span>
+              <span className="ml-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-xs font-semibold data-[state=active]:bg-white/20 data-[state=active]:text-white">
+                {trendCandidates.length}
+              </span>
             </TabsTrigger>
-            <TabsTrigger value="report" className="flex items-center gap-2">
+            <TabsTrigger 
+              value="report" 
+              className="flex items-center gap-2 px-5 py-3 rounded-lg data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
+            >
               <CheckCircle className="w-4 h-4" />
-              Report
+              <span className="font-medium">Report</span>
             </TabsTrigger>
           </TabsList>
 

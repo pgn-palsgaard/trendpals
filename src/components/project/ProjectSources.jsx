@@ -18,6 +18,23 @@ export default function ProjectSources({ project, sources, imageExtractions = []
   const [gnpdHtmlFile, setGnpdHtmlFile] = useState(null);
   const [gnpdXlsxFile, setGnpdXlsxFile] = useState(null);
 
+  const retryExtractionMutation = useMutation({
+    mutationFn: async (jobId) => {
+      await base44.entities.GNPDImageExtraction.update(jobId, {
+        status: 'pending',
+        error_message: null,
+        extracted_images: []
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['imageExtractions', project.id] });
+      toast.success('Retry initiated - Zapier will reprocess this job');
+    },
+    onError: () => {
+      toast.error('Failed to retry extraction');
+    }
+  });
+
   const uploadSourceMutation = useMutation({
     mutationFn: async (data) => {
       const response = await base44.functions.invoke('processSource', data);
@@ -368,6 +385,25 @@ export default function ProjectSources({ project, sources, imageExtractions = []
                         Created: {new Date(job.created_date).toLocaleString()}
                       </p>
                     </div>
+                    
+                    {(job.status === 'failed' || job.status === 'completed') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => retryExtractionMutation.mutate(job.id)}
+                        disabled={retryExtractionMutation.isPending}
+                        className="ml-4"
+                      >
+                        {retryExtractionMutation.isPending ? (
+                          <>
+                            <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                            Retrying...
+                          </>
+                        ) : (
+                          '🔄 Retry'
+                        )}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
