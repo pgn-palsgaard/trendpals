@@ -92,6 +92,25 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
     }
   });
 
+  const analyzeTrendsMutation = useMutation({
+    mutationFn: async () => {
+      const selectedTrends = trendCandidates.filter(t => t.is_selected);
+      const response = await base44.functions.invoke('analyzeTrends', {
+        project_id: project.id,
+        selected_trends: selectedTrends.map(t => t.trend_name)
+      });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      setTrendAnalysis(data.analysis);
+      setShowAnalysis(true);
+      toast.success('Trend analysis complete');
+    },
+    onError: (error) => {
+      toast.error(error.message || 'Failed to analyze trends');
+    }
+  });
+
   const confidenceColors = {
     high: 'bg-green-100 text-green-700 border-green-200',
     medium: 'bg-yellow-100 text-yellow-700 border-yellow-200',
