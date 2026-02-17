@@ -20,20 +20,17 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
 
   const generateReportMutation = useMutation({
     mutationFn: async () => {
-      setGeneratingReport(true);
       const response = await base44.functions.invoke('generateReport', {
         project_id: project.id
       });
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
-      toast.success('Report generated successfully');
-      setGeneratingReport(false);
+      toast.success(`Report v${data.version || 'new'} generated`);
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to generate report');
-      setGeneratingReport(false);
     }
   });
 
