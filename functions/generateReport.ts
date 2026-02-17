@@ -28,22 +28,45 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
+    // Include trend analysis context if available
+    let analysisContext = '';
+    if (project.include_trend_analysis_in_report && project.trend_analysis) {
+      const analysis = project.trend_analysis;
+      analysisContext = `
+
+    AI-Generated Trend Analysis Context:
+    ${analysis.perspective_customers ? `
+    Customer Perspective - What They're Seeking:
+    ${analysis.perspective_customers.what_consumers_want?.map(w => `- ${w}`).join('\n')}
+
+    Portfolio Directions to Consider:
+    ${analysis.perspective_customers.portfolio_directions?.map(p => `- ${p}`).join('\n')}
+    ` : ''}
+
+    ${analysis.perspective_palsgaard ? `
+    Palsgaard Value in These Trends:
+    ${analysis.perspective_palsgaard.value_propositions?.map(v => `- ${v}`).join('\n')}
+    ` : ''}
+    `;
+    }
+
     // Compile evidence context
     let evidenceContext = `Project: ${project.name}
-Category: ${project.category}
-Region: ${project.region}
-Objective: ${project.objective}
-Audience: ${project.audience}
+    Category: ${project.category}
+    Region: ${project.region}
+    Objective: ${project.objective}
+    Audience: ${project.audience}
+    ${analysisContext}
 
-Selected Trends:
-${selectedTrends.map((t, i) => `${i+1}. ${t.trend_name}
-   What's changing: ${t.whats_changing?.join('; ')}
-   Why now: ${t.why_now?.join('; ')}
-   Evidence: ${t.evidence_anchors?.mintel_excerpts?.length || 0} excerpts, ${t.evidence_anchors?.gnpd_products?.length || 0} products
-`).join('\n')}
+    Selected Trends:
+    ${selectedTrends.map((t, i) => `${i+1}. ${t.trend_name}
+    What's changing: ${t.whats_changing?.join('; ')}
+    Why now: ${t.why_now?.join('; ')}
+    Evidence: ${t.evidence_anchors?.mintel_excerpts?.length || 0} excerpts, ${t.evidence_anchors?.gnpd_products?.length || 0} products
+    `).join('\n')}
 
-Available Evidence:
-`;
+    Available Evidence:
+    `;
 
     sources.forEach(source => {
       if (source.excerpts) {
