@@ -138,25 +138,22 @@ export default function ProjectSources({ project, sources }) {
       const htmlUpload = await base44.integrations.Core.UploadFile({ file: gnpdHtmlFile });
       const xlsxUpload = await base44.integrations.Core.UploadFile({ file: gnpdXlsxFile });
 
-      // Merge and process
-      const response = await base44.functions.invoke('mergeGNPDData', {
+      // Create extraction job
+      const extraction = await base44.entities.GNPDImageExtraction.create({
         project_id: project.id,
         html_file_url: htmlUpload.file_url,
         xlsx_file_url: xlsxUpload.file_url,
-        title: `GNPD - ${gnpdXlsxFile.name}`
+        status: 'pending',
+        extracted_images: []
       });
 
-      if (response.data.success) {
-        toast.success(`Processed ${response.data.products_count} products with ${response.data.images_count} images`);
-        queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
-        queryClient.invalidateQueries({ queryKey: ['project', project.id] });
-        setGnpdHtmlFile(null);
-        setGnpdXlsxFile(null);
-      } else {
-        toast.error('Failed to merge GNPD data');
-      }
+      toast.success(`Files uploaded! Use Zapier to process extraction job ID: ${extraction.id}`);
+      queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
+      queryClient.invalidateQueries({ queryKey: ['project', project.id] });
+      setGnpdHtmlFile(null);
+      setGnpdXlsxFile(null);
     } catch (error) {
-      toast.error(error.message || 'Failed to process files');
+      toast.error(error.message || 'Failed to upload files');
     } finally {
       setUploading(false);
     }
