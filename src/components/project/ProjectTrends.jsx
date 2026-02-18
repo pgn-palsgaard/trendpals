@@ -319,25 +319,25 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
                     {/* Image Gallery */}
                     {job.status === 'completed' && job.extracted_images?.length > 0 && (
                       <div className="grid grid-cols-4 gap-2">
-                        {job.extracted_images.map((img, idx) => (
+                        {job.extracted_images.map((imageUrl, idx) => (
                           <a 
                             key={idx}
-                            href={img.image_url} 
+                            href={imageUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="group relative overflow-hidden rounded-lg bg-white border border-slate-200 hover:border-blue-400 transition-all"
                           >
                             <img 
-                              src={img.image_url} 
-                              alt={`Product ${img.record_id}`}
+                              src={imageUrl} 
+                              alt={`Product image ${idx + 1}`}
                               className="w-full h-20 object-cover group-hover:opacity-75 transition-opacity"
                               onError={(e) => {
-                                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80"%3E%3Crect fill="%23f3f4f6" width="80" height="80"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12"%3E{img.record_id}%3C/text%3E%3C/svg%3E';
+                                e.target.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="80" height="80"%3E%3Crect fill="%23f3f4f6" width="80" height="80"/%3E%3Ctext x="50%25" y="50%25" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12"%3ENo image%3C/text%3E%3C/svg%3E';
                               }}
                             />
                             <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
                               <span className="text-white text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                {img.record_id}
+                                View
                               </span>
                             </div>
                           </a>
