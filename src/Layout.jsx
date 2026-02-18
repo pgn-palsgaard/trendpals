@@ -10,9 +10,9 @@ export default function Layout({ children, currentPageName }) {
         <div className="px-6 py-4">
           <Link to={createPageUrl('Home')} className="inline-block">
             <img 
-              src="https://www.palsgaard.com/media/g3rnmlmk/palsgaard-logo.svg" 
+              src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6987a5428ef229e6ee55cbb6/16cea8b8e_Palsgaardlogo_blue_250x250.png" 
               alt="Palsgaard" 
-              className="h-8"
+              className="h-10"
             />
           </Link>
         </div>
