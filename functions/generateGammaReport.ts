@@ -33,15 +33,51 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Gamma API credentials not configured' }, { status: 500 });
     }
 
-    // Build the prompt for Gamma
-    let prompt = `# ${report.title}\n\n`;
-    prompt += `**Category:** ${report.category} | **Region:** ${report.region}\n\n`;
+    // Get project for additional context
+    const project = await base44.entities.Project.get(report.project_id);
     
-    if (report.selected_trends && report.selected_trends.length > 0) {
-      prompt += `**Key Trends:** ${report.selected_trends.join(', ')}\n\n`;
-    }
-    
-    prompt += `---\n\n`;
+    // Determine subcategories from project category
+    const subcategoriesMap = {
+      'Ice Cream': 'Dairy based ice cream & frozen yogurt; Plant-based ice cream & frozen yogurt; Water-based lollies/pops/sorbets; Frozen desserts',
+      'Bakery': 'Bread; Cakes & pastries; Cookies & biscuits; Other baked goods',
+      'Confectionery': 'Chocolate; Sugar confectionery; Gum & mints'
+    };
+    const subcategories = subcategoriesMap[project.category] || project.category;
+
+    // Build comprehensive prompt for Gamma
+    let prompt = `You are creating a B2B commercial insights presentation deck for industrial food ingredients manufacturers.
+
+AUDIENCE CONTEXT:
+- Target: ${project.audience || 'Industrial manufacturers: R&D, Operations, Quality, Procurement, Commercial Leadership'}
+- Business Objective: ${project.objective}
+- Customer Priorities: ${project.customer_priorities?.join(', ') || 'Not specified'}
+- Meeting Context: ${project.meeting_context || 'Not specified'}
+
+PROJECT SCOPE:
+- Category: ${report.category}
+- Sub-categories: ${subcategories}
+- Region: ${report.region}
+- Key Trends: ${report.selected_trends?.join(', ') || 'Multiple trends'}
+
+PRESENTATION GUIDELINES:
+- Evidence-led: Every claim must be backed by data (Mintel reports or launch data)
+- Manufacturer lens: Focus on formulation, processing, cost-in-use, scalability implications
+- Audience sophistication: Assume strong category knowledge; focus on what's changing and what decisions it affects
+- Calm, factual tone: No hype-driven language
+- Regional specificity: Prioritize ${report.region} signals
+- No product selling: Describe capabilities, not specific product grades
+
+Create a professional PowerPoint presentation with the following structure:
+
+---
+
+# ${report.title}
+
+**${report.category} | ${report.region}**
+
+---
+
+`;
 
     // Add slides
     if (report.slides && report.slides.length > 0) {
