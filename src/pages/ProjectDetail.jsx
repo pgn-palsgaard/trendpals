@@ -224,7 +224,7 @@ export default function ProjectDetail() {
           </TabsContent>
 
           <TabsContent value="trends">
-            <ProjectTrends project={project} trendCandidates={trendCandidates} sources={sources} />
+            <ProjectTrends project={project} trendCandidates={trendCandidates} sources={sources} imageExtractions={imageExtractions} />
           </TabsContent>
 
           <TabsContent value="report">
