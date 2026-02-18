@@ -19,7 +19,7 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const urlParams = new URLSearchParams(window.location.search);
-  const projectId = urlParams.get('id');
+  const projectId = urlParams.get('projectId') || urlParams.get('id');
   const [activeTab, setActiveTab] = useState('overview');
 
   const { data: project, isLoading } = useQuery({
