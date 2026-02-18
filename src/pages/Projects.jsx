@@ -1,21 +1,36 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Search, FileText } from 'lucide-react';
+import { Plus, Search, FileText, Trash2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import { toast } from 'sonner';
 
 export default function Projects() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterState, setFilterState] = useState('all');
+  const queryClient = useQueryClient();
 
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ['projects'],
     queryFn: () => base44.entities.Project.list('-updated_date', 100),
+  });
+
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (projectId) => {
+      await base44.entities.Project.delete(projectId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      toast.success('Project deleted');
+    },
+    onError: (error) => {
+      toast.error('Failed to delete project');
+    }
   });
 
   const filteredProjects = projects.filter(project => {
@@ -119,11 +134,11 @@ export default function Projects() {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredProjects.map(project => (
-              <Link key={project.id} to={createPageUrl(`ProjectDetail?id=${project.id}`)}>
-                <Card className="h-full hover:shadow-lg transition-all cursor-pointer group border-2 border-transparent hover:border-blue-400">
+              <Card key={project.id} className="h-full hover:shadow-lg transition-all border-2 border-transparent hover:border-blue-400 relative group">
+                <Link to={createPageUrl(`ProjectDetail?id=${project.id}`)}>
                   <CardContent className="p-6">
                     <div className="flex items-start justify-between mb-4">
-                      <h3 className="font-semibold text-lg text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2">
+                      <h3 className="font-semibold text-lg text-slate-900 group-hover:text-blue-600 transition-colors line-clamp-2 pr-8">
                         {project.name}
                       </h3>
                       <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ml-2 ${stateColors[project.state]}`}>
@@ -165,8 +180,22 @@ export default function Projects() {
                       Updated {new Date(project.updated_date).toLocaleDateString()}
                     </div>
                   </CardContent>
-                </Card>
-              </Link>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-50 hover:text-red-600"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (confirm(`Delete project "${project.name}"? This cannot be undone.`)) {
+                      deleteProjectMutation.mutate(project.id);
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </Card>
             ))}
           </div>
         )}
