@@ -86,6 +86,8 @@ Return a JSON array of products with this structure:
   {
     "product_id": "string (use Record ID from Excel or extract from Mintel)",
     "product_name": "string",
+    "company": "string (company name, e.g., Ace M&T, Ben & Jerry's)",
+    "brand": "string (brand name, e.g., Sorbet, Roromallo)",
     "supporting_trends": ["trend name 1", "trend name 2"],
     "reason": "brief explanation of why this product supports these trends",
     "source": "mintel_report" | "excel_file" | "both"
@@ -111,11 +113,13 @@ Focus on products that:
               properties: {
                 product_id: { type: "string" },
                 product_name: { type: "string" },
+                company: { type: "string" },
+                brand: { type: "string" },
                 supporting_trends: { type: "array", items: { type: "string" } },
                 reason: { type: "string" },
                 source: { type: "string", enum: ["mintel_report", "excel_file", "both"] }
               },
-              required: ["product_id", "product_name", "supporting_trends", "source"]
+              required: ["product_id", "product_name", "company", "brand", "supporting_trends", "source"]
             }
           }
         },
@@ -138,6 +142,8 @@ Focus on products that:
         project_id,
         product_id: product.product_id,
         product_name: product.product_name,
+        company: product.company,
+        brand: product.brand,
         supporting_trends: product.supporting_trends,
         source: product.source,
         status: 'pending'

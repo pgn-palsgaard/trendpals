@@ -174,7 +174,11 @@ export default function ProductImageManager({ project, trendCandidates }) {
                       <div className="flex items-start justify-between gap-3 mb-2">
                         <div>
                           <h4 className="font-semibold text-slate-900">{request.product_name}</h4>
-                          <p className="text-xs text-slate-600 font-mono mt-1">ID: {request.product_id}</p>
+                          <div className="space-y-0.5 mt-1">
+                            <p className="text-xs text-slate-600 font-mono">ID: {request.product_id}</p>
+                            {request.company && <p className="text-xs text-slate-600">Company: {request.company}</p>}
+                            {request.brand && <p className="text-xs text-slate-600">Brand: {request.brand}</p>}
+                          </div>
                         </div>
                         <Badge variant="outline" className="text-xs">
                           {request.source.replace('_', ' ')}
