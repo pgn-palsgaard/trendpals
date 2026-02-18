@@ -19,6 +19,12 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Report not found' }, { status: 404 });
     }
 
+    // Get product images for this project
+    const productImages = await base44.entities.ProductImageRequest.filter({ 
+      project_id: report.project_id,
+      status: 'uploaded'
+    });
+
     // Get Gamma credentials
     const GAMMA_API_KEY = Deno.env.get('GAMMA_API_KEY');
     const GAMMA_TEMPLATE_ID = Deno.env.get('GAMMA_TEMPLATE_ID');
@@ -54,19 +60,35 @@ Deno.serve(async (req) => {
           prompt += `\n`;
         }
 
-        // Add product images if available (from enriched slide data)
+        // Add product images - either from slide.product_examples OR from ProductImageRequest
+        let slideProducts = [];
+        
         if (slide.product_examples && slide.product_examples.length > 0) {
+          slideProducts = slide.product_examples;
+        } else if (slide.image_placements && slide.image_placements.length > 0) {
+          // Map image placements to actual product data
+          slideProducts = slide.image_placements
+            .map(productId => productImages.find(p => p.product_id === productId))
+            .filter(p => p && p.image_url);
+        }
+
+        if (slideProducts.length > 0) {
           prompt += `### Product Examples\n`;
-          slide.product_examples.forEach(product => {
+          slideProducts.forEach(product => {
             if (product.image_url) {
-              // Include actual extracted image URLs
-              prompt += `![${product.brand} - ${product.product_name}](${product.image_url})\n`;
-              prompt += `**${product.brand} - ${product.product_name}** (${product.market})\n`;
+              prompt += `![${product.brand || product.company || ''} - ${product.product_name}](${product.image_url})\n`;
+              prompt += `**${product.brand || product.company || 'Product'}** - ${product.product_name}\n`;
+              if (product.market) {
+                prompt += `Market: ${product.market}\n`;
+              }
               if (product.launch_date) {
                 prompt += `Launched: ${product.launch_date}\n`;
               }
               if (product.relevance) {
                 prompt += `*${product.relevance}*\n`;
+              }
+              if (product.supporting_trends && product.supporting_trends.length > 0) {
+                prompt += `Supports: ${product.supporting_trends.join(', ')}\n`;
               }
               prompt += `\n`;
             }
