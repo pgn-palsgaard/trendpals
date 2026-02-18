@@ -53,22 +53,43 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
       return;
     }
 
+    // Get unique product IDs from selected trends only
+    const selectedTrends = trendCandidates.filter(t => t.is_selected);
+    const productIds = new Set();
+    selectedTrends.forEach(trend => {
+      if (trend.evidence_anchors?.gnpd_products) {
+        trend.evidence_anchors.gnpd_products.forEach(product => {
+          if (product.record_id) {
+            productIds.add(product.record_id);
+          }
+        });
+      }
+    });
+
+    const productIdsArray = Array.from(productIds);
+    
+    if (productIdsArray.length === 0) {
+      toast.error('No products found in selected trends. Select trends with GNPD products first.');
+      return;
+    }
+
     setUploading(true);
     try {
       // Upload both files
       const htmlUpload = await base44.integrations.Core.UploadFile({ file: gnpdHtmlFile });
       const xlsxUpload = await base44.integrations.Core.UploadFile({ file: gnpdXlsxFile });
 
-      // Create extraction job
+      // Create extraction job with specific product IDs
       const extraction = await base44.entities.GNPDImageExtraction.create({
         project_id: project.id,
         html_file_url: htmlUpload.file_url,
         xlsx_file_url: xlsxUpload.file_url,
+        product_ids_to_extract: productIdsArray,
         status: 'pending',
         extracted_images: []
       });
 
-      toast.success(`Files uploaded! Use Zapier to process extraction job ID: ${extraction.id}`);
+      toast.success(`Files uploaded! Processing ${productIdsArray.length} products from selected trends. Job ID: ${extraction.id}`);
       queryClient.invalidateQueries({ queryKey: ['imageExtractions', project.id] });
       setGnpdHtmlFile(null);
       setGnpdXlsxFile(null);
@@ -213,7 +234,27 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
           <CardContent className="space-y-4">
             <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-900 font-medium mb-2">Match product images to your selected trends</p>
-              <p className="text-xs text-blue-700">Upload GNPD HTML (with images) and Excel files to automatically extract and match product images to your data.</p>
+              <p className="text-xs text-blue-700">Upload GNPD HTML (with images) and Excel files. Only images for products referenced in your selected trends will be extracted to save processing credits.</p>
+              {selectedCount > 0 && (() => {
+                const selectedTrends = trendCandidates.filter(t => t.is_selected);
+                const productIds = new Set();
+                selectedTrends.forEach(trend => {
+                  if (trend.evidence_anchors?.gnpd_products) {
+                    trend.evidence_anchors.gnpd_products.forEach(product => {
+                      if (product.record_id) productIds.add(product.record_id);
+                    });
+                  }
+                });
+                return productIds.size > 0 ? (
+                  <p className="text-xs text-blue-600 font-medium mt-2">
+                    ✓ {productIds.size} unique products identified in selected trends
+                  </p>
+                ) : (
+                  <p className="text-xs text-amber-600 font-medium mt-2">
+                    ⚠️ No products found in selected trends yet
+                  </p>
+                );
+              })()}
             </div>
             
             <div className="grid grid-cols-2 gap-4">
