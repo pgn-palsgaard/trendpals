@@ -121,20 +121,23 @@ Deno.serve(async (req) => {
 async function extractFromPDF(fileUrl, fileName, base44) {
     const extractedData = {};
     
+    console.log('Starting PDF extraction for:', fileName);
+    
     // STEP 1: Extract page 1 text
     const page1TextRaw = await extractPage1Text(fileUrl);
     
     if (!page1TextRaw || page1TextRaw.length < 50) {
-        console.log('Page 1 text extraction returned empty or low quality');
+        console.error('Page 1 text extraction failed or empty');
         return { extractedData: {}, page1TextRaw: '' };
     }
 
-    console.log('=== PAGE 1 TEXT EXTRACTED ===');
-    console.log(page1TextRaw.substring(0, 1000));
-    console.log('=== END PAGE 1 TEXT ===');
+    console.log(`Page 1 text extracted: ${page1TextRaw.length} characters`);
+    console.log('First 500 chars:', page1TextRaw.substring(0, 500));
 
     // STEP 2: Deterministic parsing (regex + heuristics)
+    console.log('Running deterministic parsing...');
     const deterministicData = parsePage1Deterministic(page1TextRaw, fileName);
+    console.log('Deterministic extraction results:', Object.keys(deterministicData));
     Object.assign(extractedData, deterministicData);
 
     // STEP 3: LLM fallback (only if needed)
@@ -144,9 +147,17 @@ async function extractFromPDF(fileUrl, fileName, base44) {
         !extractedData.title || 
         !extractedData.region;
 
+    console.log('LLM needed?', needsLLM, {
+        date: !!extractedData.date_published,
+        docType: !!extractedData.document_type,
+        title: !!extractedData.title,
+        region: !!extractedData.region
+    });
+
     if (needsLLM) {
         console.log('Running LLM fallback for missing fields');
         const llmData = await llmFallbackExtraction(page1TextRaw, fileName, base44);
+        console.log('LLM extraction results:', Object.keys(llmData));
         // Only fill in missing fields from LLM
         for (const [field, data] of Object.entries(llmData)) {
             if (!extractedData[field]) {
@@ -155,6 +166,7 @@ async function extractFromPDF(fileUrl, fileName, base44) {
         }
     }
 
+    console.log('Final extracted fields:', Object.keys(extractedData));
     return { extractedData, page1TextRaw };
 }
 
