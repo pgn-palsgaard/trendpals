@@ -287,7 +287,8 @@ Deno.serve(async (req) => {
         }
 
         await base44.entities.Source.update(source.id, {
-          status: 'processed',
+          status: 'ready',
+          processing_completed_at: new Date().toISOString(),
           excerpts,
           date: publicationDate,
           freshness
