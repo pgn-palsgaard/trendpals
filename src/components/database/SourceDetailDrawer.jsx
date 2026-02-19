@@ -357,6 +357,19 @@ export default function SourceDetailDrawer({ source, linkedProjects, onClose }) 
                   <p className="text-xs text-slate-500">{(editData.notes || '').length}/500 characters</p>
                 </div>
 
+                {/* Publication Date Editor */}
+                {user && (
+                  <div className="pt-4 border-t border-slate-200">
+                    <PublicationDateEditor
+                      source={source}
+                      user={user}
+                      onSave={async (updates) => {
+                        await updateSourceMutation.mutateAsync(updates);
+                      }}
+                    />
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <Button onClick={handleSave} disabled={updateSourceMutation.isPending}>
                     Save Changes
