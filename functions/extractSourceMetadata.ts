@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import * as XLSX from 'npm:xlsx';
+import pdfParse from 'npm:pdf-parse';
 
 Deno.serve(async (req) => {
     try {
@@ -118,9 +119,13 @@ async function extractFromPDF(fileUrl, fileName, base44) {
     // Fetch PDF content
     const response = await fetch(fileUrl);
     const arrayBuffer = await response.arrayBuffer();
-    const textContent = await extractTextFromPDF(arrayBuffer);
+    const buffer = new Uint8Array(arrayBuffer);
+    
+    // Parse PDF to extract text
+    const pdfData = await pdfParse(buffer);
+    const textContent = pdfData.text;
 
-    // Extract title
+    // Extract title from filename
     const titleMatch = fileName.match(/^(.+?)\.pdf$/i);
     if (titleMatch) {
         extractedData.title = {
@@ -130,41 +135,68 @@ async function extractFromPDF(fileUrl, fileName, base44) {
         };
     }
 
-    // Extract coverage period from filename or text
+    // Extract coverage period from filename or text (multiple patterns)
     const yearMatch = fileName.match(/\b(20\d{2})\b/) || textContent.match(/\b(20\d{2})\b/);
     if (yearMatch) {
         extractedData.coverage_period = {
             value: yearMatch[1],
-            confidence: 0.85,
+            confidence: 0.9,
             evidence: yearMatch[0] === fileName.match(/\b(20\d{2})\b/)?.[0] ? 'filename' : 'document text'
         };
     }
 
-    // Detect publisher
-    if (fileName.toLowerCase().includes('mintel') || textContent.toLowerCase().includes('mintel')) {
+    // Detect Mintel publisher with high confidence
+    const isMintel = textContent.toLowerCase().includes('mintel group ltd') || 
+                     textContent.toLowerCase().includes('© 2026 mintel') ||
+                     textContent.toLowerCase().includes('© 2025 mintel') ||
+                     fileName.toLowerCase().includes('mintel');
+    
+    if (isMintel) {
         extractedData.publisher = {
             value: 'Mintel',
-            confidence: 0.95,
-            evidence: 'filename/content'
+            confidence: 0.98,
+            evidence: 'Mintel copyright and branding in document'
         };
         extractedData.source_type = {
             value: 'mintel',
-            confidence: 0.95,
+            confidence: 0.98,
             evidence: 'publisher detection'
         };
     }
 
-    // Use LLM to extract region, category, and other metadata
-    const llmPrompt = `Extract metadata from this document excerpt. Return ONLY a JSON object with these fields:
-- region (one of: ASPAC, AMERICAS, EMEC, IMEA, Global)
-- category (one of: Bakery, Confectionery, Dairy, Feed, Fine Food, Ice Cream, Lipid, Meat, Other Food Applications, PCI, Polymer, Tech)
-- main_group (Food or BSA)
-- publisher (e.g., Mintel, GNPD, Other/Unknown)
+    // Extract publication date from Mintel format (e.g., "12 MAY 2025")
+    const datePattern = /\b(\d{1,2}\s+(?:JANUARY|FEBRUARY|MARCH|APRIL|MAY|JUNE|JULY|AUGUST|SEPTEMBER|OCTOBER|NOVEMBER|DECEMBER)\s+20\d{2})\b/i;
+    const dateMatch = textContent.match(datePattern);
+    if (dateMatch && !extractedData.date) {
+        extractedData.date = {
+            value: dateMatch[1],
+            confidence: 0.95,
+            evidence: 'publication date in document header'
+        };
+    }
+
+    // Use LLM with better context to extract region, category
+    const llmPrompt = `Extract metadata from this Mintel report. Return ONLY a JSON object with these fields:
+
+REGION (one of: ASPAC, AMERICAS, EMEC, IMEA, Global):
+- ASPAC: Asia Pacific, China, Japan, Australia, New Zealand
+- AMERICAS: North America, South America, Latin America, USA, Canada
+- EMEC: Europe (excluding Russia), Turkey, Iran, former Soviet countries
+- IMEA: India, Middle East, Africa
+- Global: worldwide scope
+
+CATEGORY (one of: Bakery, Confectionery, Dairy, Feed, Fine Food, Ice Cream, Lipid, Meat, Other Food Applications, PCI, Polymer, Tech):
+Look for specific product categories mentioned.
+
+MAIN_GROUP (Food or BSA):
+- BSA subcategories: PCI, Polymer, Tech
+- Food: everything else
 
 Document title: ${fileName}
-First 3000 characters: ${textContent.substring(0, 3000)}
+Document content (first 5000 chars):
+${textContent.substring(0, 5000)}
 
-Only include fields you can confidently extract. If uncertain, omit the field.`;
+Only include fields you can confidently extract from the actual content. If uncertain, omit the field.`;
 
     const llmResult = await base44.integrations.Core.InvokeLLM({
         prompt: llmPrompt,
@@ -173,40 +205,24 @@ Only include fields you can confidently extract. If uncertain, omit the field.`;
             properties: {
                 region: { type: 'string' },
                 category: { type: 'string' },
-                main_group: { type: 'string' },
-                publisher: { type: 'string' }
+                main_group: { type: 'string' }
             }
         }
     });
 
-    // Add LLM-extracted fields
+    // Add LLM-extracted fields with higher confidence if they match enums
     for (const [field, value] of Object.entries(llmResult)) {
         if (value && !extractedData[field]) {
+            const confidence = validateEnumValue(field, value) ? 0.9 : 0.7;
             extractedData[field] = {
                 value: value,
-                confidence: 0.75,
+                confidence: confidence,
                 evidence: 'LLM analysis of document content'
             };
         }
     }
 
     return extractedData;
-}
-
-// Helper: Extract text from PDF (simplified - returns first page text)
-async function extractTextFromPDF(arrayBuffer) {
-    // For a production system, you'd use a proper PDF parser
-    // For now, convert buffer to string and extract visible text
-    const decoder = new TextDecoder('utf-8');
-    const text = decoder.decode(arrayBuffer);
-    
-    // Basic extraction - look for readable text between stream objects
-    const textMatches = text.match(/\(([^)]+)\)/g);
-    if (textMatches) {
-        return textMatches.map(m => m.slice(1, -1)).join(' ').substring(0, 5000);
-    }
-    
-    return text.substring(0, 5000);
 }
 
 // Helper: Extract metadata from Excel/CSV
@@ -388,4 +404,16 @@ function mapCategory(text) {
     }
 
     return 'Other Food Applications';
+}
+
+// Helper: Validate extracted value against enum
+function validateEnumValue(field, value) {
+    const validValues = {
+        region: ['ASPAC', 'AMERICAS', 'EMEC', 'IMEA', 'Global'],
+        category: ['Bakery', 'Confectionery', 'Dairy', 'Feed', 'Fine Food', 'Ice Cream', 'Lipid', 'Meat', 'Other Food Applications', 'PCI', 'Polymer', 'Tech'],
+        main_group: ['Food', 'BSA'],
+        source_type: ['mintel', 'gnpd', 'report', 'url', 'other']
+    };
+
+    return validValues[field]?.includes(value) || false;
 }
