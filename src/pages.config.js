@@ -53,6 +53,7 @@ import ProjectDetail from './pages/ProjectDetail';
 import Projects from './pages/Projects';
 import ReportView from './pages/ReportView';
 import ReportsLibrary from './pages/ReportsLibrary';
+import SourcesDatabase from './pages/SourcesDatabase';
 import __Layout from './Layout.jsx';
 
 
@@ -63,6 +64,7 @@ export const PAGES = {
     "Projects": Projects,
     "ReportView": ReportView,
     "ReportsLibrary": ReportsLibrary,
+    "SourcesDatabase": SourcesDatabase,
 }
 
 export const pagesConfig = {
