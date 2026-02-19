@@ -4,16 +4,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Upload, X, CheckCircle, AlertCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { Upload, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import DuplicateDetectedModal from './DuplicateDetectedModal';
 
-export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSource }) {
+export default function BulkUploadZone({ onUploadComplete }) {
   const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadQueue, setUploadQueue] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [currentDuplicate, setCurrentDuplicate] = useState(null);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -54,10 +52,9 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
       file,
       name: file.name,
       size: file.size,
-      status: 'pending', // pending, uploading, success, error, duplicate
+      status: 'pending', // pending, uploading, success, error
       progress: 0,
       error: null,
-      duplicate: null,
       sourceType: guessSourceType(file.name)
     }));
 
@@ -98,21 +95,23 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
           source_type: item.sourceType,
           file_url,
           title: item.name,
-          project_id: projectId || null
+          project_id: null // Library upload
         });
 
         setUploadQueue(prev => prev.map(i => 
           i.id === item.id ? { ...i, status: 'success', progress: 100, sourceId: response.data.source_id } : i
         ));
       } catch (error) {
-        // Check if duplicate
+        // Handle duplicate detection
         if (error.response?.data?.error === 'DUPLICATE_DETECTED') {
+          const duplicate = error.response.data.duplicate;
           setUploadQueue(prev => prev.map(i => 
             i.id === item.id ? { 
               ...i, 
               status: 'duplicate', 
-              error: 'Duplicate detected', 
-              duplicate: error.response.data.duplicate 
+              progress: 0, 
+              duplicate,
+              error: error.response.data.message 
             } : i
           ));
         } else {
@@ -127,8 +126,8 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
     queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
     
     const successCount = uploadQueue.filter(i => i.status === 'success').length;
-    const duplicateCount = uploadQueue.filter(i => i.status === 'duplicate').length;
     const failCount = uploadQueue.filter(i => i.status === 'error').length;
+    const duplicateCount = uploadQueue.filter(i => i.status === 'duplicate').length;
     
     if (successCount > 0) {
       toast.success(`${successCount} source${successCount > 1 ? 's' : ''} uploaded ✓`);
@@ -136,11 +135,11 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
         onUploadComplete(uploadQueue.filter(i => i.status === 'success').map(i => i.sourceId));
       }
     }
-    if (duplicateCount > 0) {
-      toast.warning(`${duplicateCount} duplicate${duplicateCount > 1 ? 's' : ''} skipped`);
-    }
     if (failCount > 0) {
       toast.error(`${failCount} upload${failCount > 1 ? 's' : ''} failed`);
+    }
+    if (duplicateCount > 0) {
+      toast.warning(`${duplicateCount} duplicate${duplicateCount > 1 ? 's' : ''} detected and skipped`);
     }
   };
 
