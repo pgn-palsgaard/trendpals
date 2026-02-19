@@ -26,11 +26,12 @@ import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { ArrowLeft } from "lucide-react";
+import { getAllRegionCodes } from "@/components/RegionsTaxonomy";
 
 const formSchema = z.object({
   name: z.string().min(1, { message: "Project name is required" }),
   category: z.string().min(1, { message: "Category is required" }),
-  region: z.string().min(1, { message: "Region is required" }),
+  region_code: z.string().min(1, { message: "Region is required" }),
   audience: z.string().default("Industrial manufacturers"),
   objective: z.string().min(10, { message: "Please provide a clear objective (at least 10 characters)" }),
   meeting_context: z.string().optional(),
@@ -38,7 +39,7 @@ const formSchema = z.object({
 });
 
 const categories = ["Ice Cream", "Bakery", "Confectionery", "Chocolate", "Dairy", "Beverages"];
-const regions = ["EMEA", "APAC", "Americas", "Global"];
+const regions = [...getAllRegionCodes(), "Global"];
 const trendTimeWindows = ["last 6 months", "last 12 months", "last 24 months", "last 36 months"];
 const launchTimeWindows = ["last 30 days", "last 3 months", "last 6 months", "last 12 months"];
 const meetingContextOptions = ["discovery", "innovation_day", "technical_workshop", "other"];
@@ -53,7 +54,7 @@ export default function NewProject() {
     defaultValues: {
       name: "",
       category: "",
-      region: "",
+      region_code: "",
       audience: "Industrial manufacturers",
       objective: "",
       meeting_context: "",
@@ -144,7 +145,7 @@ export default function NewProject() {
 
                 <FormField
                   control={form.control}
-                  name="region"
+                  name="region_code"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Region Focus *</FormLabel>

@@ -27,7 +27,7 @@ export default function Home() {
   const filteredReports = reports.filter(r =>
     r.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.region?.toLowerCase().includes(searchQuery.toLowerCase())
+    r.region_code?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -145,7 +145,7 @@ export default function Home() {
                             <div>
                               <h3 className="font-semibold text-slate-900">{project.name}</h3>
                               <p className="text-sm text-slate-600 mt-1">
-                                {project.category} • {project.region}
+                                {project.category} • {project.region_code}
                               </p>
                             </div>
                             <span className={`text-xs px-2 py-1 rounded-full ${
