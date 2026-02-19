@@ -10,6 +10,7 @@ import { X, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAllRegionCodes } from '@/components/RegionsTaxonomy';
 import DuplicateDetectedModal from './DuplicateDetectedModal';
+import UploadStatusCard from './UploadStatusCard';
 
 export default function UploadSourceModal({ onClose, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
@@ -119,6 +120,25 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
           onClose();
         }}
       />
+    );
+  }
+
+  if (uploadComplete && sourceId) {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg shadow-xl w-full max-w-lg p-6">
+          <h2 className="text-lg font-semibold text-slate-900 mb-4">Upload Complete</h2>
+          <UploadStatusCard
+            sourceId={sourceId}
+            initialStatus="processing"
+            onRemove={() => onClose()}
+            onViewSource={() => onClose()}
+          />
+          <div className="mt-4 flex justify-end">
+            <Button onClick={onClose}>Done</Button>
+          </div>
+        </div>
+      </div>
     );
   }
 
