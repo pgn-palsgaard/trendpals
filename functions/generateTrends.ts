@@ -9,7 +9,13 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { project_id } = await req.json();
+    const payload = await req.json();
+    // Support both direct calls (project_id) and entity automation (event.entity_id)
+    const project_id = payload.project_id || payload.event?.entity_id;
+    
+    if (!project_id) {
+      return Response.json({ error: 'Error in field project_id: Field required' }, { status: 400 });
+    }
 
     // Get project and sources
     const projects = await base44.entities.Project.filter({ id: project_id });
