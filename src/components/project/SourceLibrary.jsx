@@ -285,7 +285,7 @@ export default function SourceLibrary({ project }) {
         </div>
 
         {/* Sources List */}
-        <div className="space-y-2 max-h-96 overflow-y-auto"
+        <div className="space-y-2 max-h-96 overflow-y-auto">
           {isLoading ? (
             <div className="text-center py-8 text-slate-500">
               Loading library...
