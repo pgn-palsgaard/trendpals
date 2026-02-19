@@ -4,16 +4,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Upload, X, CheckCircle, AlertCircle, Loader2, AlertTriangle } from 'lucide-react';
+import { Upload, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import DuplicateDetectedModal from './DuplicateDetectedModal';
 
-export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSource }) {
+export default function BulkUploadZone({ onUploadComplete }) {
   const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadQueue, setUploadQueue] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [currentDuplicate, setCurrentDuplicate] = useState(null);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -54,10 +52,9 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
       file,
       name: file.name,
       size: file.size,
-      status: 'pending', // pending, uploading, success, error, duplicate
+      status: 'pending', // pending, uploading, success, error
       progress: 0,
       error: null,
-      duplicate: null,
       sourceType: guessSourceType(file.name)
     }));
 
@@ -98,21 +95,23 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
           source_type: item.sourceType,
           file_url,
           title: item.name,
-          project_id: projectId || null
+          project_id: null // Library upload
         });
 
         setUploadQueue(prev => prev.map(i => 
           i.id === item.id ? { ...i, status: 'success', progress: 100, sourceId: response.data.source_id } : i
         ));
       } catch (error) {
-        // Check if duplicate
+        // Handle duplicate detection
         if (error.response?.data?.error === 'DUPLICATE_DETECTED') {
+          const duplicate = error.response.data.duplicate;
           setUploadQueue(prev => prev.map(i => 
             i.id === item.id ? { 
               ...i, 
               status: 'duplicate', 
-              error: 'Duplicate detected', 
-              duplicate: error.response.data.duplicate 
+              progress: 0, 
+              duplicate,
+              error: error.response.data.message 
             } : i
           ));
         } else {
@@ -127,8 +126,8 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
     queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
     
     const successCount = uploadQueue.filter(i => i.status === 'success').length;
-    const duplicateCount = uploadQueue.filter(i => i.status === 'duplicate').length;
     const failCount = uploadQueue.filter(i => i.status === 'error').length;
+    const duplicateCount = uploadQueue.filter(i => i.status === 'duplicate').length;
     
     if (successCount > 0) {
       toast.success(`${successCount} source${successCount > 1 ? 's' : ''} uploaded ✓`);
@@ -136,16 +135,16 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
         onUploadComplete(uploadQueue.filter(i => i.status === 'success').map(i => i.sourceId));
       }
     }
-    if (duplicateCount > 0) {
-      toast.warning(`${duplicateCount} duplicate${duplicateCount > 1 ? 's' : ''} skipped`);
-    }
     if (failCount > 0) {
       toast.error(`${failCount} upload${failCount > 1 ? 's' : ''} failed`);
+    }
+    if (duplicateCount > 0) {
+      toast.warning(`${duplicateCount} duplicate${duplicateCount > 1 ? 's' : ''} detected and skipped`);
     }
   };
 
   const clearCompleted = () => {
-    setUploadQueue(prev => prev.filter(item => item.status !== 'success' && item.status !== 'duplicate'));
+    setUploadQueue(prev => prev.filter(item => item.status !== 'success'));
   };
 
   const hasItems = uploadQueue.length > 0;
@@ -154,17 +153,7 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
   const needsMetadata = uploadQueue.filter(i => i.status === 'success').length;
 
   return (
-    <>
-      {currentDuplicate && (
-        <DuplicateDetectedModal
-          duplicate={currentDuplicate}
-          projectId={projectId}
-          onLinkToProject={onLinkSource}
-          onClose={() => setCurrentDuplicate(null)}
-        />
-      )}
-      
-      <div className="space-y-4">
+    <div className="space-y-4">
       {/* Drop Zone */}
       <div
         onDragOver={handleDragOver}
@@ -234,7 +223,7 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
                     {item.status === 'pending' && <div className="w-5 h-5 rounded-full border-2 border-slate-300" />}
                     {item.status === 'uploading' && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}
                     {item.status === 'success' && <CheckCircle className="w-5 h-5 text-green-600" />}
-                    {item.status === 'duplicate' && <AlertTriangle className="w-5 h-5 text-orange-600" />}
+                    {item.status === 'duplicate' && <AlertCircle className="w-5 h-5 text-orange-600" />}
                     {item.status === 'error' && <AlertCircle className="w-5 h-5 text-red-600" />}
                   </div>
                   
@@ -250,20 +239,19 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
                       <Progress value={item.progress} className="h-1" />
                     )}
                     
-                    {item.status === 'error' && (
-                      <p className="text-xs text-red-600">{item.error}</p>
+                    {item.status === 'duplicate' && item.duplicate && (
+                      <div className="mt-1 p-2 bg-orange-50 border border-orange-200 rounded text-xs">
+                        <p className="font-medium text-orange-900 mb-1">⚠️ Duplicate detected</p>
+                        <p className="text-orange-700 mb-1">{item.error}</p>
+                        <p className="text-orange-800">
+                          Exists: <span className="font-medium">{item.duplicate.title}</span>
+                          {item.duplicate.date && ` (${new Date(item.duplicate.date).toLocaleDateString()})`}
+                        </p>
+                      </div>
                     )}
                     
-                    {item.status === 'duplicate' && (
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs text-orange-600">Duplicate • Already exists</p>
-                        <button
-                          onClick={() => setCurrentDuplicate(item.duplicate)}
-                          className="text-xs text-blue-600 hover:underline"
-                        >
-                          View
-                        </button>
-                      </div>
+                    {item.status === 'error' && (
+                      <p className="text-xs text-red-600">{item.error}</p>
                     )}
                     
                     {item.status === 'success' && (
@@ -315,7 +303,6 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
           </CardContent>
         </Card>
       )}
-      </div>
-    </>
+    </div>
   );
 }
