@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, FileText, AlertCircle, CheckCircle2, Loader2, ExternalLink, Trash2, History } from 'lucide-react';
 import { toast } from 'sonner';
 import SourceLibrary from './SourceLibrary';
+import DataReadinessCheck from './DataReadinessCheck';
+import LinkedSourcesPanel from './LinkedSourcesPanel';
 
 export default function ProjectSources({ project, sources, imageExtractions = [] }) {
   const queryClient = useQueryClient();
@@ -210,6 +212,12 @@ export default function ProjectSources({ project, sources, imageExtractions = []
 
   return (
     <div className="space-y-6">
+      {/* Data Readiness Check */}
+      <DataReadinessCheck project={project} sources={sources} />
+
+      {/* Linked Sources Panel */}
+      <LinkedSourcesPanel project={project} sources={sources} />
+
       {/* Source Library - Browse and Select Existing Sources */}
       <SourceLibrary project={project} />
 
@@ -283,186 +291,7 @@ export default function ProjectSources({ project, sources, imageExtractions = []
 
 
 
-      {/* Sources List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Uploaded Sources ({sources.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {sources.length === 0 ? (
-            <div className="text-center py-8 text-slate-500">
-              <Upload className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-              <p>No sources uploaded yet</p>
-              <p className="text-sm mt-1">Upload Mintel reports, GNPD exports, or add URLs to get started</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {sources.map(source => (
-                <Card key={source.id} className="border-slate-200">
-                  <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        <FileText className="w-5 h-5 text-slate-400 mt-0.5" />
-                        <div className="flex-1">
-                          <h4 className="font-medium text-slate-900">{source.title}</h4>
-                          <div className="flex items-center gap-3 mt-1 text-sm text-slate-600">
-                            <span className="capitalize">{source.source_type}</span>
-                            {source.date && <span>•</span>}
-                            {source.date && <span>{new Date(source.date).toLocaleDateString()}</span>}
-                          </div>
-                          
-                          {/* Data Summary */}
-                          <div className="mt-2 space-y-1">
-                            {source.excerpts && source.excerpts.length > 0 && (
-                              <p className="text-xs text-slate-600">
-                                📄 {source.excerpts.length} text excerpts extracted for trend analysis
-                              </p>
-                            )}
-                            {source.gnpd_data && source.gnpd_data.length > 0 && (
-                              <div className="space-y-1">
-                                <p className="text-xs text-slate-600">
-                                  🛒 {source.gnpd_data.length} GNPD product launches
-                                </p>
-                                {source.gnpd_data.filter(p => p.has_image).length > 0 && (
-                                  <div className="flex items-center gap-2">
-                                    <div className="text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded border border-green-200">
-                                      ✓ {source.gnpd_data.filter(p => p.has_image).length} products with images
-                                    </div>
-                                    <div className="text-xs text-slate-500">
-                                      ({Math.round((source.gnpd_data.filter(p => p.has_image).length / source.gnpd_data.length) * 100)}% match rate)
-                                    </div>
-                                  </div>
-                                )}
-                                {source.gnpd_data.filter(p => !p.has_image).length > 0 && (
-                                  <p className="text-xs text-slate-500">
-                                    {source.gnpd_data.filter(p => !p.has_image).length} products without images
-                                  </p>
-                                )}
-                              </div>
-                            )}
-                            
-                            {/* Explanation of what this source provides */}
-                            <p className="text-xs text-slate-500 italic mt-2 pt-2 border-t border-slate-100">
-                              {source.source_type === 'mintel' && 
-                                'Provides market insights, consumer trends, and strategic framing for trend narratives'}
-                              {source.source_type === 'gnpd' && 
-                                'Provides real product examples and launch data to validate trends with market evidence'}
-                              {source.source_type === 'report' && 
-                                'Provides additional market context and supporting evidence from industry reports'}
-                              {source.source_type === 'url' && 
-                                'Provides web-based insights and supplementary information'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {source.freshness && freshnessIcons[source.freshness]}
-                        {source.file_url && (
-                          <a href={source.file_url} target="_blank" rel="noopener noreferrer">
-                            <Button variant="ghost" size="icon">
-                              <ExternalLink className="w-4 h-4" />
-                            </Button>
-                          </a>
-                        )}
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => {
-                            if (confirm('Remove this source? This cannot be undone.')) {
-                              deleteSourceMutation.mutate(source.id);
-                            }
-                          }}
-                        >
-                          <Trash2 className="w-4 h-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
-      {/* Enhanced Data Coverage Panel */}
-      {sources.length > 0 && (
-        <Card className={project.data_sufficiency_score < 60 ? 'border-yellow-300 bg-yellow-50' : 'border-green-300 bg-green-50'}>
-          <CardHeader>
-            <CardTitle className={project.data_sufficiency_score < 60 ? 'text-yellow-900' : 'text-green-900'}>
-              Data Coverage Check
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-sm">
-                <span>Coverage Score:</span>
-                <div className="flex items-center gap-2">
-                  <div className="w-32 h-2 bg-slate-200 rounded-full overflow-hidden">
-                    <div 
-                      className={`h-full transition-all ${
-                        project.data_sufficiency_score >= 60 ? 'bg-green-500' : 'bg-yellow-500'
-                      }`}
-                      style={{ width: `${project.data_sufficiency_score}%` }}
-                    />
-                  </div>
-                  <span className="font-medium">{project.data_sufficiency_score}%</span>
-                </div>
-              </div>
-
-              <div className="space-y-2 text-sm pt-2 border-t">
-                <div className="flex items-center justify-between">
-                  <span>Mintel/Reports:</span>
-                  <span className="font-medium">
-                    {sources.filter(s => s.source_type === 'mintel' || s.source_type === 'report').length} sources
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>GNPD Products:</span>
-                  <span className="font-medium">
-                    {sources.reduce((sum, s) => sum + (s.gnpd_data?.length || 0), 0)} products
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Text Excerpts:</span>
-                  <span className="font-medium">
-                    {sources.reduce((sum, s) => sum + (s.excerpts?.length || 0), 0)} chunks
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Products with Images:</span>
-                  <span className="font-medium">
-                    {sources.reduce((sum, s) => sum + (s.gnpd_data?.filter(p => p.has_image).length || 0), 0)} 📷
-                  </span>
-                </div>
-              </div>
-
-              {project.data_sufficiency_score < 60 && (
-                <div className="mt-4 p-3 bg-white rounded-lg border border-yellow-200">
-                  <p className="text-sm font-medium text-yellow-900 mb-2">⚠️ Recommendations:</p>
-                  <ul className="text-sm text-yellow-800 space-y-1">
-                    {sources.filter(s => s.source_type === 'mintel').length === 0 && (
-                      <li>• Add Mintel reports for stronger trend framing</li>
-                    )}
-                    {sources.reduce((sum, s) => sum + (s.gnpd_data?.length || 0), 0) < 20 && (
-                      <li>• Upload GNPD exports with at least 20 products</li>
-                    )}
-                    {sources.reduce((sum, s) => sum + (s.gnpd_data?.filter(p => p.has_image).length || 0), 0) < 10 && (
-                      <li>• Add GNPD HTML export or upload product images for visual proof</li>
-                    )}
-                  </ul>
-                </div>
-              )}
-
-              {project.data_sufficiency_score >= 60 && (
-                <div className="mt-3 text-sm text-green-800">
-                  ✓ Sufficient data for trend generation
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
