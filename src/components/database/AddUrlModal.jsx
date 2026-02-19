@@ -7,21 +7,26 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Link as LinkIcon, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAllRegionCodes } from '@/components/RegionsTaxonomy';
+import DuplicateDetectedModal from './DuplicateDetectedModal';
 
-export default function AddUrlModal({ onClose }) {
+export default function AddUrlModal({ onClose, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
   const [url, setUrl] = useState('');
   const [snapshotPolicy, setSnapshotPolicy] = useState('snapshot');
+  const [duplicate, setDuplicate] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
-    region: '',
+    region_code: '',
     category: '',
     date: '',
     trust_tier: 'medium',
     usage_permission: 'evidence'
   });
   const [adding, setAdding] = useState(false);
-  const [duplicateInfo, setDuplicateInfo] = useState(null);
+
+  const regions = [...getAllRegionCodes(), 'Global'];
+  const categories = ['Ice Cream', 'Bakery', 'Confectionery', 'Dairy', 'Chocolate', 'Beverages', 'Snacks', 'Other'];
 
   const addUrlMutation = useMutation({
     mutationFn: async (data) => {
@@ -30,13 +35,16 @@ export default function AddUrlModal({ onClose }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ['projectSources', projectId] });
+      }
       toast.success('URL source added ✓');
       onClose();
     },
     onError: (error) => {
-      // Handle duplicate detection
+      // Check if it's a duplicate error
       if (error.response?.data?.error === 'DUPLICATE_DETECTED') {
-        setDuplicateInfo(error.response.data);
+        setDuplicate(error.response.data.duplicate);
         setAdding(false);
       } else {
         toast.error(error.message || 'Failed to add URL');
@@ -48,7 +56,7 @@ export default function AddUrlModal({ onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!url || !formData.title || !formData.region || !formData.category || !formData.date) {
+    if (!url || !formData.title || !formData.region_code || !formData.category || !formData.date) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -59,60 +67,32 @@ export default function AddUrlModal({ onClose }) {
         source_type: 'url',
         url,
         title: formData.title,
-        region: formData.region,
+        region_code: formData.region_code,
         category: formData.category,
         date: formData.date,
         trust_tier: formData.trust_tier,
         usage_permission: formData.usage_permission,
         snapshot_url: snapshotPolicy === 'snapshot' ? url : null,
-        project_id: null
+        project_id: projectId || null
       });
     } catch (error) {
       // Error handled by mutation
+    } finally {
+      setAdding(false);
     }
   };
 
-  // If duplicate detected, show duplicate warning UI
-  if (duplicateInfo) {
-    const { duplicate } = duplicateInfo;
+  if (duplicate) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
-          <div className="p-6">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-6 h-6 text-orange-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-slate-900 mb-1">Duplicate URL Detected</h3>
-                <p className="text-sm text-slate-600">{duplicateInfo.message}</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
-              <p className="text-xs text-slate-500 mb-2">Existing source:</p>
-              <p className="font-medium text-slate-900">{duplicate.title}</p>
-              <div className="flex gap-4 text-xs text-slate-600 mt-2">
-                {duplicate.category && <span>Category: {duplicate.category}</span>}
-                {duplicate.region_code && <span>Region: {duplicate.region_code}</span>}
-                {duplicate.date && <span>Added: {new Date(duplicate.date).toLocaleDateString()}</span>}
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  setDuplicateInfo(null);
-                  onClose();
-                }}
-                className="flex-1"
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <DuplicateDetectedModal
+        duplicate={duplicate}
+        projectId={projectId}
+        onLinkToProject={onLinkSource}
+        onClose={() => {
+          setDuplicate(null);
+          onClose();
+        }}
+      />
     );
   }
 

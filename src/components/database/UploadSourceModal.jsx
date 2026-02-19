@@ -89,14 +89,14 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
         source_type: formData.source_type,
         file_url,
         title: formData.title,
-        region: formData.region,
+        region_code: formData.region_code,
         category: formData.category,
         date: formData.date,
         trust_tier: formData.trust_tier,
         usage_permission: formData.usage_permission,
         tags: formData.tags ? formData.tags.split(',').map(t => t.trim()) : [],
         notes: formData.notes,
-        project_id: null // Library upload, not project-specific
+        project_id: projectId || null
       });
     } catch (error) {
       toast.error('Upload failed');
@@ -104,6 +104,20 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
       setUploading(false);
     }
   };
+
+  if (duplicate) {
+    return (
+      <DuplicateDetectedModal
+        duplicate={duplicate}
+        projectId={projectId}
+        onLinkToProject={onLinkSource}
+        onClose={() => {
+          setDuplicate(null);
+          onClose();
+        }}
+      />
+    );
+  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
