@@ -21,7 +21,23 @@ Deno.serve(async (req) => {
       project_id,
       is_selected: true 
     });
-    const sources = await base44.entities.Source.filter({ project_id });
+    
+    // Get sources linked to this project
+    let sources = [];
+    if (project.selected_source_ids && project.selected_source_ids.length > 0) {
+      // Fetch sources by their IDs
+      for (const sourceId of project.selected_source_ids) {
+        try {
+          const source = await base44.entities.Source.get(sourceId);
+          if (source) sources.push(source);
+        } catch (e) {
+          console.warn(`Source ${sourceId} not found`);
+        }
+      }
+    } else {
+      // Fallback: fetch sources directly linked to project (legacy support)
+      sources = await base44.entities.Source.filter({ project_id });
+    }
 
     if (!project) {
       return Response.json({ error: 'Project not found' }, { status: 404 });

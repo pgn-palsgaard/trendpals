@@ -36,6 +36,9 @@ Deno.serve(async (req) => {
     // Get project for additional context
     const project = await base44.entities.Project.get(report.project_id);
     
+    // Note: Sources are not directly used in Gamma generation, but available if needed
+    // The report already contains the processed slide content
+    
     // Determine subcategories from project category
     const subcategoriesMap = {
       'Ice Cream': 'Dairy based ice cream & frozen yogurt; Plant-based ice cream & frozen yogurt; Water-based lollies/pops/sorbets; Frozen desserts',
