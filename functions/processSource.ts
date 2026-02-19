@@ -1,5 +1,27 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+// Helper to normalize URL for duplicate detection
+function normalizeUrl(url) {
+  try {
+    const urlObj = new URL(url);
+    // Remove tracking params
+    const trackingParams = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', 'gclid'];
+    trackingParams.forEach(param => urlObj.searchParams.delete(param));
+    // Normalize protocol and remove trailing slash
+    return urlObj.href.toLowerCase().replace(/\/$/, '');
+  } catch {
+    return url.toLowerCase().replace(/\/$/, '');
+  }
+}
+
+// Helper to compute SHA-256 hash
+async function computeFileHash(fileContent) {
+  const msgBuffer = new TextEncoder().encode(fileContent);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -10,6 +32,56 @@ Deno.serve(async (req) => {
     }
 
     const { project_id, source_type, file_url, url, title, category, region, tags } = await req.json();
+
+    // DUPLICATE DETECTION
+    let file_hash = null;
+    let normalized_url = null;
+
+    // For file uploads: compute hash
+    if (file_url && source_type !== 'url') {
+      const fileResponse = await fetch(file_url);
+      const fileContent = await fileResponse.text();
+      file_hash = await computeFileHash(fileContent);
+
+      // Check for exact hash match
+      const existingSources = await base44.asServiceRole.entities.Source.filter({ file_hash });
+      if (existingSources.length > 0) {
+        const duplicate = existingSources[0];
+        return Response.json({
+          error: 'DUPLICATE_DETECTED',
+          message: 'This file has already been uploaded',
+          duplicate: {
+            id: duplicate.id,
+            title: duplicate.title,
+            date: duplicate.date,
+            category: duplicate.category,
+            region_code: duplicate.region_code
+          }
+        }, { status: 409 });
+      }
+    }
+
+    // For URL sources: normalize and check
+    if (source_type === 'url' && url) {
+      normalized_url = normalizeUrl(url);
+
+      // Check for normalized URL match
+      const existingSources = await base44.asServiceRole.entities.Source.filter({ normalized_url });
+      if (existingSources.length > 0) {
+        const duplicate = existingSources[0];
+        return Response.json({
+          error: 'DUPLICATE_DETECTED',
+          message: 'This URL has already been added',
+          duplicate: {
+            id: duplicate.id,
+            title: duplicate.title,
+            date: duplicate.date,
+            category: duplicate.category,
+            region_code: duplicate.region_code
+          }
+        }, { status: 409 });
+      }
+    }
 
     // Create source record first (project_id is now optional)
     const sourceData = {
@@ -22,7 +94,9 @@ Deno.serve(async (req) => {
       gnpd_data: [],
       category: category || null,
       region: region || null,
-      tags: tags || []
+      tags: tags || [],
+      file_hash: file_hash || null,
+      normalized_url: normalized_url || null
     };
 
     // Only add project_id if provided (for backward compatibility)
