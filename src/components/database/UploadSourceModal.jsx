@@ -16,6 +16,8 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [duplicate, setDuplicate] = useState(null);
+  const [sourceId, setSourceId] = useState(null);
+  const [uploadComplete, setUploadComplete] = useState(false);
   const [formData, setFormData] = useState({
     source_type: 'mintel',
     title: '',
@@ -36,13 +38,14 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
       const response = await base44.functions.invoke('processSource', data);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
       if (projectId) {
         queryClient.invalidateQueries({ queryKey: ['projectSources', projectId] });
       }
-      toast.success('Source uploaded and processed ✓');
-      onClose();
+      setSourceId(data.source_id);
+      setUploadComplete(true);
+      toast.success('Upload complete — processing metadata');
     },
     onError: (error) => {
       // Check if it's a duplicate error

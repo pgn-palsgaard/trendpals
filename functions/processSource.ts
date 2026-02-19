@@ -338,11 +338,14 @@ Deno.serve(async (req) => {
         gnpd_count: source.gnpd_data?.length || 0
       });
     } catch (processingError) {
-      // Update source status to error
+      // Update source status to failed
       await base44.entities.Source.update(source.id, {
-        status: 'error'
+        status: 'failed',
+        status_message: processingError.message || 'Processing failed',
+        processing_completed_at: new Date().toISOString()
       });
       
+      console.error('[processSource] Processing error:', processingError);
       throw processingError;
     }
   } catch (error) {
