@@ -89,7 +89,9 @@ Deno.serve(async (req) => {
       title,
       file_url: file_url || null,
       url: url || null,
-      status: 'processing',
+      status: 'uploaded',
+      upload_progress: 100,
+      processing_started_at: new Date().toISOString(),
       excerpts: [],
       gnpd_data: [],
       category: category || null,
@@ -105,6 +107,12 @@ Deno.serve(async (req) => {
     }
 
     const source = await base44.entities.Source.create(sourceData);
+
+    // Update status to processing
+    await base44.entities.Source.update(source.id, { 
+      status: 'processing',
+      processing_started_at: new Date().toISOString() 
+    });
 
     // Process based on source type
     try {
