@@ -8,15 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { X, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAllRegionCodes } from '@/components/RegionsTaxonomy';
+import DuplicateDetectedModal from './DuplicateDetectedModal';
 
-export default function UploadSourceModal({ onClose }) {
+export default function UploadSourceModal({ onClose, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [duplicate, setDuplicate] = useState(null);
   const [formData, setFormData] = useState({
     source_type: 'mintel',
     title: '',
-    region: '',
+    region_code: '',
     category: '',
     date: '',
     trust_tier: 'medium',
@@ -25,7 +28,8 @@ export default function UploadSourceModal({ onClose }) {
     notes: ''
   });
 
-  const [duplicateInfo, setDuplicateInfo] = useState(null);
+  const regions = [...getAllRegionCodes(), 'Global'];
+  const categories = ['Ice Cream', 'Bakery', 'Confectionery', 'Dairy', 'Chocolate', 'Beverages', 'Snacks', 'Other'];
 
   const uploadSourceMutation = useMutation({
     mutationFn: async (data) => {
@@ -34,13 +38,16 @@ export default function UploadSourceModal({ onClose }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ['projectSources', projectId] });
+      }
       toast.success('Source uploaded and processed ✓');
       onClose();
     },
     onError: (error) => {
-      // Handle duplicate detection
+      // Check if it's a duplicate error
       if (error.response?.data?.error === 'DUPLICATE_DETECTED') {
-        setDuplicateInfo(error.response.data);
+        setDuplicate(error.response.data.duplicate);
         setUploading(false);
       } else {
         toast.error(error.message || 'Failed to process source');
@@ -92,65 +99,11 @@ export default function UploadSourceModal({ onClose }) {
         project_id: null // Library upload, not project-specific
       });
     } catch (error) {
-      // Error handled by mutation
+      toast.error('Upload failed');
+    } finally {
+      setUploading(false);
     }
   };
-
-  // If duplicate detected, show duplicate warning UI
-  if (duplicateInfo) {
-    const { duplicate } = duplicateInfo;
-    return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-lg shadow-xl w-full max-w-lg">
-          <div className="p-6">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
-                <AlertCircle className="w-6 h-6 text-orange-600" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-semibold text-slate-900 mb-1">Duplicate Source Detected</h3>
-                <p className="text-sm text-slate-600">{duplicateInfo.message}</p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-4">
-              <p className="text-xs text-slate-500 mb-2">Existing source:</p>
-              <p className="font-medium text-slate-900">{duplicate.title}</p>
-              <div className="flex gap-4 text-xs text-slate-600 mt-2">
-                {duplicate.category && <span>Category: {duplicate.category}</span>}
-                {duplicate.region_code && <span>Region: {duplicate.region_code}</span>}
-                {duplicate.date && <span>Uploaded: {new Date(duplicate.date).toLocaleDateString()}</span>}
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                onClick={() => {
-                  setDuplicateInfo(null);
-                  onClose();
-                }}
-                className="flex-1"
-              >
-                Close
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  // Navigate to existing source
-                  setDuplicateInfo(null);
-                  onClose();
-                  // Could trigger callback to show source detail
-                }}
-                className="flex-1"
-              >
-                View Existing Source
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
