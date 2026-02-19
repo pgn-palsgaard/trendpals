@@ -12,11 +12,14 @@ import { toast } from 'sonner';
 export default function BulkEditPanel({ selectedSources, onClose }) {
   const queryClient = useQueryClient();
   const [showReview, setShowReview] = useState(false);
+  const [user, setUser] = useState(null);
   const [changes, setChanges] = useState({
     region: null,
     category: null,
     subcategory: null,
     date: null,
+    date_published: null,
+    date_published_override_reason: null,
     trust_tier: null,
     usage_permission: null,
     tags: null,
@@ -24,6 +27,10 @@ export default function BulkEditPanel({ selectedSources, onClose }) {
     notes: null,
     notesAction: 'append', // append or replace
   });
+
+  useEffect(() => {
+    base44.auth.me().then(setUser);
+  }, []);
 
   // Detect mixed values
   const getMixedState = (field) => {
@@ -50,6 +57,20 @@ export default function BulkEditPanel({ selectedSources, onClose }) {
         if (changesData.date) updates.date = changesData.date;
         if (changesData.trust_tier) updates.trust_tier = changesData.trust_tier;
         if (changesData.usage_permission) updates.usage_permission = changesData.usage_permission;
+        
+        // Handle publication date override
+        if (changesData.date_published) {
+          updates.date_published = changesData.date_published;
+          updates.date_published_source = 'manual_override';
+          updates.date_published_override_reason = changesData.date_published_override_reason || 'Bulk edit';
+          updates.date_published_last_updated_at = new Date().toISOString();
+          updates.date_published_updated_by = user?.email || 'Unknown';
+          
+          // Save original if not already overridden
+          if (source.date_published && source.date_published_source !== 'manual_override') {
+            updates.date_published_original_extracted = source.date_published;
+          }
+        }
         
         if (changesData.tags) {
           if (changesData.tagsAction === 'add') {

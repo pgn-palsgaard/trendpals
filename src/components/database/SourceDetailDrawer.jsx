@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -11,12 +11,18 @@ import { X, Edit, Download, Archive, Trash2, ExternalLink, Calendar, FileText, A
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import PublicationDateEditor from './PublicationDateEditor';
 
 export default function SourceDetailDrawer({ source, linkedProjects, onClose }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('preview');
   const [editMode, setEditMode] = useState(false);
   const [editData, setEditData] = useState(source);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    base44.auth.me().then(setUser);
+  }, []);
 
   const updateSourceMutation = useMutation({
     mutationFn: async (data) => {
