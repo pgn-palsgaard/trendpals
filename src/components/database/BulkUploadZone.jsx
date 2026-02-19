@@ -4,14 +4,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Upload, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, X, CheckCircle, AlertCircle, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import DuplicateDetectedModal from './DuplicateDetectedModal';
 
-export default function BulkUploadZone({ onUploadComplete }) {
+export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadQueue, setUploadQueue] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [currentDuplicate, setCurrentDuplicate] = useState(null);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -52,9 +54,10 @@ export default function BulkUploadZone({ onUploadComplete }) {
       file,
       name: file.name,
       size: file.size,
-      status: 'pending', // pending, uploading, success, error
+      status: 'pending', // pending, uploading, success, error, duplicate
       progress: 0,
       error: null,
+      duplicate: null,
       sourceType: guessSourceType(file.name)
     }));
 
@@ -95,16 +98,28 @@ export default function BulkUploadZone({ onUploadComplete }) {
           source_type: item.sourceType,
           file_url,
           title: item.name,
-          project_id: null // Library upload
+          project_id: projectId || null
         });
 
         setUploadQueue(prev => prev.map(i => 
           i.id === item.id ? { ...i, status: 'success', progress: 100, sourceId: response.data.source_id } : i
         ));
       } catch (error) {
-        setUploadQueue(prev => prev.map(i => 
-          i.id === item.id ? { ...i, status: 'error', error: error.message || 'Upload failed' } : i
-        ));
+        // Check if duplicate
+        if (error.response?.data?.error === 'DUPLICATE_DETECTED') {
+          setUploadQueue(prev => prev.map(i => 
+            i.id === item.id ? { 
+              ...i, 
+              status: 'duplicate', 
+              error: 'Duplicate detected', 
+              duplicate: error.response.data.duplicate 
+            } : i
+          ));
+        } else {
+          setUploadQueue(prev => prev.map(i => 
+            i.id === item.id ? { ...i, status: 'error', error: error.message || 'Upload failed' } : i
+          ));
+        }
       }
     }
 
@@ -112,6 +127,7 @@ export default function BulkUploadZone({ onUploadComplete }) {
     queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
     
     const successCount = uploadQueue.filter(i => i.status === 'success').length;
+    const duplicateCount = uploadQueue.filter(i => i.status === 'duplicate').length;
     const failCount = uploadQueue.filter(i => i.status === 'error').length;
     
     if (successCount > 0) {
@@ -119,6 +135,9 @@ export default function BulkUploadZone({ onUploadComplete }) {
       if (onUploadComplete) {
         onUploadComplete(uploadQueue.filter(i => i.status === 'success').map(i => i.sourceId));
       }
+    }
+    if (duplicateCount > 0) {
+      toast.warning(`${duplicateCount} duplicate${duplicateCount > 1 ? 's' : ''} skipped`);
     }
     if (failCount > 0) {
       toast.error(`${failCount} upload${failCount > 1 ? 's' : ''} failed`);
