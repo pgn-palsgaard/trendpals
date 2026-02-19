@@ -9,19 +9,26 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { project_id, source_type, file_url, url, title } = await req.json();
+    const { project_id, source_type, file_url, url, title, category, region, tags } = await req.json();
 
-    // Create source record first
+    // Create source record first (project_id is now optional)
     const sourceData = {
-      project_id,
       source_type,
       title,
       file_url: file_url || null,
       url: url || null,
       status: 'processing',
       excerpts: [],
-      gnpd_data: []
+      gnpd_data: [],
+      category: category || null,
+      region: region || null,
+      tags: tags || []
     };
+
+    // Only add project_id if provided (for backward compatibility)
+    if (project_id) {
+      sourceData.project_id = project_id;
+    }
 
     const source = await base44.entities.Source.create(sourceData);
 
@@ -203,22 +210,41 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Update project data sufficiency score
-      const allSources = await base44.entities.Source.filter({ project_id });
-      const mintelCount = allSources.filter(s => s.source_type === 'mintel').length;
-      const gnpdCount = allSources.filter(s => s.source_type === 'gnpd').length;
-      const totalExcerpts = allSources.reduce((sum, s) => sum + (s.excerpts?.length || 0), 0);
-      const totalGnpdProducts = allSources.reduce((sum, s) => sum + (s.gnpd_data?.length || 0), 0);
+      // Update project data sufficiency score (only if project_id provided)
+      if (project_id) {
+        const project = await base44.entities.Project.get(project_id);
+        
+        // Get all sources linked to this project
+        let allSources = [];
+        if (project.selected_source_ids && project.selected_source_ids.length > 0) {
+          for (const sourceId of project.selected_source_ids) {
+            try {
+              const src = await base44.entities.Source.get(sourceId);
+              if (src) allSources.push(src);
+            } catch (e) {
+              console.warn(`Source ${sourceId} not found`);
+            }
+          }
+        } else {
+          // Fallback: get sources directly linked to project (legacy)
+          allSources = await base44.entities.Source.filter({ project_id });
+        }
+        
+        const mintelCount = allSources.filter(s => s.source_type === 'mintel').length;
+        const gnpdCount = allSources.filter(s => s.source_type === 'gnpd').length;
+        const totalExcerpts = allSources.reduce((sum, s) => sum + (s.excerpts?.length || 0), 0);
+        const totalGnpdProducts = allSources.reduce((sum, s) => sum + (s.gnpd_data?.length || 0), 0);
 
-      let score = 0;
-      if (mintelCount > 0) score += 30;
-      if (gnpdCount > 0) score += 20;
-      if (totalExcerpts > 10) score += 25;
-      if (totalGnpdProducts > 20) score += 25;
+        let score = 0;
+        if (mintelCount > 0) score += 30;
+        if (gnpdCount > 0) score += 20;
+        if (totalExcerpts > 10) score += 25;
+        if (totalGnpdProducts > 20) score += 25;
 
-      await base44.entities.Project.update(project_id, {
-        data_sufficiency_score: Math.min(score, 100)
-      });
+        await base44.entities.Project.update(project_id, {
+          data_sufficiency_score: Math.min(score, 100)
+        });
+      }
 
       return Response.json({ 
         success: true, 
