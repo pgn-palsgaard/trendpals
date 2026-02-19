@@ -163,12 +163,16 @@ async function extractPage1Text(fileUrl) {
         const arrayBuffer = await response.arrayBuffer();
         const buffer = new Uint8Array(arrayBuffer);
         
-        // Parse PDF
-        const pdfData = await pdfParse(buffer, {
-            max: 1  // Only extract first page
-        });
+        // Parse entire PDF first (pdf-parse doesn't support page-specific extraction)
+        const pdfData = await pdfParse(buffer);
+        const fullText = pdfData.text;
         
-        return pdfData.text.trim();
+        // Extract approximate first page (first 3000 characters or until page break)
+        // Most Mintel first pages are under 2000 chars
+        const page1Text = fullText.substring(0, 3000);
+        
+        console.log(`Extracted ${page1Text.length} chars from page 1`);
+        return page1Text.trim();
     } catch (error) {
         console.error('Error extracting page 1 text:', error);
         return '';
