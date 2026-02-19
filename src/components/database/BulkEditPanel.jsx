@@ -159,6 +159,16 @@ export default function BulkEditPanel({ selectedSources, onClose }) {
                 <p className="font-medium">{new Date(changes.date).toLocaleDateString()}</p>
               </div>
             )}
+            {changes.date_published && (
+              <div className="p-3 border border-orange-200 bg-orange-50 rounded">
+                <p className="text-sm text-orange-800 font-medium">Publication Date Override</p>
+                <p className="font-medium">{new Date(changes.date_published).toLocaleDateString()}</p>
+                {changes.date_published_override_reason && (
+                  <p className="text-xs text-orange-700 mt-1">Reason: {changes.date_published_override_reason}</p>
+                )}
+                <p className="text-xs text-orange-600 mt-1">⚠️ Will override extracted dates</p>
+              </div>
+            )}
             {changes.trust_tier && (
               <div className="p-3 border border-slate-200 rounded">
                 <p className="text-sm text-slate-600">Trust Tier</p>
@@ -248,6 +258,31 @@ export default function BulkEditPanel({ selectedSources, onClose }) {
             value={changes.category || ''}
             onChange={(e) => setChanges({ ...changes, category: e.target.value || null })}
           />
+        </div>
+
+        {/* Publication Date */}
+        <div className="space-y-2">
+          <Label>Publication Date Override</Label>
+          <Input
+            type="date"
+            placeholder="No change"
+            value={changes.date_published || ''}
+            onChange={(e) => setChanges({ ...changes, date_published: e.target.value || null })}
+          />
+          {changes.date_published && (
+            <div className="space-y-2 mt-2">
+              <Label className="text-xs">Reason for override</Label>
+              <Input
+                placeholder="e.g., Bulk correction from..."
+                value={changes.date_published_override_reason || ''}
+                onChange={(e) => setChanges({ ...changes, date_published_override_reason: e.target.value })}
+                maxLength={200}
+              />
+            </div>
+          )}
+          <p className="text-xs text-slate-500">
+            This will override extracted dates for all selected sources
+          </p>
         </div>
 
         {/* Subcategory */}
