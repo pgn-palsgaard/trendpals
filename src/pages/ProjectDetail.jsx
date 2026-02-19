@@ -33,8 +33,29 @@ export default function ProjectDetail() {
 
   const { data: sources = [] } = useQuery({
     queryKey: ['sources', projectId],
-    queryFn: () => base44.entities.Source.filter({ project_id: projectId }),
-    enabled: !!projectId
+    queryFn: async () => {
+      if (!project) return [];
+      
+      // Get sources linked to this project
+      let linkedSources = [];
+      if (project.selected_source_ids && project.selected_source_ids.length > 0) {
+        // Fetch sources by their IDs
+        for (const sourceId of project.selected_source_ids) {
+          try {
+            const source = await base44.entities.Source.get(sourceId);
+            if (source) linkedSources.push(source);
+          } catch (e) {
+            console.warn(`Source ${sourceId} not found`);
+          }
+        }
+      } else {
+        // Fallback: fetch sources directly linked to project (legacy support)
+        linkedSources = await base44.entities.Source.filter({ project_id: projectId });
+      }
+      
+      return linkedSources;
+    },
+    enabled: !!projectId && !!project
   });
 
   const { data: trendCandidates = [] } = useQuery({
