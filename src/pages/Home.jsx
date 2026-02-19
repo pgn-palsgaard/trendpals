@@ -40,7 +40,7 @@ export default function Home() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
           <Card className="border-2 border-slate-200 hover:border-blue-400 transition-all cursor-pointer group">
             <Link to={createPageUrl('NewProject')}>
               <CardHeader className="pb-4">
@@ -69,6 +69,22 @@ export default function Home() {
               </CardHeader>
               <CardContent>
                 <p className="text-slate-600">{projects.length} active projects</p>
+              </CardContent>
+            </Link>
+          </Card>
+
+          <Card className="border-2 border-slate-200 hover:border-amber-400 transition-all cursor-pointer group">
+            <Link to={createPageUrl('SourcesDatabase')}>
+              <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-amber-100 rounded-lg group-hover:bg-amber-200 transition-colors">
+                    <FileText className="w-6 h-6 text-amber-600" />
+                  </div>
+                  <CardTitle className="text-xl">Source Library</CardTitle>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-slate-600">Manage your central database of market data</p>
               </CardContent>
             </Link>
           </Card>
