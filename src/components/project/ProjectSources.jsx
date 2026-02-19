@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, FileText, AlertCircle, CheckCircle2, Loader2, ExternalLink, Trash2, History } from 'lucide-react';
 import { toast } from 'sonner';
+import SourceLibrary from './SourceLibrary';
 
 export default function ProjectSources({ project, sources, imageExtractions = [] }) {
   const queryClient = useQueryClient();
@@ -55,9 +56,19 @@ export default function ProjectSources({ project, sources, imageExtractions = []
       const response = await base44.functions.invoke('processSource', data);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
       queryClient.invalidateQueries({ queryKey: ['project', project.id] });
+      queryClient.invalidateQueries({ queryKey: ['sourcesLibrary'] });
+      
+      // If project_id was provided, also link the source to the project
+      if (variables.project_id && data.source_id) {
+        const updatedIds = [...(project.selected_source_ids || []), data.source_id];
+        base44.entities.Project.update(project.id, {
+          selected_source_ids: updatedIds
+        });
+      }
+      
       toast.success('Source processed successfully');
     },
     onError: (error) => {
@@ -199,10 +210,13 @@ export default function ProjectSources({ project, sources, imageExtractions = []
 
   return (
     <div className="space-y-6">
+      {/* Source Library - Browse and Select Existing Sources */}
+      <SourceLibrary project={project} />
+
       {/* General Sources Upload */}
       <Card>
         <CardHeader>
-          <CardTitle>Upload Reports & Background Sources</CardTitle>
+          <CardTitle>Upload New Source to Library</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
