@@ -8,15 +8,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { X, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAllRegionCodes } from '@/components/RegionsTaxonomy';
+import DuplicateDetectedModal from './DuplicateDetectedModal';
 
-export default function UploadSourceModal({ onClose }) {
+export default function UploadSourceModal({ onClose, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const [duplicate, setDuplicate] = useState(null);
   const [formData, setFormData] = useState({
     source_type: 'mintel',
     title: '',
-    region: '',
+    region_code: '',
     category: '',
     date: '',
     trust_tier: 'medium',
@@ -25,6 +28,9 @@ export default function UploadSourceModal({ onClose }) {
     notes: ''
   });
 
+  const regions = [...getAllRegionCodes(), 'Global'];
+  const categories = ['Ice Cream', 'Bakery', 'Confectionery', 'Dairy', 'Chocolate', 'Beverages', 'Snacks', 'Other'];
+
   const uploadSourceMutation = useMutation({
     mutationFn: async (data) => {
       const response = await base44.functions.invoke('processSource', data);
@@ -32,11 +38,21 @@ export default function UploadSourceModal({ onClose }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ['projectSources', projectId] });
+      }
       toast.success('Source uploaded and processed ✓');
       onClose();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to process source');
+      // Check if it's a duplicate error
+      if (error.response?.data?.error === 'DUPLICATE_DETECTED') {
+        setDuplicate(error.response.data.duplicate);
+        setUploading(false);
+      } else {
+        toast.error(error.message || 'Failed to process source');
+        setUploading(false);
+      }
     }
   });
 

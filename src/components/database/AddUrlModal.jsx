@@ -7,20 +7,26 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Link as LinkIcon, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import { getAllRegionCodes } from '@/components/RegionsTaxonomy';
+import DuplicateDetectedModal from './DuplicateDetectedModal';
 
-export default function AddUrlModal({ onClose }) {
+export default function AddUrlModal({ onClose, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
   const [url, setUrl] = useState('');
   const [snapshotPolicy, setSnapshotPolicy] = useState('snapshot');
+  const [duplicate, setDuplicate] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
-    region: '',
+    region_code: '',
     category: '',
     date: '',
     trust_tier: 'medium',
     usage_permission: 'evidence'
   });
   const [adding, setAdding] = useState(false);
+
+  const regions = [...getAllRegionCodes(), 'Global'];
+  const categories = ['Ice Cream', 'Bakery', 'Confectionery', 'Dairy', 'Chocolate', 'Beverages', 'Snacks', 'Other'];
 
   const addUrlMutation = useMutation({
     mutationFn: async (data) => {
@@ -29,11 +35,21 @@ export default function AddUrlModal({ onClose }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ['projectSources', projectId] });
+      }
       toast.success('URL source added ✓');
       onClose();
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to add URL');
+      // Check if it's a duplicate error
+      if (error.response?.data?.error === 'DUPLICATE_DETECTED') {
+        setDuplicate(error.response.data.duplicate);
+        setAdding(false);
+      } else {
+        toast.error(error.message || 'Failed to add URL');
+        setAdding(false);
+      }
     }
   });
 
