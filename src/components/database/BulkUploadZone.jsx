@@ -4,14 +4,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
-import { Upload, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, X, CheckCircle, AlertCircle, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
+import DuplicateDetectedModal from './DuplicateDetectedModal';
 
-export default function BulkUploadZone({ onUploadComplete }) {
+export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadQueue, setUploadQueue] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [currentDuplicate, setCurrentDuplicate] = useState(null);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -52,9 +54,10 @@ export default function BulkUploadZone({ onUploadComplete }) {
       file,
       name: file.name,
       size: file.size,
-      status: 'pending', // pending, uploading, success, error
+      status: 'pending', // pending, uploading, success, error, duplicate
       progress: 0,
       error: null,
+      duplicate: null,
       sourceType: guessSourceType(file.name)
     }));
 
