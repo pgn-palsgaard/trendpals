@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
@@ -6,12 +6,44 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Upload, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import DuplicateDetectedModal from './DuplicateDetectedModal';
 
-export default function BulkUploadZone({ onUploadComplete }) {
+export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
   const [isDragging, setIsDragging] = useState(false);
   const [uploadQueue, setUploadQueue] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [currentDuplicate, setCurrentDuplicate] = useState(null);
+
+  // Poll for status updates on uploaded sources
+  useEffect(() => {
+    const uploadedItems = uploadQueue.filter(i => 
+      i.status === 'uploading' || i.sourceId && !['success', 'failed', 'duplicate'].includes(i.status)
+    );
+
+    if (uploadedItems.length === 0) return;
+
+    const interval = setInterval(async () => {
+      for (const item of uploadedItems) {
+        if (!item.sourceId) continue;
+        
+        try {
+          const source = await base44.entities.Source.get(item.sourceId);
+          const newStatus = source.status === 'ready' ? 'success' : 
+                           source.status === 'failed' ? 'error' : 
+                           'uploading';
+          
+          setUploadQueue(prev => prev.map(i => 
+            i.id === item.id ? { ...i, status: newStatus, error: source.status_message } : i
+          ));
+        } catch (err) {
+          console.error('Failed to fetch source status:', err);
+        }
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [uploadQueue]);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
