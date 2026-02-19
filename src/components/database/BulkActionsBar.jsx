@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tag, Archive, Trash2, Download, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function BulkActionsBar({ selectedIds, onClear, sources }) {
+export default function BulkActionsBar({ selectedIds, onClear, sources, onEdit }) {
   const queryClient = useQueryClient();
   const [action, setAction] = useState('');
 
@@ -96,6 +96,9 @@ export default function BulkActionsBar({ selectedIds, onClear, sources }) {
         <div className="h-6 w-px bg-slate-600" />
 
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={onEdit} className="bg-slate-800 border-slate-700 text-white hover:bg-slate-700">
+            Edit selected
+          </Button>
           <Select value={action} onValueChange={setAction}>
             <SelectTrigger className="w-48 bg-slate-800 border-slate-700 text-white">
               <SelectValue placeholder="Change trust tier..." />

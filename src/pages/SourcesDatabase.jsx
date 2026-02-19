@@ -13,6 +13,9 @@ import SourceDetailDrawer from '../components/database/SourceDetailDrawer';
 import UploadSourceModal from '../components/database/UploadSourceModal';
 import AddUrlModal from '../components/database/AddUrlModal';
 import BulkActionsBar from '../components/database/BulkActionsBar';
+import BulkUploadZone from '../components/database/BulkUploadZone';
+import MissingMetadataDashboard from '../components/database/MissingMetadataDashboard';
+import BulkEditPanel from '../components/database/BulkEditPanel';
 
 export default function SourcesDatabase() {
   const queryClient = useQueryClient();
@@ -21,6 +24,9 @@ export default function SourcesDatabase() {
   const [selectedSource, setSelectedSource] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showUrlModal, setShowUrlModal] = useState(false);
+  const [showBulkUpload, setShowBulkUpload] = useState(false);
+  const [showBulkEdit, setShowBulkEdit] = useState(false);
+  const [missingFieldFilter, setMissingFieldFilter] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(50);
   
@@ -83,6 +89,13 @@ export default function SourcesDatabase() {
   // Apply filters and search
   const filteredSources = useMemo(() => {
     return sourcesWithUsage.filter(source => {
+      // Missing field filter (from dashboard)
+      if (missingFieldFilter) {
+        if (missingFieldFilter === 'region' && source.region) return false;
+        if (missingFieldFilter === 'category' && source.category) return false;
+        if (missingFieldFilter === 'date' && source.date) return false;
+      }
+
       // Search
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -146,7 +159,7 @@ export default function SourcesDatabase() {
 
       return true;
     });
-  }, [sourcesWithUsage, searchQuery, filters]);
+  }, [sourcesWithUsage, searchQuery, filters, missingFieldFilter]);
 
   // Apply sorting
   const sortedSources = useMemo(() => {
@@ -252,6 +265,10 @@ export default function SourcesDatabase() {
                 <LinkIcon className="w-4 h-4 mr-2" />
                 Add URL
               </Button>
+              <Button onClick={() => setShowBulkUpload(true)} variant="outline">
+                <Upload className="w-4 h-4 mr-2" />
+                Bulk Upload
+              </Button>
               <Button onClick={() => setShowUploadModal(true)}>
                 <Upload className="w-4 h-4 mr-2" />
                 Upload
@@ -285,7 +302,40 @@ export default function SourcesDatabase() {
         />
 
         {/* Main Table Area */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-6 space-y-6">
+          {/* Bulk Upload Zone */}
+          {showBulkUpload && (
+            <BulkUploadZone
+              onUploadComplete={(sourceIds) => {
+                setShowBulkUpload(false);
+                if (sourceIds.length > 0) {
+                  setSelectedSourceIds(sourceIds);
+                  setShowBulkEdit(true);
+                }
+              }}
+            />
+          )}
+
+          {/* Missing Metadata Dashboard */}
+          {!showBulkUpload && (
+            <MissingMetadataDashboard
+              sources={allSources.filter(s => !s.is_archived)}
+              onFilterMissing={(field) => {
+                setMissingFieldFilter(field);
+                toast.info(`Showing sources missing ${field}`);
+              }}
+              onBulkFix={() => {
+                const sourcesNeedingMeta = filteredSources.filter(s => 
+                  !s.region || !s.category || !s.date
+                );
+                if (sourcesNeedingMeta.length > 0) {
+                  setSelectedSourceIds(sourcesNeedingMeta.map(s => s.id));
+                  setShowBulkEdit(true);
+                }
+              }}
+            />
+          )}
+
           <Card>
             <CardContent className="p-0">
               {/* Toolbar */}
@@ -295,9 +345,26 @@ export default function SourcesDatabase() {
                     {filteredSources.length} sources
                   </span>
                   {selectedSourceIds.length > 0 && (
-                    <span className="text-sm font-medium text-blue-600">
-                      {selectedSourceIds.length} selected
-                    </span>
+                    <>
+                      <span className="text-sm font-medium text-blue-600">
+                        {selectedSourceIds.length} selected
+                      </span>
+                      <Button size="sm" onClick={() => setShowBulkEdit(true)}>
+                        Edit selected
+                      </Button>
+                    </>
+                  )}
+                  {missingFieldFilter && (
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => {
+                        setMissingFieldFilter(null);
+                        toast.success('Filter cleared');
+                      }}
+                    >
+                      Clear filter: {missingFieldFilter}
+                    </Button>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
@@ -425,11 +492,23 @@ export default function SourcesDatabase() {
       )}
 
       {/* Bulk Actions Bar */}
-      {selectedSourceIds.length > 0 && (
+      {selectedSourceIds.length > 0 && !showBulkEdit && (
         <BulkActionsBar
           selectedIds={selectedSourceIds}
           onClear={() => setSelectedSourceIds([])}
           sources={allSources}
+          onEdit={() => setShowBulkEdit(true)}
+        />
+      )}
+
+      {/* Bulk Edit Panel */}
+      {showBulkEdit && selectedSourceIds.length > 0 && (
+        <BulkEditPanel
+          selectedSources={allSources.filter(s => selectedSourceIds.includes(s.id))}
+          onClose={() => {
+            setShowBulkEdit(false);
+            setSelectedSourceIds([]);
+          }}
         />
       )}
     </div>

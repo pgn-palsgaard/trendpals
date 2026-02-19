@@ -13,6 +13,15 @@ export default function SourceTable({ sources, selectedIds, onSelectAll, onSelec
     return '📄';
   };
 
+  const getCompleteness = (source) => {
+    const fields = ['region', 'category', 'date', 'trust_tier'];
+    const filled = fields.filter(f => source[f]).length;
+    const total = fields.length;
+    const percentage = Math.round((filled / total) * 100);
+    
+    return { filled, total, percentage, isComplete: filled === total };
+  };
+
   const getFreshnessDisplay = (freshness) => {
     if (freshness === 'recent') return { icon: '🟢', text: 'Fresh', class: 'border-green-300 bg-green-50 text-green-700' };
     if (freshness === 'aging') return { icon: '🟡', text: 'Aging', class: 'border-yellow-300 bg-yellow-50 text-yellow-700' };
@@ -47,6 +56,7 @@ export default function SourceTable({ sources, selectedIds, onSelectAll, onSelec
             <th className="px-4 py-3 text-left text-xs font-medium text-slate-700 uppercase">Date</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-slate-700 uppercase">Freshness</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-slate-700 uppercase">Trust</th>
+            <th className="px-4 py-3 text-left text-xs font-medium text-slate-700 uppercase">Complete</th>
             <th className="px-4 py-3 text-left text-xs font-medium text-slate-700 uppercase">Used In</th>
           </tr>
         </thead>
@@ -54,6 +64,7 @@ export default function SourceTable({ sources, selectedIds, onSelectAll, onSelec
           {sources.map(source => {
             const freshness = getFreshnessDisplay(source.freshness);
             const trust = getTrustDisplay(source.trust_tier);
+            const completeness = getCompleteness(source);
             
             return (
               <tr
@@ -118,6 +129,27 @@ export default function SourceTable({ sources, selectedIds, onSelectAll, onSelec
                   ) : (
                     <span className="text-slate-400 text-sm">-</span>
                   )}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`text-xs font-medium ${
+                      completeness.percentage === 100 ? 'text-green-700' :
+                      completeness.percentage >= 50 ? 'text-amber-700' :
+                      'text-red-700'
+                    }`}>
+                      {completeness.filled}/{completeness.total}
+                    </div>
+                    <div className="w-12 h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full transition-all ${
+                          completeness.percentage === 100 ? 'bg-green-500' :
+                          completeness.percentage >= 50 ? 'bg-amber-500' :
+                          'bg-red-500'
+                        }`}
+                        style={{ width: `${completeness.percentage}%` }}
+                      />
+                    </div>
+                  </div>
                 </td>
                 <td className="px-4 py-3">
                   {source.usageCount > 0 ? (
