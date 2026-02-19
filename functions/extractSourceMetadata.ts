@@ -129,7 +129,9 @@ async function extractFromPDF(fileUrl, fileName, base44) {
         return { extractedData: {}, page1TextRaw: '' };
     }
 
-    console.log('Page 1 text extracted:', page1TextRaw.substring(0, 500));
+    console.log('=== PAGE 1 TEXT EXTRACTED ===');
+    console.log(page1TextRaw.substring(0, 1000));
+    console.log('=== END PAGE 1 TEXT ===');
 
     // STEP 2: Deterministic parsing (regex + heuristics)
     const deterministicData = parsePage1Deterministic(page1TextRaw, fileName);
