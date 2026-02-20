@@ -291,6 +291,11 @@ export default function GNPDMappingCard({ source, projectId }) {
                     `${validation.date_parsing_success_count}/${validation.rows_loaded} (${validation.date_parsing_success_rate?.toFixed(1)}%)` : 
                     'N/A'}
                 </div>
+                
+                <div className="text-slate-600">Unique markets:</div>
+                <div className="font-medium">
+                  {validation.unique_markets_count !== undefined ? validation.unique_markets_count : 'N/A'}
+                </div>
 
                 {validation.date_range_min && validation.date_range_max && (
                   <>
