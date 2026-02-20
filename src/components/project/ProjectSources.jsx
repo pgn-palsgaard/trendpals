@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import SourceLibrary from './SourceLibrary';
 import DataReadinessCheck from './DataReadinessCheck';
 import LinkedSourcesPanel from './LinkedSourcesPanel';
+import GNPDMappingCard from './GNPDMappingCard';
 
 export default function ProjectSources({ project, sources, imageExtractions = [] }) {
   const queryClient = useQueryClient();
