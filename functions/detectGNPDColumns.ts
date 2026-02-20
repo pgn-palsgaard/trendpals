@@ -282,6 +282,8 @@ Deno.serve(async (req) => {
       required_mappings_complete: requiredMappingsComplete,
       rows_loaded: source.gnpd_data.length,
       date_parsing_success_rate: dateValidation.success_rate,
+      date_parsing_success_count: dateValidation.success_count,
+      date_parsing_failure_count: dateValidation.failure_count,
       date_range_min: dateValidation.date_range_min,
       date_range_max: dateValidation.date_range_max,
       unique_markets_count: uniqueMarkets.size,
