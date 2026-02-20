@@ -11,7 +11,6 @@ import { createPageUrl } from '@/utils';
 
 export default function ProjectReport({ project, reports, trendCandidates }) {
   const queryClient = useQueryClient();
-  const [generatingReport, setGeneratingReport] = useState(false);
   const [generatingGamma, setGeneratingGamma] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
@@ -20,7 +19,6 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
 
   const generateReportMutation = useMutation({
     mutationFn: async () => {
-      setGeneratingReport(true);
       const response = await base44.functions.invoke('generateReport', {
         project_id: project.id
       });
@@ -29,10 +27,8 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
       toast.success(`Report v${data.version || 'new'} generated successfully`);
-      setGeneratingReport(false);
     },
     onError: (error) => {
-      setGeneratingReport(false);
       const errorMsg = error.response?.data?.error || error.message || 'Failed to generate report';
       toast.error(errorMsg);
     }
