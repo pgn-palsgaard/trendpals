@@ -248,9 +248,6 @@ Deno.serve(async (req) => {
             headerMapObj[uniqueKey] = displayName;
           });
           
-          // Store sheet name used
-          const sheet_name_used = sheetName;
-          
           // Robust date parser
           const parseDatePublished = (value) => {
             if (!value && value !== 0) return { isoDate: null, parseType: 'empty', error: null };
