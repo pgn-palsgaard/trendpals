@@ -61,27 +61,18 @@ export default function GNPDMappingCard({ source, projectId }) {
 
   const currentMappings = editedMappings || source.gnpd_column_mapping || {};
   
-  // Build validation from source data
-  const validation = {
-    rows_loaded: source.gnpd_row_count || 0,
-    date_parsing_success_rate: source.gnpd_data?.[0]?._date_published_parsed ? 100 : 0,
-    date_range_min: null,
-    date_range_max: null
-  };
+  // Get validation from source metadata (computed during mapping save)
+  const savedValidation = source.metadata_extraction?.extracted_data?.validation_status;
   
-  // Calculate date range if data available
-  if (source.gnpd_data && source.gnpd_column_mapping?.date_published) {
-    const dates = source.gnpd_data
-      .map(row => row._date_published_parsed)
-      .filter(Boolean)
-      .map(d => new Date(d));
-    
-    if (dates.length > 0) {
-      validation.date_range_min = new Date(Math.min(...dates)).toISOString().split('T')[0];
-      validation.date_range_max = new Date(Math.max(...dates)).toISOString().split('T')[0];
-      validation.date_parsing_success_rate = (dates.length / source.gnpd_data.length) * 100;
-    }
-  }
+  const validation = savedValidation || {
+    rows_loaded: source.gnpd_row_count || 0,
+    date_parsing_success_rate: 0,
+    date_parsing_success_count: 0,
+    date_parsing_failure_count: 0,
+    date_range_min: null,
+    date_range_max: null,
+    unique_markets_count: 0
+  };
   const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
   const optionalFields = ['product_variants', 'brand', 'company', 'ultimate_company', 'product_description', 'claims', 'flavours', 'launch_type', 'record_hyperlink'];
 
