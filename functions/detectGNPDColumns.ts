@@ -416,25 +416,4 @@ Deno.serve(async (req) => {
         actionable: true
       }, { status: 408 });
     }
-  } catch (error) {
-    console.error('Detect GNPD columns error:', error);
-    
-    // Try to update source status if we have source_id
-    try {
-      const { source_id } = await req.json();
-      if (source_id) {
-        await base44.entities.Source.update(source_id, {
-          gnpd_mapping_status: 'failed',
-          gnpd_mapping_error: error.message
-        });
-      }
-    } catch (updateError) {
-      console.error('Failed to update source on error:', updateError);
-    }
-
-    return Response.json({ 
-      error: error.message,
-      details: error.stack
-    }, { status: 500 });
-  }
 });
