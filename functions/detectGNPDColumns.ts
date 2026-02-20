@@ -395,7 +395,6 @@ Deno.serve(async (req) => {
       },
       source_updated: true
     });
-
         })(),
         timeoutPromise
       ]);
