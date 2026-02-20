@@ -141,11 +141,30 @@ Deno.serve(async (req) => {
 
         let gnpd_data = [];
 
+        // Required GNPD columns
+        const requiredColumns = ['Record ID', 'Product name', 'Brand', 'Launch Date', 'Market'];
+
         // Detect file type and parse
         if (file_url.endsWith('.csv') || fileContent.includes(',')) {
           // Parse CSV
           const lines = fileContent.split('\n');
           const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+          
+          // Validate required columns
+          const missingColumns = requiredColumns.filter(col => 
+            !headers.some(h => h.toLowerCase() === col.toLowerCase())
+          );
+          
+          if (missingColumns.length > 0) {
+            await base44.entities.Source.update(source.id, {
+              status: 'failed',
+              status_message: `Missing required GNPD columns: ${missingColumns.join(', ')}. Please ensure your export includes: ${requiredColumns.join(', ')}`
+            });
+            return Response.json({ 
+              error: `Missing required GNPD columns: ${missingColumns.join(', ')}`,
+              required: requiredColumns
+            }, { status: 400 });
+          }
           
           for (let i = 1; i < lines.length && i < 1000; i++) {
             const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
@@ -154,6 +173,21 @@ Deno.serve(async (req) => {
               headers.forEach((header, idx) => {
                 product[header] = values[idx];
               });
+              
+              // Validate country and map to region
+              if (product.Market || product.Country) {
+                const country = product.Market || product.Country;
+                try {
+                  const { getRegionByCountry } = await import('./RegionsTaxonomy.js');
+                  const regionCode = getRegionByCountry(country);
+                  if (regionCode) {
+                    product.region_code = regionCode;
+                  }
+                } catch (err) {
+                  console.warn(`Could not map country "${country}" to region:`, err.message);
+                }
+              }
+              
               gnpd_data.push(product);
             }
           }
@@ -207,12 +241,24 @@ Deno.serve(async (req) => {
                 }
               }
 
+              // Validate country and map to region
+              let region_code = null;
+              if (product.country) {
+                try {
+                  const { getRegionByCountry } = await import('./RegionsTaxonomy.js');
+                  region_code = getRegionByCountry(product.country);
+                } catch (err) {
+                  console.warn(`Could not map country "${product.country}" to region:`, err.message);
+                }
+              }
+
               gnpd_data.push({
                 record_id: product.record_id,
                 product_name: product.product_name,
                 brand: product.brand || null,
                 launch_date: product.launch_date || null,
                 country: product.country || null,
+                region_code: region_code,
                 image_url: uploaded_image_url,
                 has_image: has_image,
                 parsed_from_html: true

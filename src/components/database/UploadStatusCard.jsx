@@ -109,7 +109,7 @@ export default function UploadStatusCard({
     if (['processing', 'uploading'].includes(status)) {
       const timeout = setTimeout(() => {
         setStuckWarning(true);
-      }, 60000); // 1 minute
+      }, 30000); // 30 seconds
 
       return () => clearTimeout(timeout);
     }
