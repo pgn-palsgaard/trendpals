@@ -34,6 +34,8 @@ function parseDate(dateStr) {
 }
 
 Deno.serve(async (req) => {
+  const requestId = crypto.randomUUID();
+  
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
