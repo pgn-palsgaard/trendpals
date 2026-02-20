@@ -321,7 +321,7 @@ Deno.serve(async (req) => {
           detectedMappings.date_published
         );
 
-        // Count unique markets
+        // Count unique markets from mapped column
         const uniqueMarkets = new Set(
           source.gnpd_data
             .map(row => row[detectedMappings.market])
@@ -331,7 +331,7 @@ Deno.serve(async (req) => {
         const validationStatus = {
           required_mappings_complete: requiredMappingsComplete,
           rows_loaded: source.gnpd_data.length,
-          date_parsing_success_rate: dateValidation.success_rate,
+          date_parsing_success_rate: Math.round(dateValidation.success_rate * 10) / 10,
           date_parsing_success_count: dateValidation.success_count,
           date_parsing_failure_count: dateValidation.failure_count,
           date_range_min: dateValidation.date_range_min,
@@ -349,12 +349,16 @@ Deno.serve(async (req) => {
           throw new Error('Data integrity issue');
         }
 
-        // Update source with global mapping
+        // Update source with global mapping AND validation metrics
         const mappingUpdate = {
           gnpd_column_mapping: detectedMappings,
           gnpd_mapping_status: requiredMappingsComplete ? 'complete' : 'failed',
           gnpd_mapping_updated_at: new Date().toISOString(),
-          gnpd_mapping_error: requiredMappingsComplete ? null : `Missing required mappings: ${requiredFields.filter(f => !detectedMappings[f]).join(', ')}`
+          gnpd_mapping_error: requiredMappingsComplete ? null : `Missing required mappings: ${requiredFields.filter(f => !detectedMappings[f]).join(', ')}`,
+          // Persist validation metrics to source
+          'metadata_extraction.extracted_data.validation_status': validationStatus,
+          'metadata_extraction.extracted_data.unique_markets_count': validationStatus.unique_markets_count,
+          'metadata_extraction.extracted_data.date_parse_success_rate': validationStatus.date_parsing_success_rate
         };
 
         await base44.entities.Source.update(source_id, mappingUpdate);
