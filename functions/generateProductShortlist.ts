@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    debug.fields_searched = ['product_name', 'product_variants', 'category', 'sub_category'];
+    debug.fields_searched = ['product_name', 'product_variants', 'product_description', 'claims', 'category', 'sub_category', 'flavours'];
 
     // Build candidates list
     const candidates = [];
