@@ -359,7 +359,7 @@ export default function GNPDMappingCard({ source, projectId }) {
               <h4 className="text-xs font-semibold text-slate-700 mb-2">Validation Details</h4>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="text-slate-600">Unique markets:</div>
-                <div className="font-medium">{validation.unique_markets_count || 0}</div>
+                <div className="font-medium">{validationMetrics.unique_markets_count || 0}</div>
 
                 <div className="text-slate-600">Required mappings:</div>
                 <div className="font-medium">
@@ -373,14 +373,14 @@ export default function GNPDMappingCard({ source, projectId }) {
             </div>
 
             {/* Date Parse Failures */}
-            {validation.parsing_errors && validation.parsing_errors.length > 0 && (
+            {validationMetrics.parsing_errors && validationMetrics.parsing_errors.length > 0 && (
               <div className="pt-3 border-t">
                 <details className="group">
                   <summary className="text-xs font-medium text-amber-900 cursor-pointer hover:text-amber-700">
-                    View first 10 date parse failures ({validation.parsing_errors.length})
+                    View first 10 date parse failures ({validationMetrics.parsing_errors.length})
                   </summary>
                   <div className="mt-2 p-2 bg-amber-50 rounded border border-amber-200 space-y-2">
-                    {validation.parsing_errors.map((error, idx) => (
+                    {validationMetrics.parsing_errors.map((error, idx) => (
                       <div key={idx} className="text-xs">
                         <div className="font-medium text-amber-900">Row {error.row_index || idx + 1}:</div>
                         <div className="text-amber-800 ml-2">
