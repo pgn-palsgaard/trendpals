@@ -68,6 +68,11 @@ Deno.serve(async (req) => {
       }
     }
     
+    // Log for debugging
+    console.log('[updateGNPDMapping] source_id:', source_id);
+    console.log('[updateGNPDMapping] mappings keys:', Object.keys(mappings));
+    console.log('[updateGNPDMapping] isComplete:', isComplete);
+    
     // Update source with new mapping and validation
     const updateData = {
       gnpd_column_mapping: mappings,
@@ -82,13 +87,18 @@ Deno.serve(async (req) => {
       updateData['metadata_extraction.extracted_data.date_parse_success_rate'] = validationStatus.date_parsing_success_rate;
     }
     
-    await base44.entities.Source.update(source_id, updateData);
+    console.log('[updateGNPDMapping] updateData keys:', Object.keys(updateData));
+    
+    const updatedSource = await base44.entities.Source.update(source_id, updateData);
+    
+    console.log('[updateGNPDMapping] Update complete, gnpd_column_mapping exists:', !!updatedSource.gnpd_column_mapping);
 
     return Response.json({
       success: true,
       mapping_complete: isComplete,
       missing_fields: missingFields,
-      validation_status: validationStatus
+      validation_status: validationStatus,
+      updated_source: updatedSource
     });
 
   } catch (error) {
