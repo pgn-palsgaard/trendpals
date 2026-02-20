@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
     const detectedMappings = detectColumnMapping(availableColumns);
 
     // Check if required mappings are present
-    const requiredFields = ['record_id', 'product_name', 'market', 'date_published'];
+    const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
     const requiredMappingsComplete = requiredFields.every(field => detectedMappings[field]);
 
     // Validate date parsing
