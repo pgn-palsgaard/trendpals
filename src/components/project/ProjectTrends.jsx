@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Sparkles, TrendingUp, CheckCircle2, XCircle, AlertCircle, Loader2, Brain, Lightbulb, TrendingUpIcon } from 'lucide-react';
 import { toast } from 'sonner';
-import ProductImageManager from './ProductImageManager';
+import PackshotManager from './ProductImageManager';
 import ProductProofPanel from './ProductProofPanel';
 
 export default function ProjectTrends({ project, trendCandidates, sources, imageExtractions = [] }) {
