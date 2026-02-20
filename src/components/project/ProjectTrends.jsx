@@ -224,9 +224,9 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
         </CardContent>
       </Card>
 
-      {/* Product Image Collection - New Workflow */}
+      {/* Packshot Manager - New Workflow */}
       {selectedCount >= 3 && (
-        <ProductImageManager project={project} trendCandidates={trendCandidates} />
+        <PackshotManager project={project} trendCandidates={trendCandidates} />
       )}
 
       {/* Trend Analysis */}

@@ -191,6 +191,13 @@ export default function LinkedSourcesPanel({ project, sources }) {
                       </Button>
                     </div>
                   </div>
+
+                  {/* GNPD Mapping Card - only for GNPD sources */}
+                  {source.source_type === 'gnpd' && source.gnpd_data && (
+                    <div className="mt-3">
+                      <GNPDMappingCard source={source} projectId={project.id} />
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             );
