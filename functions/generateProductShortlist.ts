@@ -61,25 +61,71 @@ Deno.serve(async (req) => {
       empty_reasons: []
     };
 
-    // Get project, trend, and sources
+    // Get project, trend, and linked sources
     const project = await base44.entities.Project.get(project_id);
     const trend = await base44.entities.TrendCandidate.get(trend_id);
-    const sources = await base44.entities.Source.filter({ project_id });
+    
+    // Get sources linked to this project via selected_source_ids
+    let sources = [];
+    if (project.selected_source_ids && project.selected_source_ids.length > 0) {
+      for (const sourceId of project.selected_source_ids) {
+        try {
+          const source = await base44.entities.Source.get(sourceId);
+          if (source) sources.push(source);
+        } catch (e) {
+          console.warn(`Source ${sourceId} not found`);
+        }
+      }
+    } else {
+      // Fallback: old projects with direct project_id linkage
+      sources = await base44.entities.Source.filter({ project_id });
+    }
+    
     const pdfCuratedProducts = await base44.entities.PDFCuratedProduct.filter({ project_id });
 
-    // Check GNPD column mappings
-    const gnpdSources = sources.filter(s => s.source_type === 'gnpd' && s.gnpd_data);
-    if (gnpdSources.length > 0) {
-      for (const source of gnpdSources) {
-        const mappings = await base44.entities.GNPDColumnMapping.filter({ source_id: source.id });
-        if (mappings.length === 0 || !mappings[0].validation_status?.required_mappings_complete) {
-          return Response.json({ 
-            error: 'GNPD column mapping incomplete',
-            message: 'Required GNPD column mappings are missing. Please complete column mapping for all GNPD sources.',
-            source_id: source.id,
-            source_title: source.title
-          }, { status: 400 });
-        }
+    // Check GNPD sources and column mappings
+    const gnpdSources = sources.filter(s => s.source_type === 'gnpd');
+    
+    if (gnpdSources.length === 0) {
+      debug.empty_reasons.push('No GNPD source linked to this project');
+      return Response.json({ 
+        error: 'No GNPD source',
+        message: 'No GNPD source is linked to this project. Please link a GNPD source to generate product proofs.',
+        debug
+      }, { status: 400 });
+    }
+    
+    for (const source of gnpdSources) {
+      // Check processing status
+      if (source.gnpd_processing_status !== 'ready') {
+        return Response.json({ 
+          error: 'GNPD source not ready',
+          message: `GNPD source "${source.title}" is not ready yet. Status: ${source.gnpd_processing_status || 'pending'}`,
+          source_id: source.id,
+          source_title: source.title,
+          processing_status: source.gnpd_processing_status
+        }, { status: 400 });
+      }
+      
+      // Check if data exists
+      if (!source.gnpd_data || !Array.isArray(source.gnpd_data) || source.gnpd_data.length === 0) {
+        return Response.json({ 
+          error: 'GNPD source has no data',
+          message: `GNPD source "${source.title}" has no product data. Please re-upload or process the file.`,
+          source_id: source.id,
+          source_title: source.title
+        }, { status: 400 });
+      }
+      
+      // Check column mappings
+      const mappings = await base44.entities.GNPDColumnMapping.filter({ source_id: source.id });
+      if (mappings.length === 0 || !mappings[0].validation_status?.required_mappings_complete) {
+        return Response.json({ 
+          error: 'GNPD column mapping incomplete',
+          message: `Required GNPD column mappings are missing for "${source.title}". Please complete column mapping in the Sources tab.`,
+          source_id: source.id,
+          source_title: source.title
+        }, { status: 400 });
       }
     }
 
@@ -92,9 +138,9 @@ Deno.serve(async (req) => {
         const columnMap = mappings.length > 0 ? mappings[0].mappings : {};
 
         source.gnpd_data.forEach((product, idx) => {
-          // Map columns to standard names
+          // Map columns to standard names - convert Record ID to string
           const mapped = {
-            record_id: product[columnMap.record_id],
+            record_id: String(product[columnMap.record_id] || ''),
             product_name: product[columnMap.product_name],
             market: product[columnMap.market],
             date_published: product[columnMap.date_published],
@@ -104,6 +150,11 @@ Deno.serve(async (req) => {
             ultimate_company: product[columnMap.ultimate_company],
             category: product[columnMap.category],
             sub_category: product[columnMap.sub_category],
+            product_description: product[columnMap.product_description],
+            claims: product[columnMap.claims],
+            flavours: product[columnMap.flavours],
+            launch_type: product[columnMap.launch_type],
+            record_hyperlink: product[columnMap.record_hyperlink],
             source_id: source.id,
             row_index: idx,
             _raw: product
