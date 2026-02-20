@@ -387,9 +387,12 @@ Deno.serve(async (req) => {
               status: 'extracted',
               extracted_data: {
                 sheet_name_used: sheetName,
-                date_parse_success_rate: Math.round(dateParseSuccessRate),
-                min_date_published: minDate ? minDate.toISOString().split('T')[0] : null,
-                max_date_published: maxDate ? maxDate.toISOString().split('T')[0] : null,
+                date_parse_success_count: dateParseSuccessCount,
+                date_parse_failure_count: dateParseFailureCount,
+                date_parse_success_rate: Math.round(dateParseSuccessRate * 10) / 10,
+                date_parse_failures: dateParseFailures,
+                min_date_published_parsed: minDate ? minDate.toISOString().split('T')[0] : null,
+                max_date_published_parsed: maxDate ? maxDate.toISOString().split('T')[0] : null,
                 unique_markets_count: uniqueMarkets.size,
                 header_map: headerMapObj
               }
