@@ -534,6 +534,13 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
                         </div>
                       </div>
                     )}
+
+                    {/* Product Proof Panel - only show for selected trends */}
+                    {trend.is_selected && (
+                      <div className="mt-4">
+                        <ProductProofPanel trend={trend} projectId={project.id} />
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
