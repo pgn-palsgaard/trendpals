@@ -30,10 +30,22 @@ export default function GNPDMappingCard({ source, projectId }) {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries(['gnpdMapping', source.id]);
+      queryClient.invalidateQueries(['sources']);
       toast.success('Column mapping detected');
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to detect columns');
+      const errorData = error.response?.data || error;
+      if (errorData.actionable) {
+        toast.error(errorData.message || 'GNPD file not processed yet', {
+          description: 'Please wait for processing to complete or re-upload the file.',
+          action: {
+            label: 'Retry',
+            onClick: () => detectMutation.mutate()
+          }
+        });
+      } else {
+        toast.error(errorData.message || 'Failed to detect columns');
+      }
     }
   });
 
