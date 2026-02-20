@@ -12,9 +12,22 @@ Deno.serve(async (req) => {
     const { project_id } = await req.json();
 
     // Get project, sources, and selected trends
-    const projects = await base44.entities.Project.filter({ id: project_id });
-    const project = projects[0];
-    const sources = await base44.entities.Source.filter({ project_id });
+    const project = await base44.entities.Project.get(project_id);
+    // Get sources linked to this project via selected_source_ids
+    let sources = [];
+    if (project.selected_source_ids && project.selected_source_ids.length > 0) {
+      for (const sourceId of project.selected_source_ids) {
+        try {
+          const source = await base44.entities.Source.get(sourceId);
+          if (source) sources.push(source);
+        } catch (e) {
+          console.warn(`Source ${sourceId} not found`);
+        }
+      }
+    } else {
+      // Fallback: old projects with direct project_id linkage
+      sources = await base44.entities.Source.filter({ project_id });
+    }
     const trendCandidates = await base44.entities.TrendCandidate.filter({ project_id });
     const selectedTrends = trendCandidates.filter(t => t.is_selected);
 
