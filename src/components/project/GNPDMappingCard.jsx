@@ -235,49 +235,102 @@ export default function GNPDMappingCard({ source, projectId }) {
 
         {/* Validation Summary */}
         {showValidation && (
-          <div className="space-y-2 p-3 bg-white rounded-lg border">
-            <h4 className="text-xs font-semibold text-slate-700 mb-2">Validation Summary</h4>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="text-slate-600">Rows loaded:</div>
-              <div className="font-medium">{validation.rows_loaded || 0}</div>
+          <div className="space-y-3 p-3 bg-white rounded-lg border">
+            <div>
+              <h4 className="text-xs font-semibold text-slate-700 mb-2">Validation Summary</h4>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="text-slate-600">Rows loaded:</div>
+                <div className="font-medium">{validation.rows_loaded || 0}</div>
 
-              <div className="text-slate-600">Date parsing success:</div>
-              <div className="font-medium">
-                {validation.date_parsing_success_rate ? 
-                  `${validation.date_parsing_success_rate.toFixed(1)}%` : 
-                  'N/A'}
+                <div className="text-slate-600">Date parsing success:</div>
+                <div className="font-medium">
+                  {validation.date_parsing_success_count !== undefined && validation.rows_loaded ? 
+                    `${validation.date_parsing_success_count}/${validation.rows_loaded} (${validation.date_parsing_success_rate?.toFixed(1)}%)` : 
+                    'N/A'}
+                </div>
+
+                {validation.date_range_min && validation.date_range_max && (
+                  <>
+                    <div className="text-slate-600">Detected date range:</div>
+                    <div className="font-medium">
+                      {validation.date_range_min} → {validation.date_range_max}
+                    </div>
+                  </>
+                )}
               </div>
 
-              {validation.date_range_min && validation.date_range_max && (
-                <>
-                  <div className="text-slate-600">Date range:</div>
-                  <div className="font-medium">
-                    {validation.date_range_min} to {validation.date_range_max}
-                  </div>
-                </>
-              )}
-
-              <div className="text-slate-600">Unique markets:</div>
-              <div className="font-medium">{validation.unique_markets_count || 0}</div>
-
-              <div className="text-slate-600">Required mappings:</div>
-              <div className="font-medium">
-                {isComplete ? (
-                  <span className="text-green-600">✓ Complete</span>
+              {/* Readiness Status */}
+              <div className="mt-3 pt-3 border-t">
+                {isComplete && validation.rows_loaded > 0 ? (
+                  validation.date_parsing_success_rate < 80 ? (
+                    <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded">
+                      <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-semibold text-amber-900">GNPD partially ready ⚠️</p>
+                        <p className="text-xs text-amber-800 mt-0.5">
+                          Date parsing failing — date filters may be unreliable
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded">
+                      <CheckCircle2 className="w-4 h-4 text-green-600" />
+                      <p className="text-xs font-semibold text-green-900">GNPD ready for matching ✅</p>
+                    </div>
+                  )
                 ) : (
-                  <span className="text-orange-600">✗ Incomplete</span>
+                  <div className="flex items-center gap-2 p-2 bg-orange-50 border border-orange-200 rounded">
+                    <AlertCircle className="w-4 h-4 text-orange-600" />
+                    <p className="text-xs font-semibold text-orange-900">
+                      {!isComplete ? 'Complete required mappings to proceed' : 'No data rows loaded'}
+                    </p>
+                  </div>
                 )}
               </div>
             </div>
 
+            {/* Validation Details */}
+            <div className="pt-3 border-t">
+              <h4 className="text-xs font-semibold text-slate-700 mb-2">Validation Details</h4>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="text-slate-600">Unique markets:</div>
+                <div className="font-medium">{validation.unique_markets_count || 0}</div>
+
+                <div className="text-slate-600">Required mappings:</div>
+                <div className="font-medium">
+                  {isComplete ? (
+                    <span className="text-green-600">✓ Complete</span>
+                  ) : (
+                    <span className="text-orange-600">✗ Incomplete</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Date Parse Failures */}
             {validation.parsing_errors && validation.parsing_errors.length > 0 && (
-              <div className="mt-2 p-2 bg-amber-50 rounded border border-amber-200">
-                <p className="text-xs font-medium text-amber-900 mb-1">Parsing Errors (first 5):</p>
-                <ul className="text-xs text-amber-800 space-y-0.5">
-                  {validation.parsing_errors.map((error, idx) => (
-                    <li key={idx}>• {error}</li>
-                  ))}
-                </ul>
+              <div className="pt-3 border-t">
+                <details className="group">
+                  <summary className="text-xs font-medium text-amber-900 cursor-pointer hover:text-amber-700">
+                    View first 10 date parse failures ({validation.parsing_errors.length})
+                  </summary>
+                  <div className="mt-2 p-2 bg-amber-50 rounded border border-amber-200 space-y-2">
+                    {validation.parsing_errors.map((error, idx) => (
+                      <div key={idx} className="text-xs">
+                        <div className="font-medium text-amber-900">Row {error.row_index || idx + 1}:</div>
+                        <div className="text-amber-800 ml-2">
+                          <div>Raw value: <code className="bg-amber-100 px-1 rounded">{String(error.raw_value || error)}</code></div>
+                          {error.detected_type && (
+                            <div>Detected type: {error.detected_type}</div>
+                          )}
+                          {error.error && (
+                            <div className="text-amber-700">Error: {error.error}</div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
               </div>
             )}
           </div>
