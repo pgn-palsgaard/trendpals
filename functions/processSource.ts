@@ -158,15 +158,23 @@ Deno.serve(async (req) => {
           const fileBuffer = await (await fetch(file_url)).arrayBuffer();
           const workbook = read(fileBuffer, { type: 'buffer' });
           
-          // Try to find "Products from GNPD" sheet, otherwise use first sheet
-          let sheetName = workbook.SheetNames.find(name => 
-            name.toLowerCase().includes('products') || name.toLowerCase().includes('gnpd')
-          ) || workbook.SheetNames[0];
+          // SHEET SELECTION LOGIC (P0)
+          // Auto-detect the correct product sheet:
+          // 1. Prefer sheets containing: Products, GNPD, Results
+          // 2. Exclude sheets containing: Search details, Criteria, Notes
+          const preferredSheets = workbook.SheetNames.filter(name => {
+            const lower = name.toLowerCase();
+            return (lower.includes('products') || lower.includes('gnpd') || lower.includes('results'))
+              && !lower.includes('search') && !lower.includes('criteria') && !lower.includes('notes');
+          });
           
+          let sheetName = preferredSheets[0] || workbook.SheetNames[0];
           const sheet = workbook.Sheets[sheetName];
-          const rows = utils.sheet_to_json(sheet);
           
-          if (rows.length === 0) {
+          // HANDLE DUPLICATE COLUMN NAMES (P0 blocker)
+          // Convert sheet to array of arrays first to detect duplicates
+          const rawData = utils.sheet_to_json(sheet, { header: 1, defval: '' });
+          if (rawData.length === 0) {
             await base44.entities.Source.update(source.id, {
               status: 'failed',
               gnpd_processing_status: 'failed',
@@ -178,8 +186,48 @@ Deno.serve(async (req) => {
             }, { status: 400 });
           }
           
-          // Extract headers from first row
-          gnpd_headers = Object.keys(rows[0]);
+          // Get headers from first row
+          const originalHeaders = rawData[0];
+          
+          // Create unique keys for duplicate headers
+          const headerMap = new Map(); // unique_key -> display_name
+          const displayToUnique = new Map(); // display_name -> [unique_keys]
+          const uniqueHeaders = [];
+          
+          originalHeaders.forEach((header, index) => {
+            const headerStr = String(header || `Column_${index}`).trim();
+            
+            // Check if this header already exists
+            const existingKeys = displayToUnique.get(headerStr) || [];
+            let uniqueKey;
+            
+            if (existingKeys.length === 0) {
+              // First occurrence
+              uniqueKey = headerStr;
+            } else {
+              // Duplicate - append suffix
+              uniqueKey = `${headerStr}__${existingKeys.length + 1}`;
+            }
+            
+            uniqueHeaders.push(uniqueKey);
+            headerMap.set(uniqueKey, headerStr);
+            existingKeys.push(uniqueKey);
+            displayToUnique.set(headerStr, existingKeys);
+          });
+          
+          // Convert rows to objects using unique keys
+          const rows = [];
+          for (let i = 1; i < rawData.length; i++) {
+            const rowData = rawData[i];
+            const rowObj = {};
+            uniqueHeaders.forEach((uniqueKey, colIndex) => {
+              rowObj[uniqueKey] = rowData[colIndex] !== undefined ? rowData[colIndex] : '';
+            });
+            rows.push(rowObj);
+          }
+          
+          // Store both unique headers and header map for mapping UI
+          gnpd_headers = uniqueHeaders;
           gnpd_data = rows;
           
           // Parse dates and calculate statistics
