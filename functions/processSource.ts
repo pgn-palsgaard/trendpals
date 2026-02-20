@@ -159,16 +159,28 @@ Deno.serve(async (req) => {
           const workbook = read(fileBuffer, { type: 'buffer' });
           
           // SHEET SELECTION LOGIC (P0)
-          // Auto-detect the correct product sheet:
-          // 1. Prefer sheets containing: Products, GNPD, Results
-          // 2. Exclude sheets containing: Search details, Criteria, Notes
-          const preferredSheets = workbook.SheetNames.filter(name => {
-            const lower = name.toLowerCase();
-            return (lower.includes('products') || lower.includes('gnpd') || lower.includes('results'))
-              && !lower.includes('search') && !lower.includes('criteria') && !lower.includes('notes');
-          });
+          // 1. Prefer "GNPD-download" (canonical template)
+          // 2. Then prefer sheets containing: Products, GNPD, Results
+          // 3. Exclude sheets containing: Search details, Criteria, Notes
+          let sheetName = null;
           
-          let sheetName = preferredSheets[0] || workbook.SheetNames[0];
+          // First: look for exact match "GNPD-download" (case-insensitive)
+          const gnpdDownloadSheet = workbook.SheetNames.find(name => 
+            name.toLowerCase() === 'gnpd-download'
+          );
+          
+          if (gnpdDownloadSheet) {
+            sheetName = gnpdDownloadSheet;
+          } else {
+            // Fallback: prefer sheets with keywords
+            const preferredSheets = workbook.SheetNames.filter(name => {
+              const lower = name.toLowerCase();
+              return (lower.includes('products') || lower.includes('gnpd') || lower.includes('results'))
+                && !lower.includes('search') && !lower.includes('criteria') && !lower.includes('notes');
+            });
+            sheetName = preferredSheets[0] || workbook.SheetNames[0];
+          }
+          
           const sheet = workbook.Sheets[sheetName];
           
           // HANDLE DUPLICATE COLUMN NAMES (P0 blocker)
@@ -235,6 +247,9 @@ Deno.serve(async (req) => {
           headerMap.forEach((displayName, uniqueKey) => {
             headerMapObj[uniqueKey] = displayName;
           });
+          
+          // Store sheet name used
+          const sheet_name_used = sheetName;
           
           // Robust date parser
           const parseDatePublished = (value) => {
