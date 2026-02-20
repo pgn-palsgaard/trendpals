@@ -300,12 +300,12 @@ export default function GNPDMappingCard({ source, projectId }) {
               <h4 className="text-xs font-semibold text-slate-700 mb-2">Validation Summary</h4>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div className="text-slate-600">Rows loaded:</div>
-                <div className="font-medium">{validation.rows_loaded || 0}</div>
+                <div className="font-medium">{validationMetrics.rows_loaded || 0}</div>
 
                 <div className="text-slate-600">Date parsing success:</div>
                 <div className="font-medium">
-                  {validation.date_parsing_success_count !== undefined && validation.rows_loaded ? 
-                    `${validation.date_parsing_success_count}/${validation.rows_loaded} (${validation.date_parsing_success_rate?.toFixed(1)}%)` : 
+                  {validationMetrics.date_parsing_success_count !== undefined && validationMetrics.rows_loaded ? 
+                    `${validationMetrics.date_parsing_success_count}/${validationMetrics.rows_loaded} (${validationMetrics.date_parsing_success_rate?.toFixed(1)}%)` : 
                     'N/A'}
                 </div>
                 
