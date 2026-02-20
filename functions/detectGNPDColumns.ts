@@ -228,13 +228,19 @@ Deno.serve(async (req) => {
     // Create or update mapping
     const existingMappings = await base44.entities.GNPDColumnMapping.filter({ source_id });
     
+    // Get header map from source metadata if available
+    const headerMap = source.metadata_extraction?.extracted_data?.header_map || {};
+    const sheetNameUsed = source.metadata_extraction?.extracted_data?.sheet_name_used || null;
+    
     if (existingMappings.length > 0) {
       // Update existing
       await base44.entities.GNPDColumnMapping.update(existingMappings[0].id, {
         mappings: detectedMappings,
         available_columns: availableColumns,
         validation_status: validationStatus,
-        auto_detected: true
+        auto_detected: true,
+        header_map: headerMap,
+        sheet_name_used: sheetNameUsed
       });
       
       return Response.json({
@@ -249,6 +255,8 @@ Deno.serve(async (req) => {
         project_id: project_id || null,
         mappings: detectedMappings,
         available_columns: availableColumns,
+        header_map: headerMap,
+        sheet_name_used: sheetNameUsed,
         validation_status: validationStatus,
         auto_detected: true
       });
