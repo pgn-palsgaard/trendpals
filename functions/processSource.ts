@@ -236,8 +236,89 @@ Deno.serve(async (req) => {
             headerMapObj[uniqueKey] = displayName;
           });
           
+          // Robust date parser
+          const parseDatePublished = (value) => {
+            if (!value && value !== 0) return { isoDate: null, parseType: 'empty', error: null };
+            
+            try {
+              // Case 1: Already a Date object
+              if (value instanceof Date) {
+                if (isNaN(value.getTime())) {
+                  return { isoDate: null, parseType: 'invalid_date_object', error: 'Invalid Date object' };
+                }
+                return { 
+                  isoDate: value.toISOString().split('T')[0], 
+                  parseType: 'date_object', 
+                  error: null 
+                };
+              }
+              
+              // Case 2: Excel serial date (number)
+              if (typeof value === 'number') {
+                // Excel epoch is 1899-12-30 (or 1900-01-01 depending on system)
+                const excelEpoch = new Date(1899, 11, 30);
+                const date = new Date(excelEpoch.getTime() + value * 86400000);
+                if (isNaN(date.getTime())) {
+                  return { isoDate: null, parseType: 'invalid_excel_serial', error: 'Invalid Excel serial date' };
+                }
+                return { 
+                  isoDate: date.toISOString().split('T')[0], 
+                  parseType: 'excel_serial', 
+                  error: null 
+                };
+              }
+              
+              // Case 3: String parsing
+              if (typeof value === 'string') {
+                const trimmed = value.trim();
+                if (!trimmed) return { isoDate: null, parseType: 'empty_string', error: null };
+                
+                // Format: "DD MMM YYYY" (e.g., "18 Feb 2026")
+                const ddMmmYyyy = trimmed.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
+                if (ddMmmYyyy) {
+                  const [, day, month, year] = ddMmmYyyy;
+                  const monthMap = {
+                    jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+                    apr: 3, april: 3, may: 4, jun: 5, june: 5,
+                    jul: 6, july: 6, aug: 7, august: 7, sep: 8, september: 8,
+                    oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11
+                  };
+                  const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
+                  if (monthNum !== undefined) {
+                    const date = new Date(year, monthNum, parseInt(day));
+                    if (!isNaN(date.getTime())) {
+                      return { 
+                        isoDate: date.toISOString().split('T')[0], 
+                        parseType: 'dd_mmm_yyyy', 
+                        error: null 
+                      };
+                    }
+                  }
+                }
+                
+                // Try standard Date parsing (ISO, DD/MM/YYYY, etc.)
+                const standardDate = new Date(trimmed);
+                if (!isNaN(standardDate.getTime())) {
+                  return { 
+                    isoDate: standardDate.toISOString().split('T')[0], 
+                    parseType: 'standard_parse', 
+                    error: null 
+                  };
+                }
+                
+                return { isoDate: null, parseType: 'unparseable_string', error: `Could not parse: "${trimmed}"` };
+              }
+              
+              return { isoDate: null, parseType: 'unknown_type', error: `Unexpected type: ${typeof value}` };
+            } catch (e) {
+              return { isoDate: null, parseType: 'exception', error: e.message };
+            }
+          };
+          
           // Parse dates and calculate statistics
           let dateParseSuccessCount = 0;
+          let dateParseFailureCount = 0;
+          const dateParseFailures = [];
           let minDate = null;
           let maxDate = null;
           const uniqueMarkets = new Set();
@@ -252,31 +333,32 @@ Deno.serve(async (req) => {
             h.toLowerCase() === 'market' || h.toLowerCase() === 'country'
           );
           
-          rows.forEach(row => {
+          rows.forEach((row, idx) => {
             // Parse dates
-            if (dateColumn && row[dateColumn]) {
-              try {
-                const dateStr = String(row[dateColumn]);
-                // Handle "DD MMM YYYY" format
-                const ddMmmYyyy = dateStr.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
-                if (ddMmmYyyy) {
-                  const [, day, month, year] = ddMmmYyyy;
-                  const monthMap = {
-                    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-                    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
-                  };
-                  const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
-                  if (monthNum !== undefined) {
-                    const parsedDate = new Date(year, monthNum, day);
-                    if (!isNaN(parsedDate.getTime())) {
-                      dateParseSuccessCount++;
-                      if (!minDate || parsedDate < minDate) minDate = parsedDate;
-                      if (!maxDate || parsedDate > maxDate) maxDate = parsedDate;
-                    }
-                  }
+            if (dateColumn) {
+              const rawValue = row[dateColumn];
+              const parseResult = parseDatePublished(rawValue);
+              
+              // Store parsed date in row
+              row._date_published_parsed = parseResult.isoDate;
+              row._date_parse_type = parseResult.parseType;
+              row._date_parse_error = parseResult.error;
+              
+              if (parseResult.isoDate) {
+                dateParseSuccessCount++;
+                const date = new Date(parseResult.isoDate);
+                if (!minDate || date < minDate) minDate = date;
+                if (!maxDate || date > maxDate) maxDate = date;
+              } else {
+                dateParseFailureCount++;
+                if (dateParseFailures.length < 10) {
+                  dateParseFailures.push({
+                    row_index: idx + 1,
+                    raw_value: rawValue,
+                    detected_type: parseResult.parseType,
+                    error: parseResult.error
+                  });
                 }
-              } catch (e) {
-                // Skip failed date parses
               }
             }
             
@@ -286,8 +368,9 @@ Deno.serve(async (req) => {
             }
           });
           
-          const dateParseSuccessRate = rows.length > 0 
-            ? (dateParseSuccessCount / rows.length) * 100 
+          const totalRowsWithDateColumn = dateColumn ? rows.length : 0;
+          const dateParseSuccessRate = totalRowsWithDateColumn > 0 
+            ? (dateParseSuccessCount / totalRowsWithDateColumn) * 100 
             : 0;
           
           // Store parsed data immediately with metadata
