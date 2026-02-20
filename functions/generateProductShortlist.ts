@@ -119,21 +119,15 @@ Deno.serve(async (req) => {
         }, { status: 400 });
       }
       
-      // Check column mappings from source directly
-      if (source.gnpd_mapping_status !== 'complete') {
-        return Response.json({ 
-          error: 'GNPD column mapping incomplete',
-          error_code: 'MAPPING_INCOMPLETE',
-          message: `Required GNPD column mappings are missing for "${source.title}". Please complete column mapping in the Sources tab.`,
-          source_id: source.id,
-          source_title: source.title,
-          request_id: requestId
-        }, { status: 400 });
-      }
-      
-      // Validate that required mapped columns exist in headers
+      // Validate that required mapped columns exist
       const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
       const columnMap = source.gnpd_column_mapping || {};
+      
+      console.log(`[generateProductShortlist] Validating source ${source.id} (${source.title})`);
+      console.log(`[generateProductShortlist] gnpd_mapping_status: ${source.gnpd_mapping_status}`);
+      console.log(`[generateProductShortlist] gnpd_column_mapping exists: ${!!source.gnpd_column_mapping}`);
+      console.log(`[generateProductShortlist] columnMap keys: ${Object.keys(columnMap).join(', ')}`);
+      
       const missingMappings = requiredFields.filter(field => !columnMap[field]);
       
       if (missingMappings.length > 0) {
@@ -146,12 +140,15 @@ Deno.serve(async (req) => {
         return Response.json({ 
           error: 'GNPD column mapping incomplete',
           error_code: 'MAPPING_INCOMPLETE',
-          message: `Required GNPD column mappings are missing for "${source.title}": ${missingMappings.join(', ')}. Please remap in the Sources tab.`,
+          message: `Required GNPD column mappings are missing for "${source.title}": ${missingMappings.join(', ')}. Please complete mapping in the Sources tab.`,
+          missing: missingMappings,
           source_id: source.id,
           source_title: source.title,
           request_id: requestId
         }, { status: 400 });
       }
+      
+      console.log(`[generateProductShortlist] Validation passed for source ${source.id}`);
       
       // Verify mapped columns exist in headers
       const headers = source.gnpd_headers || [];
