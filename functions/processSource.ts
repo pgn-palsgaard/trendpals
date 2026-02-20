@@ -307,7 +307,8 @@ Deno.serve(async (req) => {
                 date_parse_success_rate: Math.round(dateParseSuccessRate),
                 min_date_published: minDate ? minDate.toISOString().split('T')[0] : null,
                 max_date_published: maxDate ? maxDate.toISOString().split('T')[0] : null,
-                unique_markets_count: uniqueMarkets.size
+                unique_markets_count: uniqueMarkets.size,
+                header_map: headerMapObj
               }
             }
           });
