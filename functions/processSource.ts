@@ -226,6 +226,21 @@ Deno.serve(async (req) => {
               gnpd_processing_status: 'ready'
             });
           } else {
+            // Unsupported file type for CSV fallback
+            await base44.entities.Source.update(source.id, {
+              status: 'failed',
+              gnpd_processing_status: 'failed',
+              gnpd_processing_error: 'Unsupported file format. Please upload XLSX or CSV.',
+              status_message: 'Unsupported file format'
+            });
+            return Response.json({ 
+              error: 'Unsupported file format for GNPD. Please upload XLSX or CSV.'
+            }, { status: 400 });
+          }
+        }
+        
+        // If we reach here with HTML file, process it
+        if (fileContent.includes('<html') || fileContent.includes('<table')) {
           // Use ExtractDataFromUploadedFile for more robust HTML parsing
           const extractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
             file_url,
