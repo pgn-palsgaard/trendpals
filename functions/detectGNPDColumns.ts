@@ -15,7 +15,7 @@ const COLUMN_SYNONYMS = {
   company: ['company', 'manufacturer', 'producer'],
   ultimate_company: ['ultimate company', 'ultimate_company', 'parent company', 'ultimate'],
   launch_type: ['launch type', 'launch_type', 'type'],
-  claims: ['claims', 'product claims'],
+  claims: ['claims', 'product claims', 'positioning claims', 'positioning/claims'],
   product_description: ['product description', 'description', 'product_description'],
   flavours: ['flavours', 'flavors', 'flavor', 'flavour'],
   storage: ['storage', 'storage type'],
