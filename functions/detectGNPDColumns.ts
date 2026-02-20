@@ -11,7 +11,12 @@ const COLUMN_SYNONYMS = {
   company: ['company', 'manufacturer', 'producer'],
   ultimate_company: ['ultimate company', 'ultimate_company', 'parent company', 'ultimate'],
   category: ['category', 'main category', 'product category'],
-  sub_category: ['sub-category', 'sub category', 'subcategory', 'sub_category']
+  sub_category: ['sub-category', 'sub category', 'subcategory', 'sub_category'],
+  product_description: ['product description', 'description', 'product_description'],
+  claims: ['claims', 'product claims'],
+  flavours: ['flavours', 'flavors', 'flavor', 'flavour'],
+  launch_type: ['launch type', 'launch_type', 'type'],
+  record_hyperlink: ['record hyperlink', 'record_hyperlink', 'hyperlink', 'url', 'link']
 };
 
 function detectColumnMapping(columns) {
