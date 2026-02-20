@@ -56,52 +56,113 @@ function detectColumnMapping(columns) {
 }
 
 function validateDateParsing(rows, dateColumn) {
-  if (!dateColumn) return { success_rate: 0, errors: ['Date column not mapped'] };
+  if (!dateColumn) {
+    return { 
+      success_rate: 0, 
+      success_count: 0,
+      failure_count: 0,
+      date_range_min: null, 
+      date_range_max: null, 
+      errors: [] 
+    };
+  }
 
   let successCount = 0;
+  let failureCount = 0;
   let minDate = null;
   let maxDate = null;
   const errors = [];
 
+  // Use pre-parsed dates if available (from processSource)
   for (let i = 0; i < Math.min(rows.length, 100); i++) { // Sample first 100 rows
-    const dateStr = rows[i][dateColumn];
-    if (!dateStr) continue;
+    const row = rows[i];
+    
+    // Check if date was already parsed during ingestion
+    if (row._date_published_parsed !== undefined) {
+      if (row._date_published_parsed) {
+        successCount++;
+        const date = new Date(row._date_published_parsed);
+        if (!minDate || date < minDate) minDate = date;
+        if (!maxDate || date > maxDate) maxDate = date;
+      } else {
+        failureCount++;
+        if (errors.length < 10 && row._date_parse_error) {
+          errors.push({
+            row_index: i + 1,
+            raw_value: row[dateColumn],
+            detected_type: row._date_parse_type,
+            error: row._date_parse_error
+          });
+        }
+      }
+      continue;
+    }
+    
+    // Fallback: parse on-demand if not pre-parsed (shouldn't happen with new flow)
+    const dateValue = row[dateColumn];
+    if (!dateValue && dateValue !== 0) {
+      failureCount++;
+      continue;
+    }
 
     try {
-      // Try multiple date formats
       let parsedDate = null;
       
-      // Format: "13 Feb 2026"
-      const ddMmmYyyy = dateStr.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
-      if (ddMmmYyyy) {
-        const [, day, month, year] = ddMmmYyyy;
-        const monthMap = {
-          jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-          jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
-        };
-        const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
-        if (monthNum !== undefined) {
-          parsedDate = new Date(year, monthNum, day);
+      // Handle Date objects
+      if (dateValue instanceof Date) {
+        parsedDate = dateValue;
+      }
+      // Handle Excel serial dates (numbers)
+      else if (typeof dateValue === 'number') {
+        const excelEpoch = new Date(1899, 11, 30);
+        parsedDate = new Date(excelEpoch.getTime() + dateValue * 86400000);
+      }
+      // Handle strings
+      else if (typeof dateValue === 'string') {
+        const trimmed = dateValue.trim();
+        if (trimmed) {
+          // Format: "DD MMM YYYY"
+          const ddMmmYyyy = trimmed.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
+          if (ddMmmYyyy) {
+            const [, day, month, year] = ddMmmYyyy;
+            const monthMap = {
+              jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+              jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+            };
+            const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
+            if (monthNum !== undefined) {
+              parsedDate = new Date(year, monthNum, parseInt(day));
+            }
+          } else {
+            parsedDate = new Date(trimmed);
+          }
         }
       }
 
-      // Try ISO format and other standard formats
-      if (!parsedDate) {
-        parsedDate = new Date(dateStr);
-      }
-
-      if (!isNaN(parsedDate.getTime())) {
+      if (parsedDate && !isNaN(parsedDate.getTime())) {
         successCount++;
         if (!minDate || parsedDate < minDate) minDate = parsedDate;
         if (!maxDate || parsedDate > maxDate) maxDate = parsedDate;
       } else {
-        if (errors.length < 5) {
-          errors.push(`Row ${i + 1}: Cannot parse "${dateStr}"`);
+        failureCount++;
+        if (errors.length < 10) {
+          errors.push({
+            row_index: i + 1,
+            raw_value: dateValue,
+            detected_type: typeof dateValue,
+            error: `Cannot parse date`
+          });
         }
       }
     } catch (e) {
-      if (errors.length < 5) {
-        errors.push(`Row ${i + 1}: Parse error - ${e.message}`);
+      failureCount++;
+      if (errors.length < 10) {
+        errors.push({
+          row_index: i + 1,
+          raw_value: dateValue,
+          detected_type: typeof dateValue,
+          error: e.message
+        });
       }
     }
   }
@@ -109,6 +170,8 @@ function validateDateParsing(rows, dateColumn) {
   const sampleSize = Math.min(rows.length, 100);
   return {
     success_rate: sampleSize > 0 ? (successCount / sampleSize) * 100 : 0,
+    success_count: successCount,
+    failure_count: failureCount,
     date_range_min: minDate ? minDate.toISOString().split('T')[0] : null,
     date_range_max: maxDate ? maxDate.toISOString().split('T')[0] : null,
     errors
