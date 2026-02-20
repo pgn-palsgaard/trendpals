@@ -17,26 +17,15 @@ export default function GNPDReadinessPanel({ project, linkedSources }) {
     s.source_type === 'mintel' || s.source_type === 'report'
   ) || [];
   
-  // Check column mapping
-  const { data: mapping } = useQuery({
-    queryKey: ['gnpdMapping', gnpdSource?.id],
-    queryFn: async () => {
-      if (!gnpdSource) return null;
-      const mappings = await base44.entities.GNPDColumnMapping.filter({ source_id: gnpdSource.id });
-      return mappings.length > 0 ? mappings[0] : null;
-    },
-    enabled: !!gnpdSource?.id
-  });
-  
-  // Determine GNPD readiness
+  // Determine GNPD readiness from source directly
   const gnpdReady = gnpdSource && 
     gnpdSource.gnpd_processing_status === 'ready' &&
     gnpdSource.gnpd_row_count > 0 &&
-    mapping?.validation_status?.required_mappings_complete;
+    gnpdSource.gnpd_mapping_status === 'complete';
   
   const gnpdPartial = gnpdSource && 
     gnpdSource.gnpd_processing_status === 'ready' &&
-    (!mapping || !mapping.validation_status?.required_mappings_complete);
+    gnpdSource.gnpd_mapping_status !== 'complete';
   
   const gnpdFailed = gnpdSource?.gnpd_processing_status === 'failed';
   const gnpdProcessing = gnpdSource?.gnpd_processing_status === 'processing';
