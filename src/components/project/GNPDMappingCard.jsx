@@ -13,6 +13,20 @@ export default function GNPDMappingCard({ source, projectId }) {
   const [showMapping, setShowMapping] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
   const [editedMappings, setEditedMappings] = useState(null);
+  
+  // Get validation metrics from metadata_extraction or compute from gnpd_data
+  const validationMetrics = source.metadata_extraction?.extracted_data?.validation_status || 
+    source.metadata_extraction?.extracted_data || 
+    {
+      rows_loaded: source.gnpd_row_count || 0,
+      date_parsing_success_rate: source.metadata_extraction?.extracted_data?.date_parse_success_rate || 0,
+      date_parsing_success_count: source.metadata_extraction?.extracted_data?.date_parse_success_count || 0,
+      date_parsing_failure_count: source.metadata_extraction?.extracted_data?.date_parse_failure_count || 0,
+      unique_markets_count: source.metadata_extraction?.extracted_data?.unique_markets_count || 0,
+      date_range_min: source.metadata_extraction?.extracted_data?.min_date_published_parsed,
+      date_range_max: source.metadata_extraction?.extracted_data?.max_date_published_parsed,
+      parsing_errors: source.metadata_extraction?.extracted_data?.date_parse_failures || []
+    };
 
   const detectMutation = useMutation({
     mutationFn: async () => {
