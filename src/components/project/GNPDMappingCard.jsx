@@ -66,20 +66,25 @@ export default function GNPDMappingCard({ source, projectId }) {
 
   const currentMappings = editedMappings || mapping?.mappings || {};
   const validation = mapping?.validation_status || {};
-  const requiredFields = ['record_id', 'product_name', 'market', 'date_published'];
-  const optionalFields = ['product_variants', 'brand', 'company', 'ultimate_company', 'category', 'sub_category'];
+  const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
+  const optionalFields = ['product_variants', 'brand', 'company', 'ultimate_company', 'product_description', 'claims', 'flavours', 'launch_type', 'record_hyperlink'];
 
   const fieldLabels = {
     record_id: 'Record ID',
-    product_name: 'Product Name',
-    market: 'Market/Country',
+    product_name: 'Product',
+    market: 'Market',
     date_published: 'Date Published',
     product_variants: 'Product Variants',
     brand: 'Brand',
     company: 'Company',
     ultimate_company: 'Ultimate Company',
     category: 'Category',
-    sub_category: 'Sub-Category'
+    sub_category: 'Sub-Category',
+    product_description: 'Product Description',
+    claims: 'Claims',
+    flavours: 'Flavours',
+    launch_type: 'Launch Type',
+    record_hyperlink: 'Record hyperlink'
   };
 
   if (isLoading) {
