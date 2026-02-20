@@ -40,6 +40,21 @@ const STATUS_CONFIG = {
     description: 'Extracting metadata...',
     spin: true
   },
+  gnpd_processing: {
+    icon: Cog,
+    label: 'Processing GNPD',
+    color: 'text-blue-600',
+    bg: 'bg-blue-100',
+    description: 'Parsing GNPD data...',
+    spin: true
+  },
+  gnpd_ready: {
+    icon: CheckCircle,
+    label: 'GNPD Ready',
+    color: 'text-green-600',
+    bg: 'bg-green-100',
+    description: 'GNPD data parsed successfully'
+  },
   ready: {
     icon: CheckCircle,
     label: 'Ready',
@@ -77,7 +92,22 @@ export default function UploadStatusCard({
       try {
         const fetchedSource = await base44.entities.Source.get(sourceId);
         setSource(fetchedSource);
-        setStatus(fetchedSource.status || 'queued');
+        
+        // Check GNPD-specific status first
+        if (fetchedSource.source_type === 'gnpd' && fetchedSource.gnpd_processing_status) {
+          if (fetchedSource.gnpd_processing_status === 'processing') {
+            setStatus('gnpd_processing');
+          } else if (fetchedSource.gnpd_processing_status === 'ready') {
+            setStatus('gnpd_ready');
+          } else if (fetchedSource.gnpd_processing_status === 'failed') {
+            setStatus('failed');
+            setError(fetchedSource.gnpd_processing_error || 'GNPD processing failed');
+          } else {
+            setStatus(fetchedSource.status || 'queued');
+          }
+        } else {
+          setStatus(fetchedSource.status || 'queued');
+        }
         setProgress(fetchedSource.upload_progress || 0);
         setError(fetchedSource.status_message);
 
