@@ -197,13 +197,26 @@ Deno.serve(async (req) => {
     const keywords = signals.keywords || [];
     debug.trend_signals_used = keywords.slice(0, 10);
     
-    // Apply date filter
+    // Apply date filter using pre-parsed dates
     const twoYearsAgo = new Date();
     twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
     
     const dateFilteredProducts = gnpdProducts.filter(product => {
-      const parsedDate = parseDate(product.date_published);
-      if (!parsedDate) return true; // Include if date missing
+      // Use pre-parsed date if available
+      const dateValue = product._raw?._date_published_parsed || product.date_published;
+      
+      if (!dateValue) {
+        // Exclude rows with unknown dates from date-filtered matching
+        debug.rows_excluded_unknown_date = (debug.rows_excluded_unknown_date || 0) + 1;
+        return false;
+      }
+      
+      const parsedDate = new Date(dateValue);
+      if (isNaN(parsedDate.getTime())) {
+        debug.rows_excluded_invalid_date = (debug.rows_excluded_invalid_date || 0) + 1;
+        return false;
+      }
+      
       const isRecent = parsedDate >= twoYearsAgo;
       if (isRecent) debug.rows_after_date_filter++;
       return isRecent;
