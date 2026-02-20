@@ -65,9 +65,6 @@ export default function PackshotManager({ project, trendCandidates }) {
   const pendingCount = productRequests.filter(r => r.status === 'pending').length;
   const uploadedCount = productRequests.filter(r => r.status === 'uploaded').length;
 
-  const pendingCount = productRequests.filter(r => r.status === 'pending').length;
-  const uploadedCount = productRequests.filter(r => r.status === 'uploaded').length;
-
   if (collapsed && productRequests.length > 0) {
     return (
       <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
