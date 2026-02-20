@@ -90,9 +90,6 @@ export default function ProductProofPanel({ trend, projectId }) {
     toast.success('Record ID copied');
   };
 
-  const heroCandidates = candidates.filter(c => c.is_hero && !c.is_excluded);
-  const supportCandidates = candidates.filter(c => !c.is_hero && !c.is_excluded);
-
   // Determine current state if not explicitly set
   React.useEffect(() => {
     if (!isLoading && candidates.length > 0 && state === 'idle') {
