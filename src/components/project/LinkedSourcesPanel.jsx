@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FileText, ExternalLink, Unlink, AlertTriangle, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
+import GNPDMappingCard from './GNPDMappingCard';
 
 export default function LinkedSourcesPanel({ project, sources }) {
   const queryClient = useQueryClient();

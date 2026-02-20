@@ -210,7 +210,19 @@ export default function PackshotManager({ project, trendCandidates }) {
                         <div>
                           <h4 className="font-semibold text-slate-900">{request.product_name}</h4>
                           <div className="space-y-0.5 mt-1">
-                            <p className="text-xs text-slate-600 font-mono">ID: {request.product_id}</p>
+                            {request.product_id ? (
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard.writeText(request.product_id);
+                                  toast.success('Record ID copied');
+                                }}
+                                className="text-xs text-slate-600 font-mono hover:text-blue-600 hover:underline cursor-pointer"
+                              >
+                                Record ID: {request.product_id}
+                              </button>
+                            ) : (
+                              <p className="text-xs text-red-600 font-medium">Record ID missing</p>
+                            )}
                             {request.company && <p className="text-xs text-slate-600">Company: {request.company}</p>}
                             {request.brand && <p className="text-xs text-slate-600">Brand: {request.brand}</p>}
                           </div>
