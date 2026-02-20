@@ -65,13 +65,15 @@ export default function GNPDMappingCard({ source, projectId }) {
       });
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('[GNPDMappingCard] Save successful, returned data:', data);
       queryClient.invalidateQueries(['sources']);
       queryClient.invalidateQueries(['projectSources', projectId]);
       toast.success('Column mapping updated and validation recomputed');
       setEditedMappings(null);
     },
     onError: (error) => {
+      console.error('[GNPDMappingCard] Save failed:', error);
       toast.error(error.message || 'Failed to update mapping');
     }
   });
