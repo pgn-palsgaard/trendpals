@@ -108,8 +108,63 @@ Deno.serve(async (req) => {
 
     // Get the source
     const source = await base44.entities.Source.get(source_id);
-    if (!source || !source.gnpd_data || !Array.isArray(source.gnpd_data) || source.gnpd_data.length === 0) {
-      return Response.json({ error: 'Source has no GNPD data' }, { status: 400 });
+    
+    // If GNPD data doesn't exist, try parsing from file
+    if (!source.gnpd_data || !Array.isArray(source.gnpd_data) || source.gnpd_data.length === 0) {
+      // Check if file exists
+      if (!source.file_url) {
+        return Response.json({ 
+          error: 'GNPD file not available',
+          message: 'GNPD file hasn\'t been processed yet. Please wait or re-upload the file.',
+          actionable: true
+        }, { status: 422 });
+      }
+      
+      // Try to parse file on-demand
+      try {
+        const fileResponse = await fetch(source.file_url);
+        const fileContent = await fileResponse.text();
+        
+        // Parse based on file type
+        const { read, utils } = await import('npm:xlsx@0.18.5');
+        const workbook = read(fileContent, { type: 'string' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const rows = utils.sheet_to_json(sheet);
+        
+        if (rows.length === 0) {
+          return Response.json({ 
+            error: 'Empty GNPD file',
+            message: 'The GNPD file contains no data rows.'
+          }, { status: 422 });
+        }
+        
+        // Get headers
+        const headers = Object.keys(rows[0]);
+        
+        // Update source with parsed data
+        await base44.entities.Source.update(source_id, {
+          gnpd_data: rows,
+          gnpd_headers: headers,
+          gnpd_row_count: rows.length,
+          gnpd_preview_rows: rows.slice(0, 20),
+          gnpd_processing_status: 'ready'
+        });
+        
+        // Continue with detection using newly parsed data
+        source.gnpd_data = rows;
+      } catch (parseError) {
+        await base44.entities.Source.update(source_id, {
+          gnpd_processing_status: 'failed',
+          gnpd_processing_error: parseError.message
+        });
+        
+        return Response.json({ 
+          error: 'Failed to parse GNPD file',
+          message: `Could not parse GNPD file: ${parseError.message}`,
+          actionable: true
+        }, { status: 422 });
+      }
     }
 
     // Get available columns from first row

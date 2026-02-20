@@ -135,63 +135,97 @@ Deno.serve(async (req) => {
           freshness: 'recent'
         });
       } else if (source_type === 'gnpd') {
+        // Update GNPD processing status
+        await base44.entities.Source.update(source.id, {
+          gnpd_processing_status: 'processing'
+        });
+        
         // Process GNPD file
         const fileResponse = await fetch(file_url);
         const fileContent = await fileResponse.text();
 
         let gnpd_data = [];
+        let gnpd_headers = [];
 
         // Required GNPD columns
         const requiredColumns = ['Record ID', 'Product name', 'Brand', 'Launch Date', 'Market'];
 
-        // Detect file type and parse
-        if (file_url.endsWith('.csv') || fileContent.includes(',')) {
-          // Parse CSV
-          const lines = fileContent.split('\n');
-          const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        // Detect file type and parse - use xlsx library for robust parsing
+        try {
+          const { read, utils } = await import('npm:xlsx@0.18.5');
+          const workbook = read(fileContent, { type: 'string' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const rows = utils.sheet_to_json(sheet);
           
-          // Validate required columns
-          const missingColumns = requiredColumns.filter(col => 
-            !headers.some(h => h.toLowerCase() === col.toLowerCase())
-          );
-          
-          if (missingColumns.length > 0) {
+          if (rows.length === 0) {
             await base44.entities.Source.update(source.id, {
               status: 'failed',
-              status_message: `Missing required GNPD columns: ${missingColumns.join(', ')}. Please ensure your export includes: ${requiredColumns.join(', ')}`
+              gnpd_processing_status: 'failed',
+              gnpd_processing_error: 'GNPD file contains no data rows',
+              status_message: 'GNPD file contains no data rows'
             });
             return Response.json({ 
-              error: `Missing required GNPD columns: ${missingColumns.join(', ')}`,
-              required: requiredColumns
+              error: 'GNPD file contains no data rows'
             }, { status: 400 });
           }
           
-          for (let i = 1; i < lines.length && i < 1000; i++) {
-            const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
-            if (values.length === headers.length) {
-              const product = {};
-              headers.forEach((header, idx) => {
-                product[header] = values[idx];
-              });
-              
-              // Validate country and map to region
-              if (product.Market || product.Country) {
-                const country = product.Market || product.Country;
-                try {
-                  const { getRegionByCountry } = await import('./RegionsTaxonomy.js');
-                  const regionCode = getRegionByCountry(country);
-                  if (regionCode) {
-                    product.region_code = regionCode;
+          // Extract headers from first row
+          gnpd_headers = Object.keys(rows[0]);
+          gnpd_data = rows;
+          
+          // Store parsed data immediately
+          await base44.entities.Source.update(source.id, {
+            gnpd_data: rows,
+            gnpd_headers: gnpd_headers,
+            gnpd_row_count: rows.length,
+            gnpd_preview_rows: rows.slice(0, 20),
+            gnpd_processing_status: 'ready'
+          });
+          
+        } catch (xlsxError) {
+          // Fallback to CSV parsing if xlsx fails
+          if (file_url.endsWith('.csv') || fileContent.includes(',')) {
+            // Parse CSV
+            const lines = fileContent.split('\n');
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            gnpd_headers = headers;
+            
+            for (let i = 1; i < lines.length && i < 1000; i++) {
+              const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+              if (values.length === headers.length) {
+                const product = {};
+                headers.forEach((header, idx) => {
+                  product[header] = values[idx];
+                });
+                
+                // Validate country and map to region
+                if (product.Market || product.Country) {
+                  const country = product.Market || product.Country;
+                  try {
+                    const { getRegionByCountry } = await import('./RegionsTaxonomy.js');
+                    const regionCode = getRegionByCountry(country);
+                    if (regionCode) {
+                      product.region_code = regionCode;
+                    }
+                  } catch (err) {
+                    console.warn(`Could not map country "${country}" to region:`, err.message);
                   }
-                } catch (err) {
-                  console.warn(`Could not map country "${country}" to region:`, err.message);
                 }
+                
+                gnpd_data.push(product);
               }
-              
-              gnpd_data.push(product);
             }
-          }
-        } else if (fileContent.includes('<html') || fileContent.includes('<table')) {
+            
+            // Store parsed CSV data
+            await base44.entities.Source.update(source.id, {
+              gnpd_data: gnpd_data,
+              gnpd_headers: gnpd_headers,
+              gnpd_row_count: gnpd_data.length,
+              gnpd_preview_rows: gnpd_data.slice(0, 20),
+              gnpd_processing_status: 'ready'
+            });
+          } else {
           // Use ExtractDataFromUploadedFile for more robust HTML parsing
           const extractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
             file_url,
