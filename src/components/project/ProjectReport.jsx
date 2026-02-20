@@ -110,10 +110,10 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
               </p>
               <Button
                 onClick={() => generateReportMutation.mutate()}
-                disabled={generatingReport}
+                disabled={generateReportMutation.isPending}
                 className="bg-blue-600 hover:bg-blue-700"
               >
-                {generatingReport ? (
+                {generateReportMutation.isPending ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                     Generating...
