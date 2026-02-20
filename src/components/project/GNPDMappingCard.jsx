@@ -311,14 +311,14 @@ export default function GNPDMappingCard({ source, projectId }) {
                 
                 <div className="text-slate-600">Unique markets:</div>
                 <div className="font-medium">
-                  {validation.unique_markets_count !== undefined ? validation.unique_markets_count : 'N/A'}
+                  {validationMetrics.unique_markets_count !== undefined ? validationMetrics.unique_markets_count : 'N/A'}
                 </div>
 
-                {validation.date_range_min && validation.date_range_max && (
+                {validationMetrics.date_range_min && validationMetrics.date_range_max && (
                   <>
                     <div className="text-slate-600">Detected date range:</div>
                     <div className="font-medium">
-                      {validation.date_range_min} → {validation.date_range_max}
+                      {validationMetrics.date_range_min} → {validationMetrics.date_range_max}
                     </div>
                   </>
                 )}
@@ -326,8 +326,8 @@ export default function GNPDMappingCard({ source, projectId }) {
 
               {/* Readiness Status */}
               <div className="mt-3 pt-3 border-t">
-                {isComplete && validation.rows_loaded > 0 ? (
-                  validation.date_parsing_success_rate < 80 ? (
+                {isComplete && validationMetrics.rows_loaded > 0 ? (
+                  validationMetrics.date_parsing_success_rate < 80 ? (
                     <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded">
                       <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
                       <div>
