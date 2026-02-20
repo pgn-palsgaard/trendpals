@@ -52,8 +52,8 @@ export default function ProductProofPanel({ trend, projectId }) {
       setState('error');
       const errorData = error.response?.data || {};
       
-      if (errorData.error === 'GNPD column mapping incomplete') {
-        setErrorMessage(`${errorData.message}\nSource: ${errorData.source_title || 'Unknown'}`);
+      if (errorData.error_code === 'MAPPING_INCOMPLETE' || errorData.error === 'GNPD column mapping incomplete') {
+        setErrorMessage(`${errorData.message}\n\nSource: ${errorData.source_title || 'Unknown'}`);
       } else {
         setErrorMessage(error.message || 'Failed to generate shortlist');
       }
