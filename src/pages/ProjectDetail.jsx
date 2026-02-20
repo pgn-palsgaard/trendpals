@@ -14,6 +14,7 @@ import ProjectTrends from '@/components/project/ProjectTrends';
 import ProjectReport from '@/components/project/ProjectReport';
 import ProjectProgress from '@/components/project/ProjectProgress';
 import StatusTooltip from '@/components/project/StatusTooltip';
+import GNPDReadinessPanel from '@/components/project/GNPDReadinessPanel';
 
 export default function ProjectDetail() {
   const navigate = useNavigate();
@@ -188,6 +189,12 @@ export default function ProjectDetail() {
             )}
           </div>
         </div>
+
+        {/* Data Readiness Panel */}
+        <GNPDReadinessPanel 
+          project={project}
+          linkedSources={sources}
+        />
 
         {/* Progress Indicator */}
         <ProjectProgress 
