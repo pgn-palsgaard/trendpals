@@ -210,14 +210,14 @@ Deno.serve(async (req) => {
       // Try to parse file on-demand
       try {
         const fileResponse = await fetch(source.file_url);
-        const fileContent = await fileResponse.text();
+        const arrayBuffer = await fileResponse.arrayBuffer();
         
         // Parse based on file type
         const { read, utils } = await import('npm:xlsx@0.18.5');
-        const workbook = read(fileContent, { type: 'string' });
+        const workbook = read(arrayBuffer, { type: 'array', cellDates: true });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
-        const rows = utils.sheet_to_json(sheet);
+        const rows = utils.sheet_to_json(sheet, { raw: false, dateNF: 'yyyy-mm-dd' });
         
         if (rows.length === 0) {
           return Response.json({ 
@@ -226,8 +226,65 @@ Deno.serve(async (req) => {
           }, { status: 422 });
         }
         
-        // Get headers
+        // Get headers (handle duplicate column names)
         const headers = Object.keys(rows[0]);
+        
+        // Parse date_published field
+        const dateColumnGuess = headers.find(h => 
+          h.toLowerCase().includes('date published') || 
+          h.toLowerCase().includes('launch date') ||
+          h.toLowerCase() === 'date'
+        );
+        
+        if (dateColumnGuess) {
+          for (const row of rows) {
+            const rawDate = row[dateColumnGuess];
+            let parsedDate = null;
+            let parseError = null;
+            let parseType = null;
+            
+            if (rawDate instanceof Date) {
+              parsedDate = rawDate.toISOString();
+              parseType = 'Date';
+            } else if (typeof rawDate === 'number') {
+              const excelEpoch = new Date(1899, 11, 30);
+              parsedDate = new Date(excelEpoch.getTime() + rawDate * 86400000).toISOString();
+              parseType = 'number';
+            } else if (typeof rawDate === 'string') {
+              const trimmed = rawDate.trim();
+              if (trimmed) {
+                parseType = 'string';
+                try {
+                  // Try parsing as DD MMM YYYY
+                  const ddMmmYyyy = trimmed.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
+                  if (ddMmmYyyy) {
+                    const [, day, month, year] = ddMmmYyyy;
+                    const monthMap = {
+                      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+                      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+                    };
+                    const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
+                    if (monthNum !== undefined) {
+                      parsedDate = new Date(year, monthNum, parseInt(day)).toISOString();
+                    }
+                  } else {
+                    // Try standard Date parsing
+                    const date = new Date(trimmed);
+                    if (!isNaN(date.getTime())) {
+                      parsedDate = date.toISOString();
+                    }
+                  }
+                } catch (e) {
+                  parseError = e.message;
+                }
+              }
+            }
+            
+            row._date_published_parsed = parsedDate;
+            row._date_parse_error = parseError;
+            row._date_parse_type = parseType;
+          }
+        }
         
         // Update source with parsed data
         await base44.entities.Source.update(source_id, {
@@ -241,6 +298,7 @@ Deno.serve(async (req) => {
         // Continue with detection using newly parsed data
         source.gnpd_data = rows;
       } catch (parseError) {
+        console.error('Parse error:', parseError);
         await base44.entities.Source.update(source_id, {
           gnpd_processing_status: 'failed',
           gnpd_processing_error: parseError.message
