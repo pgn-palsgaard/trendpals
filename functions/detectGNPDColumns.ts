@@ -1,21 +1,33 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-// Column name synonyms for auto-detection
+// Column name synonyms for auto-detection (P0 canonical mapping)
 const COLUMN_SYNONYMS = {
+  // REQUIRED mappings (block if missing)
   record_id: ['record id', 'recordid', 'record_id', 'id', 'gnpd id', 'product id'],
-  product_name: ['product', 'product name', 'productname', 'product_name', 'name'],
-  market: ['market', 'country', 'market country', 'launch country'],
   date_published: ['date published', 'datepublished', 'date_published', 'launch date', 'launchdate', 'date'],
-  product_variants: ['product variants', 'variants', 'product_variants'],
+  market: ['market', 'country', 'market country', 'launch country'],
+  product_name: ['product', 'product name', 'productname', 'product_name', 'name'],
+  category: ['category', 'main category', 'product category'],
+  sub_category: ['sub-category', 'sub category', 'subcategory', 'sub_category'],
+  
+  // RECOMMENDED mappings (use if present)
   brand: ['brand', 'brand name', 'brandname'],
   company: ['company', 'manufacturer', 'producer'],
   ultimate_company: ['ultimate company', 'ultimate_company', 'parent company', 'ultimate'],
-  category: ['category', 'main category', 'product category'],
-  sub_category: ['sub-category', 'sub category', 'subcategory', 'sub_category'],
-  product_description: ['product description', 'description', 'product_description'],
-  claims: ['claims', 'product claims'],
-  flavours: ['flavours', 'flavors', 'flavor', 'flavour'],
   launch_type: ['launch type', 'launch_type', 'type'],
+  claims: ['claims', 'product claims'],
+  product_description: ['product description', 'description', 'product_description'],
+  flavours: ['flavours', 'flavors', 'flavor', 'flavour'],
+  storage: ['storage', 'storage type'],
+  format_type: ['format type', 'format_type', 'format'],
+  unit_pack_size: ['unit pack size (ml/g)', 'unit pack size', 'pack size', 'size'],
+  packaging_units: ['packaging units', 'units'],
+  package_type: ['package type', 'packaging type', 'pack type'],
+  package_material: ['package material', 'packaging material', 'material'],
+  barcode: ['bar code', 'barcode', 'ean', 'upc'],
+  price_usd: ['price in us dollars', 'price (usd)', 'price usd', 'usd price'],
+  price_eur: ['price in euros', 'price (eur)', 'price eur', 'eur price'],
+  product_variants: ['product variants', 'variants', 'product_variants'],
   record_hyperlink: ['record hyperlink', 'record_hyperlink', 'hyperlink', 'url', 'link']
 };
 
