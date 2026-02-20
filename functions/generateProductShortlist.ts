@@ -119,14 +119,58 @@ Deno.serve(async (req) => {
         }, { status: 400 });
       }
       
-      // Check column mappings
-      const mappings = await base44.entities.GNPDColumnMapping.filter({ source_id: source.id });
-      if (mappings.length === 0 || !mappings[0].validation_status?.required_mappings_complete) {
+      // Check column mappings from source directly
+      if (source.gnpd_mapping_status !== 'complete') {
         return Response.json({ 
           error: 'GNPD column mapping incomplete',
+          error_code: 'MAPPING_INCOMPLETE',
           message: `Required GNPD column mappings are missing for "${source.title}". Please complete column mapping in the Sources tab.`,
           source_id: source.id,
-          source_title: source.title
+          source_title: source.title,
+          request_id: requestId
+        }, { status: 400 });
+      }
+      
+      // Validate that required mapped columns exist in headers
+      const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
+      const columnMap = source.gnpd_column_mapping || {};
+      const missingMappings = requiredFields.filter(field => !columnMap[field]);
+      
+      if (missingMappings.length > 0) {
+        // Mark mapping as failed and save error
+        await base44.entities.Source.update(source.id, {
+          gnpd_mapping_status: 'failed',
+          gnpd_mapping_error: `Missing required mappings: ${missingMappings.join(', ')}`
+        });
+        
+        return Response.json({ 
+          error: 'GNPD column mapping incomplete',
+          error_code: 'MAPPING_INCOMPLETE',
+          message: `Required GNPD column mappings are missing for "${source.title}": ${missingMappings.join(', ')}. Please remap in the Sources tab.`,
+          source_id: source.id,
+          source_title: source.title,
+          request_id: requestId
+        }, { status: 400 });
+      }
+      
+      // Verify mapped columns exist in headers
+      const headers = source.gnpd_headers || [];
+      const missingHeaders = Object.values(columnMap).filter(col => col && !headers.includes(col));
+      
+      if (missingHeaders.length > 0) {
+        // Mark mapping as failed
+        await base44.entities.Source.update(source.id, {
+          gnpd_mapping_status: 'failed',
+          gnpd_mapping_error: `Mapped columns not found in file: ${missingHeaders.join(', ')}`
+        });
+        
+        return Response.json({ 
+          error: 'Invalid GNPD column mapping',
+          error_code: 'MAPPING_INVALID',
+          message: `Some mapped columns don't exist in "${source.title}". The file may have changed. Please remap in the Sources tab.`,
+          source_id: source.id,
+          source_title: source.title,
+          request_id: requestId
         }, { status: 400 });
       }
     }
@@ -135,9 +179,8 @@ Deno.serve(async (req) => {
     const gnpdProducts = [];
     for (const source of sources) {
       if (source.gnpd_data && Array.isArray(source.gnpd_data)) {
-        // Get column mapping for this source
-        const mappings = await base44.entities.GNPDColumnMapping.filter({ source_id: source.id });
-        const columnMap = mappings.length > 0 ? mappings[0].mappings : {};
+        // Get column mapping from source directly
+        const columnMap = source.gnpd_column_mapping || {};
 
         source.gnpd_data.forEach((product, idx) => {
           // Map columns to standard names - convert Record ID to string
