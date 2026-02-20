@@ -193,8 +193,22 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'source_id required' }, { status: 400 });
     }
 
-    // Get the source
-    const source = await base44.entities.Source.get(source_id);
+    // Set detecting status
+    await base44.entities.Source.update(source_id, {
+      gnpd_mapping_status: 'detecting',
+      gnpd_mapping_error: null
+    });
+
+    // Set timeout (15 seconds)
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('Detection timeout')), 15000)
+    );
+
+    try {
+      await Promise.race([
+        (async () => {
+          // Get the source
+          const source = await base44.entities.Source.get(source_id);
     
     // If GNPD data doesn't exist, try parsing from file
     if (!source.gnpd_data || !Array.isArray(source.gnpd_data) || source.gnpd_data.length === 0) {
@@ -348,51 +362,76 @@ Deno.serve(async (req) => {
       parsing_errors: dateValidation.errors
     };
 
-    // Create or update mapping
-    const existingMappings = await base44.entities.GNPDColumnMapping.filter({ source_id });
-    
-    // Get header map from source metadata if available
-    const headerMap = source.metadata_extraction?.extracted_data?.header_map || {};
-    const sheetNameUsed = source.metadata_extraction?.extracted_data?.sheet_name_used || null;
-    
-    if (existingMappings.length > 0) {
-      // Update existing
-      await base44.entities.GNPDColumnMapping.update(existingMappings[0].id, {
-        mappings: detectedMappings,
-        available_columns: availableColumns,
-        validation_status: validationStatus,
-        auto_detected: true,
-        header_map: headerMap,
-        sheet_name_used: sheetNameUsed
+    // Consistency check: if gnpd_processing_status is ready but headers are empty
+    if (source.gnpd_processing_status === 'ready' && (!source.gnpd_headers || source.gnpd_headers.length === 0)) {
+      await base44.entities.Source.update(source_id, {
+        gnpd_processing_status: 'failed',
+        gnpd_processing_error: 'Headers missing despite ready status. File may be corrupted.'
       });
       
       return Response.json({
-        success: true,
-        mapping: existingMappings[0],
-        updated: true
-      });
-    } else {
-      // Create new
-      const mapping = await base44.entities.GNPDColumnMapping.create({
-        source_id,
-        project_id: project_id || null,
-        mappings: detectedMappings,
-        available_columns: availableColumns,
-        header_map: headerMap,
-        sheet_name_used: sheetNameUsed,
+        error: 'Data integrity issue',
+        message: 'Source marked as ready but headers are missing. Please re-upload the file.',
+        actionable: true
+      }, { status: 422 });
+    }
+
+    // Update source with global mapping
+    const mappingUpdate = {
+      gnpd_column_mapping: detectedMappings,
+      gnpd_mapping_status: requiredMappingsComplete ? 'complete' : 'failed',
+      gnpd_mapping_updated_at: new Date().toISOString(),
+      gnpd_mapping_error: requiredMappingsComplete ? null : `Missing required mappings: ${requiredFields.filter(f => !detectedMappings[f]).join(', ')}`
+    };
+
+    await base44.entities.Source.update(source_id, mappingUpdate);
+
+    return Response.json({
+      success: true,
+      mapping: {
+        ...detectedMappings,
         validation_status: validationStatus,
-        auto_detected: true
+        available_columns: availableColumns
+      },
+      source_updated: true
+    });
+
+        })(),
+        timeoutPromise
+      ]);
+    } catch (timeoutOrError) {
+      // Handle timeout or detection errors
+      await base44.entities.Source.update(source_id, {
+        gnpd_mapping_status: 'failed',
+        gnpd_mapping_error: timeoutOrError.message === 'Detection timeout' 
+          ? 'Column detection timed out after 15 seconds. Please try again or map manually.'
+          : timeoutOrError.message
       });
 
       return Response.json({
-        success: true,
-        mapping,
-        created: true
-      });
+        error: timeoutOrError.message === 'Detection timeout' ? 'Detection timeout' : 'Detection failed',
+        message: timeoutOrError.message === 'Detection timeout'
+          ? 'Column detection timed out. Please retry or map columns manually.'
+          : `Detection failed: ${timeoutOrError.message}`,
+        actionable: true
+      }, { status: 408 });
     }
-
   } catch (error) {
     console.error('Detect GNPD columns error:', error);
+    
+    // Try to update source status if we have source_id
+    try {
+      const { source_id } = await req.json();
+      if (source_id) {
+        await base44.entities.Source.update(source_id, {
+          gnpd_mapping_status: 'failed',
+          gnpd_mapping_error: error.message
+        });
+      }
+    } catch (updateError) {
+      console.error('Failed to update source on error:', updateError);
+    }
+
     return Response.json({ 
       error: error.message,
       details: error.stack

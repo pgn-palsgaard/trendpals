@@ -14,23 +14,14 @@ export default function GNPDMappingCard({ source, projectId }) {
   const [showValidation, setShowValidation] = useState(false);
   const [editedMappings, setEditedMappings] = useState(null);
 
-  const { data: mapping, isLoading } = useQuery({
-    queryKey: ['gnpdMapping', source.id],
-    queryFn: async () => {
-      const mappings = await base44.entities.GNPDColumnMapping.filter({ source_id: source.id });
-      return mappings.length > 0 ? mappings[0] : null;
-    },
-    enabled: !!source.id
-  });
-
   const detectMutation = useMutation({
     mutationFn: () => base44.functions.invoke('detectGNPDColumns', {
       source_id: source.id,
       project_id: projectId
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries(['gnpdMapping', source.id]);
       queryClient.invalidateQueries(['sources']);
+      queryClient.invalidateQueries(['projectSources', projectId]);
       toast.success('Column mapping detected');
     },
     onError: (error) => {
@@ -51,11 +42,12 @@ export default function GNPDMappingCard({ source, projectId }) {
 
   const updateMutation = useMutation({
     mutationFn: (mappings) => base44.functions.invoke('updateGNPDMapping', {
-      mapping_id: mapping.id,
+      source_id: source.id,
       mappings
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries(['gnpdMapping', source.id]);
+      queryClient.invalidateQueries(['sources']);
+      queryClient.invalidateQueries(['projectSources', projectId]);
       toast.success('Column mapping updated');
       setEditedMappings(null);
     },
@@ -64,8 +56,29 @@ export default function GNPDMappingCard({ source, projectId }) {
     }
   });
 
-  const currentMappings = editedMappings || mapping?.mappings || {};
-  const validation = mapping?.validation_status || {};
+  const currentMappings = editedMappings || source.gnpd_column_mapping || {};
+  
+  // Build validation from source data
+  const validation = {
+    rows_loaded: source.gnpd_row_count || 0,
+    date_parsing_success_rate: source.gnpd_data?.[0]?._date_published_parsed ? 100 : 0,
+    date_range_min: null,
+    date_range_max: null
+  };
+  
+  // Calculate date range if data available
+  if (source.gnpd_data && source.gnpd_column_mapping?.date_published) {
+    const dates = source.gnpd_data
+      .map(row => row._date_published_parsed)
+      .filter(Boolean)
+      .map(d => new Date(d));
+    
+    if (dates.length > 0) {
+      validation.date_range_min = new Date(Math.min(...dates)).toISOString().split('T')[0];
+      validation.date_range_max = new Date(Math.max(...dates)).toISOString().split('T')[0];
+      validation.date_parsing_success_rate = (dates.length / source.gnpd_data.length) * 100;
+    }
+  }
   const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
   const optionalFields = ['product_variants', 'brand', 'company', 'ultimate_company', 'product_description', 'claims', 'flavours', 'launch_type', 'record_hyperlink'];
 
@@ -87,11 +100,11 @@ export default function GNPDMappingCard({ source, projectId }) {
     record_hyperlink: 'Record hyperlink'
   };
 
-  if (isLoading) {
-    return <div className="text-sm text-slate-500">Loading mapping...</div>;
-  }
+  // Check if mapping is required
+  const mappingRequired = source.gnpd_mapping_status !== 'complete';
+  const isDetecting = source.gnpd_mapping_status === 'detecting';
 
-  if (!mapping) {
+  if (mappingRequired && !isDetecting) {
     return (
       <Card className="border-orange-200 bg-orange-50/30">
         <CardContent className="p-4">
@@ -102,14 +115,44 @@ export default function GNPDMappingCard({ source, projectId }) {
               <p className="text-sm text-orange-800 mb-3">
                 This GNPD source needs column mapping before it can be used for product matching.
               </p>
-              <Button
-                size="sm"
-                onClick={() => detectMutation.mutate()}
-                disabled={detectMutation.isPending}
-                className="bg-orange-600 hover:bg-orange-700"
-              >
-                {detectMutation.isPending ? 'Detecting...' : 'Auto-Detect Columns'}
-              </Button>
+              {source.gnpd_mapping_error && (
+                <p className="text-xs text-orange-700 mb-3 p-2 bg-orange-100 rounded">
+                  {source.gnpd_mapping_error}
+                </p>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => detectMutation.mutate()}
+                  disabled={detectMutation.isPending}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  {detectMutation.isPending ? 'Detecting...' : 'Auto-Detect Columns'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setShowMapping(true)}
+                >
+                  Map Manually
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (isDetecting) {
+    return (
+      <Card className="border-blue-200 bg-blue-50/30">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-blue-900">Detecting columns...</p>
+              <p className="text-xs text-blue-700 mt-1">This may take up to 15 seconds</p>
             </div>
           </div>
         </CardContent>
@@ -131,6 +174,7 @@ export default function GNPDMappingCard({ source, projectId }) {
               <AlertCircle className="w-4 h-4 text-orange-600" />
             )}
             GNPD Column Mapping
+            <Badge variant="outline" className="ml-2 text-xs">Global</Badge>
           </CardTitle>
           <div className="flex gap-2">
             <Button
@@ -155,6 +199,11 @@ export default function GNPDMappingCard({ source, projectId }) {
       </CardHeader>
 
       <CardContent className="space-y-3">
+        {/* Global mapping notice */}
+        <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+          ℹ️ Mapping is shared across projects (global). Changes affect all projects using this source.
+        </div>
+
         {!isComplete && (
           <div className="p-3 bg-orange-100 border border-orange-300 rounded-lg">
             <p className="text-sm font-medium text-orange-900 mb-1">Missing Required Mappings:</p>
@@ -179,7 +228,7 @@ export default function GNPDMappingCard({ source, projectId }) {
                     <SelectValue placeholder="Select column" />
                   </SelectTrigger>
                   <SelectContent>
-                    {mapping.available_columns?.map(col => (
+                    {source.gnpd_headers?.map(col => (
                       <SelectItem key={col} value={col} className="text-xs">{col}</SelectItem>
                     ))}
                   </SelectContent>
@@ -202,7 +251,7 @@ export default function GNPDMappingCard({ source, projectId }) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value={null} className="text-xs">(Not mapped)</SelectItem>
-                    {mapping.available_columns?.map(col => (
+                    {source.gnpd_headers?.map(col => (
                       <SelectItem key={col} value={col} className="text-xs">{col}</SelectItem>
                     ))}
                   </SelectContent>

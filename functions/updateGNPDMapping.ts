@@ -9,32 +9,30 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { mapping_id, mappings } = await req.json();
+    const { source_id, mappings } = await req.json();
 
-    if (!mapping_id || !mappings) {
-      return Response.json({ error: 'mapping_id and mappings required' }, { status: 400 });
+    if (!source_id || !mappings) {
+      return Response.json({ error: 'source_id and mappings required' }, { status: 400 });
     }
 
-    // Check if required mappings are present
-    const requiredFields = ['record_id', 'product_name', 'market', 'date_published'];
-    const requiredMappingsComplete = requiredFields.every(field => mappings[field]);
-
-    // Update the mapping
-    const updated = await base44.entities.GNPDColumnMapping.update(mapping_id, {
-      mappings,
-      auto_detected: false
-    });
-
-    // Re-run validation
-    const response = await base44.functions.invoke('detectGNPDColumns', {
-      source_id: updated.source_id,
-      project_id: updated.project_id
+    // Validate required fields
+    const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
+    const missingFields = requiredFields.filter(field => !mappings[field]);
+    
+    const isComplete = missingFields.length === 0;
+    
+    // Update source with new mapping
+    await base44.entities.Source.update(source_id, {
+      gnpd_column_mapping: mappings,
+      gnpd_mapping_status: isComplete ? 'complete' : 'failed',
+      gnpd_mapping_updated_at: new Date().toISOString(),
+      gnpd_mapping_error: isComplete ? null : `Missing required mappings: ${missingFields.join(', ')}`
     });
 
     return Response.json({
       success: true,
-      mapping: response.data.mapping,
-      required_mappings_complete: requiredMappingsComplete
+      mapping_complete: isComplete,
+      missing_fields: missingFields
     });
 
   } catch (error) {
