@@ -153,8 +153,16 @@ Deno.serve(async (req) => {
         // Detect file type and parse - use xlsx library for robust parsing
         try {
           const { read, utils } = await import('npm:xlsx@0.18.5');
-          const workbook = read(fileContent, { type: 'string' });
-          const sheetName = workbook.SheetNames[0];
+          
+          // Read file as buffer for proper xlsx parsing
+          const fileBuffer = await (await fetch(file_url)).arrayBuffer();
+          const workbook = read(fileBuffer, { type: 'buffer' });
+          
+          // Try to find "Products from GNPD" sheet, otherwise use first sheet
+          let sheetName = workbook.SheetNames.find(name => 
+            name.toLowerCase().includes('products') || name.toLowerCase().includes('gnpd')
+          ) || workbook.SheetNames[0];
+          
           const sheet = workbook.Sheets[sheetName];
           const rows = utils.sheet_to_json(sheet);
           
@@ -174,13 +182,80 @@ Deno.serve(async (req) => {
           gnpd_headers = Object.keys(rows[0]);
           gnpd_data = rows;
           
-          // Store parsed data immediately
+          // Parse dates and calculate statistics
+          let dateParseSuccessCount = 0;
+          let minDate = null;
+          let maxDate = null;
+          const uniqueMarkets = new Set();
+          
+          // Find date column (case-insensitive)
+          const dateColumn = gnpd_headers.find(h => 
+            h.toLowerCase().includes('date') || h.toLowerCase().includes('published')
+          );
+          
+          // Find market column
+          const marketColumn = gnpd_headers.find(h => 
+            h.toLowerCase() === 'market' || h.toLowerCase() === 'country'
+          );
+          
+          rows.forEach(row => {
+            // Parse dates
+            if (dateColumn && row[dateColumn]) {
+              try {
+                const dateStr = String(row[dateColumn]);
+                // Handle "DD MMM YYYY" format
+                const ddMmmYyyy = dateStr.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
+                if (ddMmmYyyy) {
+                  const [, day, month, year] = ddMmmYyyy;
+                  const monthMap = {
+                    jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+                    jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+                  };
+                  const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
+                  if (monthNum !== undefined) {
+                    const parsedDate = new Date(year, monthNum, day);
+                    if (!isNaN(parsedDate.getTime())) {
+                      dateParseSuccessCount++;
+                      if (!minDate || parsedDate < minDate) minDate = parsedDate;
+                      if (!maxDate || parsedDate > maxDate) maxDate = parsedDate;
+                    }
+                  }
+                }
+              } catch (e) {
+                // Skip failed date parses
+              }
+            }
+            
+            // Collect unique markets
+            if (marketColumn && row[marketColumn]) {
+              uniqueMarkets.add(row[marketColumn]);
+            }
+          });
+          
+          const dateParseSuccessRate = rows.length > 0 
+            ? (dateParseSuccessCount / rows.length) * 100 
+            : 0;
+          
+          // Store parsed data immediately with metadata
           await base44.entities.Source.update(source.id, {
             gnpd_data: rows,
             gnpd_headers: gnpd_headers,
             gnpd_row_count: rows.length,
             gnpd_preview_rows: rows.slice(0, 20),
-            gnpd_processing_status: 'ready'
+            gnpd_processing_status: 'ready',
+            status: 'ready',
+            processing_completed_at: new Date().toISOString(),
+            // Add metadata for readiness checks
+            metadata_extraction: {
+              status: 'extracted',
+              extracted_data: {
+                sheet_name_used: sheetName,
+                date_parse_success_rate: Math.round(dateParseSuccessRate),
+                min_date_published: minDate ? minDate.toISOString().split('T')[0] : null,
+                max_date_published: maxDate ? maxDate.toISOString().split('T')[0] : null,
+                unique_markets_count: uniqueMarkets.size
+              }
+            }
           });
           
         } catch (xlsxError) {
