@@ -104,7 +104,25 @@ export default function SourceTable({ sources, selectedIds, onSelectAll, onSelec
                   <span className="text-sm text-slate-700">{source.category || '-'}</span>
                 </td>
                 <td className="px-4 py-3">
-                  {source.date ? (
+                  {source.source_type === 'gnpd' && source.gnpd_processing_status ? (
+                    <div>
+                      {source.gnpd_processing_status === 'processing' && (
+                        <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
+                          Processing GNPD...
+                        </Badge>
+                      )}
+                      {source.gnpd_processing_status === 'ready' && (
+                        <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                          GNPD ready ({source.gnpd_row_count || 0} rows)
+                        </Badge>
+                      )}
+                      {source.gnpd_processing_status === 'failed' && (
+                        <Badge variant="outline" className="text-xs text-red-600 border-red-300">
+                          GNPD failed
+                        </Badge>
+                      )}
+                    </div>
+                  ) : source.date ? (
                     <span className="text-sm text-slate-700">
                       {new Date(source.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                     </span>
