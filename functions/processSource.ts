@@ -230,6 +230,12 @@ Deno.serve(async (req) => {
           gnpd_headers = uniqueHeaders;
           gnpd_data = rows;
           
+          // Store header map for the mapping UI to show duplicate indicators
+          const headerMapObj = {};
+          headerMap.forEach((displayName, uniqueKey) => {
+            headerMapObj[uniqueKey] = displayName;
+          });
+          
           // Parse dates and calculate statistics
           let dateParseSuccessCount = 0;
           let minDate = null;
