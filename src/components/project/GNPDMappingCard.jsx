@@ -15,10 +15,13 @@ export default function GNPDMappingCard({ source, projectId }) {
   const [editedMappings, setEditedMappings] = useState(null);
 
   const detectMutation = useMutation({
-    mutationFn: () => base44.functions.invoke('detectGNPDColumns', {
-      source_id: source.id,
-      project_id: projectId
-    }),
+    mutationFn: async () => {
+      const response = await base44.functions.invoke('detectGNPDColumns', {
+        source_id: source.id,
+        project_id: projectId
+      });
+      return response.data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['sources']);
       queryClient.invalidateQueries(['projectSources', projectId]);
