@@ -204,201 +204,202 @@ Deno.serve(async (req) => {
       setTimeout(() => reject(new Error('Detection timeout')), 15000)
     );
 
-    try {
-      await Promise.race([
-        (async () => {
-          // Get the source
-          const source = await base44.entities.Source.get(source_id);
+    const detectionResult = await Promise.race([
+      (async () => {
+        // Get the source
+        const source = await base44.entities.Source.get(source_id);
     
-    // If GNPD data doesn't exist, try parsing from file
-    if (!source.gnpd_data || !Array.isArray(source.gnpd_data) || source.gnpd_data.length === 0) {
-      // Check if file exists
-      if (!source.file_url) {
-        return Response.json({ 
-          error: 'GNPD file not available',
-          message: 'GNPD file hasn\'t been processed yet. Please wait or re-upload the file.',
-          actionable: true
-        }, { status: 422 });
-      }
-      
-      // Try to parse file on-demand
-      try {
-        const fileResponse = await fetch(source.file_url);
-        const arrayBuffer = await fileResponse.arrayBuffer();
-        
-        // Parse based on file type
-        const { read, utils } = await import('npm:xlsx@0.18.5');
-        const workbook = read(arrayBuffer, { type: 'array', cellDates: true });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const rows = utils.sheet_to_json(sheet, { raw: false, dateNF: 'yyyy-mm-dd' });
-        
-        if (rows.length === 0) {
-          return Response.json({ 
-            error: 'Empty GNPD file',
-            message: 'The GNPD file contains no data rows.'
-          }, { status: 422 });
-        }
-        
-        // Get headers (handle duplicate column names)
-        const headers = Object.keys(rows[0]);
-        
-        // Parse date_published field
-        const dateColumnGuess = headers.find(h => 
-          h.toLowerCase().includes('date published') || 
-          h.toLowerCase().includes('launch date') ||
-          h.toLowerCase() === 'date'
-        );
-        
-        if (dateColumnGuess) {
-          for (const row of rows) {
-            const rawDate = row[dateColumnGuess];
-            let parsedDate = null;
-            let parseError = null;
-            let parseType = null;
-            
-            if (rawDate instanceof Date) {
-              parsedDate = rawDate.toISOString();
-              parseType = 'Date';
-            } else if (typeof rawDate === 'number') {
-              const excelEpoch = new Date(1899, 11, 30);
-              parsedDate = new Date(excelEpoch.getTime() + rawDate * 86400000).toISOString();
-              parseType = 'number';
-            } else if (typeof rawDate === 'string') {
-              const trimmed = rawDate.trim();
-              if (trimmed) {
-                parseType = 'string';
-                try {
-                  // Try parsing as DD MMM YYYY
-                  const ddMmmYyyy = trimmed.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
-                  if (ddMmmYyyy) {
-                    const [, day, month, year] = ddMmmYyyy;
-                    const monthMap = {
-                      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-                      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
-                    };
-                    const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
-                    if (monthNum !== undefined) {
-                      parsedDate = new Date(year, monthNum, parseInt(day)).toISOString();
+        // If GNPD data doesn't exist, try parsing from file
+        if (!source.gnpd_data || !Array.isArray(source.gnpd_data) || source.gnpd_data.length === 0) {
+          // Check if file exists
+          if (!source.file_url) {
+            throw new Error('GNPD file not available');
+          }
+          
+          // Try to parse file on-demand
+          const fileResponse = await fetch(source.file_url);
+          const arrayBuffer = await fileResponse.arrayBuffer();
+          
+          // Parse based on file type
+          const { read, utils } = await import('npm:xlsx@0.18.5');
+          const workbook = read(arrayBuffer, { type: 'array', cellDates: true });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const rows = utils.sheet_to_json(sheet, { raw: false, dateNF: 'yyyy-mm-dd' });
+          
+          if (rows.length === 0) {
+            throw new Error('Empty GNPD file');
+          }
+          
+          // Get headers (handle duplicate column names)
+          const headers = Object.keys(rows[0]);
+          
+          // Parse date_published field
+          const dateColumnGuess = headers.find(h => 
+            h.toLowerCase().includes('date published') || 
+            h.toLowerCase().includes('launch date') ||
+            h.toLowerCase() === 'date'
+          );
+          
+          if (dateColumnGuess) {
+            for (const row of rows) {
+              const rawDate = row[dateColumnGuess];
+              let parsedDate = null;
+              let parseError = null;
+              let parseType = null;
+              
+              if (rawDate instanceof Date) {
+                parsedDate = rawDate.toISOString();
+                parseType = 'Date';
+              } else if (typeof rawDate === 'number') {
+                const excelEpoch = new Date(1899, 11, 30);
+                parsedDate = new Date(excelEpoch.getTime() + rawDate * 86400000).toISOString();
+                parseType = 'number';
+              } else if (typeof rawDate === 'string') {
+                const trimmed = rawDate.trim();
+                if (trimmed) {
+                  parseType = 'string';
+                  try {
+                    // Try parsing as DD MMM YYYY
+                    const ddMmmYyyy = trimmed.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
+                    if (ddMmmYyyy) {
+                      const [, day, month, year] = ddMmmYyyy;
+                      const monthMap = {
+                        jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+                        jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+                      };
+                      const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
+                      if (monthNum !== undefined) {
+                        parsedDate = new Date(year, monthNum, parseInt(day)).toISOString();
+                      }
+                    } else {
+                      // Try standard Date parsing
+                      const date = new Date(trimmed);
+                      if (!isNaN(date.getTime())) {
+                        parsedDate = date.toISOString();
+                      }
                     }
-                  } else {
-                    // Try standard Date parsing
-                    const date = new Date(trimmed);
-                    if (!isNaN(date.getTime())) {
-                      parsedDate = date.toISOString();
-                    }
+                  } catch (e) {
+                    parseError = e.message;
                   }
-                } catch (e) {
-                  parseError = e.message;
                 }
               }
+              
+              row._date_published_parsed = parsedDate;
+              row._date_parse_error = parseError;
+              row._date_parse_type = parseType;
             }
-            
-            row._date_published_parsed = parsedDate;
-            row._date_parse_error = parseError;
-            row._date_parse_type = parseType;
           }
+          
+          // Update source with parsed data
+          await base44.entities.Source.update(source_id, {
+            gnpd_data: rows,
+            gnpd_headers: headers,
+            gnpd_row_count: rows.length,
+            gnpd_preview_rows: rows.slice(0, 20),
+            gnpd_processing_status: 'ready'
+          });
+          
+          // Continue with detection using newly parsed data
+          source.gnpd_data = rows;
         }
-        
-        // Update source with parsed data
-        await base44.entities.Source.update(source_id, {
-          gnpd_data: rows,
-          gnpd_headers: headers,
-          gnpd_row_count: rows.length,
-          gnpd_preview_rows: rows.slice(0, 20),
-          gnpd_processing_status: 'ready'
-        });
-        
-        // Continue with detection using newly parsed data
-        source.gnpd_data = rows;
-      } catch (parseError) {
-        console.error('Parse error:', parseError);
-        await base44.entities.Source.update(source_id, {
-          gnpd_processing_status: 'failed',
-          gnpd_processing_error: parseError.message
-        });
-        
-        return Response.json({ 
-          error: 'Failed to parse GNPD file',
-          message: `Could not parse GNPD file: ${parseError.message}`,
-          actionable: true
-        }, { status: 422 });
-      }
-    }
 
-    // Get available columns from first row
-    const firstRow = source.gnpd_data[0];
-    const availableColumns = Object.keys(firstRow);
+        // Get available columns from first row
+        const firstRow = source.gnpd_data[0];
+        const availableColumns = Object.keys(firstRow);
 
-    // Auto-detect mappings
-    const detectedMappings = detectColumnMapping(availableColumns);
+        // Auto-detect mappings
+        const detectedMappings = detectColumnMapping(availableColumns);
 
-    // Check if required mappings are present
-    const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
-    const requiredMappingsComplete = requiredFields.every(field => detectedMappings[field]);
+        // Check if required mappings are present
+        const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
+        const requiredMappingsComplete = requiredFields.every(field => detectedMappings[field]);
 
-    // Validate date parsing
-    const dateValidation = validateDateParsing(
-      source.gnpd_data, 
-      detectedMappings.date_published
-    );
+        // Validate date parsing
+        const dateValidation = validateDateParsing(
+          source.gnpd_data, 
+          detectedMappings.date_published
+        );
 
-    // Count unique markets
-    const uniqueMarkets = new Set(
-      source.gnpd_data
-        .map(row => row[detectedMappings.market])
-        .filter(Boolean)
-    );
+        // Count unique markets
+        const uniqueMarkets = new Set(
+          source.gnpd_data
+            .map(row => row[detectedMappings.market])
+            .filter(Boolean)
+        );
 
-    const validationStatus = {
-      required_mappings_complete: requiredMappingsComplete,
-      rows_loaded: source.gnpd_data.length,
-      date_parsing_success_rate: dateValidation.success_rate,
-      date_parsing_success_count: dateValidation.success_count,
-      date_parsing_failure_count: dateValidation.failure_count,
-      date_range_min: dateValidation.date_range_min,
-      date_range_max: dateValidation.date_range_max,
-      unique_markets_count: uniqueMarkets.size,
-      parsing_errors: dateValidation.errors
-    };
+        const validationStatus = {
+          required_mappings_complete: requiredMappingsComplete,
+          rows_loaded: source.gnpd_data.length,
+          date_parsing_success_rate: dateValidation.success_rate,
+          date_parsing_success_count: dateValidation.success_count,
+          date_parsing_failure_count: dateValidation.failure_count,
+          date_range_min: dateValidation.date_range_min,
+          date_range_max: dateValidation.date_range_max,
+          unique_markets_count: uniqueMarkets.size,
+          parsing_errors: dateValidation.errors
+        };
 
-    // Consistency check: if gnpd_processing_status is ready but headers are empty
-    if (source.gnpd_processing_status === 'ready' && (!source.gnpd_headers || source.gnpd_headers.length === 0)) {
+        // Consistency check: if gnpd_processing_status is ready but headers are empty
+        if (source.gnpd_processing_status === 'ready' && (!source.gnpd_headers || source.gnpd_headers.length === 0)) {
+          await base44.entities.Source.update(source_id, {
+            gnpd_processing_status: 'failed',
+            gnpd_processing_error: 'Headers missing despite ready status. File may be corrupted.'
+          });
+          throw new Error('Data integrity issue');
+        }
+
+        // Update source with global mapping
+        const mappingUpdate = {
+          gnpd_column_mapping: detectedMappings,
+          gnpd_mapping_status: requiredMappingsComplete ? 'complete' : 'failed',
+          gnpd_mapping_updated_at: new Date().toISOString(),
+          gnpd_mapping_error: requiredMappingsComplete ? null : `Missing required mappings: ${requiredFields.filter(f => !detectedMappings[f]).join(', ')}`
+        };
+
+        await base44.entities.Source.update(source_id, mappingUpdate);
+
+        return {
+          success: true,
+          mapping: {
+            ...detectedMappings,
+            validation_status: validationStatus,
+            available_columns: availableColumns
+          },
+          source_updated: true
+        };
+      })(),
+      timeoutPromise
+    ]);
+
+    return Response.json(detectionResult);
+  } catch (error) {
+    // Handle timeout or detection errors
+    if (error.message === 'Detection timeout') {
       await base44.entities.Source.update(source_id, {
-        gnpd_processing_status: 'failed',
-        gnpd_processing_error: 'Headers missing despite ready status. File may be corrupted.'
+        gnpd_mapping_status: 'failed',
+        gnpd_mapping_error: 'Column detection timed out after 15 seconds. Please try again or map manually.'
       });
-      
+
       return Response.json({
-        error: 'Data integrity issue',
-        message: 'Source marked as ready but headers are missing. Please re-upload the file.',
+        error: 'Detection timeout',
+        message: 'Column detection timed out. Please retry or map columns manually.',
         actionable: true
-      }, { status: 422 });
+      }, { status: 408 });
     }
 
-    // Update source with global mapping
-    const mappingUpdate = {
-      gnpd_column_mapping: detectedMappings,
-      gnpd_mapping_status: requiredMappingsComplete ? 'complete' : 'failed',
-      gnpd_mapping_updated_at: new Date().toISOString(),
-      gnpd_mapping_error: requiredMappingsComplete ? null : `Missing required mappings: ${requiredFields.filter(f => !detectedMappings[f]).join(', ')}`
-    };
-
-    await base44.entities.Source.update(source_id, mappingUpdate);
+    // Handle other errors
+    await base44.entities.Source.update(source_id, {
+      gnpd_mapping_status: 'failed',
+      gnpd_mapping_error: error.message
+    });
 
     return Response.json({
-      success: true,
-      mapping: {
-        ...detectedMappings,
-        validation_status: validationStatus,
-        available_columns: availableColumns
-      },
-      source_updated: true
-    });
-        })(),
-        timeoutPromise
-      ]);
-    } catch (timeoutOrError) {
+      error: 'Detection failed',
+      message: error.message,
+      actionable: true
+    }, { status: 500 });
+  }
       // Handle timeout or detection errors
       await base44.entities.Source.update(source_id, {
         gnpd_mapping_status: 'failed',
