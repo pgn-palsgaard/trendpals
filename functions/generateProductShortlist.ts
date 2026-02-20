@@ -1,5 +1,38 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
+// Enhanced date parser for multiple formats
+function parseDate(dateStr) {
+  if (!dateStr) return null;
+  
+  try {
+    // Format: "13 Feb 2026"
+    const ddMmmYyyy = dateStr.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
+    if (ddMmmYyyy) {
+      const [, day, month, year] = ddMmmYyyy;
+      const monthMap = {
+        jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+        apr: 3, april: 3, may: 4, jun: 5, june: 5,
+        jul: 6, july: 6, aug: 7, august: 7, sep: 8, september: 8,
+        oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11
+      };
+      const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
+      if (monthNum !== undefined) {
+        return new Date(year, monthNum, day);
+      }
+    }
+    
+    // Try ISO and other standard formats
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  } catch (e) {
+    // Parsing failed
+  }
+  
+  return null;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -15,25 +48,74 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'project_id and trend_id required' }, { status: 400 });
     }
 
+    // Initialize debug tracking
+    const debug = {
+      gnpd_rows_loaded: 0,
+      rows_after_date_filter: 0,
+      rows_after_region_filter: 0,
+      candidates_retrieved_stage_a: 0,
+      candidates_scored_stage_b: 0,
+      final_shortlist_size: 0,
+      fields_searched: [],
+      trend_signals_used: [],
+      empty_reasons: []
+    };
+
     // Get project, trend, and sources
     const project = await base44.entities.Project.get(project_id);
     const trend = await base44.entities.TrendCandidate.get(trend_id);
     const sources = await base44.entities.Source.filter({ project_id });
     const pdfCuratedProducts = await base44.entities.PDFCuratedProduct.filter({ project_id });
 
-    // Get all GNPD products from sources
-    const gnpdProducts = [];
-    sources.forEach(source => {
-      if (source.gnpd_data && Array.isArray(source.gnpd_data)) {
-        source.gnpd_data.forEach((product, idx) => {
-          gnpd_products.push({
-            ...product,
+    // Check GNPD column mappings
+    const gnpdSources = sources.filter(s => s.source_type === 'gnpd' && s.gnpd_data);
+    if (gnpdSources.length > 0) {
+      for (const source of gnpdSources) {
+        const mappings = await base44.entities.GNPDColumnMapping.filter({ source_id: source.id });
+        if (mappings.length === 0 || !mappings[0].validation_status?.required_mappings_complete) {
+          return Response.json({ 
+            error: 'GNPD column mapping incomplete',
+            message: 'Required GNPD column mappings are missing. Please complete column mapping for all GNPD sources.',
             source_id: source.id,
-            row_index: idx
-          });
+            source_title: source.title
+          }, { status: 400 });
+        }
+      }
+    }
+
+    // Get all GNPD products from sources with column mapping
+    const gnpdProducts = [];
+    for (const source of sources) {
+      if (source.gnpd_data && Array.isArray(source.gnpd_data)) {
+        // Get column mapping for this source
+        const mappings = await base44.entities.GNPDColumnMapping.filter({ source_id: source.id });
+        const columnMap = mappings.length > 0 ? mappings[0].mappings : {};
+
+        source.gnpd_data.forEach((product, idx) => {
+          // Map columns to standard names
+          const mapped = {
+            record_id: product[columnMap.record_id],
+            product_name: product[columnMap.product_name],
+            market: product[columnMap.market],
+            date_published: product[columnMap.date_published],
+            product_variants: product[columnMap.product_variants],
+            brand: product[columnMap.brand],
+            company: product[columnMap.company],
+            ultimate_company: product[columnMap.ultimate_company],
+            category: product[columnMap.category],
+            sub_category: product[columnMap.sub_category],
+            source_id: source.id,
+            row_index: idx,
+            _raw: product
+          };
+          
+          gnpdProducts.push(mapped);
+          debug.gnpd_rows_loaded++;
         });
       }
-    });
+    }
+
+    debug.fields_searched = ['product_name', 'product_variants', 'category', 'sub_category'];
 
     // Build candidates list
     const candidates = [];
@@ -62,9 +144,29 @@ Deno.serve(async (req) => {
     // Add GNPD products from Excel/CSV (deterministic retrieval)
     const signals = trend.signals_dictionary || {};
     const keywords = signals.keywords || [];
+    debug.trend_signals_used = keywords.slice(0, 10);
     
-    for (const gnpdProduct of gnpdProducts) {
-      const recordId = gnpdProduct['Record ID'] || gnpdProduct.record_id;
+    // Apply date filter
+    const twoYearsAgo = new Date();
+    twoYearsAgo.setFullYear(twoYearsAgo.getFullYear() - 2);
+    
+    const dateFilteredProducts = gnpdProducts.filter(product => {
+      const parsedDate = parseDate(product.date_published);
+      if (!parsedDate) return true; // Include if date missing
+      const isRecent = parsedDate >= twoYearsAgo;
+      if (isRecent) debug.rows_after_date_filter++;
+      return isRecent;
+    });
+    
+    // Apply region filter
+    const regionFilteredProducts = dateFilteredProducts.filter(product => {
+      // TODO: Implement region matching based on project.region_code
+      debug.rows_after_region_filter++;
+      return true; // For now, include all
+    });
+    
+    for (const gnpdProduct of regionFilteredProducts) {
+      const recordId = gnpdProduct.record_id;
       
       // Skip if already added from PDF
       if (recordId && seenRecordIds.has(recordId)) {
@@ -75,23 +177,22 @@ Deno.serve(async (req) => {
           existing.evidence_links.gnpd_source_id = gnpdProduct.source_id;
           existing.evidence_links.gnpd_row_index = gnpdProduct.row_index;
           // Merge GNPD data
-          existing.company = gnpdProduct.Company || gnpdProduct.company;
-          existing.launch_date = gnpdProduct['Launch Date'] || gnpdProduct.launch_date;
-          existing.description = gnpdProduct.Description || gnpdProduct.description;
-          existing.claims = gnpdProduct.Claims ? gnpdProduct.Claims.split(';').map(c => c.trim()) : [];
-          existing.ingredients = gnpdProduct.Ingredients || gnpdProduct.ingredients;
-          existing.format = gnpdProduct.Format || gnpdProduct.format;
-          existing.gnpd_data_raw = gnpdProduct;
+          existing.company = gnpdProduct.company;
+          existing.launch_date = gnpdProduct.date_published;
+          existing.description = gnpdProduct.product_variants;
+          existing.brand = gnpdProduct.brand;
+          existing.category = gnpdProduct.category;
+          existing.gnpd_data_raw = gnpdProduct._raw;
         }
         continue;
       }
 
       // Keyword matching (basic retrieval)
       const searchText = [
-        gnpdProduct['Product name'] || gnpdProduct.product_name,
-        gnpdProduct.Description || gnpdProduct.description,
-        gnpdProduct.Claims || gnpdProduct.claims,
-        gnpdProduct.Ingredients || gnpdProduct.ingredients
+        gnpdProduct.product_name,
+        gnpdProduct.product_variants,
+        gnpdProduct.category,
+        gnpdProduct.sub_category
       ].filter(Boolean).join(' ').toLowerCase();
 
       const matchesKeywords = keywords.length === 0 || keywords.some(kw => 
@@ -106,27 +207,39 @@ Deno.serve(async (req) => {
         candidates.push({
           source_pool: 'GNPD_EXCEL',
           mintel_record_id: recordId,
-          product_name: gnpdProduct['Product name'] || gnpdProduct.product_name,
-          brand: gnpdProduct.Brand || gnpdProduct.brand,
-          company: gnpdProduct.Company || gnpdProduct.company,
-          country: gnpdProduct.Market || gnpdProduct.country,
-          region_code: gnpdProduct.region_code,
-          launch_date: gnpdProduct['Launch Date'] || gnpdProduct.launch_date,
-          description: gnpdProduct.Description || gnpdProduct.description,
-          claims: gnpdProduct.Claims ? gnpdProduct.Claims.split(';').map(c => c.trim()) : [],
-          ingredients: gnpdProduct.Ingredients || gnpdProduct.ingredients,
-          format: gnpdProduct.Format || gnpdProduct.format,
-          gnpd_data_raw: gnpdProduct,
+          product_name: gnpdProduct.product_name,
+          brand: gnpdProduct.brand,
+          company: gnpdProduct.company,
+          country: gnpdProduct.market,
+          region_code: project.region_code,
+          launch_date: gnpdProduct.date_published,
+          description: gnpdProduct.product_variants,
+          category: gnpdProduct.category,
+          sub_category: gnpdProduct.sub_category,
+          gnpd_data_raw: gnpdProduct._raw,
           evidence_links: {
             gnpd_source_id: gnpdProduct.source_id,
             gnpd_row_index: gnpdProduct.row_index
           }
         });
+        debug.candidates_retrieved_stage_a++;
       }
+    }
+
+    // Check for empty state
+    if (debug.gnpd_rows_loaded === 0) {
+      debug.empty_reasons.push('No GNPD data loaded from sources');
+    }
+    if (debug.rows_after_date_filter === 0 && debug.gnpd_rows_loaded > 0) {
+      debug.empty_reasons.push('All rows filtered out by date (older than 2 years)');
+    }
+    if (debug.candidates_retrieved_stage_a === 0 && debug.rows_after_region_filter > 0) {
+      debug.empty_reasons.push('No products matched trend signals (keywords)');
     }
 
     // Limit to top 50 for LLM reranking (to save costs)
     const candidatesToRank = candidates.slice(0, 50);
+    debug.candidates_scored_stage_b = candidatesToRank.length;
 
     // LLM reranking (Stage B)
     const rankedCandidates = [];
@@ -245,6 +358,13 @@ Task: Classify whether this product supports the trend. Output JSON with grounde
 
     // Mark hero products (top 2)
     finalShortlist.slice(0, 2).forEach(p => p.is_hero = true);
+    debug.final_shortlist_size = finalShortlist.length;
+
+    // Delete existing candidates for this trend to avoid duplicates
+    const existingCandidates = await base44.entities.ProductCandidate.filter({ trend_id });
+    for (const candidate of existingCandidates) {
+      await base44.entities.ProductCandidate.delete(candidate.id);
+    }
 
     // Create ProductCandidate records
     const createdCandidates = [];
@@ -260,7 +380,8 @@ Task: Classify whether this product supports the trend. Output JSON with grounde
     return Response.json({
       success: true,
       shortlist_count: createdCandidates.length,
-      products: createdCandidates
+      products: createdCandidates,
+      debug
     });
 
   } catch (error) {

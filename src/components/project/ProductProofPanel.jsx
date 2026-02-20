@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tantml:@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { 
   Sparkles, Copy, Pin, X, ExternalLink, CheckCircle, AlertCircle, 
-  Loader2, Image, FileText 
+  Loader2, Image, FileText, ChevronDown, ChevronUp, Bug 
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function ProductProofPanel({ trend, projectId }) {
   const queryClient = useQueryClient();
-  const [generating, setGenerating] = useState(false);
+  const [state, setState] = useState('idle'); // idle, generating, success, empty, error
+  const [errorMessage, setErrorMessage] = useState('');
+  const [debugInfo, setDebugInfo] = useState(null);
+  const [showDebug, setShowDebug] = useState(false);
 
   // Fetch product candidates for this trend
   const { data: candidates = [], isLoading } = useQuery({
@@ -24,21 +27,38 @@ export default function ProductProofPanel({ trend, projectId }) {
   // Generate shortlist mutation
   const generateMutation = useMutation({
     mutationFn: async () => {
-      setGenerating(true);
+      setState('generating');
+      setErrorMessage('');
+      setDebugInfo(null);
+      
       const response = await base44.functions.invoke('generateProductShortlist', {
         project_id: projectId,
         trend_id: trend.id
       });
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries(['productCandidates', trend.id]);
-      toast.success('Product shortlist generated');
-      setGenerating(false);
+      setDebugInfo(data.debug);
+      
+      if (data.shortlist_count === 0) {
+        setState('empty');
+      } else {
+        setState('success');
+        toast.success(`Generated ${data.shortlist_count} products`);
+      }
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to generate shortlist');
-      setGenerating(false);
+      setState('error');
+      const errorData = error.response?.data || {};
+      
+      if (errorData.error === 'GNPD column mapping incomplete') {
+        setErrorMessage(`${errorData.message}\nSource: ${errorData.source_title || 'Unknown'}`);
+      } else {
+        setErrorMessage(error.message || 'Failed to generate shortlist');
+      }
+      
+      toast.error('Shortlist generation failed');
     }
   });
 
@@ -73,6 +93,13 @@ export default function ProductProofPanel({ trend, projectId }) {
   const heroCandidates = candidates.filter(c => c.is_hero && !c.is_excluded);
   const supportCandidates = candidates.filter(c => !c.is_hero && !c.is_excluded);
 
+  // Determine current state if not explicitly set
+  React.useEffect(() => {
+    if (!isLoading && candidates.length > 0 && state === 'idle') {
+      setState('success');
+    }
+  }, [candidates, isLoading, state]);
+
   if (isLoading) {
     return (
       <Card>
@@ -83,6 +110,9 @@ export default function ProductProofPanel({ trend, projectId }) {
     );
   }
 
+  const heroCandidates = candidates.filter(c => c.is_hero && !c.is_excluded);
+  const supportCandidates = candidates.filter(c => !c.is_hero && !c.is_excluded);
+
   return (
     <Card>
       <CardHeader className="border-b">
@@ -90,83 +120,188 @@ export default function ProductProofPanel({ trend, projectId }) {
           <CardTitle className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-blue-600" />
             Product Proof Shortlist
-          </CardTitle>
-          <Button 
-            onClick={() => generateMutation.mutate()}
-            disabled={generating}
-            size="sm"
-            className="gap-2"
-          >
-            {generating ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Generating...
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4" />
-                {candidates.length > 0 ? 'Regenerate' : 'Generate'} Shortlist
-              </>
+            {state === 'success' && (
+              <Badge variant="outline" className="ml-2 bg-green-50 text-green-700 border-green-300">
+                {candidates.length} products
+              </Badge>
             )}
-          </Button>
+          </CardTitle>
+          <div className="flex gap-2">
+            {debugInfo && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowDebug(!showDebug)}
+                className="h-7 text-xs gap-1"
+              >
+                <Bug className="w-3 h-3" />
+                Debug
+                {showDebug ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              </Button>
+            )}
+            <Button 
+              onClick={() => generateMutation.mutate()}
+              disabled={state === 'generating'}
+              size="sm"
+              className="gap-2"
+            >
+              {state === 'generating' ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4" />
+                  {candidates.length > 0 ? 'Regenerate' : 'Generate'} Shortlist
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
-      {candidates.length === 0 ? (
-        <CardContent className="p-8 text-center">
-          <div className="text-4xl mb-4">📦</div>
-          <p className="text-slate-600 mb-4">
-            No product shortlist yet. Generate one to find the best product evidence for this trend.
-          </p>
-          <Button onClick={() => generateMutation.mutate()} className="gap-2">
-            <Sparkles className="w-4 h-4" />
-            Generate Product Shortlist
-          </Button>
-        </CardContent>
-      ) : (
-        <CardContent className="p-6 space-y-6">
-          {/* Hero Products */}
-          {heroCandidates.length > 0 && (
-            <div>
-              <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4 text-green-600" />
-                Hero Products ({heroCandidates.length})
-              </h4>
-              <div className="space-y-3">
-                {heroCandidates.map(product => (
-                  <ProductCard 
-                    key={product.id}
-                    product={product}
-                    onCopyId={copyRecordId}
-                    onPin={pinMutation.mutate}
-                    onExclude={excludeMutation.mutate}
-                  />
-                ))}
-              </div>
+      <CardContent className="p-6 space-y-4">
+        {/* Debug Panel */}
+        {showDebug && debugInfo && (
+          <div className="p-3 bg-slate-50 rounded-lg border text-xs space-y-2">
+            <h4 className="font-semibold text-slate-900">Debug Information</h4>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="text-slate-600">GNPD rows loaded:</div>
+              <div className="font-medium">{debugInfo.gnpd_rows_loaded}</div>
+              
+              <div className="text-slate-600">After date filter:</div>
+              <div className="font-medium">{debugInfo.rows_after_date_filter}</div>
+              
+              <div className="text-slate-600">After region filter:</div>
+              <div className="font-medium">{debugInfo.rows_after_region_filter}</div>
+              
+              <div className="text-slate-600">Candidates (Stage A):</div>
+              <div className="font-medium">{debugInfo.candidates_retrieved_stage_a}</div>
+              
+              <div className="text-slate-600">Scored (Stage B):</div>
+              <div className="font-medium">{debugInfo.candidates_scored_stage_b}</div>
+              
+              <div className="text-slate-600">Final shortlist:</div>
+              <div className="font-medium text-blue-600">{debugInfo.final_shortlist_size}</div>
             </div>
-          )}
+            
+            {debugInfo.fields_searched && debugInfo.fields_searched.length > 0 && (
+              <div>
+                <div className="text-slate-600">Fields searched:</div>
+                <div className="text-slate-800">{debugInfo.fields_searched.join(', ')}</div>
+              </div>
+            )}
+            
+            {debugInfo.trend_signals_used && debugInfo.trend_signals_used.length > 0 && (
+              <div>
+                <div className="text-slate-600">Trend signals (top 10):</div>
+                <div className="text-slate-800">{debugInfo.trend_signals_used.join(', ')}</div>
+              </div>
+            )}
+          </div>
+        )}
 
-          {/* Support Products */}
-          {supportCandidates.length > 0 && (
-            <div>
-              <h4 className="text-sm font-semibold text-slate-900 mb-3">
-                Support Products ({supportCandidates.length})
-              </h4>
-              <div className="space-y-3">
-                {supportCandidates.map(product => (
-                  <ProductCard 
-                    key={product.id}
-                    product={product}
-                    onCopyId={copyRecordId}
-                    onPin={pinMutation.mutate}
-                    onExclude={excludeMutation.mutate}
-                  />
-                ))}
+        {/* Error State */}
+        {state === 'error' && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-red-900 mb-1">Shortlist generation failed</p>
+                <p className="text-sm text-red-800 whitespace-pre-line">{errorMessage}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => generateMutation.mutate()}
+                  className="mt-3 h-7 text-xs border-red-300 hover:bg-red-50"
+                >
+                  Retry
+                </Button>
               </div>
             </div>
-          )}
-        </CardContent>
-      )}
+          </div>
+        )}
+
+        {/* Empty State */}
+        {state === 'empty' && (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-amber-900 mb-2">No matching products found</p>
+                {debugInfo && debugInfo.empty_reasons && debugInfo.empty_reasons.length > 0 && (
+                  <ul className="text-sm text-amber-800 space-y-1">
+                    {debugInfo.empty_reasons.map((reason, idx) => (
+                      <li key={idx}>• {reason}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Idle State */}
+        {state === 'idle' && candidates.length === 0 && (
+          <div className="text-center py-8">
+            <div className="text-4xl mb-4">📦</div>
+            <p className="text-slate-600 mb-4">
+              No product shortlist yet. Generate one to find the best product evidence for this trend.
+            </p>
+            <Button onClick={() => generateMutation.mutate()} className="gap-2">
+              <Sparkles className="w-4 h-4" />
+              Generate Product Shortlist
+            </Button>
+          </div>
+        )}
+
+        {/* Success State */}
+        {state === 'success' && candidates.length > 0 && (
+          <>
+            {/* Hero Products */}
+            {heroCandidates.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                  Hero Products ({heroCandidates.length})
+                </h4>
+                <div className="space-y-3">
+                  {heroCandidates.map(product => (
+                    <ProductCard 
+                      key={product.id}
+                      product={product}
+                      onCopyId={copyRecordId}
+                      onPin={pinMutation.mutate}
+                      onExclude={excludeMutation.mutate}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Support Products */}
+            {supportCandidates.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900 mb-3">
+                  Support Products ({supportCandidates.length})
+                </h4>
+                <div className="space-y-3">
+                  {supportCandidates.map(product => (
+                    <ProductCard 
+                      key={product.id}
+                      product={product}
+                      onCopyId={copyRecordId}
+                      onPin={pinMutation.mutate}
+                      onExclude={excludeMutation.mutate}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
     </Card>
   );
 }
@@ -255,7 +390,7 @@ function ProductCard({ product, onCopyId, onPin, onExclude }) {
           {/* Actions */}
           {!excluding ? (
             <div className="flex gap-2">
-              {product.mintel_record_id && (
+              {product.mintel_record_id ? (
                 <Button
                   size="sm"
                   variant="outline"
@@ -263,8 +398,12 @@ function ProductCard({ product, onCopyId, onPin, onExclude }) {
                   className="h-7 text-xs gap-1"
                 >
                   <Copy className="w-3 h-3" />
-                  Copy Record ID: {product.mintel_record_id}
+                  Record ID: {product.mintel_record_id}
                 </Button>
+              ) : (
+                <Badge variant="outline" className="bg-red-50 text-red-700 border-red-300 h-7 text-xs">
+                  Record ID missing
+                </Badge>
               )}
               {!product.is_pinned && (
                 <Button

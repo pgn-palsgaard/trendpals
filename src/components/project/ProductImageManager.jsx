@@ -8,9 +8,10 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Upload, CheckCircle2, Image as ImageIcon, Package } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function ProductImageManager({ project, trendCandidates }) {
+export default function PackshotManager({ project, trendCandidates }) {
   const queryClient = useQueryClient();
   const [uploadingFor, setUploadingFor] = useState(null);
+  const [collapsed, setCollapsed] = useState(true);
 
   const { data: productRequests = [], isLoading } = useQuery({
     queryKey: ['productImageRequests', project.id],
@@ -64,13 +65,47 @@ export default function ProductImageManager({ project, trendCandidates }) {
   const pendingCount = productRequests.filter(r => r.status === 'pending').length;
   const uploadedCount = productRequests.filter(r => r.status === 'uploaded').length;
 
+  const pendingCount = productRequests.filter(r => r.status === 'pending').length;
+  const uploadedCount = productRequests.filter(r => r.status === 'uploaded').length;
+
+  if (collapsed && productRequests.length > 0) {
+    return (
+      <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+        <button
+          onClick={() => setCollapsed(false)}
+          className="w-full flex items-center justify-between hover:bg-green-100 rounded px-2 py-1 transition-colors"
+        >
+          <div className="flex items-center gap-2">
+            <Package className="w-4 h-4 text-green-600" />
+            <span className="text-sm font-medium text-green-900">
+              Packshots: {uploadedCount} uploaded / {pendingCount} pending
+            </span>
+          </div>
+          <ChevronDown className="w-4 h-4 text-green-600" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <Card className="border-green-200 bg-green-50/30">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Package className="w-5 h-5 text-green-600" />
-          Product Image Collection
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Package className="w-5 h-5 text-green-600" />
+            Packshots (Packshot Manager)
+          </CardTitle>
+          {productRequests.length > 0 && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => setCollapsed(true)}
+              className="h-7"
+            >
+              <ChevronUp className="w-4 h-4" />
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {productRequests.length === 0 ? (
