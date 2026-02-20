@@ -32,14 +32,21 @@ const COLUMN_SYNONYMS = {
 };
 
 function detectColumnMapping(columns) {
-  const normalizedColumns = columns.map(col => col.toLowerCase().trim());
+  // Columns may contain unique keys (e.g., "Serving Size__2" for duplicates)
+  // We need to match on the base name before "__"
+  const normalizedColumns = columns.map(col => {
+    // Extract base name before "__N" suffix
+    const baseName = col.split('__')[0];
+    return baseName.toLowerCase().trim();
+  });
+  
   const mappings = {};
 
   for (const [field, synonyms] of Object.entries(COLUMN_SYNONYMS)) {
     for (const synonym of synonyms) {
       const index = normalizedColumns.indexOf(synonym);
       if (index !== -1) {
-        mappings[field] = columns[index]; // Use original case
+        mappings[field] = columns[index]; // Use original unique key (with __N if duplicate)
         break;
       }
     }
