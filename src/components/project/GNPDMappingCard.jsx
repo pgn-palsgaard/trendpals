@@ -77,19 +77,6 @@ export default function GNPDMappingCard({ source, projectId }) {
   });
 
   const currentMappings = editedMappings || source.gnpd_column_mapping || {};
-  
-  // Get validation from source metadata (computed during mapping save)
-  const savedValidation = source.metadata_extraction?.extracted_data?.validation_status;
-  
-  const validation = savedValidation || {
-    rows_loaded: source.gnpd_row_count || 0,
-    date_parsing_success_rate: 0,
-    date_parsing_success_count: 0,
-    date_parsing_failure_count: 0,
-    date_range_min: null,
-    date_range_max: null,
-    unique_markets_count: 0
-  };
   const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
   const optionalFields = ['product_variants', 'brand', 'company', 'ultimate_company', 'product_description', 'claims', 'flavours', 'launch_type', 'record_hyperlink'];
 
