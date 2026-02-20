@@ -44,14 +44,17 @@ export default function GNPDMappingCard({ source, projectId }) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (mappings) => base44.functions.invoke('updateGNPDMapping', {
-      source_id: source.id,
-      mappings
-    }),
+    mutationFn: async (mappings) => {
+      const response = await base44.functions.invoke('updateGNPDMapping', {
+        source_id: source.id,
+        mappings
+      });
+      return response.data;
+    },
     onSuccess: () => {
       queryClient.invalidateQueries(['sources']);
       queryClient.invalidateQueries(['projectSources', projectId]);
-      toast.success('Column mapping updated');
+      toast.success('Column mapping updated and validation recomputed');
       setEditedMappings(null);
     },
     onError: (error) => {
