@@ -21,18 +21,74 @@ Deno.serve(async (req) => {
     
     const isComplete = missingFields.length === 0;
     
-    // Update source with new mapping
-    await base44.entities.Source.update(source_id, {
+    // If complete, recompute validation metrics
+    let validationStatus = null;
+    if (isComplete) {
+      const source = await base44.entities.Source.get(source_id);
+      
+      if (source.gnpd_data && Array.isArray(source.gnpd_data)) {
+        // Count unique markets
+        const uniqueMarkets = new Set(
+          source.gnpd_data
+            .map(row => row[mappings.market])
+            .filter(Boolean)
+        );
+        
+        // Count date parsing success from pre-parsed dates
+        let dateSuccessCount = 0;
+        let dateFailureCount = 0;
+        let minDate = null;
+        let maxDate = null;
+        
+        for (const row of source.gnpd_data) {
+          if (row._date_published_parsed) {
+            dateSuccessCount++;
+            const date = new Date(row._date_published_parsed);
+            if (!minDate || date < minDate) minDate = date;
+            if (!maxDate || date > maxDate) maxDate = date;
+          } else {
+            dateFailureCount++;
+          }
+        }
+        
+        const dateParseSuccessRate = source.gnpd_data.length > 0 
+          ? Math.round((dateSuccessCount / source.gnpd_data.length) * 1000) / 10 
+          : 0;
+        
+        validationStatus = {
+          required_mappings_complete: true,
+          rows_loaded: source.gnpd_data.length,
+          date_parsing_success_rate: dateParseSuccessRate,
+          date_parsing_success_count: dateSuccessCount,
+          date_parsing_failure_count: dateFailureCount,
+          date_range_min: minDate ? minDate.toISOString().split('T')[0] : null,
+          date_range_max: maxDate ? maxDate.toISOString().split('T')[0] : null,
+          unique_markets_count: uniqueMarkets.size
+        };
+      }
+    }
+    
+    // Update source with new mapping and validation
+    const updateData = {
       gnpd_column_mapping: mappings,
       gnpd_mapping_status: isComplete ? 'complete' : 'failed',
       gnpd_mapping_updated_at: new Date().toISOString(),
       gnpd_mapping_error: isComplete ? null : `Missing required mappings: ${missingFields.join(', ')}`
-    });
+    };
+    
+    if (validationStatus) {
+      updateData['metadata_extraction.extracted_data.validation_status'] = validationStatus;
+      updateData['metadata_extraction.extracted_data.unique_markets_count'] = validationStatus.unique_markets_count;
+      updateData['metadata_extraction.extracted_data.date_parse_success_rate'] = validationStatus.date_parsing_success_rate;
+    }
+    
+    await base44.entities.Source.update(source_id, updateData);
 
     return Response.json({
       success: true,
       mapping_complete: isComplete,
-      missing_fields: missingFields
+      missing_fields: missingFields,
+      validation_status: validationStatus
     });
 
   } catch (error) {
