@@ -453,7 +453,9 @@ Task: Classify whether this product supports the trend. Output JSON with grounde
   } catch (error) {
     console.error('Generate product shortlist error:', error);
     return Response.json({ 
-      error: error.message,
+      error_code: 'SHORTLIST_FAILED',
+      message: error.message || 'Failed to generate product shortlist',
+      request_id: requestId,
       details: error.stack
     }, { status: 500 });
   }
