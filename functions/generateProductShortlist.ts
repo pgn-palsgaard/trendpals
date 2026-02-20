@@ -1,36 +1,68 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 
-// Enhanced date parser for multiple formats
-function parseDate(dateStr) {
-  if (!dateStr) return null;
+// Normalize launch date to YYYY-MM-DD string (never throws)
+function normalizeLaunchDate(value) {
+  if (!value && value !== 0) return "";
   
   try {
-    // Format: "13 Feb 2026"
-    const ddMmmYyyy = dateStr.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
-    if (ddMmmYyyy) {
-      const [, day, month, year] = ddMmmYyyy;
-      const monthMap = {
-        jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
-        apr: 3, april: 3, may: 4, jun: 5, june: 5,
-        jul: 6, july: 6, aug: 7, august: 7, sep: 8, september: 8,
-        oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11
-      };
-      const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
-      if (monthNum !== undefined) {
-        return new Date(year, monthNum, day);
-      }
+    // If value is a Date object
+    if (value instanceof Date) {
+      if (isNaN(value.getTime())) return "";
+      return value.toISOString().slice(0, 10);
     }
     
-    // Try ISO and other standard formats
-    const parsed = new Date(dateStr);
-    if (!isNaN(parsed.getTime())) {
-      return parsed;
+    // If value is a number (Excel serial date)
+    if (typeof value === 'number') {
+      const excelEpoch = new Date(1899, 11, 30);
+      const date = new Date(excelEpoch.getTime() + value * 86400000);
+      if (isNaN(date.getTime())) return "";
+      return date.toISOString().slice(0, 10);
+    }
+    
+    // If value is a string
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (!trimmed) return "";
+      
+      // Handle datetime strings (e.g., "2026-01-14 00:00:00")
+      if (trimmed.includes(' ') || trimmed.includes('T')) {
+        const date = new Date(trimmed);
+        if (!isNaN(date.getTime())) {
+          return date.toISOString().slice(0, 10);
+        }
+      }
+      
+      // Handle "DD MMM YYYY" format (e.g., "18 Feb 2026")
+      const ddMmmYyyy = trimmed.match(/(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})/);
+      if (ddMmmYyyy) {
+        const [, day, month, year] = ddMmmYyyy;
+        const monthMap = {
+          jan: 0, january: 0, feb: 1, february: 1, mar: 2, march: 2,
+          apr: 3, april: 3, may: 4, jun: 5, june: 5,
+          jul: 6, july: 6, aug: 7, august: 7, sep: 8, september: 8,
+          oct: 9, october: 9, nov: 10, november: 10, dec: 11, december: 11
+        };
+        const monthNum = monthMap[month.toLowerCase().slice(0, 3)];
+        if (monthNum !== undefined) {
+          const date = new Date(year, monthNum, parseInt(day));
+          if (!isNaN(date.getTime())) {
+            return date.toISOString().slice(0, 10);
+          }
+        }
+      }
+      
+      // Try standard YYYY-MM-DD or ISO parsing
+      const date = new Date(trimmed);
+      if (!isNaN(date.getTime())) {
+        return date.toISOString().slice(0, 10);
+      }
     }
   } catch (e) {
-    // Parsing failed
+    // Parsing failed, return empty string
+    console.warn(`Failed to normalize date: ${value}`, e);
   }
   
-  return null;
+  return "";
 }
 
 Deno.serve(async (req) => {
@@ -284,7 +316,7 @@ Deno.serve(async (req) => {
           existing.evidence_links.gnpd_row_index = gnpdProduct.row_index;
           // Merge GNPD data
           existing.company = gnpdProduct.company;
-          existing.launch_date = gnpdProduct.date_published;
+          existing.launch_date = normalizeLaunchDate(gnpdProduct.date_published);
           existing.description = gnpdProduct.product_variants;
           existing.brand = gnpdProduct.brand;
           existing.category = gnpdProduct.category;
@@ -318,7 +350,7 @@ Deno.serve(async (req) => {
           company: gnpdProduct.company,
           country: gnpdProduct.market,
           region_code: project.region_code,
-          launch_date: gnpdProduct.date_published,
+          launch_date: normalizeLaunchDate(gnpdProduct.date_published),
           description: gnpdProduct.product_variants,
           category: gnpdProduct.category,
           sub_category: gnpdProduct.sub_category,
@@ -399,11 +431,14 @@ Task: Classify whether this product supports the trend. Output JSON with grounde
 
       // Calculate recency score
       let recencyScore = 50;
-      if (candidate.launch_date) {
-        const launchYear = new Date(candidate.launch_date).getFullYear();
-        const currentYear = new Date().getFullYear();
-        const age = currentYear - launchYear;
-        recencyScore = Math.max(0, 100 - (age * 20)); // Decay 20 pts per year
+      if (candidate.launch_date && candidate.launch_date !== "") {
+        const launchDate = new Date(candidate.launch_date);
+        if (!isNaN(launchDate.getTime())) {
+          const launchYear = launchDate.getFullYear();
+          const currentYear = new Date().getFullYear();
+          const age = currentYear - launchYear;
+          recencyScore = Math.max(0, 100 - (age * 20)); // Decay 20 pts per year
+        }
       }
 
       // Evidence strength score
