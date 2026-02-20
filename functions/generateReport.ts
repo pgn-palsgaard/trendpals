@@ -13,6 +13,9 @@ Deno.serve(async (req) => {
 
     // Get project, sources, and selected trends
     const project = await base44.entities.Project.get(project_id);
+    
+    // Default region to "Global" if missing
+    const region = project.region_code || project.region || "Global";
     // Get sources linked to this project via selected_source_ids
     let sources = [];
     if (project.selected_source_ids && project.selected_source_ids.length > 0) {
@@ -66,7 +69,7 @@ Deno.serve(async (req) => {
     // Compile evidence context - optimized for token limit
      let evidenceContext = `Project: ${project.name}
      Category: ${project.category}
-     Region: ${project.region}
+     Region: ${region}
      Objective: ${project.objective}
      Audience: ${project.audience}
      ${analysisContext}
@@ -121,7 +124,7 @@ Deno.serve(async (req) => {
 
     // Generate report pack using AI
      const response = await base44.integrations.Core.InvokeLLM({
-       prompt: `Generate a professional trend report for ${project.category} in ${project.region}.
+       prompt: `Generate a professional trend report for ${project.category} in ${region}.
 
 ${evidenceContext}
 
@@ -270,9 +273,9 @@ Return structured JSON.`,
     // Create report entity
     const report = await base44.entities.Report.create({
       project_id,
-      title: response.title || `${project.category} Trends - ${project.region}`,
+      title: response.title || `${project.category} Trends - ${region}`,
       category: project.category,
-      region: project.region,
+      region: region,
       slides: enrichedSlides,
       evidence_pack: response.evidence_pack || [],
       product_shortlist: response.product_shortlist || [],
@@ -287,6 +290,7 @@ Return structured JSON.`,
     return Response.json({ 
       success: true, 
       report_id: report.id,
+      version: nextVersion,
       slides_count: report.slides.length,
       warnings: report.warnings.length
     });
