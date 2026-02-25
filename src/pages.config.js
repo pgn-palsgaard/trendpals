@@ -54,6 +54,7 @@ import Projects from './pages/Projects';
 import ReportView from './pages/ReportView';
 import ReportsLibrary from './pages/ReportsLibrary';
 import SourcesDatabase from './pages/SourcesDatabase';
+import KnowledgeSources from './pages/KnowledgeSources';
 import __Layout from './Layout.jsx';
 
 
@@ -65,6 +66,7 @@ export const PAGES = {
     "ReportView": ReportView,
     "ReportsLibrary": ReportsLibrary,
     "SourcesDatabase": SourcesDatabase,
+    "KnowledgeSources": KnowledgeSources,
 }
 
 export const pagesConfig = {
