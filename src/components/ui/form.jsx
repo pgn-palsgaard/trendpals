@@ -22,7 +22,6 @@ const useFormField = () => {
   const fieldContext = React.useContext(FormFieldContext)
   const itemContext = React.useContext(FormItemContext)
   const { getFieldState, formState } = useFormContext()
-
   const fieldState = getFieldState(fieldContext.name, formState)
 
   if (!fieldContext) {
@@ -96,9 +95,7 @@ FormDescription.displayName = "FormDescription"
 const FormMessage = React.forwardRef(({ className, children, ...props }, ref) => {
   const { error, formMessageId } = useFormField()
   const body = error ? String(error?.message) : children
-
   if (!body) return null
-
   return (
     <p
       ref={ref}
