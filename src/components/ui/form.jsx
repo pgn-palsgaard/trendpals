@@ -92,7 +92,7 @@ const FormDescription = React.forwardRef(({ className, ...props }, ref) => {
 })
 FormDescription.displayName = "FormDescription"
 
-const FormMessage = React.forwardRef(({ className, children, ...props }, ref) => {
+const FormMessage = React.forwardRef(function FormMessage({ className, children, ...props }, ref) {
   const { error, formMessageId } = useFormField()
   const body = error ? String(error?.message) : children
   if (!body) return null
