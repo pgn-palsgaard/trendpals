@@ -40,7 +40,7 @@ const useFormField = () => {
   }
 }
 
-const FormItem = React.forwardRef(({ className, ...props }, ref) => {
+const FormItem = React.forwardRef(function FormItem({ className, ...props }, ref) {
   const id = React.useId()
   return (
     <FormItemContext.Provider value={{ id }}>
@@ -50,7 +50,7 @@ const FormItem = React.forwardRef(({ className, ...props }, ref) => {
 })
 FormItem.displayName = "FormItem"
 
-const FormLabel = React.forwardRef(({ className, ...props }, ref) => {
+const FormLabel = React.forwardRef(function FormLabel({ className, ...props }, ref) {
   const { error, formItemId } = useFormField()
   return (
     <Label
@@ -63,7 +63,7 @@ const FormLabel = React.forwardRef(({ className, ...props }, ref) => {
 })
 FormLabel.displayName = "FormLabel"
 
-const FormControl = React.forwardRef(({ ...props }, ref) => {
+const FormControl = React.forwardRef(function FormControl({ ...props }, ref) {
   const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
   return (
     <Slot
@@ -79,7 +79,7 @@ const FormControl = React.forwardRef(({ ...props }, ref) => {
 })
 FormControl.displayName = "FormControl"
 
-const FormDescription = React.forwardRef(({ className, ...props }, ref) => {
+const FormDescription = React.forwardRef(function FormDescription({ className, ...props }, ref) {
   const { formDescriptionId } = useFormField()
   return (
     <p
@@ -108,7 +108,6 @@ const FormMessage = React.forwardRef(function FormMessage({ className, children,
   )
 })
 FormMessage.displayName = "FormMessage"
-
 
 export {
   useFormField,
