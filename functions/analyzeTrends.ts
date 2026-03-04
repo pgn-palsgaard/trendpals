@@ -177,7 +177,7 @@ Operating Rules (non-negotiable)
 - Audience sophistication: Assume the reader knows the category; avoid basic explanations. Focus on what is changing, what is material, and what decisions it affects.
 - Regional specificity: If ${project.region} is specified, prioritise signals from that region. Only reference other regions for contrast, and label it clearly.
 - Time relevance: Prefer signals from the stated launch window. If using longer-term context from reports, label it as "strategic outlook" vs "recent launches".
-- No product selling: Do not mention supplier product names/grades. You may describe "where an ingredients partner can support" in capability terms only.
+- No product selling: Do not mention supplier product names/grades. For "where_partner_supports", use ONLY the PALSGAARD CAPABILITY KNOWLEDGE SOURCES provided. Ground every capability bullet in those documents. If no relevant capability exists in the documents, omit rather than invent.
 
 MINTEL REPORTS PROVIDED:
 ${mintelContent || 'No Mintel reports uploaded yet'}
