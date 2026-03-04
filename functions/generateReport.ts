@@ -31,6 +31,26 @@ Deno.serve(async (req) => {
       // Fallback: old projects with direct project_id linkage
       sources = await base44.entities.Source.filter({ project_id });
     }
+
+    // Fetch org-shared Knowledge sources (Palsgaard capability docs)
+    const allKnowledgeSources = await base44.entities.Source.filter({ 
+      source_type: 'knowledge',
+      visibility: 'org_shared'
+    });
+    // Also fetch project-specific knowledge sources via ProjectKnowledgeLink
+    const knowledgeLinks = await base44.entities.ProjectKnowledgeLink.filter({ project_id });
+    const linkedKnowledgeIds = new Set(knowledgeLinks.map(l => l.source_id));
+    // Project-specific knowledge that isn't already in org_shared
+    const orgSharedIds = new Set(allKnowledgeSources.map(s => s.id));
+    for (const link of knowledgeLinks) {
+      if (!orgSharedIds.has(link.source_id)) {
+        try {
+          const ks = await base44.entities.Source.get(link.source_id);
+          if (ks) allKnowledgeSources.push(ks);
+        } catch (e) {}
+      }
+    }
+    const knowledgeSources = allKnowledgeSources;
     const trendCandidates = await base44.entities.TrendCandidate.filter({ project_id });
     const selectedTrends = trendCandidates.filter(t => t.is_selected);
 
