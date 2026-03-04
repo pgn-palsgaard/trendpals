@@ -55,11 +55,28 @@ Customer Priorities: ${project.customer_priorities?.join(', ') || 'None specifie
       }
     });
 
+    // Build knowledge source context for Palsgaard capabilities
+    let knowledgeContext = '';
+    if (knowledgeSources.length > 0) {
+      knowledgeContext = `\n\n=== PALSGAARD CAPABILITY KNOWLEDGE SOURCES ===\n(Use these to populate "where_palsgaard_supports" — capabilities only, no product grades)\n`;
+      knowledgeSources.forEach(ks => {
+        knowledgeContext += `\n[${ks.knowledge_subtype || 'knowledge'}] ${ks.title}`;
+        if (ks.ai_summary) knowledgeContext += `: ${ks.ai_summary}`;
+        knowledgeContext += '\n';
+        if (ks.excerpts) {
+          ks.excerpts.slice(0, 3).forEach(e => {
+            knowledgeContext += `  • ${e.text.substring(0, 180)}...\n`;
+          });
+        }
+      });
+    }
+
     // Generate trend candidates using AI
     const response = await base44.integrations.Core.InvokeLLM({
       prompt: `You are analyzing trend data for ${project.category} in ${project.region}.
 
 ${evidenceText}
+${knowledgeContext}
 
 Generate exactly 5-7 trend candidates. For each trend:
 1. Give it a compelling name (max 5 words)
@@ -69,6 +86,7 @@ Generate exactly 5-7 trend candidates. For each trend:
 5. For GNPD products: prioritize those with images (has_image: true), include brand, product_name, market, and ingredients if relevant
 6. Assess confidence based on evidence strength
 7. Provide a self-critique: what could be wrong about this trend?
+8. For "where_palsgaard_supports": use ONLY information from the PALSGAARD CAPABILITY KNOWLEDGE SOURCES section above. Ground each bullet in actual Palsgaard capability documentation. If no relevant capability is found, leave the array empty rather than inventing.
 
 CRITICAL RULES:
 - Use ONLY evidence from the provided sources
@@ -77,6 +95,7 @@ CRITICAL RULES:
 - Include ingredient information when it supports the trend narrative
 - Do NOT invent statistics or claims
 - If evidence is weak, mark confidence as "low"
+- "where_palsgaard_supports" MUST be grounded in the knowledge sources provided
 
 Return JSON with this exact structure.`,
       response_json_schema: {
