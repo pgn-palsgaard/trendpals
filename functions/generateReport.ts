@@ -179,7 +179,7 @@ Create a complete report pack with:
      * Title + subtitle (Category | Region | Time window)
      * 3-6 concise bullets on the trend
      * "So what for manufacturers?" section (2-3 bullets)
-     * "Where Palsgaard supports" section (capabilities only, NO product names)
+     * "Where Palsgaard supports" section — ground this in the PALSGAARD CAPABILITY KNOWLEDGE SOURCES provided. Cite which capability area or document backs each bullet. Capabilities only, NO product names or grades.
      * Evidence footer (cite sources)
      * Image placement slots (hero + supporting products)
 
