@@ -184,6 +184,7 @@ ${mintelContent || 'No Mintel reports uploaded yet'}
 
 RECENT LAUNCH DATA TABLES:
 ${launchDataTables || 'No aggregated launch data uploaded yet'}
+${knowledgeCapabilityContext}
 
 Trend Identification Method
 
