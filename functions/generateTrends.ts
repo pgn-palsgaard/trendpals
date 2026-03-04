@@ -22,6 +22,9 @@ Deno.serve(async (req) => {
     const project = projects[0];
     const sources = await base44.entities.Source.filter({ project_id });
 
+    // Fetch org-shared knowledge sources (Palsgaard capabilities)
+    const knowledgeSources = await base44.entities.Source.filter({ source_type: 'knowledge', visibility: 'org_shared' });
+
     if (!project) {
       return Response.json({ error: 'Project not found' }, { status: 404 });
     }
