@@ -50,6 +50,25 @@ Deno.serve(async (req) => {
       sources = await base44.entities.Source.filter({ project_id });
     }
 
+    // Fetch org-shared knowledge sources (Palsgaard capabilities)
+    const knowledgeSources = await base44.entities.Source.filter({ source_type: 'knowledge', visibility: 'org_shared' });
+
+    // Build knowledge source context
+    let knowledgeCapabilityContext = '';
+    if (knowledgeSources.length > 0) {
+      knowledgeCapabilityContext = `\n\n=== PALSGAARD CAPABILITY KNOWLEDGE SOURCES ===\n(Mandatory input for "where_partner_supports" — base every capability bullet on these documents. No invented capabilities.)\n`;
+      knowledgeSources.forEach(ks => {
+        knowledgeCapabilityContext += `\n[${ks.knowledge_subtype || 'knowledge'}] ${ks.title}`;
+        if (ks.ai_summary) knowledgeCapabilityContext += `: ${ks.ai_summary}`;
+        knowledgeCapabilityContext += '\n';
+        if (ks.excerpts) {
+          ks.excerpts.slice(0, 4).forEach(e => {
+            knowledgeCapabilityContext += `  • ${e.text.substring(0, 200)}...\n`;
+          });
+        }
+      });
+    }
+
     // Helper function to parse Excel data into text
     const parseExcelToText = async (fileUrl) => {
       try {
