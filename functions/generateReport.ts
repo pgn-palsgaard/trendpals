@@ -119,6 +119,28 @@ Deno.serve(async (req) => {
        }
      });
 
+     // Add knowledge source context (Palsgaard capabilities)
+     if (knowledgeSources.length > 0) {
+       evidenceContext += `\n\n=== PALSGAARD CAPABILITY KNOWLEDGE SOURCES ===\n`;
+       evidenceContext += `(Use these to ground "Where Palsgaard Supports" sections — reference capabilities, NOT product grades or names)\n`;
+       knowledgeSources.forEach(ks => {
+         evidenceContext += `\n[${ks.knowledge_subtype || ks.source_type}] ${ks.title}`;
+         if (ks.notes) evidenceContext += ` — ${ks.notes}`;
+         evidenceContext += `\n`;
+         if (ks.ai_summary) evidenceContext += `Summary: ${ks.ai_summary}\n`;
+         if (ks.excerpts && ks.excerpts.length > 0) {
+           const seenTexts = new Set();
+           ks.excerpts.slice(0, 4).forEach(excerpt => {
+             const text = excerpt.text.substring(0, 200);
+             if (!seenTexts.has(text)) {
+               evidenceContext += `  • ${text}...\n`;
+               seenTexts.add(text);
+             }
+           });
+         }
+       });
+     }
+
     // Collect all GNPD products with images
     const allGnpdProducts = [];
     const imageMap = {};
