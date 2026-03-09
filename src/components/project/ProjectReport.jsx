@@ -8,6 +8,7 @@ import { FileText, Download, ExternalLink, Loader2, AlertCircle, Sparkles } from
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+import DownloadReportButton from '@/components/project/DownloadReportButton';
 
 export default function ProjectReport({ project, reports, trendCandidates }) {
   const queryClient = useQueryClient();
