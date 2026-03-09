@@ -321,14 +321,17 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
               </div>
             )}
 
-            {/* View Full Report */}
-            <div className="border-t pt-6">
-              <Link to={createPageUrl(`ReportView?id=${latestReport.id}`)}>
+            {/* View Full Report + Download */}
+            <div className="border-t pt-6 flex flex-col sm:flex-row gap-3">
+              <Link to={createPageUrl(`ReportView?id=${latestReport.id}`)} className="flex-1">
                 <Button variant="outline" className="w-full">
                   <FileText className="w-4 h-4 mr-2" />
                   View Full Report Details
                 </Button>
               </Link>
+              <div className="flex-1">
+                <DownloadReportButton report={latestReport} variant="outline" />
+              </div>
             </div>
 
             {/* Warnings */}
