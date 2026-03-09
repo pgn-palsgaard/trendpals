@@ -23,7 +23,7 @@ export default function SourceLibrary({ project }) {
     queryKey: ['sourcesLibrary'],
     queryFn: async () => {
       const sources = await base44.entities.Source.list('-created_date', 200);
-      return sources;
+      return sources.filter(s => s.source_type !== 'knowledge');
     }
   });
 
