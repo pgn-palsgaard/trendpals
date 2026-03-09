@@ -8,6 +8,7 @@ import { ArrowLeft, ExternalLink, Copy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
+import DownloadReportButton from '@/components/project/DownloadReportButton';
 
 export default function ReportView() {
   const urlParams = new URLSearchParams(window.location.search);
