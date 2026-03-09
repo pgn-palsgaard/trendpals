@@ -132,6 +132,25 @@ export default function DownloadReportButton({ report, variant = "outline", size
         }
       });
 
+      // Gamma Prompt page
+      if (report.gamma_prompt) {
+        doc.addPage();
+        let y = margin + 6;
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        addText('Gamma Prompt (Full)', margin, y); y += 10;
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(51, 65, 85);
+        const promptLines = doc.splitTextToSize(report.gamma_prompt, contentW);
+        promptLines.forEach(line => {
+          if (y > 270) { doc.addPage(); y = margin + 10; }
+          doc.text(line, margin, y);
+          y += 5;
+        });
+      }
+
       // Evidence Pack page
       if (report.evidence_pack?.length) {
         doc.addPage();
