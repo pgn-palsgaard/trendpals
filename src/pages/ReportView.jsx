@@ -103,9 +103,12 @@ Evidence: ${slide.evidence_footer || ''}
                   <span>{report.slides?.length || 0} slides</span>
                 </div>
               </div>
-              <Badge className={`${freshnessColors[report.freshness || 'fresh']}`}>
-                {report.freshness?.replace('_', ' ') || 'fresh'}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <DownloadReportButton report={report} size="sm" />
+                <Badge className={`${freshnessColors[report.freshness || 'fresh']}`}>
+                  {report.freshness?.replace('_', ' ') || 'fresh'}
+                </Badge>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
