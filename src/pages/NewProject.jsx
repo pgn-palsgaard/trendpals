@@ -38,7 +38,18 @@ const formSchema = z.object({
   customer_priorities: z.array(z.string()).optional(),
 });
 
-const categories = ["Ice Cream", "Bakery", "Confectionery", "Chocolate", "Dairy", "Beverages"];
+const categories = [
+  "Cake premixes & Long shelf-life cakes",
+  "Cake gels",
+  "Condiments",
+  "Chocolate & Confectionery",
+  "Dairy",
+  "Ice Cream",
+  "Processed meat",
+  "Oils & Fats",
+  "Plant-based products",
+  "RUTF and RUSF",
+];
 const regions = [...getAllRegionCodes(), "Global"];
 const trendTimeWindows = ["last 6 months", "last 12 months", "last 24 months", "last 36 months"];
 const launchTimeWindows = ["last 30 days", "last 3 months", "last 6 months", "last 12 months"];
