@@ -124,20 +124,20 @@ export default function NewProject() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Category *</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select category" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {categories.map((cat) => (
-                            <SelectItem key={cat} value={cat}>
-                              {cat}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <>
+                          <Input
+                            list="category-options"
+                            placeholder="Select or type a category"
+                            {...field}
+                          />
+                          <datalist id="category-options">
+                            {categories.map((cat) => (
+                              <option key={cat} value={cat} />
+                            ))}
+                          </datalist>
+                        </>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
