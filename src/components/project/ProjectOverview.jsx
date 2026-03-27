@@ -1,15 +1,21 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, Target, Users, Flag, Upload, TrendingUp, CheckCircle } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Calendar, Target, Users, Flag, Upload, TrendingUp, CheckCircle, Pencil } from 'lucide-react';
+import EditProjectModal from './EditProjectModal';
 
 export default function ProjectOverview({ project, sources, trendCandidates }) {
+  const [editOpen, setEditOpen] = useState(false);
   return (
     <div className="space-y-6">
       {/* Project Context */}
       <Card className="border-slate-200/60 shadow-sm hover:shadow-md transition-shadow">
-        <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-transparent">
+        <CardHeader className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-transparent flex flex-row items-center justify-between">
           <CardTitle className="text-lg font-semibold text-slate-900">Project Context</CardTitle>
+          <Button variant="ghost" size="sm" onClick={() => setEditOpen(true)}>
+            <Pencil className="w-4 h-4 mr-1" /> Edit
+          </Button>
         </CardHeader>
         <CardContent className="space-y-4 pt-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -99,6 +105,8 @@ export default function ProjectOverview({ project, sources, trendCandidates }) {
           </CardContent>
         </Card>
       </div>
+
+      <EditProjectModal project={project} open={editOpen} onClose={() => setEditOpen(false)} />
 
       {/* Warnings */}
       {project.warnings && project.warnings.length > 0 && (
