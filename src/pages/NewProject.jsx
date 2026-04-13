@@ -32,8 +32,12 @@ const formSchema = z.object({
   name: z.string().min(1, { message: "Project name is required" }),
   category: z.string().min(1, { message: "Category is required" }),
   region_code: z.string().min(1, { message: "Region is required" }),
+  customer_name: z.string().optional(),
   audience: z.string().default("Industrial manufacturers"),
   objective: z.string().min(10, { message: "Please provide a clear objective (at least 10 characters)" }),
+  specific_focus: z.string().optional(),
+  topics_to_avoid: z.string().optional(),
+  trend_time_window: z.string().optional(),
   meeting_context: z.string().optional(),
   customer_priorities: z.array(z.string()).optional(),
 });
@@ -52,7 +56,6 @@ const categories = [
 ];
 const regions = [...getAllRegionCodes(), "Global"];
 const trendTimeWindows = ["last 6 months", "last 12 months", "last 24 months", "last 36 months"];
-const launchTimeWindows = ["last 30 days", "last 3 months", "last 6 months", "last 12 months"];
 const meetingContextOptions = ["discovery", "innovation_day", "technical_workshop", "other"];
 const customerPrioritiesOptions = ["cost", "clean label", "sustainability", "texture", "indulgence", "health & wellness", "convenience"];
 
@@ -66,8 +69,12 @@ export default function NewProject() {
       name: "",
       category: "",
       region_code: "",
+      customer_name: "",
       audience: "Industrial manufacturers",
       objective: "",
+      specific_focus: "",
+      topics_to_avoid: "",
+      trend_time_window: "last 24 months",
       meeting_context: "",
       customer_priorities: [],
     },
@@ -107,11 +114,12 @@ export default function NewProject() {
         <div className="bg-white rounded-xl shadow-sm border p-8">
           <h1 className="text-3xl font-bold mb-2">Create New Project</h1>
           <p className="text-slate-600 mb-8">
-            Set up a new trend deck project by defining the scope, audience, and objectives.
+            Define the scope and brief clearly — the more context you provide, the more targeted the AI-generated trends will be.
           </p>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+
               {/* Project Name */}
               <FormField
                 control={form.control}
@@ -168,9 +176,7 @@ export default function NewProject() {
                         </FormControl>
                         <SelectContent>
                           {regions.map((reg) => (
-                            <SelectItem key={reg} value={reg}>
-                              {reg}
-                            </SelectItem>
+                            <SelectItem key={reg} value={reg}>{reg}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -180,20 +186,36 @@ export default function NewProject() {
                 />
               </div>
 
-              {/* Audience */}
-              <FormField
-                control={form.control}
-                name="audience"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Audience</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Industrial manufacturers" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Customer Name & Audience Row */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="customer_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Customer Name (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Unilever, Arla Foods, Barry Callebaut" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="audience"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Audience</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Industrial manufacturers" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               {/* Objective */}
               <FormField
@@ -201,12 +223,12 @@ export default function NewProject() {
                 name="objective"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Objective / Decision this deck must enable *</FormLabel>
+                    <FormLabel>Objective / What this deck must achieve *</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="Describe the purpose of this deck and what decision it should enable (1-2 sentences)"
+                      <Textarea
+                        placeholder="Describe the purpose of this deck and what decision it should enable. Be specific — e.g. 'Help the customer identify 3 innovation territories for their 2026 NPD pipeline in premium ice cream'"
                         className="min-h-[100px]"
-                        {...field} 
+                        {...field}
                       />
                     </FormControl>
                     <FormMessage />
@@ -214,31 +236,90 @@ export default function NewProject() {
                 )}
               />
 
-              {/* Meeting Context */}
+              {/* Specific Focus */}
               <FormField
                 control={form.control}
-                name="meeting_context"
+                name="specific_focus"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Meeting Context (Optional)</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select context" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {meetingContextOptions.map((context) => (
-                          <SelectItem key={context} value={context}>
-                            {context.replace(/_/g, ' ')}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Specific Focus Areas (Optional)</FormLabel>
+                    <FormControl>
+                      <Textarea
+                        placeholder="Sub-angles or product types to prioritise — e.g. 'Low-sugar variants, premium single-origin chocolate, high-protein formats'. The AI will bias trend selection towards these areas."
+                        className="min-h-[80px]"
+                        {...field}
+                      />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {/* Topics to Avoid */}
+              <FormField
+                control={form.control}
+                name="topics_to_avoid"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Topics to Avoid (Optional)</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g., Vegan, allergen-free (already covered in another deck)" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              {/* Trend Time Window & Meeting Context */}
+              <div className="grid md:grid-cols-2 gap-4">
+                <FormField
+                  control={form.control}
+                  name="trend_time_window"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Trend Time Window</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select time window" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {trendTimeWindows.map((tw) => (
+                            <SelectItem key={tw} value={tw}>{tw}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="meeting_context"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Meeting Context (Optional)</FormLabel>
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select context" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {meetingContextOptions.map((context) => (
+                            <SelectItem key={context} value={context}>
+                              {context.replace(/_/g, ' ')}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
 
               {/* Customer Priorities */}
               <FormField
@@ -261,9 +342,7 @@ export default function NewProject() {
                                   onCheckedChange={(checked) => {
                                     return checked
                                       ? field.onChange([...(field.value || []), item])
-                                      : field.onChange(
-                                          field.value?.filter((value) => value !== item)
-                                        );
+                                      : field.onChange(field.value?.filter((v) => v !== item));
                                   }}
                                 />
                               </FormControl>

@@ -25,6 +25,7 @@ const categories = [
 ];
 
 const regions = [...getAllRegionCodes(), "Global"];
+const trendTimeWindows = ["last 6 months", "last 12 months", "last 24 months", "last 36 months"];
 const meetingContextOptions = ["discovery", "innovation_day", "technical_workshop", "other"];
 const customerPrioritiesOptions = ["cost", "clean label", "sustainability", "texture", "indulgence", "health & wellness", "convenience"];
 
@@ -34,8 +35,12 @@ export default function EditProjectModal({ project, open, onClose }) {
     name: project.name || '',
     category: project.category || '',
     region_code: project.region_code || project.region || '',
+    customer_name: project.customer_name || '',
     audience: project.audience || '',
     objective: project.objective || '',
+    specific_focus: project.specific_focus || '',
+    topics_to_avoid: project.topics_to_avoid || '',
+    trend_time_window: project.trend_time_window || 'last 24 months',
     meeting_context: project.meeting_context || '',
     customer_priorities: project.customer_priorities || [],
   });
@@ -75,18 +80,16 @@ export default function EditProjectModal({ project, open, onClose }) {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <Label>Category *</Label>
-              <>
-                <Input
-                  className="mt-1"
-                  list="edit-category-options"
-                  placeholder="Select or type a category"
-                  value={form.category}
-                  onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                />
-                <datalist id="edit-category-options">
-                  {categories.map(cat => <option key={cat} value={cat} />)}
-                </datalist>
-              </>
+              <Input
+                className="mt-1"
+                list="edit-category-options"
+                placeholder="Select or type a category"
+                value={form.category}
+                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+              />
+              <datalist id="edit-category-options">
+                {categories.map(cat => <option key={cat} value={cat} />)}
+              </datalist>
             </div>
 
             <div>
@@ -102,32 +105,81 @@ export default function EditProjectModal({ project, open, onClose }) {
             </div>
           </div>
 
-          <div>
-            <Label>Audience</Label>
-            <Input className="mt-1" value={form.audience} onChange={e => setForm(f => ({ ...f, audience: e.target.value }))} />
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <Label>Customer Name</Label>
+              <Input
+                className="mt-1"
+                placeholder="e.g., Unilever, Arla Foods"
+                value={form.customer_name}
+                onChange={e => setForm(f => ({ ...f, customer_name: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <Label>Audience</Label>
+              <Input className="mt-1" value={form.audience} onChange={e => setForm(f => ({ ...f, audience: e.target.value }))} />
+            </div>
           </div>
 
           <div>
             <Label>Objective</Label>
             <Textarea
               className="mt-1 min-h-[90px]"
+              placeholder="What decision must this deck enable?"
               value={form.objective}
               onChange={e => setForm(f => ({ ...f, objective: e.target.value }))}
             />
           </div>
 
           <div>
-            <Label>Meeting Context</Label>
-            <Select value={form.meeting_context} onValueChange={v => setForm(f => ({ ...f, meeting_context: v }))}>
-              <SelectTrigger className="mt-1">
-                <SelectValue placeholder="Select context" />
-              </SelectTrigger>
-              <SelectContent>
-                {meetingContextOptions.map(ctx => (
-                  <SelectItem key={ctx} value={ctx}>{ctx.replace(/_/g, ' ')}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>Specific Focus Areas</Label>
+            <Textarea
+              className="mt-1 min-h-[70px]"
+              placeholder="Sub-angles to prioritise — e.g. Low-sugar variants, premium single-origin"
+              value={form.specific_focus}
+              onChange={e => setForm(f => ({ ...f, specific_focus: e.target.value }))}
+            />
+          </div>
+
+          <div>
+            <Label>Topics to Avoid</Label>
+            <Input
+              className="mt-1"
+              placeholder="e.g., Vegan (already covered in another deck)"
+              value={form.topics_to_avoid}
+              onChange={e => setForm(f => ({ ...f, topics_to_avoid: e.target.value }))}
+            />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <Label>Trend Time Window</Label>
+              <Select value={form.trend_time_window} onValueChange={v => setForm(f => ({ ...f, trend_time_window: v }))}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select time window" />
+                </SelectTrigger>
+                <SelectContent>
+                  {trendTimeWindows.map(tw => (
+                    <SelectItem key={tw} value={tw}>{tw}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label>Meeting Context</Label>
+              <Select value={form.meeting_context} onValueChange={v => setForm(f => ({ ...f, meeting_context: v }))}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select context" />
+                </SelectTrigger>
+                <SelectContent>
+                  {meetingContextOptions.map(ctx => (
+                    <SelectItem key={ctx} value={ctx}>{ctx.replace(/_/g, ' ')}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div>
@@ -149,7 +201,10 @@ export default function EditProjectModal({ project, open, onClose }) {
 
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={() => mutation.mutate(form)} disabled={mutation.isPending || !form.name || !form.category || !form.region_code}>
+          <Button
+            onClick={() => mutation.mutate(form)}
+            disabled={mutation.isPending || !form.name || !form.category || !form.region_code}
+          >
             {mutation.isPending ? 'Saving...' : 'Save Changes'}
           </Button>
         </DialogFooter>

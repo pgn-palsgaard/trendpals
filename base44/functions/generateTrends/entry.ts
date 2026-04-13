@@ -10,14 +10,12 @@ Deno.serve(async (req) => {
     }
 
     const payload = await req.json();
-    // Support both direct calls (project_id) and entity automation (event.entity_id)
     const project_id = payload.project_id || payload.event?.entity_id;
     
     if (!project_id) {
       return Response.json({ error: 'Error in field project_id: Field required' }, { status: 400 });
     }
 
-    // Get project and sources
     const projects = await base44.entities.Project.filter({ id: project_id });
     const project = projects[0];
     const sources = await base44.entities.Source.filter({ project_id });
@@ -29,13 +27,35 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Compile evidence from all sources
-    let evidenceText = `Project Context:
-Category: ${project.category}
-Region: ${project.region}
-Customer Priorities: ${project.customer_priorities?.join(', ') || 'None specified'}
+    const region = project.region_code || project.region || 'Global';
 
+    // Build a rich project brief to anchor trend generation
+    const projectBrief = `
+=== PROJECT BRIEF ===
+Project Name: ${project.name}
+Category: ${project.category}
+Region: ${region}
+Customer: ${project.customer_name || 'Not specified'}
+Audience: ${project.audience || 'Industrial manufacturers'}
+Meeting Context: ${project.meeting_context ? project.meeting_context.replace(/_/g, ' ') : 'Not specified'}
+Trend Time Window: ${project.trend_time_window || 'last 24 months'}
+
+Objective / What this deck must achieve:
+${project.objective}
+
+Specific Focus Areas (prioritise these in trend selection):
+${project.specific_focus || 'None specified — cover the broadest relevant trends for this category/region'}
+
+Topics / Areas to AVOID:
+${project.topics_to_avoid || 'None specified'}
+
+Customer Priorities (what matters most to this customer):
+${project.customer_priorities?.length > 0 ? project.customer_priorities.join(', ') : 'None specified'}
+=== END PROJECT BRIEF ===
 `;
+
+    // Compile evidence from all sources
+    let evidenceText = projectBrief;
 
     // Collect GNPD products with images
     const gnpdProducts = [];
@@ -73,29 +93,24 @@ Customer Priorities: ${project.customer_priorities?.join(', ') || 'None specifie
 
     // Generate trend candidates using AI
     const response = await base44.integrations.Core.InvokeLLM({
-      prompt: `You are analyzing trend data for ${project.category} in ${project.region}.
+      prompt: `You are a Senior B2B Commercial Insights Analyst identifying consumer and market trends for industrial food ingredient manufacturers.
+
+Your task: Identify 5-7 trend candidates from the evidence below that are DIRECTLY RELEVANT to the project brief. The trends you generate must be scoped tightly to the project's stated objective, category, region, customer, and any specific focus areas. Do NOT generate generic category trends — every trend must feel purposeful for THIS specific project.
 
 ${evidenceText}
 ${knowledgeContext}
 
-Generate exactly 5-7 trend candidates. For each trend:
-1. Give it a compelling name (max 5 words)
-2. Explain what's changing (2-4 concise bullets)
-3. Explain why now (1-2 bullets)
-4. Link to evidence (cite specific excerpts AND match 3-6 GNPD products that exemplify this trend)
-5. For GNPD products: prioritize those with images (has_image: true), include brand, product_name, market, and ingredients if relevant
-6. Assess confidence based on evidence strength
-7. Provide a self-critique: what could be wrong about this trend?
-8. For "where_palsgaard_supports": use ONLY information from the PALSGAARD CAPABILITY KNOWLEDGE SOURCES section above. Ground each bullet in actual Palsgaard capability documentation. If no relevant capability is found, leave the array empty rather than inventing.
+INSTRUCTIONS:
+1. Read the PROJECT BRIEF first. Let the objective, specific focus, and customer priorities guide which trends you surface.
+2. If "Specific Focus Areas" are listed, every trend MUST relate to at least one of them.
+3. If "Topics to Avoid" are listed, do not generate trends in those areas.
+4. Prioritise the stated trend time window: ${project.trend_time_window || 'last 24 months'}.
+5. Every trend must be grounded in the evidence provided — cite specific excerpts and match real GNPD products.
+6. For GNPD products: prioritize those with images (has_image: true), include brand, product_name, market, and ingredients.
+7. For "where_palsgaard_supports": use ONLY information from the PALSGAARD CAPABILITY KNOWLEDGE SOURCES. If nothing relevant exists, leave the array empty.
+8. Do NOT invent statistics or claims. If evidence is weak, mark confidence as "low".
 
-CRITICAL RULES:
-- Use ONLY evidence from the provided sources
-- PRIORITIZE GNPD products that have images (has_image: true)
-- Match products that genuinely exemplify the trend
-- Include ingredient information when it supports the trend narrative
-- Do NOT invent statistics or claims
-- If evidence is weak, mark confidence as "low"
-- "where_palsgaard_supports" MUST be grounded in the knowledge sources provided
+CRITICAL: The project objective is "${project.objective}". All 5-7 trends must serve this objective. A reviewer reading these trends should immediately understand why each one matters for this specific project.
 
 Return JSON with this exact structure.`,
       response_json_schema: {
