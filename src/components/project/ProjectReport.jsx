@@ -4,7 +4,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Download, ExternalLink, Loader2, AlertCircle, Sparkles } from 'lucide-react';
+import { FileText, Download, ExternalLink, Loader2, AlertCircle, Sparkles, Clipboard, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -14,6 +14,26 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
   const queryClient = useQueryClient();
   const [generatingClaude, setGeneratingClaude] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleExportToClaude = (report) => {
+    const prompt = `Upload the Palsgaard .potx template file, then generate the PowerPoint presentation using the palsgaard-powerpoint skill.
+
+PROJECT CONTEXT:
+- Report type: ${report.title}
+- Audience: ${project.audience || 'Industrial manufacturers'}
+- Region: ${report.region}
+- Category: ${report.category}
+
+SLIDES:
+${report.gamma_prompt || ''}`;
+
+    navigator.clipboard.writeText(prompt).then(() => {
+      setCopied(true);
+      toast.success('Prompt copied to clipboard — paste into Claude.ai');
+      setTimeout(() => setCopied(false), 3000);
+    });
+  };
 
   const selectedTrends = trendCandidates.filter(t => t.is_selected);
   const canGenerateReport = selectedTrends.length >= 3 && selectedTrends.length <= 5;
@@ -231,15 +251,27 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <Sparkles className="w-5 h-5 text-purple-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium text-slate-900">Claude Deck Generated</p>
-                        <p className="text-sm text-slate-600">Stored in report as gamma_prompt</p>
-                      </div>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Sparkles className="w-5 h-5 text-purple-600" />
                     </div>
+                    <div>
+                      <p className="font-medium text-slate-900">Claude Deck Generated</p>
+                      <p className="text-sm text-slate-600">Ready to export to Claude.ai</p>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => handleExportToClaude(latestReport)}
+                    variant="outline"
+                    size="sm"
+                    className="border-purple-300 text-purple-700 hover:bg-purple-50"
+                  >
+                    {copied ? (
+                      <><Check className="w-4 h-4 mr-1.5" />Copied!</>
+                    ) : (
+                      <><Clipboard className="w-4 h-4 mr-1.5" />Export to Claude.ai</>
+                    )}
+                  </Button>
                   </div>
 
                   {latestReport.gamma_pptx_url && (
