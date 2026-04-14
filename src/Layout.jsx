@@ -1,6 +1,8 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
+import { base44 } from '@/api/base44Client';
+import { LogOut } from 'lucide-react';
 
 export default function Layout({ children, currentPageName }) {
   return (
@@ -56,6 +58,13 @@ export default function Layout({ children, currentPageName }) {
             >
               Reports
             </Link>
+            <button
+              onClick={() => base44.auth.logout()}
+              className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
           </nav>
         </div>
       </header>
