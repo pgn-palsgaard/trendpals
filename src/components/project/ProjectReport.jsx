@@ -35,7 +35,7 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
     }
   });
 
-  const generateGammaMutation = useMutation({
+  const generateClaudeMutation = useMutation({
     mutationFn: async (reportId) => {
       setGeneratingClaude(true);
       const response = await base44.functions.invoke('generateGammaReport', {
@@ -211,7 +211,7 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
                   <Sparkles className="w-10 h-10 mx-auto mb-3 text-purple-500" />
                   <p className="text-slate-700 mb-4">Refine this report with Claude AI</p>
                   <Button
-                    onClick={() => generateGammaMutation.mutate(latestReport.id)}
+                    onClick={() => generateClaudeMutation.mutate(latestReport.id)}
                     disabled={generatingClaude}
                     className="bg-purple-600 hover:bg-purple-700"
                   >
