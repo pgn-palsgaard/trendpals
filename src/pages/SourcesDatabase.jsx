@@ -114,7 +114,7 @@ export default function SourcesDatabase() {
       if (filters.types.length > 0 && !filters.types.includes(source.source_type)) return false;
 
       // Region filter
-      if (filters.region !== 'all' && source.region !== filters.region) return false;
+      if (filters.region !== 'all' && source.region_code !== filters.region) return false;
 
       // Category filter
       if (filters.category !== 'all' && source.category !== filters.category) return false;
@@ -202,7 +202,7 @@ export default function SourcesDatabase() {
 
   // Get unique values for filters
   const categories = [...new Set(allSources.map(s => s.category).filter(Boolean))];
-  const regions = [...new Set(allSources.map(s => s.region).filter(Boolean))];
+  const regions = [...new Set(allSources.map(s => s.region_code).filter(Boolean))];
   const allTags = [...new Set(allSources.flatMap(s => s.tags || []))];
 
   const handleSourceClick = (source) => {
