@@ -104,17 +104,23 @@ Deno.serve(async (req) => {
      Available Evidence (Top excerpts per source):
      `;
 
-     // Optimize: limit excerpts per source to top 5, deduplicate, truncate
+     // Include more excerpts per source with more text for richer evidence
      sources.forEach(source => {
        if (source.excerpts && source.excerpts.length > 0) {
-         evidenceContext += `\n${source.title}:\n`;
+         evidenceContext += `\n[SOURCE: ${source.title} | Publisher: ${source.publisher || 'Unknown'} | Date: ${source.date_published || source.date || 'Unknown'}]\n`;
          const seenTexts = new Set();
-         source.excerpts.slice(0, 5).forEach(excerpt => {
-           const text = excerpt.text.substring(0, 150);
+         source.excerpts.slice(0, 15).forEach(excerpt => {
+           const text = excerpt.text.substring(0, 500);
            if (!seenTexts.has(text)) {
-             evidenceContext += `- ${text}...\n`;
+             evidenceContext += `  • [p.${excerpt.page_ref || '?'}] ${text}\n`;
              seenTexts.add(text);
            }
+         });
+       }
+       if (source.gnpd_data && source.gnpd_data.length > 0) {
+         evidenceContext += `\n[GNPD DATA: ${source.title} | ${source.gnpd_row_count || source.gnpd_data.length} products]\n`;
+         source.gnpd_data.slice(0, 30).forEach(p => {
+           evidenceContext += `  • ${p.product_name || p['Product Name'] || ''} | ${p.brand || p['Brand'] || ''} | ${p.market || p['Market'] || ''} | ${p.date_published || p['Date Published'] || ''} | Claims: ${p.claims || p['Claims'] || ''}\n`;
          });
        }
      });
@@ -130,10 +136,10 @@ Deno.serve(async (req) => {
          if (ks.ai_summary) evidenceContext += `Summary: ${ks.ai_summary}\n`;
          if (ks.excerpts && ks.excerpts.length > 0) {
            const seenTexts = new Set();
-           ks.excerpts.slice(0, 4).forEach(excerpt => {
-             const text = excerpt.text.substring(0, 200);
+           ks.excerpts.slice(0, 8).forEach(excerpt => {
+             const text = excerpt.text.substring(0, 400);
              if (!seenTexts.has(text)) {
-               evidenceContext += `  • ${text}...\n`;
+               evidenceContext += `  • ${text}\n`;
                seenTexts.add(text);
              }
            });
@@ -166,44 +172,54 @@ Deno.serve(async (req) => {
 
     // Generate report pack using AI
      const response = await base44.integrations.Core.InvokeLLM({
-       prompt: `Generate a professional trend report for ${project.category} in ${region}.
+      model: 'claude_sonnet_4_6',
+      prompt: `You are a senior market intelligence analyst at Palsgaard, a B2B food ingredients company. Generate a COMPREHENSIVE, evidence-rich professional trend report for ${project.category} in ${region}.
 
-${evidenceContext}
+    ${evidenceContext}
 
-Create a complete report pack with:
+    TASK: Create a complete, detailed report pack. This will be presented to industrial food manufacturers (R&D directors, Category Managers, Innovation leads). Every slide must be dense with insight, grounded in the evidence above.
 
-1. SLIDES (5-10 slides total):
-   - Opening slide with report title
-   - One slide per selected trend (${selectedTrends.length} trends)
-   - Each slide must include:
-     * Title + subtitle (Category | Region | Time window)
-     * 3-6 concise bullets on the trend
-     * "So what for manufacturers?" section (2-3 bullets)
-     * "Where Palsgaard supports" section — ground this in the PALSGAARD CAPABILITY KNOWLEDGE SOURCES provided. Cite which capability area or document backs each bullet. Capabilities only, NO product names or grades.
-     * Evidence footer (cite sources)
-     * Image placement slots (hero + supporting products)
+    REQUIREMENTS FOR EACH TREND SLIDE:
+    - Title: Specific, insight-driven (not generic)
+    - Subtitle: Category | Region | Time window
+    - bullets (5-7 bullets MINIMUM per slide):
+    * Open with a quantified market signal if available (e.g. "X% of launches in ANZ carry Y claim")
+    * Describe what is changing and how fast
+    * Include geographic specificity — which markets lead, which follow
+    * Name specific brand/product examples from the GNPD data provided
+    * Describe the formulation or format implication for manufacturers
+    * Connect to broader macro driver (health, sustainability, cost pressure, regulation)
+    - so_what (3-4 bullets): Concrete manufacturer action implications — reformulation triggers, NPD opportunities, cost/supply chain considerations
+    - where_palsgaard_supports (3-4 bullets): Ground EACH bullet in the PALSGAARD CAPABILITY KNOWLEDGE SOURCES. Cite the specific capability area. NO product names or grades — capabilities only.
+    - evidence_footer: Cite specific source documents and GNPD data with dates
 
-2. EVIDENCE PACK (5-10 bullets):
-   - Key evidence bullets that support the deck
-   - Each with source citation and confidence level
+    SLIDE STRUCTURE (7-10 slides total):
+    1. Title/Overview slide — executive summary of the landscape (3-4 key meta-observations, overall direction of the category in this region)
+    2-${selectedTrends.length + 1}. One slide per trend (${selectedTrends.length} slides)
+    ${selectedTrends.length + 2}. "What This Means for Your Business" — synthesis slide connecting all trends to manufacturer decision-making
+    ${selectedTrends.length + 3 <= 10 ? `${selectedTrends.length + 3}. Optional: Regional Spotlight or Emerging Signals slide` : ''}
 
-3. PRODUCT SHORTLIST (12-20 GNPD launches):
-   - Select diverse, relevant products that exemplify the trends
-   - Prioritize products with images
-   - Include: brand, product name, market, launch date, key claims
-   - Tag each product with which trend(s) it supports
+    EVIDENCE PACK (8-12 bullets):
+    - Most compelling data points from the sources
+    - Each must include: the specific claim, source name + date, and confidence (high/medium/low)
+    - Prioritize quantified claims and named product/brand examples
 
-4. IMAGE PLACEMENT MAP:
-   - For each slide, specify which products to use as hero/supporting images
+    PRODUCT SHORTLIST (15-25 GNPD launches):
+    - Select products that BEST exemplify each trend
+    - Spread across multiple markets within ${region}
+    - Include recent launches (prioritize last 24 months)
+    - Each product must clearly state which trend(s) it supports and WHY
 
-CRITICAL RULES:
-- Use ONLY evidence from provided sources
-- NO invented statistics or product names
-- Palsgaard mentions: capabilities ONLY, no product grades
-- Every claim must be traceable to source material
-- Flag any weak evidence areas as warnings
+    CRITICAL RULES:
+    - Use ONLY evidence from the sources provided above
+    - NO invented statistics — if a number isn't in the source, don't use it
+    - Palsgaard mentions: capabilities and application areas ONLY, no product grades
+    - Every bullet on every slide must be traceable to at least one source
+    - Flag weak evidence areas as warnings
+    - Be specific: use brand names, country names, launch dates from the data
+    - Avoid generic statements — every sentence should deliver a concrete insight
 
-Return structured JSON.`,
+    Return structured JSON.`,
       response_json_schema: {
         type: "object",
         properties: {

@@ -48,35 +48,34 @@ Deno.serve(async (req) => {
     const subcategories = subcategoriesMap[project.category] || project.category;
 
     // Build comprehensive prompt for Gamma
-    let prompt = `You are creating a B2B commercial insights presentation deck for industrial food ingredients manufacturers.
+    let prompt = `Create a comprehensive, visually rich B2B commercial insights PowerPoint presentation for Palsgaard, a food ingredients company.
 
-AUDIENCE CONTEXT:
-- Target: ${project.audience || 'Industrial manufacturers: R&D, Operations, Quality, Procurement, Commercial Leadership'}
-- Business Objective: ${project.objective}
-- Customer Priorities: ${project.customer_priorities?.join(', ') || 'Not specified'}
-- Meeting Context: ${project.meeting_context || 'Not specified'}
+AUDIENCE: ${project.audience || 'Industrial manufacturers: R&D, Operations, Quality, Procurement, Commercial Leadership'}
+OBJECTIVE: ${project.objective}
+CUSTOMER PRIORITIES: ${project.customer_priorities?.join(', ') || 'Innovation, cost efficiency, clean label'}
+MEETING CONTEXT: ${project.meeting_context || 'Commercial discussion'}
+CATEGORY: ${report.category} | Sub-categories: ${subcategories}
+REGION: ${report.region}
+TRENDS COVERED: ${report.selected_trends?.join(' | ') || 'Multiple trends'}
 
-PROJECT SCOPE:
-- Category: ${report.category}
-- Sub-categories: ${subcategories}
-- Region: ${report.region}
-- Key Trends: ${report.selected_trends?.join(', ') || 'Multiple trends'}
-
-PRESENTATION GUIDELINES:
-- Evidence-led: Every claim must be backed by data (Mintel reports or launch data)
-- Manufacturer lens: Focus on formulation, processing, cost-in-use, scalability implications
-- Audience sophistication: Assume strong category knowledge; focus on what's changing and what decisions it affects
-- Calm, factual tone: No hype-driven language
-- Regional specificity: Prioritize ${report.region} signals
-- No product selling: Describe capabilities, not specific product grades
-
-Create a professional PowerPoint presentation with the following structure:
+DESIGN PRINCIPLES:
+- Professional, data-dense slides with clear hierarchy
+- Each slide should have a clear "so what" message
+- Use tables, bullet lists, and callout boxes to organize information
+- Evidence-led: cite data sources inline
+- Calm, authoritative tone — no marketing hype
+- Regional specificity for ${report.region}
+- Palsgaard sections reference CAPABILITIES only, never product grades
 
 ---
 
 # ${report.title}
+## ${report.category} Market Intelligence | ${report.region}
+*Prepared by Palsgaard | ${new Date().toLocaleDateString('en-GB', { month: 'long', year: 'numeric' })}*
 
-**${report.category} | ${report.region}**
+**Audience:** ${project.audience || 'Industrial Manufacturers'}
+**Objective:** ${project.objective}
+**Trends covered:** ${report.selected_trends?.length || 0} key market trends
 
 ---
 
@@ -85,14 +84,13 @@ Create a professional PowerPoint presentation with the following structure:
     // Add slides
     if (report.slides && report.slides.length > 0) {
       for (const slide of report.slides) {
-        prompt += `## Slide ${slide.slide_number}: ${slide.title}\n\n`;
-
+        prompt += `## ${slide.title}\n`;
         if (slide.subtitle) {
-          prompt += `**${slide.subtitle}**\n\n`;
+          prompt += `### ${slide.subtitle}\n\n`;
         }
 
         if (slide.bullets && slide.bullets.length > 0) {
-          prompt += `### Key Points\n`;
+          prompt += `**Key Market Signals**\n\n`;
           slide.bullets.forEach(bullet => {
             prompt += `- ${bullet}\n`;
           });
@@ -105,37 +103,48 @@ Create a professional PowerPoint presentation with the following structure:
         if (slide.product_examples && slide.product_examples.length > 0) {
           slideProducts = slide.product_examples;
         } else if (slide.image_placements && slide.image_placements.length > 0) {
-          // Map image placements to actual product data
           slideProducts = slide.image_placements
             .map(productId => productImages.find(p => p.product_id === productId))
             .filter(p => p && p.image_url);
         }
 
         if (slideProducts.length > 0) {
-          prompt += `### Product Examples\n`;
+          prompt += `**Product Examples from Market**\n\n`;
           slideProducts.forEach(product => {
             if (product.image_url) {
               prompt += `![${product.brand || product.company || ''} - ${product.product_name}](${product.image_url})\n`;
-              prompt += `**${product.brand || product.company || 'Product'}** - ${product.product_name}\n`;
-              if (product.market) {
-                prompt += `Market: ${product.market}\n`;
-              }
-              if (product.launch_date) {
-                prompt += `Launched: ${product.launch_date}\n`;
-              }
-              if (product.relevance) {
-                prompt += `*${product.relevance}*\n`;
-              }
-              if (product.supporting_trends && product.supporting_trends.length > 0) {
-                prompt += `Supports: ${product.supporting_trends.join(', ')}\n`;
-              }
+              prompt += `**${product.brand || product.company || 'Product'}** — ${product.product_name}`;
+              if (product.market) prompt += ` | Market: ${product.market}`;
+              if (product.launch_date) prompt += ` | Launched: ${product.launch_date}`;
+              prompt += `\n`;
+              if (product.relevance) prompt += `*${product.relevance}*\n`;
               prompt += `\n`;
             }
           });
         }
+
+        // Also add product shortlist items for this slide from the report
+        if (report.product_shortlist && report.product_shortlist.length > 0) {
+          const slideTitle = slide.title || '';
+          const relatedProducts = report.product_shortlist.filter(p => 
+            p.supporting_trends && p.supporting_trends.some(t => 
+              slideTitle.toLowerCase().includes(t.toLowerCase().substring(0, 20))
+            )
+          ).slice(0, 4);
+          
+          if (relatedProducts.length > 0 && slideProducts.length === 0) {
+            prompt += `**Relevant Product Launches**\n\n`;
+            prompt += `| Brand | Product | Market | Launched | Key Claims |\n`;
+            prompt += `|-------|---------|--------|----------|------------|\n`;
+            relatedProducts.forEach(p => {
+              prompt += `| ${p.brand || '-'} | ${p.product_name || '-'} | ${p.market || '-'} | ${p.launch_date || '-'} | ${(p.claims || []).slice(0,3).join(', ') || '-'} |\n`;
+            });
+            prompt += `\n`;
+          }
+        }
         
         if (slide.so_what && slide.so_what.length > 0) {
-          prompt += `### So What for Manufacturers?\n`;
+          prompt += `**So What for Manufacturers?**\n\n`;
           slide.so_what.forEach(item => {
             prompt += `→ ${item}\n`;
           });
@@ -143,7 +152,7 @@ Create a professional PowerPoint presentation with the following structure:
         }
         
         if (slide.where_palsgaard_supports && slide.where_palsgaard_supports.length > 0) {
-          prompt += `### Where Palsgaard Supports\n`;
+          prompt += `**Where Palsgaard Supports**\n\n`;
           slide.where_palsgaard_supports.forEach(item => {
             prompt += `✓ ${item}\n`;
           });
@@ -151,19 +160,43 @@ Create a professional PowerPoint presentation with the following structure:
         }
         
         if (slide.evidence_footer) {
-          prompt += `*Evidence: ${slide.evidence_footer}*\n\n`;
+          prompt += `*Sources: ${slide.evidence_footer}*\n\n`;
         }
         
         prompt += `---\n\n`;
       }
     }
 
-    // Add evidence pack
+    // Add evidence pack as a dedicated slide
     if (report.evidence_pack && report.evidence_pack.length > 0) {
-      prompt += `## Evidence Pack\n\n`;
+      prompt += `## Evidence & Data Foundation\n\n`;
+      prompt += `*Supporting data underpinning this report*\n\n`;
       report.evidence_pack.forEach(evidence => {
-        prompt += `- ${evidence.bullet}\n`;
+        const confidence = evidence.confidence ? ` *(${evidence.confidence} confidence)*` : '';
+        prompt += `- ${evidence.bullet}${confidence}\n`;
       });
+      prompt += `\n---\n\n`;
+    }
+
+    // Add product shortlist as a summary slide
+    if (report.product_shortlist && report.product_shortlist.length > 0) {
+      prompt += `## Product Launch Overview — ${report.region}\n\n`;
+      prompt += `*Recent launches exemplifying these trends*\n\n`;
+      prompt += `| Brand | Product | Market | Launched | Trend |\n`;
+      prompt += `|-------|---------|--------|----------|-------|\n`;
+      report.product_shortlist.slice(0, 20).forEach(p => {
+        prompt += `| ${p.brand || '-'} | ${p.product_name || '-'} | ${p.market || '-'} | ${p.launch_date || '-'} | ${(p.supporting_trends || []).join(', ') || '-'} |\n`;
+      });
+      prompt += `\n---\n\n`;
+    }
+
+    // Add warnings if any
+    if (report.warnings && report.warnings.length > 0) {
+      prompt += `## Data Coverage Notes\n\n`;
+      report.warnings.forEach(w => {
+        prompt += `⚠ ${w.message || w}\n`;
+      });
+      prompt += `\n---\n\n`;
     }
 
     // Call Gamma API - Create from template
