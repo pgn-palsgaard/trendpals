@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
 Deno.serve(async (req) => {
   try {
@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
     const { report_id } = await req.json();
 
     // Get the report
-    const reports = await base44.entities.Report.filter({ id: report_id });
+    const reports = await base44.asServiceRole.entities.Report.filter({ id: report_id });
     const report = reports[0];
     
     if (!report) {
@@ -20,26 +20,14 @@ Deno.serve(async (req) => {
     }
 
     // Get product images for this project
-    const productImages = await base44.entities.ProductImageRequest.filter({ 
+    const productImages = await base44.asServiceRole.entities.ProductImageRequest.filter({ 
       project_id: report.project_id,
       status: 'uploaded'
     });
 
-    // Get Gamma credentials
-    const GAMMA_API_KEY = Deno.env.get('GAMMA_API_KEY');
-    const GAMMA_TEMPLATE_ID = Deno.env.get('GAMMA_TEMPLATE_ID');
-    
-    if (!GAMMA_API_KEY || !GAMMA_TEMPLATE_ID) {
-      return Response.json({ error: 'Gamma API credentials not configured' }, { status: 500 });
-    }
-
     // Get project for additional context
-    const project = await base44.entities.Project.get(report.project_id);
+    const project = await base44.asServiceRole.entities.Project.get(report.project_id);
     
-    // Note: Sources are not directly used in Gamma generation, but available if needed
-    // The report already contains the processed slide content
-    
-    // Determine subcategories from project category
     const subcategoriesMap = {
       'Ice Cream': 'Dairy based ice cream & frozen yogurt; Plant-based ice cream & frozen yogurt; Water-based lollies/pops/sorbets; Frozen desserts',
       'Bakery': 'Bread; Cakes & pastries; Cookies & biscuits; Other baked goods',
@@ -47,7 +35,7 @@ Deno.serve(async (req) => {
     };
     const subcategories = subcategoriesMap[project.category] || project.category;
 
-    // Build comprehensive prompt for Gamma
+    // Build the prompt (same as before — used as context for Claude)
     let prompt = `Create a comprehensive, visually rich B2B commercial insights PowerPoint presentation for Palsgaard, a food ingredients company.
 
 AUDIENCE: ${project.audience || 'Industrial manufacturers: R&D, Operations, Quality, Procurement, Commercial Leadership'}
@@ -97,9 +85,8 @@ DESIGN PRINCIPLES:
           prompt += `\n`;
         }
 
-        // Add product images - either from slide.product_examples OR from ProductImageRequest
+        // Add product images
         let slideProducts = [];
-        
         if (slide.product_examples && slide.product_examples.length > 0) {
           slideProducts = slide.product_examples;
         } else if (slide.image_placements && slide.image_placements.length > 0) {
@@ -123,7 +110,6 @@ DESIGN PRINCIPLES:
           });
         }
 
-        // Also add product shortlist items for this slide from the report
         if (report.product_shortlist && report.product_shortlist.length > 0) {
           const slideTitle = slide.title || '';
           const relatedProducts = report.product_shortlist.filter(p => 
@@ -167,7 +153,6 @@ DESIGN PRINCIPLES:
       }
     }
 
-    // Add evidence pack as a dedicated slide
     if (report.evidence_pack && report.evidence_pack.length > 0) {
       prompt += `## Evidence & Data Foundation\n\n`;
       prompt += `*Supporting data underpinning this report*\n\n`;
@@ -178,7 +163,6 @@ DESIGN PRINCIPLES:
       prompt += `\n---\n\n`;
     }
 
-    // Add product shortlist as a summary slide
     if (report.product_shortlist && report.product_shortlist.length > 0) {
       prompt += `## Product Launch Overview — ${report.region}\n\n`;
       prompt += `*Recent launches exemplifying these trends*\n\n`;
@@ -190,7 +174,6 @@ DESIGN PRINCIPLES:
       prompt += `\n---\n\n`;
     }
 
-    // Add warnings if any
     if (report.warnings && report.warnings.length > 0) {
       prompt += `## Data Coverage Notes\n\n`;
       report.warnings.forEach(w => {
@@ -199,84 +182,25 @@ DESIGN PRINCIPLES:
       prompt += `\n---\n\n`;
     }
 
-    // Call Gamma API - Create from template
-    const createResponse = await fetch('https://public-api.gamma.app/v1.0/generations/from-template', {
-      method: 'POST',
-      headers: {
-        'X-API-KEY': GAMMA_API_KEY,
-        'Content-Type': 'application/json',
-        'accept': 'application/json'
-      },
-      body: JSON.stringify({
-        gammaId: GAMMA_TEMPLATE_ID,
-        prompt: prompt,
-        exportAs: 'pptx'
-      })
+    // Call Claude via InvokeLLM
+    const claudeResponse = await base44.integrations.Core.InvokeLLM({
+      model: 'claude_sonnet_4_6',
+      prompt: `You are a senior B2B market intelligence specialist at Palsgaard. Based on the following report content, produce a refined, polished, presentation-ready version of this deck in markdown format. Structure it clearly with slides separated by ---. Make the language punchy, insight-driven, and commercially relevant. Do not invent any new facts — only use what is provided. Palsgaard sections must mention capabilities only, no product grades.
+
+${prompt}`,
     });
 
-    if (!createResponse.ok) {
-      const errorText = await createResponse.text();
-      return Response.json({ 
-        error: 'Failed to create Gamma report', 
-        details: errorText,
-        status_code: createResponse.status
-      }, { status: createResponse.status });
-    }
-
-    const createResult = await createResponse.json();
-    const generationId = createResult.generationId;
-
-    // Poll for completion
-    let attempts = 0;
-    const maxAttempts = 120; // 10 minutes max (5 seconds * 120)
-    let generationStatus = 'pending';
-    let gammaUrl = null;
-    let pptxUrl = null;
-
-    while (attempts < maxAttempts && generationStatus !== 'completed' && generationStatus !== 'failed') {
-      await new Promise(resolve => setTimeout(resolve, 5000)); // Wait 5 seconds
-      
-      const statusResponse = await fetch(`https://public-api.gamma.app/v1.0/generations/${generationId}`, {
-        headers: {
-          'X-API-KEY': GAMMA_API_KEY,
-          'accept': 'application/json'
-        }
-      });
-      
-      if (statusResponse.ok) {
-        const statusResult = await statusResponse.json();
-        generationStatus = statusResult.status;
-        
-        if (generationStatus === 'completed') {
-          gammaUrl = statusResult.webUrl;
-          pptxUrl = statusResult.pptxUrl || null;
-        }
-      }
-      
-      attempts++;
-    }
-
-    if (generationStatus !== 'completed') {
-      return Response.json({ 
-        error: 'Gamma report generation timed out or failed',
-        generation_status: generationStatus,
-        generation_id: generationId
-      }, { status: 500 });
-    }
-
-    // Update report with Gamma URLs
-    await base44.entities.Report.update(report_id, {
-      gamma_url: gammaUrl,
-      gamma_pptx_url: pptxUrl,
+    // Store the Claude output as the "gamma_prompt" for audit, and use gamma_url to signal completion
+    await base44.asServiceRole.entities.Report.update(report_id, {
+      gamma_url: 'claude_generated',
       gamma_pdf_url: null,
-      gamma_prompt: prompt
+      gamma_pptx_url: null,
+      gamma_prompt: typeof claudeResponse === 'string' ? claudeResponse : JSON.stringify(claudeResponse)
     });
 
     return Response.json({ 
       success: true,
-      gamma_url: gammaUrl,
-      pptx_url: pptxUrl,
-      pdf_url: null
+      output: typeof claudeResponse === 'string' ? claudeResponse : JSON.stringify(claudeResponse)
     });
 
   } catch (error) {

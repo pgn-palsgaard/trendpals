@@ -12,7 +12,7 @@ import DownloadReportButton from '@/components/project/DownloadReportButton';
 
 export default function ProjectReport({ project, reports, trendCandidates }) {
   const queryClient = useQueryClient();
-  const [generatingGamma, setGeneratingGamma] = useState(false);
+  const [generatingClaude, setGeneratingClaude] = useState(false);
   const [publishing, setPublishing] = useState(false);
 
   const selectedTrends = trendCandidates.filter(t => t.is_selected);
@@ -37,7 +37,7 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
 
   const generateGammaMutation = useMutation({
     mutationFn: async (reportId) => {
-      setGeneratingGamma(true);
+      setGeneratingClaude(true);
       const response = await base44.functions.invoke('generateGammaReport', {
         report_id: reportId
       });
@@ -45,12 +45,12 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
-      toast.success('Gamma deck created');
-      setGeneratingGamma(false);
+      toast.success('Claude deck created');
+      setGeneratingClaude(false);
     },
     onError: (error) => {
-      toast.error(error.message || 'Failed to create Gamma deck');
-      setGeneratingGamma(false);
+      toast.error(error.message || 'Failed to create Claude deck');
+      setGeneratingClaude(false);
     }
   });
 
@@ -203,50 +203,44 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
               </div>
             </div>
 
-            {/* Gamma Integration */}
+            {/* Claude Deck */}
             <div className="border-t pt-6">
-              <h3 className="font-semibold text-slate-900 mb-4">Gamma Deck</h3>
+              <h3 className="font-semibold text-slate-900 mb-4">Claude Deck</h3>
               {!latestReport.gamma_url ? (
                 <div className="text-center py-6 bg-purple-50 rounded-lg border border-purple-200">
                   <Sparkles className="w-10 h-10 mx-auto mb-3 text-purple-500" />
-                  <p className="text-slate-700 mb-4">Create a beautiful Gamma presentation</p>
+                  <p className="text-slate-700 mb-4">Refine this report with Claude AI</p>
                   <Button
                     onClick={() => generateGammaMutation.mutate(latestReport.id)}
-                    disabled={generatingGamma}
+                    disabled={generatingClaude}
                     className="bg-purple-600 hover:bg-purple-700"
                   >
-                    {generatingGamma ? (
+                    {generatingClaude ? (
                       <>
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Creating Gamma Deck...
+                        Generating with Claude...
                       </>
                     ) : (
                       <>
                         <Sparkles className="w-4 h-4 mr-2" />
-                        Create Gamma Deck
+                        Generate with Claude
                       </>
                     )}
                   </Button>
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <a 
-                    href={latestReport.gamma_url} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-4 bg-slate-50 rounded-lg hover:bg-slate-100 transition-colors"
-                  >
+                  <div className="flex items-center justify-between p-4 bg-slate-50 rounded-lg">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                        <ExternalLink className="w-5 h-5 text-purple-600" />
+                        <Sparkles className="w-5 h-5 text-purple-600" />
                       </div>
                       <div>
-                        <p className="font-medium text-slate-900">View in Gamma</p>
-                        <p className="text-sm text-slate-600">Open presentation</p>
+                        <p className="font-medium text-slate-900">Claude Deck Generated</p>
+                        <p className="text-sm text-slate-600">Stored in report as gamma_prompt</p>
                       </div>
                     </div>
-                    <ExternalLink className="w-5 h-5 text-slate-400" />
-                  </a>
+                  </div>
 
                   {latestReport.gamma_pptx_url && (
                     <a 
