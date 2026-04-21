@@ -261,10 +261,10 @@ Deno.serve(async (req) => {
       }
     });
 
-    // Determine freshness
+    // Determine freshness — use date_published if available, otherwise upload date
     const oldestSourceDate = sources
-      .filter(s => s.date)
-      .map(s => new Date(s.date))
+      .filter(s => s.date_published || s.date)
+      .map(s => new Date(s.date_published || s.date))
       .sort((a, b) => a - b)[0];
     
     let freshness = 'fresh';
