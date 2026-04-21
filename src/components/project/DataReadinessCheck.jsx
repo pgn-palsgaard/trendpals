@@ -14,7 +14,12 @@ export default function DataReadinessCheck({ project, sources }) {
   const totalGnpdProducts = sources.reduce((sum, s) => sum + (s.gnpd_data?.length || 0), 0);
   const totalImages = sources.reduce((sum, s) => sum + (s.gnpd_data?.filter(p => p.has_image).length || 0), 0);
 
-  const score = project.data_sufficiency_score || 0;
+  // Compute score locally from actual sources (don't rely on stored project.data_sufficiency_score)
+  const mintelScore = Math.min(30, mintelSources.length * 15);
+  const gnpdScore = Math.min(40, Math.floor((totalGnpdProducts / 50) * 40));
+  const excerptScore = Math.min(15, Math.floor((totalExcerpts / 20) * 15));
+  const imageScore = Math.min(15, Math.floor((totalImages / 10) * 15));
+  const score = mintelScore + gnpdScore + excerptScore + imageScore;
 
   // Determine status
   const getStatus = () => {
@@ -160,19 +165,19 @@ export default function DataReadinessCheck({ project, sources }) {
               <div className="space-y-1 text-xs text-slate-600">
                 <div className="flex justify-between">
                   <span>Mintel reports:</span>
-                  <span className="font-medium">{Math.min(30, mintelSources.length * 15)}%</span>
+                  <span className="font-medium">{mintelScore}%</span>
                 </div>
                 <div className="flex justify-between">
                   <span>GNPD products:</span>
-                  <span className="font-medium">{Math.min(40, Math.floor((totalGnpdProducts / 50) * 40))}%</span>
+                  <span className="font-medium">{gnpdScore}%</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Text excerpts:</span>
-                  <span className="font-medium">{Math.min(15, Math.floor((totalExcerpts / 20) * 15))}%</span>
+                  <span className="font-medium">{excerptScore}%</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Product images:</span>
-                  <span className="font-medium">{Math.min(15, Math.floor((totalImages / 10) * 15))}%</span>
+                  <span className="font-medium">{imageScore}%</span>
                 </div>
               </div>
             </div>
