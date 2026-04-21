@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -25,8 +25,9 @@ import { createPageUrl } from "@/utils";
 import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import { getAllRegionCodes } from "@/components/RegionsTaxonomy";
+import ImportFromEmailModal from "@/components/project/ImportFromEmailModal";
 
 const formSchema = z.object({
   name: z.string().min(1, { message: "Project name is required" }),
@@ -61,7 +62,16 @@ const customerPrioritiesOptions = ["cost", "clean label", "sustainability", "tex
 
 export default function NewProject() {
   const navigate = useNavigate();
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+
+  const handleEmailImport = (extracted) => {
+    Object.entries(extracted).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        form.setValue(key, value, { shouldValidate: true });
+      }
+    });
+  };
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -112,10 +122,29 @@ export default function NewProject() {
         </Button>
 
         <div className="bg-white rounded-xl shadow-sm border p-8">
-          <h1 className="text-3xl font-bold mb-2">Create New Project</h1>
-          <p className="text-slate-600 mb-8">
-            Define the scope and brief clearly — the more context you provide, the more targeted the AI-generated trends will be.
-          </p>
+          <div className="flex items-start justify-between mb-8">
+            <div>
+              <h1 className="text-3xl font-bold mb-2">Create New Project</h1>
+              <p className="text-slate-600">
+                Define the scope and brief clearly — the more context you provide, the more targeted the AI-generated trends will be.
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setShowEmailModal(true)}
+              className="shrink-0 ml-4 border-blue-300 text-blue-700 hover:bg-blue-50"
+            >
+              <Mail className="w-4 h-4 mr-2" />
+              Import from Email
+            </Button>
+          </div>
+
+          <ImportFromEmailModal
+            open={showEmailModal}
+            onClose={() => setShowEmailModal(false)}
+            onImport={handleEmailImport}
+          />
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
