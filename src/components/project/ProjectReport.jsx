@@ -196,7 +196,10 @@ ${report.gamma_prompt || ''}`;
                   latestReport.freshness === 'use_with_caution' ? 'bg-yellow-100 text-yellow-700' :
                   'bg-red-100 text-red-700'
                 }>
-                  {latestReport.freshness}
+                  {latestReport.freshness === 'fresh' ? 'Fresh' :
+                   latestReport.freshness === 'use_with_caution' ? 'Use with caution' :
+                   latestReport.freshness === 'outdated' ? 'Outdated' :
+                   latestReport.freshness || 'Unknown'}
                 </Badge>
                 <Badge variant="outline">v{latestReport.version}</Badge>
               </div>
