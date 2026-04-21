@@ -4,7 +4,7 @@ import { Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 
-export default function DownloadReportButton({ report, variant = "outline", size = "default" }) {
+export default function DownloadReportButton({ report, project, variant = "outline", size = "default" }) {
   const [downloading, setDownloading] = useState(false);
 
   const handleDownload = async () => {
@@ -178,7 +178,8 @@ export default function DownloadReportButton({ report, variant = "outline", size
         });
       }
 
-      const filename = `${(report.title || 'report').replace(/[^a-z0-9]/gi, '_')}_v${report.version || 1}.pdf`;
+      const projectName = project?.name || report.title || 'report';
+      const filename = `${projectName.replace(/[^a-z0-9]/gi, '_')}_v${report.version || 1}.pdf`;
       doc.save(filename);
       toast.success('Report downloaded');
     } catch (err) {

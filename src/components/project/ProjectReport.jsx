@@ -86,9 +86,9 @@ ${report.gamma_prompt || ''}`;
       queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
       queryClient.invalidateQueries({ queryKey: ['project', project.id] });
       if (data.warnings && data.warnings.length > 0) {
-        toast.success('Report published with warnings');
+        toast.success(`"${project.name}" published with ${data.warnings_count} warning(s)`, { duration: 5000 });
       } else {
-        toast.success('Report published successfully');
+        toast.success(`"${project.name}" published successfully! The report is now in the library.`, { duration: 5000 });
       }
       setPublishing(false);
     },
@@ -356,7 +356,7 @@ ${report.gamma_prompt || ''}`;
                 </Button>
               </Link>
               <div className="flex-1">
-                <DownloadReportButton report={latestReport} variant="outline" />
+                <DownloadReportButton report={latestReport} project={project} variant="outline" />
               </div>
             </div>
 
