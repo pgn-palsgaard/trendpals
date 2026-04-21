@@ -25,7 +25,7 @@ const COLUMN_SYNONYMS = {
   price_usd: ['price in us dollars', 'price (usd)', 'price usd', 'usd price'],
   price_eur: ['price in euros', 'price (eur)', 'price eur', 'eur price'],
   product_variants: ['product variants', 'variants', 'product_variants'],
-  record_hyperlink: ['record hyperlink', 'record_hyperlink', 'hyperlink', 'url', 'link']
+  record_hyperlink: ['record hyperlink', 'record_hyperlink', 'hyperlink', 'url', 'link', 'record hyperlink']
 };
 
 function detectColumnMapping(columns) {
@@ -43,75 +43,66 @@ function detectColumnMapping(columns) {
   return mappings;
 }
 
-// Parse an HTML table into rows (array of objects)
-function parseHtmlTable(html) {
-  // Extract first <table>
-  const tableMatch = html.match(/<table[\s\S]*?<\/table>/i);
-  if (!tableMatch) return { headers: [], rows: [] };
+function stripHtml(str) {
+  return str.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#[0-9]+;/g, '').replace(/&[a-z]+;/g, '').trim();
+}
 
-  const tableHtml = tableMatch[0];
-
-  // Extract header row from <thead> or first <tr>
-  const theadMatch = tableHtml.match(/<thead[\s\S]*?<\/thead>/i);
-  let headerRow = '';
-  if (theadMatch) {
-    const trMatch = theadMatch[0].match(/<tr[\s\S]*?<\/tr>/i);
-    headerRow = trMatch ? trMatch[0] : '';
-  } else {
-    const trMatch = tableHtml.match(/<tr[\s\S]*?<\/tr>/i);
-    headerRow = trMatch ? trMatch[0] : '';
-  }
-
-  const cellRegex = /<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi;
-  const rawHeaders = [];
-  let m;
-  while ((m = cellRegex.exec(headerRow)) !== null) {
-    rawHeaders.push(m[1].replace(/<[^>]+>/g, '').trim());
-  }
-
-  if (rawHeaders.length === 0) return { headers: [], rows: [] };
-
-  // Make headers unique
-  const seenHeaders = {};
-  const headers = rawHeaders.map(h => {
-    if (!seenHeaders[h]) {
-      seenHeaders[h] = 1;
-      return h;
-    } else {
-      const idx = ++seenHeaders[h];
-      return `${h}__${idx}`;
-    }
-  });
-
-  // Extract body rows
-  const tbodyMatch = tableHtml.match(/<tbody[\s\S]*?<\/tbody>/i);
-  const bodyHtml = tbodyMatch ? tbodyMatch[0] : tableHtml;
-  const trRegex = /<tr[\s\S]*?<\/tr>/gi;
+// Parse GNPD HTML export format — each product is a <dl> with <dt>/<dd> pairs
+// Extracts record ID from the product URL link
+function parseGNPDHtml(html) {
   const rows = [];
+  const fieldSet = new Set();
 
-  // Skip the first <tr> if there was no thead (it was the header row)
-  let firstTr = true;
-  while ((m = trRegex.exec(bodyHtml)) !== null) {
-    if (!theadMatch && firstTr) {
-      firstTr = false;
-      continue;
+  // Each product block is wrapped in a <dl>...</dl>
+  const dlRegex = /<dl>([\s\S]*?)<\/dl>/gi;
+  let m;
+
+  while ((m = dlRegex.exec(html)) !== null) {
+    const dlHtml = m[1];
+    const row = {};
+
+    // Extract product URL and record ID from anchor tag
+    const urlMatch = dlHtml.match(/href="[^"]*\/recordpage\/(\d+)\//i);
+    if (urlMatch) {
+      row['Record ID'] = urlMatch[1];
+      row['Record Hyperlink'] = `http://www.gnpd.com/sinatra/recordpage/${urlMatch[1]}/`;
+      fieldSet.add('Record ID');
+      fieldSet.add('Record Hyperlink');
     }
-    firstTr = false;
-    const trHtml = m[0];
-    const tdRegex = /<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi;
-    const cells = [];
-    let c;
-    while ((c = tdRegex.exec(trHtml)) !== null) {
-      cells.push(c[1].replace(/<[^>]+>/g, '').trim());
+
+    // Extract product name from first <dt> (before any known field label)
+    const firstDtMatch = dlHtml.match(/<dt>([\s\S]*?)<\/dt>/i);
+    if (firstDtMatch) {
+      const name = stripHtml(firstDtMatch[1]);
+      if (name && name !== '&nbsp;' && !['Category','Sub-Category','Date Published','Launch Type','Brand','Market','Product Description','Company','Ultimate Company','Claims','Flavours'].includes(name)) {
+        row['Product'] = name;
+        fieldSet.add('Product');
+      }
     }
-    if (cells.length > 0) {
-      const row = {};
-      headers.forEach((h, i) => {
-        row[h] = cells[i] !== undefined ? cells[i] : '';
-      });
+
+    // Extract all dt/dd pairs
+    const dtddRegex = /<dt>([\s\S]*?)<\/dt>\s*<dd>([\s\S]*?)<\/dd>/gi;
+    let p;
+    while ((p = dtddRegex.exec(dlHtml)) !== null) {
+      const key = stripHtml(p[1]);
+      const val = stripHtml(p[2]);
+      if (key && val && val !== '&nbsp;') {
+        row[key] = val;
+        fieldSet.add(key);
+      }
+    }
+
+    if (Object.keys(row).length > 2) {
       rows.push(row);
     }
   }
+
+  // Build ordered headers: fixed important ones first, then rest
+  const fixedOrder = ['Record ID', 'Product', 'Brand', 'Company', 'Ultimate Company', 'Market', 'Category', 'Sub-Category', 'Date Published', 'Launch Type', 'Product Description', 'Claims', 'Flavours', 'Record Hyperlink'];
+  const headers = [
+    ...fixedOrder.filter(f => fieldSet.has(f)),
+    ...[...fieldSet].filter(f => !fixedOrder.includes(f))
+  ];
 
   return { headers, rows };
 }
@@ -151,10 +142,10 @@ Deno.serve(async (req) => {
       const lowerUrl = (source.file_url || '').toLowerCase();
 
       if (lowerUrl.includes('.html') || lowerUrl.includes('.htm') || contentType.includes('html') || fileText.trim().startsWith('<')) {
-        // HTML table parsing
-        const { headers, rows } = parseHtmlTable(fileText);
+        // GNPD HTML definition-list format parsing
+        const { headers, rows } = parseGNPDHtml(fileText);
         if (rows.length === 0) {
-          throw new Error('Could not extract table data from HTML file');
+          throw new Error('Could not extract product data from GNPD HTML file. Make sure the file is a valid GNPD export.');
         }
         gnpdData = rows;
         availableColumns = headers;
