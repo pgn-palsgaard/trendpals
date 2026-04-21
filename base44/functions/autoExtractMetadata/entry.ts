@@ -141,6 +141,7 @@ RULES:
 7. category: Choose the SINGLE best matching food category from the controlled list.
 8. region_code: Map to the closest canonical region code. If document covers multiple regions, use "Global".
 9. ai_summary: Write a 2-3 sentence summary of what this document covers and its key insights.
+10. notes: Write a concise internal note (1-2 sentences) describing the document's focus, scope, and relevance for a food ingredient company. This goes in the internal notes field.
 
 IMPORTANT: Only return fields you are confident about. Do not guess.`;
 
@@ -164,6 +165,7 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
             region_code: { type: 'string' },
             source_type: { type: 'string', description: 'mintel | gnpd | report | url | knowledge | other' },
             ai_summary: { type: 'string' },
+            notes: { type: 'string' },
             tags: { type: 'array', items: { type: 'string' } }
           }
         }
@@ -181,6 +183,12 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
     }
 
     // ── STEP 3: Build update payload ─────────────────────────────────────────
+    // Normalize: some LLM responses wrap in a "response" key
+    if (llmResult && llmResult.response && typeof llmResult.response === 'object') {
+      Object.assign(llmResult, llmResult.response);
+      delete llmResult.response;
+    }
+
     const updateData = {
       metadata_extraction: {
         status: 'extracted',
@@ -206,16 +214,23 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
       region_code: 'region_code',
       source_type: 'source_type',
       ai_summary: 'ai_summary',
+      notes: 'notes',
       tags: 'tags'
     };
 
     for (const [llmField, sourceField] of Object.entries(fieldMapping)) {
       const value = llmResult[llmField];
-      if (value && value !== '' && (Array.isArray(value) ? value.length > 0 : true)) {
-        // Only overwrite empty fields (don't clobber user-set values)
+      const hasValue = value !== null && value !== undefined && value !== '' &&
+        (Array.isArray(value) ? value.length > 0 : true);
+      if (hasValue) {
+        // Only overwrite if field is empty/missing — don't clobber user-set values
         const currentValue = source[sourceField];
         const isEmpty = currentValue === null || currentValue === undefined || currentValue === '' ||
-          (Array.isArray(currentValue) && currentValue.length === 0);
+          currentValue === 'the-future-of-yogurt-and-chilled-desserts-2026 (1).pdf' || // overwrite raw filenames
+          (Array.isArray(currentValue) && currentValue.length === 0) ||
+          (typeof currentValue === 'string' && currentValue.endsWith('.pdf')) || // overwrite raw filenames
+          (typeof currentValue === 'string' && currentValue.endsWith('.xlsx')) ||
+          (typeof currentValue === 'string' && currentValue.endsWith('.html'));
         if (isEmpty) {
           updateData[sourceField] = value;
         }
