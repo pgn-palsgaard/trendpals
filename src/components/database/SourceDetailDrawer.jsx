@@ -17,7 +17,7 @@ export default function SourceDetailDrawer({ source, linkedProjects, onClose }) 
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('preview');
   const [editMode, setEditMode] = useState(false);
-  const [editData, setEditData] = useState(source);
+  const [editData, setEditData] = useState({ ...source, region_code: source.region_code || source.region || '' });
   const [user, setUser] = useState(null);
 
   useEffect(() => {
@@ -27,10 +27,12 @@ export default function SourceDetailDrawer({ source, linkedProjects, onClose }) 
   const updateSourceMutation = useMutation({
     mutationFn: async (data) => {
       await base44.entities.Source.update(source.id, data);
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
       toast.success('Source updated ✓');
+      setEditData(prev => ({ ...prev, ...variables }));
       setEditMode(false);
     },
     onError: () => {
@@ -187,7 +189,7 @@ export default function SourceDetailDrawer({ source, linkedProjects, onClose }) 
                 </div>
                 <div>
                   <span className="text-slate-600">Region:</span>
-                  <span className="ml-2 font-medium">{source.region || '-'}</span>
+                  <span className="ml-2 font-medium">{source.region_code || source.region || '-'}</span>
                 </div>
                 <div>
                   <span className="text-slate-600">Category:</span>
@@ -385,36 +387,36 @@ export default function SourceDetailDrawer({ source, linkedProjects, onClose }) 
                 <div className="space-y-3 text-sm">
                   <div>
                     <span className="text-slate-600 block mb-1">Title</span>
-                    <span className="font-medium">{source.title}</span>
+                    <span className="font-medium">{editData.title}</span>
                   </div>
                   <div>
                     <span className="text-slate-600 block mb-1">Type</span>
-                    <span className="font-medium capitalize">{source.source_type}</span>
+                    <span className="font-medium capitalize">{editData.source_type}</span>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <span className="text-slate-600 block mb-1">Region</span>
-                      <span className="font-medium">{source.region || '-'}</span>
+                      <span className="font-medium">{editData.region_code || editData.region || '-'}</span>
                     </div>
                     <div>
                       <span className="text-slate-600 block mb-1">Category</span>
-                      <span className="font-medium">{source.category || '-'}</span>
+                      <span className="font-medium">{editData.category || '-'}</span>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <span className="text-slate-600 block mb-1">Trust Tier</span>
-                      <span className="font-medium capitalize">{source.trust_tier || 'medium'}</span>
+                      <span className="font-medium capitalize">{editData.trust_tier || 'medium'}</span>
                     </div>
                     <div>
                       <span className="text-slate-600 block mb-1">Usage Permission</span>
-                      <span className="font-medium capitalize">{source.usage_permission || 'evidence'}</span>
+                      <span className="font-medium capitalize">{editData.usage_permission || 'evidence'}</span>
                     </div>
                   </div>
-                  {source.notes && (
+                  {editData.notes && (
                     <div>
                       <span className="text-slate-600 block mb-1">Notes</span>
-                      <p className="text-slate-900">{source.notes}</p>
+                      <p className="text-slate-900">{editData.notes}</p>
                     </div>
                   )}
                 </div>
