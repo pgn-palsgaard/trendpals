@@ -94,8 +94,8 @@ export default function SourceTable({ sources, selectedIds, onSelectAll, onSelec
                   </div>
                 </td>
                 <td className="px-4 py-3">
-                  {source.region ? (
-                    <Badge variant="outline" className="text-xs">{source.region}</Badge>
+                  {source.region_code || source.region ? (
+                    <Badge variant="outline" className="text-xs">{source.region_code || source.region}</Badge>
                   ) : (
                     <span className="text-slate-400 text-sm">-</span>
                   )}
