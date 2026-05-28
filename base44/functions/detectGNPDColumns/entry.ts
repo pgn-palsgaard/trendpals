@@ -261,15 +261,18 @@ Deno.serve(async (req) => {
     let availableColumns = [];
     let gnpdData = source.gnpd_data || [];
 
-    // If no GNPD data exists yet, parse from file
-    if (!gnpdData.length && source.file_url) {
+    // Always re-parse HTML files from source (cached data may be from a failed xlsx parse)
+    const lowerUrl = (source.file_url || '').toLowerCase();
+    const isHtmlFile = lowerUrl.includes('.html') || lowerUrl.includes('.htm');
+
+    if (source.file_url && (isHtmlFile || !gnpdData.length)) {
       const fileResponse = await fetch(source.file_url);
       const contentType = fileResponse.headers.get('content-type') || '';
       const fileText = await fileResponse.text();
-      const lowerUrl = (source.file_url || '').toLowerCase();
+      const isHtml = isHtmlFile || contentType.includes('html') || fileText.trim().startsWith('<');
 
-      if (lowerUrl.includes('.html') || lowerUrl.includes('.htm') || contentType.includes('html') || fileText.trim().startsWith('<')) {
-        // GNPD HTML definition-list format parsing
+      if (isHtml) {
+        // GNPD HTML format parsing (detail-page or dl/dt/dd)
         const { headers, rows } = parseGNPDHtml(fileText);
         if (rows.length === 0) {
           throw new Error('Could not extract product data from GNPD HTML file. Make sure the file is a valid GNPD export.');
@@ -327,7 +330,12 @@ Deno.serve(async (req) => {
 
     // Auto-detect column mappings
     const detectedMappings = detectColumnMapping(availableColumns);
-    const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'category', 'sub_category'];
+    // category is optional for HTML format (which has sub_category but not always top-level category)
+    const requiredFields = ['record_id', 'product_name', 'market', 'date_published', 'sub_category'];
+    // If category is missing but sub_category is present, use sub_category as category fallback
+    if (!detectedMappings.category && detectedMappings.sub_category) {
+      detectedMappings.category = detectedMappings.sub_category;
+    }
     const requiredMappingsComplete = requiredFields.every(f => detectedMappings[f]);
     const missingFields = requiredFields.filter(f => !detectedMappings[f]);
 
