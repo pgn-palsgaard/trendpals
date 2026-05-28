@@ -51,7 +51,7 @@ export default function BulkEditPanel({ selectedSources, onClose }) {
       for (const source of selectedSources) {
         const updates = {};
         
-        if (changesData.region) updates.region = changesData.region;
+        if (changesData.region) { updates.region_code = changesData.region; updates.region = changesData.region; }
         if (changesData.category) updates.category = changesData.category;
         if (changesData.subcategory) updates.subcategory = changesData.subcategory;
         if (changesData.date) updates.date = changesData.date;
@@ -239,9 +239,10 @@ export default function BulkEditPanel({ selectedSources, onClose }) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="_none">No change</SelectItem>
-              <SelectItem value="EMEA">EMEA</SelectItem>
-              <SelectItem value="APAC">APAC</SelectItem>
-              <SelectItem value="Americas">Americas</SelectItem>
+              <SelectItem value="ASPAC">ASPAC</SelectItem>
+              <SelectItem value="AMERICAS">AMERICAS</SelectItem>
+              <SelectItem value="EMEC">EMEC</SelectItem>
+              <SelectItem value="IMEA">IMEA (India, Middle East & Africa)</SelectItem>
               <SelectItem value="Global">Global</SelectItem>
             </SelectContent>
           </Select>

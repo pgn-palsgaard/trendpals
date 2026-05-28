@@ -283,16 +283,17 @@ export default function SourceDetailDrawer({ source, linkedProjects, onClose }) 
                   <div className="space-y-2">
                     <Label>Region</Label>
                     <Select
-                      value={editData.region || ''}
-                      onValueChange={(value) => setEditData({ ...editData, region: value })}
+                      value={editData.region_code || editData.region || ''}
+                      onValueChange={(value) => setEditData({ ...editData, region_code: value, region: value })}
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="Select..." />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="EMEA">EMEA</SelectItem>
-                        <SelectItem value="APAC">APAC</SelectItem>
-                        <SelectItem value="Americas">Americas</SelectItem>
+                        <SelectItem value="ASPAC">ASPAC</SelectItem>
+                        <SelectItem value="AMERICAS">AMERICAS</SelectItem>
+                        <SelectItem value="EMEC">EMEC</SelectItem>
+                        <SelectItem value="IMEA">IMEA (India, Middle East & Africa)</SelectItem>
                         <SelectItem value="Global">Global</SelectItem>
                       </SelectContent>
                     </Select>
