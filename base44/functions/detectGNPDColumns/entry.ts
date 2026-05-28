@@ -5,7 +5,7 @@ const COLUMN_SYNONYMS = {
   record_id: ['record id', 'recordid', 'record_id', 'id', 'gnpd id', 'product id'],
   date_published: ['date published', 'datepublished', 'date_published', 'launch date', 'launchdate', 'date'],
   market: ['market', 'country', 'market country', 'launch country'],
-  product_name: ['product', 'product name', 'productname', 'product_name', 'name'],
+  product_name: ['product', 'product name', 'productname', 'product_name', 'name', 'product title'],
   category: ['category', 'main category', 'product category'],
   sub_category: ['sub-category', 'sub category', 'subcategory', 'sub_category'],
   brand: ['brand', 'brand name', 'brandname'],
@@ -47,13 +47,147 @@ function stripHtml(str) {
   return str.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#[0-9]+;/g, '').replace(/&[a-z]+;/g, '').trim();
 }
 
-// Parse GNPD HTML export format — each product is a <dl> with <dt>/<dd> pairs
-// Extracts record ID from the product URL link
+// Parse GNPD HTML export format.
+// Supports two formats:
+//   1. Definition-list format: each product in <dl>...<dt>/<dd>...</dl>
+//   2. Mintel detail-page format: each product in <div class="body_panel"> with <table> th/td pairs
 function parseGNPDHtml(html) {
   const rows = [];
   const fieldSet = new Set();
 
-  // Each product block is wrapped in a <dl>...</dl>
+  // --- FORMAT 2: Mintel detail-page format (body_panel divs with table th/td pairs) ---
+  // Detect by checking for the characteristic hidden input + body_panel structure
+  const isDetailPageFormat = html.includes('body_panel') || html.includes('detailed_packaging_table');
+
+  if (isDetailPageFormat) {
+    // Split on product panel boundaries
+    // Each product starts at <div id="Product_id_XXXXXX"
+    const productBlockRegex = /<div[^>]+id="Product_id_(\d+)"[^>]*>([\s\S]*?)(?=<div[^>]+id="Product_id_\d+"|$)/gi;
+    let m;
+
+    while ((m = productBlockRegex.exec(html)) !== null) {
+      const productId = m[1];
+      const blockHtml = m[2];
+      const row = {};
+
+      row['Record ID'] = productId;
+      row['Record Hyperlink'] = `https://www.gnpd.com/sinatra/recordpage/${productId}`;
+      fieldSet.add('Record ID');
+      fieldSet.add('Record Hyperlink');
+
+      // Extract product name from <h1>
+      const h1Match = blockHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+      if (h1Match) {
+        row['Product'] = stripHtml(h1Match[1]);
+        fieldSet.add('Product');
+      }
+
+      // Extract all th/td pairs from tables
+      const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      let tr;
+      while ((tr = trRegex.exec(blockHtml)) !== null) {
+        const trHtml = tr[1];
+        // Match <th>label</th><td>value</td>
+        const thMatch = trHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
+        const tdMatch = trHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/i);
+        if (thMatch && tdMatch) {
+          const key = stripHtml(thMatch[1]);
+          const val = stripHtml(tdMatch[1]);
+          if (key && val && val.trim() !== '' && val !== '&nbsp;') {
+            // Special handling for Date Published: extract "Month Year" from <monthname> tags or text
+            if (key === 'Date Published') {
+              // Try to extract month + year text
+              const monthMatch = tdMatch[1].match(/<monthname[^>]*>([^<]+)<\/monthname>\s*(\d{4})/i);
+              if (monthMatch) {
+                row[key] = `${monthMatch[1]} ${monthMatch[2]}`;
+              } else {
+                row[key] = val;
+              }
+            } else {
+              row[key] = val;
+            }
+            fieldSet.add(key);
+          }
+        }
+      }
+
+      // Extract Product Description text block
+      const descMatch = blockHtml.match(/id="product_description_body"[^>]*>([\s\S]*?)<\/div>/i);
+      if (descMatch) {
+        const desc = stripHtml(descMatch[1]);
+        if (desc) {
+          row['Product Description'] = desc;
+          fieldSet.add('Product Description');
+        }
+      }
+
+      if (Object.keys(row).length > 2) {
+        rows.push(row);
+      }
+    }
+
+    // Fallback: if the product block regex didn't match (single product page),
+    // try extracting from the whole document
+    if (rows.length === 0) {
+      const row = {};
+
+      // Record ID from hidden input
+      const hiddenIdMatch = html.match(/id="item_id"\s+value="(\d+)"/i);
+      if (hiddenIdMatch) {
+        row['Record ID'] = hiddenIdMatch[1];
+        row['Record Hyperlink'] = `https://www.gnpd.com/sinatra/recordpage/${hiddenIdMatch[1]}`;
+        fieldSet.add('Record ID');
+        fieldSet.add('Record Hyperlink');
+      }
+
+      // Product name from h1
+      const h1Match = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+      if (h1Match) {
+        row['Product'] = stripHtml(h1Match[1]);
+        fieldSet.add('Product');
+      }
+
+      // Extract all th/td pairs
+      const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+      let tr;
+      while ((tr = trRegex.exec(html)) !== null) {
+        const trHtml = tr[1];
+        const thMatch = trHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
+        const tdMatch = trHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/i);
+        if (thMatch && tdMatch) {
+          const key = stripHtml(thMatch[1]);
+          const val = stripHtml(tdMatch[1]);
+          if (key && val && val.trim() !== '' && val !== '&nbsp;') {
+            if (key === 'Date Published') {
+              const monthMatch = tdMatch[1].match(/<monthname[^>]*>([^<]+)<\/monthname>\s*(\d{4})/i);
+              row[key] = monthMatch ? `${monthMatch[1]} ${monthMatch[2]}` : val;
+            } else {
+              row[key] = val;
+            }
+            fieldSet.add(key);
+          }
+        }
+      }
+
+      // Product description
+      const descMatch = html.match(/id="product_description_body"[^>]*>([\s\S]*?)<\/div>/i);
+      if (descMatch) {
+        const desc = stripHtml(descMatch[1]);
+        if (desc) { row['Product Description'] = desc; fieldSet.add('Product Description'); }
+      }
+
+      if (Object.keys(row).length > 2) rows.push(row);
+    }
+
+    const fixedOrder = ['Record ID', 'Product', 'Brand', 'Company', 'Ultimate Company', 'Market', 'Category', 'Sub-Category', 'Date Published', 'Launch Type', 'Product Description', 'Claims', 'Flavours', 'Record Hyperlink'];
+    const headers = [
+      ...fixedOrder.filter(f => fieldSet.has(f)),
+      ...[...fieldSet].filter(f => !fixedOrder.includes(f))
+    ];
+    return { headers, rows };
+  }
+
+  // --- FORMAT 1: Definition-list format (<dl>/<dt>/<dd>) ---
   const dlRegex = /<dl>([\s\S]*?)<\/dl>/gi;
   let m;
 
@@ -61,7 +195,6 @@ function parseGNPDHtml(html) {
     const dlHtml = m[1];
     const row = {};
 
-    // Extract product URL and record ID from anchor tag
     const urlMatch = dlHtml.match(/href="[^"]*\/recordpage\/(\d+)\//i);
     if (urlMatch) {
       row['Record ID'] = urlMatch[1];
@@ -70,7 +203,6 @@ function parseGNPDHtml(html) {
       fieldSet.add('Record Hyperlink');
     }
 
-    // Extract product name from first <dt> (before any known field label)
     const firstDtMatch = dlHtml.match(/<dt>([\s\S]*?)<\/dt>/i);
     if (firstDtMatch) {
       const name = stripHtml(firstDtMatch[1]);
@@ -80,7 +212,6 @@ function parseGNPDHtml(html) {
       }
     }
 
-    // Extract all dt/dd pairs
     const dtddRegex = /<dt>([\s\S]*?)<\/dt>\s*<dd>([\s\S]*?)<\/dd>/gi;
     let p;
     while ((p = dtddRegex.exec(dlHtml)) !== null) {
@@ -92,18 +223,14 @@ function parseGNPDHtml(html) {
       }
     }
 
-    if (Object.keys(row).length > 2) {
-      rows.push(row);
-    }
+    if (Object.keys(row).length > 2) rows.push(row);
   }
 
-  // Build ordered headers: fixed important ones first, then rest
   const fixedOrder = ['Record ID', 'Product', 'Brand', 'Company', 'Ultimate Company', 'Market', 'Category', 'Sub-Category', 'Date Published', 'Launch Type', 'Product Description', 'Claims', 'Flavours', 'Record Hyperlink'];
   const headers = [
     ...fixedOrder.filter(f => fieldSet.has(f)),
     ...[...fieldSet].filter(f => !fixedOrder.includes(f))
   ];
-
   return { headers, rows };
 }
 

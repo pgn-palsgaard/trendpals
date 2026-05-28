@@ -143,10 +143,132 @@ Deno.serve(async (req) => {
         // Process GNPD file
         const fileResponse = await fetch(file_url);
         const fileContent = await fileResponse.text();
+        const lowerUrl = (file_url || '').toLowerCase();
+        const isHtmlFile = lowerUrl.includes('.html') || lowerUrl.includes('.htm') || fileContent.trim().startsWith('<');
 
         let gnpd_data = [];
         let gnpd_headers = [];
 
+        // --- HTML FORMAT: Mintel detail-page or dl/dt/dd export ---
+        if (isHtmlFile) {
+          const { parsed } = await (async () => {
+            function stripHtml(str) {
+              return str.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#\d+;/g, '').replace(/&[a-z]+;/g, '').trim();
+            }
+
+            const rows = [];
+            const fieldSet = new Set();
+            const isDetailPage = fileContent.includes('body_panel') || fileContent.includes('detailed_packaging_table');
+
+            if (isDetailPage) {
+              // Multi-product detail pages: split on Product_id_ div boundaries
+              const productBlockRegex = /<div[^>]+id="Product_id_(\d+)"[^>]*>([\s\S]*?)(?=<div[^>]+id="Product_id_\d+"|$)/gi;
+              let m;
+              while ((m = productBlockRegex.exec(fileContent)) !== null) {
+                const productId = m[1];
+                const blockHtml = m[2];
+                const row = {};
+                row['Record ID'] = productId;
+                row['Record Hyperlink'] = `https://www.gnpd.com/sinatra/recordpage/${productId}`;
+                fieldSet.add('Record ID'); fieldSet.add('Record Hyperlink');
+
+                const h1Match = blockHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                if (h1Match) { row['Product'] = stripHtml(h1Match[1]); fieldSet.add('Product'); }
+
+                const trRegex2 = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+                let tr;
+                while ((tr = trRegex2.exec(blockHtml)) !== null) {
+                  const trHtml = tr[1];
+                  const thM = trHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
+                  const tdM = trHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/i);
+                  if (thM && tdM) {
+                    const key = stripHtml(thM[1]);
+                    const raw = tdM[1];
+                    const val = key === 'Date Published'
+                      ? (() => { const mm = raw.match(/<monthname[^>]*>([^<]+)<\/monthname>\s*(\d{4})/i); return mm ? `${mm[1]} ${mm[2]}` : stripHtml(raw); })()
+                      : stripHtml(raw);
+                    if (key && val && val.trim()) { row[key] = val; fieldSet.add(key); }
+                  }
+                }
+                const descM = blockHtml.match(/id="product_description_body"[^>]*>([\s\S]*?)<\/div>/i);
+                if (descM) { const d = stripHtml(descM[1]); if (d) { row['Product Description'] = d; fieldSet.add('Product Description'); } }
+                if (Object.keys(row).length > 2) rows.push(row);
+              }
+
+              // Single product page fallback
+              if (rows.length === 0) {
+                const row = {};
+                const hidM = fileContent.match(/id="item_id"\s+value="(\d+)"/i);
+                if (hidM) { row['Record ID'] = hidM[1]; row['Record Hyperlink'] = `https://www.gnpd.com/sinatra/recordpage/${hidM[1]}`; fieldSet.add('Record ID'); fieldSet.add('Record Hyperlink'); }
+                const h1M = fileContent.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+                if (h1M) { row['Product'] = stripHtml(h1M[1]); fieldSet.add('Product'); }
+                const trRe = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+                let tr;
+                while ((tr = trRe.exec(fileContent)) !== null) {
+                  const trHtml = tr[1];
+                  const thM = trHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
+                  const tdM = trHtml.match(/<td[^>]*>([\s\S]*?)<\/td>/i);
+                  if (thM && tdM) {
+                    const key = stripHtml(thM[1]);
+                    const raw = tdM[1];
+                    const val = key === 'Date Published'
+                      ? (() => { const mm = raw.match(/<monthname[^>]*>([^<]+)<\/monthname>\s*(\d{4})/i); return mm ? `${mm[1]} ${mm[2]}` : stripHtml(raw); })()
+                      : stripHtml(raw);
+                    if (key && val && val.trim()) { row[key] = val; fieldSet.add(key); }
+                  }
+                }
+                const descM = fileContent.match(/id="product_description_body"[^>]*>([\s\S]*?)<\/div>/i);
+                if (descM) { const d = stripHtml(descM[1]); if (d) { row['Product Description'] = d; fieldSet.add('Product Description'); } }
+                if (Object.keys(row).length > 2) rows.push(row);
+              }
+            } else {
+              // dl/dt/dd format
+              const dlRegex = /<dl>([\s\S]*?)<\/dl>/gi;
+              let m;
+              while ((m = dlRegex.exec(fileContent)) !== null) {
+                const dlHtml = m[1];
+                const row = {};
+                const urlMatch = dlHtml.match(/href="[^"]*\/recordpage\/(\d+)\//i);
+                if (urlMatch) { row['Record ID'] = urlMatch[1]; row['Record Hyperlink'] = `http://www.gnpd.com/sinatra/recordpage/${urlMatch[1]}/`; fieldSet.add('Record ID'); fieldSet.add('Record Hyperlink'); }
+                const dtddRegex = /<dt>([\s\S]*?)<\/dt>\s*<dd>([\s\S]*?)<\/dd>/gi;
+                let p;
+                while ((p = dtddRegex.exec(dlHtml)) !== null) {
+                  const key = stripHtml(p[1]); const val = stripHtml(p[2]);
+                  if (key && val && val !== '&nbsp;') { row[key] = val; fieldSet.add(key); }
+                }
+                if (Object.keys(row).length > 2) rows.push(row);
+              }
+            }
+
+            const fixedOrder = ['Record ID', 'Product', 'Brand', 'Company', 'Ultimate Company', 'Market', 'Category', 'Sub-Category', 'Date Published', 'Launch Type', 'Product Description', 'Claims', 'Flavours', 'Record Hyperlink'];
+            const headers = [...fixedOrder.filter(f => fieldSet.has(f)), ...[...fieldSet].filter(f => !fixedOrder.includes(f))];
+            return { parsed: { headers, rows } };
+          })();
+
+          gnpd_headers = parsed.headers;
+          gnpd_data = parsed.rows;
+
+          await base44.entities.Source.update(source.id, {
+            gnpd_data,
+            gnpd_headers,
+            gnpd_row_count: gnpd_data.length,
+            gnpd_preview_rows: gnpd_data.slice(0, 20),
+            gnpd_processing_status: gnpd_data.length > 0 ? 'ready' : 'failed',
+            gnpd_processing_error: gnpd_data.length === 0 ? 'Could not extract product rows from HTML' : null,
+            status: gnpd_data.length > 0 ? 'ready' : 'failed',
+            processing_completed_at: new Date().toISOString(),
+            freshness: 'recent'
+          });
+
+          return Response.json({
+            success: true,
+            source_id: source.id,
+            gnpd_count: gnpd_data.length,
+            format: 'html'
+          });
+        }
+
+        // --- EXCEL / CSV FORMAT ---
         // Required GNPD columns
         const requiredColumns = ['Record ID', 'Product name', 'Brand', 'Launch Date', 'Market'];
 
