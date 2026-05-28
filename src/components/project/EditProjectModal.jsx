@@ -46,9 +46,21 @@ export default function EditProjectModal({ project, open, onClose }) {
   });
 
   const mutation = useMutation({
-    mutationFn: (data) => base44.entities.Project.update(project.id, data),
+    mutationFn: async (data) => {
+      await base44.entities.Project.update(project.id, data);
+      // If region changed, also update any draft reports for this project
+      if (data.region_code && data.region_code !== (project.region_code || project.region)) {
+        const reports = await base44.entities.Report.filter({ project_id: project.id });
+        for (const report of reports) {
+          if (report.status === 'draft') {
+            await base44.entities.Report.update(report.id, { region: data.region_code });
+          }
+        }
+      }
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', project.id] });
+      queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
       toast.success('Project updated successfully');
       onClose();
     },
@@ -99,7 +111,11 @@ export default function EditProjectModal({ project, open, onClose }) {
                   <SelectValue placeholder="Select region" />
                 </SelectTrigger>
                 <SelectContent>
-                  {regions.map(reg => <SelectItem key={reg} value={reg}>{reg}</SelectItem>)}
+                  {regions.map(reg => (
+                    <SelectItem key={reg} value={reg}>
+                      {reg === 'IMEA' ? 'IMEA (India, Middle East & Africa)' : reg}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

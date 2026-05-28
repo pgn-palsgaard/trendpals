@@ -146,7 +146,7 @@ export default function ProjectDetail() {
                     {project.category}
                   </span>
                   <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-purple-50 text-purple-700 font-medium border border-purple-200">
-                    {project.region}
+                   {project.region_code || project.region}
                   </span>
                   {project.meeting_context && (
                     <span className="inline-flex items-center px-3 py-1.5 rounded-full bg-slate-50 text-slate-700 border border-slate-200">

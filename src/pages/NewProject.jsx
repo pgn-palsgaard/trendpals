@@ -205,7 +205,9 @@ export default function NewProject() {
                         </FormControl>
                         <SelectContent>
                           {regions.map((reg) => (
-                            <SelectItem key={reg} value={reg}>{reg}</SelectItem>
+                            <SelectItem key={reg} value={reg}>
+                              {reg === 'IMEA' ? 'IMEA (India, Middle East & Africa)' : reg}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
