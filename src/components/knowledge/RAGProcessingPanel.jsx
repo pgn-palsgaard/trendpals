@@ -13,9 +13,11 @@ export default function RAGProcessingPanel({ sources, selectedIds, onRefresh }) 
   const [errors, setErrors] = useState([]);
 
   const processedSources = sources.filter(s => s.excerpts && s.excerpts.length > 0);
-  const unprocessedSources = sources.filter(s =>
-    s.status === 'uploaded' || s.status === 'failed' || !s.excerpts || s.excerpts.length === 0
-  );
+  const unprocessedSources = sources.filter(s => {
+    // Skip permanently unsupported types
+    if (s.status_message && s.status_message.includes('Unsupported file type')) return false;
+    return s.status === 'uploaded' || s.status === 'failed' || !s.excerpts || s.excerpts.length === 0;
+  });
   const processedCount = processedSources.length;
   const totalCount = sources.length;
 

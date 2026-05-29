@@ -33,27 +33,34 @@ Return ONLY a valid JSON object, no markdown, no preamble:
 
 Be specific. Use exact product names and numbers from the document. Do not generalize.`;
 
+// File type detection
+function getFileType(url) {
+  const lower = url.toLowerCase().split('?')[0]; // strip query params
+  if (lower.endsWith('.pdf')) return 'pdf';
+  if (lower.endsWith('.pptx') || lower.endsWith('.ppt')) return 'pptx';
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp') || lower.endsWith('.gif')) return 'image';
+  return 'unsupported';
+}
+
+function getImageMediaType(url) {
+  const lower = url.toLowerCase().split('?')[0];
+  if (lower.endsWith('.png')) return 'image/png';
+  if (lower.endsWith('.webp')) return 'image/webp';
+  if (lower.endsWith('.gif')) return 'image/gif';
+  return 'image/jpeg';
+}
+
+// Extract text from PPTX via JSZip
 async function extractTextFromPptx(fileUrl) {
-  let response;
-  try {
-    response = await fetch(fileUrl);
-  } catch (err) {
-    if (err.message.includes('Failed to fetch') || err.message.includes('CORS')) {
-      throw new Error('CORS error: Cannot fetch file from server. File URL may require authentication.');
-    }
-    throw err;
-  }
-
+  const response = await fetch(fileUrl);
   if (!response.ok) {
-    throw new Error(`Failed to fetch PPTX file: ${response.status} ${response.statusText}`);
+    throw new Error(`Failed to fetch PPTX: ${response.status} ${response.statusText}`);
   }
-
   const arrayBuffer = await response.arrayBuffer();
   const zip = await JSZip.loadAsync(arrayBuffer);
 
-  // Find all slide XML files, sorted by slide number
   const slideFiles = Object.keys(zip.files)
-    .filter(name => name.match(/^ppt\/slides\/slide\d+\.xml$/))
+    .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
     .sort((a, b) => {
       const numA = parseInt(a.match(/\d+/)[0]);
       const numB = parseInt(b.match(/\d+/)[0]);
@@ -61,22 +68,33 @@ async function extractTextFromPptx(fileUrl) {
     });
 
   let fullText = '';
-
   for (let i = 0; i < slideFiles.length; i++) {
     const slideXml = await zip.files[slideFiles[i]].async('text');
-    // Extract text content between <a:t> tags
     const textMatches = slideXml.match(/<a:t[^>]*>([^<]+)<\/a:t>/g) || [];
     const slideText = textMatches
       .map(match => match.replace(/<[^>]+>/g, '').trim())
       .filter(t => t.length > 0)
       .join(' ');
-
     if (slideText.trim()) {
       fullText += `\n[Slide ${i + 1}]\n${slideText}\n`;
     }
   }
-
   return fullText.trim();
+}
+
+// Fetch image and convert to base64 for Claude vision
+async function fetchImageAsBase64(fileUrl) {
+  const response = await fetch(fileUrl);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+  }
+  const arrayBuffer = await response.arrayBuffer();
+  const uint8 = new Uint8Array(arrayBuffer);
+  let binary = '';
+  for (let i = 0; i < uint8.length; i++) {
+    binary += String.fromCharCode(uint8[i]);
+  }
+  return btoa(binary);
 }
 
 Deno.serve(async (req) => {
@@ -110,18 +128,28 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Source has no file_url' }, { status: 400 });
     }
 
+    const fileType = getFileType(source.file_url);
+
+    // Skip unsupported file types gracefully (xlsx, docx, etc.)
+    if (fileType === 'unsupported') {
+      await base44.entities.Source.update(source_id, {
+        status: 'failed',
+        status_message: `Unsupported file type — only PDF, PPTX, and images are supported`
+      });
+      return Response.json({
+        success: false,
+        skipped: true,
+        reason: 'unsupported_file_type'
+      });
+    }
+
     // Mark as processing
-    await base44.entities.Source.update(source_id, { status: 'processing' });
+    await base44.entities.Source.update(source_id, { status: 'processing', status_message: null });
 
     const claudeApiKey = Deno.env.get('ANTHROPIC_API_KEY');
     if (!claudeApiKey) {
       throw new Error('ANTHROPIC_API_KEY secret not set');
     }
-
-    const fileUrl = source.file_url;
-    const lowerUrl = fileUrl.toLowerCase();
-    const isPdf = lowerUrl.includes('.pdf');
-    const isPptx = lowerUrl.includes('.pptx') || lowerUrl.includes('.ppt');
 
     let messageContent;
     let claudeHeaders = {
@@ -130,25 +158,30 @@ Deno.serve(async (req) => {
       'anthropic-version': '2023-06-01'
     };
 
-    if (isPdf) {
-      // PDF: use Claude's native URL source type
+    if (fileType === 'pdf') {
+      // PDF: Claude's native URL source
       claudeHeaders['anthropic-beta'] = 'pdfs-2024-09-25';
       messageContent = [
         {
           type: 'document',
-          source: { type: 'url', url: fileUrl }
+          source: { type: 'url', url: source.file_url }
         },
         {
           type: 'text',
           text: `Extract all Palsgaard capability claims from this document titled: "${source.title}". Return only valid JSON, no markdown fences.`
         }
       ];
-    } else if (isPptx) {
-      // PPTX: extract text via JSZip, send as plain text to Claude
-      const extractedText = await extractTextFromPptx(fileUrl);
+
+    } else if (fileType === 'pptx') {
+      // PPTX: extract text server-side via JSZip
+      const extractedText = await extractTextFromPptx(source.file_url);
 
       if (!extractedText || extractedText.length < 50) {
-        throw new Error('Could not extract text from PPTX — file may be empty or image-only');
+        await base44.entities.Source.update(source_id, {
+          status: 'failed',
+          status_message: 'Could not extract text from PPTX — file may be empty or image-only slides'
+        });
+        return Response.json({ success: false, reason: 'empty_pptx' });
       }
 
       messageContent = [
@@ -157,8 +190,21 @@ Deno.serve(async (req) => {
           text: `Extract all Palsgaard product capability claims from this PowerPoint presentation titled: "${source.title}". Return only valid JSON, no markdown fences.\n\nDOCUMENT CONTENT:\n${extractedText.substring(0, 15000)}`
         }
       ];
-    } else {
-      throw new Error(`Unsupported file type for: ${fileUrl}. Only PDF and PPTX are supported.`);
+
+    } else if (fileType === 'image') {
+      // Image: Claude vision with base64
+      const base64Data = await fetchImageAsBase64(source.file_url);
+      const mediaType = getImageMediaType(source.file_url);
+      messageContent = [
+        {
+          type: 'image',
+          source: { type: 'base64', media_type: mediaType, data: base64Data }
+        },
+        {
+          type: 'text',
+          text: `Extract all Palsgaard product capability claims visible in this image titled: "${source.title}". Return only valid JSON, no markdown fences.`
+        }
+      ];
     }
 
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
@@ -174,11 +220,9 @@ Deno.serve(async (req) => {
 
     if (!claudeResponse.ok) {
       const errText = await claudeResponse.text();
-      await base44.entities.Source.update(source_id, {
-        status: 'failed',
-        status_message: `Claude API error ${claudeResponse.status}: ${errText.substring(0, 300)}`
-      });
-      return Response.json({ error: `Claude API error ${claudeResponse.status}: ${errText}` }, { status: 500 });
+      const msg = `Claude API error ${claudeResponse.status}: ${errText.substring(0, 300)}`;
+      await base44.entities.Source.update(source_id, { status: 'failed', status_message: msg });
+      return Response.json({ error: msg }, { status: 500 });
     }
 
     const claudeData = await claudeResponse.json();
@@ -191,14 +235,11 @@ Deno.serve(async (req) => {
       const jsonText = jsonMatch ? jsonMatch[1] : rawText.trim();
       parsed = JSON.parse(jsonText);
     } catch (_) {
-      await base44.entities.Source.update(source_id, {
-        status: 'failed',
-        status_message: `JSON parse error: ${rawText.substring(0, 200)}`
-      });
+      const msg = `JSON parse error: ${rawText.substring(0, 200)}`;
+      await base44.entities.Source.update(source_id, { status: 'failed', status_message: msg });
       return Response.json({ error: 'JSON parse failed', raw: rawText.substring(0, 200) }, { status: 500 });
     }
 
-    // Update source record with extracted knowledge
     await base44.entities.Source.update(source_id, {
       ai_summary: parsed.ai_summary || null,
       excerpts: parsed.excerpts || [],
@@ -217,7 +258,7 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
-    console.error('processKnowledgeSource error:', error);
+    console.error('processKnowledgeSource error:', error.message);
     if (source_id && base44) {
       try {
         await base44.entities.Source.update(source_id, {
