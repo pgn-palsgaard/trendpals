@@ -132,15 +132,14 @@ Deno.serve(async (req) => {
 
     // Skip unsupported file types gracefully (xlsx, docx, etc.)
     if (fileType === 'unsupported') {
+      const msg = `Unsupported file type — only PDF, PPTX, and images are supported`;
       await base44.entities.Source.update(source_id, {
         status: 'failed',
-        status_message: `Unsupported file type — only PDF, PPTX, and images are supported`
+        status_message: msg,
+        processing_error: msg,
+        rag_processed: false
       });
-      return Response.json({
-        success: false,
-        skipped: true,
-        reason: 'unsupported_file_type'
-      });
+      return Response.json({ success: false, skipped: true, reason: 'unsupported_file_type' });
     }
 
     // Mark as processing
@@ -177,9 +176,12 @@ Deno.serve(async (req) => {
       const extractedText = await extractTextFromPptx(source.file_url);
 
       if (!extractedText || extractedText.length < 50) {
+        const msg = 'Could not extract text from PPTX — file may be empty or image-only slides';
         await base44.entities.Source.update(source_id, {
           status: 'failed',
-          status_message: 'Could not extract text from PPTX — file may be empty or image-only slides'
+          status_message: msg,
+          processing_error: msg,
+          rag_processed: false
         });
         return Response.json({ success: false, reason: 'empty_pptx' });
       }
@@ -221,7 +223,12 @@ Deno.serve(async (req) => {
     if (!claudeResponse.ok) {
       const errText = await claudeResponse.text();
       const msg = `Claude API error ${claudeResponse.status}: ${errText.substring(0, 300)}`;
-      await base44.entities.Source.update(source_id, { status: 'failed', status_message: msg });
+      await base44.entities.Source.update(source_id, {
+        status: 'failed',
+        status_message: msg,
+        processing_error: msg,
+        rag_processed: false
+      });
       return Response.json({ error: msg }, { status: 500 });
     }
 
@@ -236,17 +243,26 @@ Deno.serve(async (req) => {
       parsed = JSON.parse(jsonText);
     } catch (_) {
       const msg = `JSON parse error: ${rawText.substring(0, 200)}`;
-      await base44.entities.Source.update(source_id, { status: 'failed', status_message: msg });
+      await base44.entities.Source.update(source_id, {
+        status: 'failed',
+        status_message: msg,
+        processing_error: msg,
+        rag_processed: false
+      });
       return Response.json({ error: 'JSON parse failed', raw: rawText.substring(0, 200) }, { status: 500 });
     }
 
+    const excerptCount = parsed.excerpts?.length || 0;
     await base44.entities.Source.update(source_id, {
       ai_summary: parsed.ai_summary || null,
       excerpts: parsed.excerpts || [],
       suggested_tags: parsed.suggested_tags || [],
       category: parsed.category || source.category || null,
       status: 'ready',
-      status_message: null,
+      status_message: `RAG complete: ${excerptCount} capability claim${excerptCount !== 1 ? 's' : ''} extracted`,
+      processing_error: null,
+      rag_processed: true,
+      rag_excerpt_count: excerptCount,
       processing_completed_at: new Date().toISOString()
     });
 
@@ -263,7 +279,9 @@ Deno.serve(async (req) => {
       try {
         await base44.entities.Source.update(source_id, {
           status: 'failed',
-          status_message: error.message
+          status_message: 'RAG processing failed: ' + error.message,
+          processing_error: error.message,
+          rag_processed: false
         });
       } catch (_) {}
     }
