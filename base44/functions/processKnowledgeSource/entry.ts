@@ -10,7 +10,7 @@ Extract ALL capability claims from this document. For each claim, identify:
 - Any quantitative data mentioned (percentages, dosage levels, cost savings)
 - Key formulation keywords that would match consumer trend signals (e.g. "plant-based", "clean label", "cost reduction", "texture", "creamy mouthfeel")
 
-Return a JSON object with:
+Return ONLY a valid JSON object, no markdown, no preamble:
 {
   "ai_summary": "2-3 sentence summary of what this document is about and which products/applications it covers",
   "excerpts": [
@@ -34,8 +34,9 @@ Be specific. Use exact product names and numbers from the document. Do not gener
 
 Deno.serve(async (req) => {
   let source_id;
+  let base44;
   try {
-    const base44 = createClientFromRequest(req);
+    base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
 
     if (!user) {
@@ -55,40 +56,22 @@ Deno.serve(async (req) => {
     }
 
     if (!source.file_url) {
+      await base44.entities.Source.update(source_id, {
+        status: 'failed',
+        status_message: 'No file URL'
+      });
       return Response.json({ error: 'Source has no file_url' }, { status: 400 });
     }
 
     // Mark as processing
     await base44.entities.Source.update(source_id, { status: 'processing' });
 
-    // Fetch file as binary and convert to base64
-    const fileResponse = await fetch(source.file_url);
-    if (!fileResponse.ok) {
-      throw new Error(`Failed to fetch file: ${fileResponse.status}`);
-    }
-    const fileBuffer = await fileResponse.arrayBuffer();
-    const uint8 = new Uint8Array(fileBuffer);
-    let binary = '';
-    for (let i = 0; i < uint8.length; i++) {
-      binary += String.fromCharCode(uint8[i]);
-    }
-    const base64Data = btoa(binary);
-
-    // Determine media type
-    const lowerUrl = source.file_url.toLowerCase();
-    let mediaType = 'application/pdf';
-    if (lowerUrl.includes('.pptx') || lowerUrl.includes('.ppt')) {
-      mediaType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-    } else if (lowerUrl.includes('.docx')) {
-      mediaType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    }
-
-    // Call Claude API directly with file as document
     const claudeApiKey = Deno.env.get('ANTHROPIC_API_KEY');
     if (!claudeApiKey) {
       throw new Error('ANTHROPIC_API_KEY secret not set');
     }
 
+    // Use Claude's URL source type — let Claude fetch the document directly
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -108,14 +91,13 @@ Deno.serve(async (req) => {
               {
                 type: 'document',
                 source: {
-                  type: 'base64',
-                  media_type: mediaType,
-                  data: base64Data
+                  type: 'url',
+                  url: source.file_url
                 }
               },
               {
                 type: 'text',
-                text: `Extract all Palsgaard capability claims from this document titled: "${source.title}". Return valid JSON only, no markdown.`
+                text: `Extract all Palsgaard capability claims from this document titled: "${source.title}". Return only valid JSON, no markdown fences.`
               }
             ]
           }
@@ -125,7 +107,11 @@ Deno.serve(async (req) => {
 
     if (!claudeResponse.ok) {
       const errText = await claudeResponse.text();
-      throw new Error(`Claude API error ${claudeResponse.status}: ${errText}`);
+      await base44.entities.Source.update(source_id, {
+        status: 'failed',
+        status_message: `Claude API error ${claudeResponse.status}: ${errText.substring(0, 300)}`
+      });
+      return Response.json({ error: `Claude API error ${claudeResponse.status}: ${errText}` }, { status: 500 });
     }
 
     const claudeData = await claudeResponse.json();
@@ -133,17 +119,26 @@ Deno.serve(async (req) => {
 
     // Parse JSON — strip markdown fences if present
     let parsed;
-    const jsonMatch = rawText.match(/```json\s*([\s\S]*?)```/) || rawText.match(/```\s*([\s\S]*?)```/);
-    const jsonText = jsonMatch ? jsonMatch[1] : rawText.trim();
-    parsed = JSON.parse(jsonText);
+    try {
+      const jsonMatch = rawText.match(/```json\s*([\s\S]*?)```/) || rawText.match(/```\s*([\s\S]*?)```/);
+      const jsonText = jsonMatch ? jsonMatch[1] : rawText.trim();
+      parsed = JSON.parse(jsonText);
+    } catch (parseErr) {
+      await base44.entities.Source.update(source_id, {
+        status: 'failed',
+        status_message: `JSON parse error: ${rawText.substring(0, 200)}`
+      });
+      return Response.json({ error: 'JSON parse failed', raw: rawText.substring(0, 200) }, { status: 500 });
+    }
 
-    // Update source record
+    // Update source record with extracted knowledge
     await base44.entities.Source.update(source_id, {
       ai_summary: parsed.ai_summary || null,
       excerpts: parsed.excerpts || [],
       suggested_tags: parsed.suggested_tags || [],
       category: parsed.category || source.category || null,
       status: 'ready',
+      status_message: null,
       processing_completed_at: new Date().toISOString()
     });
 
@@ -156,9 +151,8 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('processKnowledgeSource error:', error);
-    if (source_id) {
+    if (source_id && base44) {
       try {
-        const base44 = createClientFromRequest(req);
         await base44.entities.Source.update(source_id, {
           status: 'failed',
           status_message: error.message
