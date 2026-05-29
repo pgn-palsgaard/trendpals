@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { FileText, Download, ExternalLink, Loader2, AlertCircle, Sparkles, Clipboard, Check } from 'lucide-react';
+import { FileText, Download, ExternalLink, Loader2, AlertCircle, Sparkles, Clipboard, Check, Upload, Presentation } from 'lucide-react';
 import { toast } from 'sonner';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -15,6 +15,9 @@ export default function ProjectReport({ project, reports, trendCandidates }) {
   const [generatingClaude, setGeneratingClaude] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(null); // 'pptx' | 'pdf' | null
+  const pptxInputRef = useRef(null);
+  const pdfInputRef = useRef(null);
 
   const handleExportToClaude = (report) => {
     const prompt = `Upload the Palsgaard .potx template file, then generate the PowerPoint presentation using the palsgaard-powerpoint skill.
@@ -102,6 +105,23 @@ ${report.gamma_prompt || ''}`;
       setPublishing(false);
     }
   });
+
+  const handleFinalUpload = async (file, type) => {
+    if (!latestReport) return;
+    setUploadingFile(type);
+    const { file_url } = await base44.integrations.Core.UploadFile({ file });
+    const user = await base44.auth.me();
+    const updateData = {
+      final_uploaded_at: new Date().toISOString(),
+      final_uploaded_by: user?.email || ''
+    };
+    if (type === 'pptx') updateData.final_pptx_url = file_url;
+    if (type === 'pdf') updateData.final_pdf_url = file_url;
+    await base44.entities.Report.update(latestReport.id, updateData);
+    queryClient.invalidateQueries({ queryKey: ['reports', project.id] });
+    toast.success(`Final ${type.toUpperCase()} uploaded successfully`);
+    setUploadingFile(null);
+  };
 
   const latestReport = reports.sort((a, b) => b.version - a.version)[0];
 
@@ -361,6 +381,68 @@ ${report.gamma_prompt || ''}`;
               <div className="flex-1">
                 <DownloadReportButton report={latestReport} project={project} variant="outline" />
               </div>
+            </div>
+
+            {/* Upload Final Report */}
+            <div className="border-t pt-6">
+              <h3 className="font-semibold text-slate-900 mb-1">Final Report Files</h3>
+              <p className="text-sm text-slate-500 mb-4">Upload your completed PowerPoint or PDF after finalising the deck.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* PPTX */}
+                <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm text-slate-900">PowerPoint (PPTX)</p>
+                      {latestReport.final_pptx_url ? (
+                        <a href={latestReport.final_pptx_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline truncate block">
+                          Download uploaded file ↗
+                        </a>
+                      ) : (
+                        <p className="text-xs text-slate-400">No file uploaded yet</p>
+                      )}
+                    </div>
+                  </div>
+                  <input ref={pptxInputRef} type="file" accept=".pptx,.ppt" className="hidden"
+                    onChange={e => { if (e.target.files[0]) handleFinalUpload(e.target.files[0], 'pptx'); e.target.value = ''; }} />
+                  <Button size="sm" variant="outline" className="w-full" disabled={uploadingFile === 'pptx'}
+                    onClick={() => pptxInputRef.current?.click()}>
+                    {uploadingFile === 'pptx' ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Uploading...</> : <><Upload className="w-3 h-3 mr-1.5" />{latestReport.final_pptx_url ? 'Replace' : 'Upload'} PPTX</>}
+                  </Button>
+                </div>
+
+                {/* PDF */}
+                <div className="p-4 rounded-lg border border-slate-200 bg-slate-50">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-9 h-9 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-5 h-5 text-red-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm text-slate-900">PDF</p>
+                      {latestReport.final_pdf_url ? (
+                        <a href={latestReport.final_pdf_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline truncate block">
+                          Download uploaded file ↗
+                        </a>
+                      ) : (
+                        <p className="text-xs text-slate-400">No file uploaded yet</p>
+                      )}
+                    </div>
+                  </div>
+                  <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden"
+                    onChange={e => { if (e.target.files[0]) handleFinalUpload(e.target.files[0], 'pdf'); e.target.value = ''; }} />
+                  <Button size="sm" variant="outline" className="w-full" disabled={uploadingFile === 'pdf'}
+                    onClick={() => pdfInputRef.current?.click()}>
+                    {uploadingFile === 'pdf' ? <><Loader2 className="w-3 h-3 mr-1.5 animate-spin" />Uploading...</> : <><Upload className="w-3 h-3 mr-1.5" />{latestReport.final_pdf_url ? 'Replace' : 'Upload'} PDF</>}
+                  </Button>
+                </div>
+              </div>
+              {latestReport.final_uploaded_at && (
+                <p className="text-xs text-slate-400 mt-2">
+                  Last uploaded {new Date(latestReport.final_uploaded_at).toLocaleDateString()} by {latestReport.final_uploaded_by}
+                </p>
+              )}
             </div>
 
             {/* Warnings */}

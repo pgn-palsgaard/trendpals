@@ -1,0 +1,187 @@
+{
+  "name": "Report",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Associated project ID"
+    },
+    "title": {
+      "type": "string",
+      "description": "Report title"
+    },
+    "category": {
+      "type": "string",
+      "description": "Category (copied from project)"
+    },
+    "region": {
+      "type": "string",
+      "description": "Region (copied from project)"
+    },
+    "slides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "slide_number": {
+            "type": "number"
+          },
+          "slide_name": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "subtitle": {
+            "type": "string"
+          },
+          "bullets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "so_what": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "where_palsgaard_supports": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_footer": {
+            "type": "string"
+          },
+          "evidence_links": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "image_placements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "description": "Complete slide deck (5-10 slides)"
+    },
+    "evidence_pack": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "bullet": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string"
+          },
+          "excerpt_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "confidence": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "5-10 evidence bullets"
+    },
+    "product_shortlist": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "12-20 GNPD launches with priorities and mappings"
+    },
+    "image_map": {
+      "type": "object",
+      "description": "Slide-by-slide image placement mapping"
+    },
+    "version": {
+      "type": "number",
+      "default": 1,
+      "description": "Report version number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "draft",
+        "published",
+        "aged"
+      ],
+      "default": "draft"
+    },
+    "freshness": {
+      "type": "string",
+      "enum": [
+        "fresh",
+        "use_with_caution",
+        "outdated"
+      ],
+      "description": "Overall freshness based on source dates"
+    },
+    "selected_trends": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Trend names as tags"
+    },
+    "warnings": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Quality warnings or no-go conditions"
+    },
+    "gamma_url": {
+      "type": "string",
+      "description": "URL to the Gamma report"
+    },
+    "gamma_pptx_url": {
+      "type": "string",
+      "description": "URL to download PPTX export"
+    },
+    "gamma_pdf_url": {
+      "type": "string",
+      "description": "URL to download PDF export"
+    },
+    "gamma_prompt": {
+      "type": "string",
+      "description": "The prompt sent to Gamma for auditing"
+    },
+    "final_pptx_url": {
+      "type": "string",
+      "description": "URL to the final uploaded PowerPoint file"
+    },
+    "final_pdf_url": {
+      "type": "string",
+      "description": "URL to the final uploaded PDF file"
+    },
+    "final_uploaded_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the final file was uploaded"
+    },
+    "final_uploaded_by": {
+      "type": "string",
+      "description": "Email of user who uploaded the final file"
+    }
+  },
+  "required": [
+    "project_id",
+    "title",
+    "category",
+    "region"
+  ]
+}
