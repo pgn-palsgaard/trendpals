@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { FileText, FolderOpen, Shield, AlertCircle } from 'lucide-react';
+import { FileText, FolderOpen, Shield, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
 
 export default function KnowledgeTable({ sources, isLoading, selectedIds, onSelectionChange }) {
   const toggleSelection = (id) => {
@@ -86,6 +86,7 @@ export default function KnowledgeTable({ sources, isLoading, selectedIds, onSele
                 <th className="text-left p-3 text-xs font-semibold text-slate-700">Folder</th>
                 <th className="text-left p-3 text-xs font-semibold text-slate-700">Tags</th>
                 <th className="text-left p-3 text-xs font-semibold text-slate-700">Trust Tier</th>
+                <th className="text-left p-3 text-xs font-semibold text-slate-700">RAG Status</th>
                 <th className="text-left p-3 text-xs font-semibold text-slate-700">Updated</th>
               </tr>
             </thead>
@@ -154,6 +155,24 @@ export default function KnowledgeTable({ sources, isLoading, selectedIds, onSele
                         <Shield className="w-3 h-3 text-green-600" />
                       )}
                     </div>
+                  </td>
+                  <td className="p-3">
+                    {source.status === 'processing' ? (
+                      <div className="flex items-center gap-1 text-xs text-blue-600">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                        Processing...
+                      </div>
+                    ) : source.excerpts && source.excerpts.length > 0 ? (
+                      <div className="flex items-center gap-1 text-xs text-green-700">
+                        <CheckCircle2 className="w-3 h-3" />
+                        {source.excerpts.length} claims
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1 text-xs text-orange-600">
+                        <AlertCircle className="w-3 h-3" />
+                        Not processed
+                      </div>
+                    )}
                   </td>
                   <td className="p-3 text-xs text-slate-600">
                     {source.updated_date ? new Date(source.updated_date).toLocaleDateString() : '-'}

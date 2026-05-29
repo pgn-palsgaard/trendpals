@@ -19,6 +19,7 @@ import KnowledgeUploadModal from '../components/knowledge/KnowledgeUploadModal';
 import KnowledgeFilters from '../components/knowledge/KnowledgeFilters';
 import KnowledgeTable from '../components/knowledge/KnowledgeTable';
 import BulkEditKnowledgePanel from '../components/knowledge/BulkEditKnowledgePanel';
+import RAGProcessingPanel from '../components/knowledge/RAGProcessingPanel';
 
 export default function KnowledgeSources() {
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -33,7 +34,7 @@ export default function KnowledgeSources() {
   });
 
   // Fetch knowledge sources
-  const { data: sources = [], isLoading } = useQuery({
+  const { data: sources = [], isLoading, refetch: refetchSources } = useQuery({
     queryKey: ['knowledgeSources', filters, searchQuery],
     queryFn: async () => {
       let query = { source_type: 'knowledge', is_archived: false };
@@ -105,6 +106,13 @@ export default function KnowledgeSources() {
             Upload Files
           </Button>
         </div>
+
+        {/* RAG Processing Panel */}
+        <RAGProcessingPanel
+          sources={sources}
+          selectedIds={selectedIds}
+          onRefresh={refetchSources}
+        />
 
         {/* Active Upload Batches */}
         {activeBatches.length > 0 && (

@@ -129,23 +129,52 @@ Deno.serve(async (req) => {
        evidenceContext = evidenceContext.substring(0, 80000) + '\n[...evidence truncated for length]';
      }
 
-     // Add knowledge source context (Palsgaard capabilities)
-     if (knowledgeSources.length > 0) {
+     // Add RAG-retrieved knowledge — retrieve top excerpts per trend and inject as grounded context
+     const allTrendKeywords = selectedTrends.flatMap(t => t.signals_dictionary?.keywords || []);
+     let ragContext = '';
+     for (const trend of selectedTrends) {
+       const trendKeywords = [
+         ...(trend.signals_dictionary?.keywords || []),
+         ...(trend.signals_dictionary?.must_have_signals || []),
+         ...(trend.signals_dictionary?.claim_cues || []),
+       ];
+       try {
+         const ragResult = await base44.functions.invoke('retrieveRelevantKnowledge', {
+           trend_name: trend.trend_name,
+           trend_keywords: trendKeywords.length > 0 ? trendKeywords : allTrendKeywords.slice(0, 20),
+           category: project.category
+         });
+         const excerpts = ragResult?.data?.excerpts || [];
+         if (excerpts.length > 0) {
+           ragContext += `\n\n## VERIFIED PALSGAARD CAPABILITIES FOR TREND: "${trend.trend_name}"\n`;
+           ragContext += `Use ONLY the following verified claims. Cite the specific product and source. Do NOT use generic phrases.\n`;
+           excerpts.forEach(ex => {
+             const product = ex.product_name ? `${ex.product_name}${ex.product_code ? ` (${ex.product_code})` : ''}` : 'Palsgaard';
+             ragContext += `- ${product}: ${ex.text}`;
+             if (ex.quantitative_data) ragContext += ` [${ex.quantitative_data}]`;
+             ragContext += ` | Source: ${ex._source_title}\n`;
+           });
+         }
+         // Add web content if available
+         if (ragResult?.data?.web_content) {
+           ragContext += `\n[Palsgaard.com context for ${project.category}]:\n${ragResult.data.web_content.substring(0, 1500)}\n`;
+         }
+       } catch (e) {
+         console.warn(`RAG retrieval failed for trend "${trend.trend_name}":`, e.message);
+       }
+     }
+
+     if (ragContext) {
+       evidenceContext += `\n\n=== PALSGAARD KNOWLEDGE BASE (VERIFIED CLAIMS) ===\n${ragContext}`;
+     } else if (knowledgeSources.length > 0) {
+       // Fallback to old summary-based approach if RAG returned nothing
        evidenceContext += `\n\n=== PALSGAARD CAPABILITY KNOWLEDGE SOURCES ===\n`;
-       evidenceContext += `(Use these to ground "Where Palsgaard Supports" sections — reference capabilities, NOT product grades or names)\n`;
        knowledgeSources.forEach(ks => {
-         evidenceContext += `\n[${ks.knowledge_subtype || ks.source_type}] ${ks.title}`;
-         if (ks.notes) evidenceContext += ` — ${ks.notes}`;
-         evidenceContext += `\n`;
+         evidenceContext += `\n[${ks.knowledge_subtype || ks.source_type}] ${ks.title}\n`;
          if (ks.ai_summary) evidenceContext += `Summary: ${ks.ai_summary}\n`;
          if (ks.excerpts && ks.excerpts.length > 0) {
-           const seenTexts = new Set();
-           ks.excerpts.slice(0, 8).forEach(excerpt => {
-             const text = excerpt.text.substring(0, 400);
-             if (!seenTexts.has(text)) {
-               evidenceContext += `  • ${text}\n`;
-               seenTexts.add(text);
-             }
+           ks.excerpts.slice(0, 5).forEach(excerpt => {
+             evidenceContext += `  • ${excerpt.text.substring(0, 300)}\n`;
            });
          }
        });
@@ -196,7 +225,7 @@ Deno.serve(async (req) => {
 
     4. WARNINGS: flag any weak evidence areas
 
-    Rules: Only use evidence from sources above. No invented stats. Palsgaard = capabilities only. Be specific with brand names and dates.
+    Rules: Only use evidence from sources above. No invented stats. For "where_palsgaard_supports" bullets, you MUST cite specific Palsgaard products by name (e.g. "Palsgaard® ArtisanIce 158"). Never write generic capability statements like "Palsgaard's emulsifier expertise can help". If no relevant knowledge is found for a trend, write "Contact Palsgaard application team for formulation support in this specific application." Do not invent claims. Be specific with brand names and dates.
 
     Return JSON.`,
       response_json_schema: {
