@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import JSZip from 'npm:jszip@3.10.1';
 
 const CLAUDE_SYSTEM_PROMPT = `You are a Palsgaard product knowledge extractor. Palsgaard is a Danish company that makes plant-based emulsifiers and stabilisers for the food industry.
 
@@ -18,8 +19,8 @@ Return ONLY a valid JSON object, no markdown, no preamble:
       "id": "unique string",
       "text": "The specific claim or capability statement, written as a complete sentence that could be injected directly into a customer-facing report",
       "page_ref": "slide X or page X if identifiable",
-      "product_name": "Palsgaard® product name",
-      "product_code": "code/INCI if available",
+      "product_name": "Palsgaard® product name or null",
+      "product_code": "code/INCI if available or null",
       "application": "category",
       "benefit_type": "one of: texture, cost_reduction, stability, clean_label, plant_based, functionality, sustainability",
       "quantitative_data": "any numbers/percentages mentioned or null",
@@ -30,7 +31,53 @@ Return ONLY a valid JSON object, no markdown, no preamble:
   "category": "primary food category this document covers"
 }
 
-Be specific. Use exact product names and numbers from the document. Do not generalize. If you cannot extract specific claims, say so.`;
+Be specific. Use exact product names and numbers from the document. Do not generalize.`;
+
+async function extractTextFromPptx(fileUrl) {
+  let response;
+  try {
+    response = await fetch(fileUrl);
+  } catch (err) {
+    if (err.message.includes('Failed to fetch') || err.message.includes('CORS')) {
+      throw new Error('CORS error: Cannot fetch file from server. File URL may require authentication.');
+    }
+    throw err;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch PPTX file: ${response.status} ${response.statusText}`);
+  }
+
+  const arrayBuffer = await response.arrayBuffer();
+  const zip = await JSZip.loadAsync(arrayBuffer);
+
+  // Find all slide XML files, sorted by slide number
+  const slideFiles = Object.keys(zip.files)
+    .filter(name => name.match(/^ppt\/slides\/slide\d+\.xml$/))
+    .sort((a, b) => {
+      const numA = parseInt(a.match(/\d+/)[0]);
+      const numB = parseInt(b.match(/\d+/)[0]);
+      return numA - numB;
+    });
+
+  let fullText = '';
+
+  for (let i = 0; i < slideFiles.length; i++) {
+    const slideXml = await zip.files[slideFiles[i]].async('text');
+    // Extract text content between <a:t> tags
+    const textMatches = slideXml.match(/<a:t[^>]*>([^<]+)<\/a:t>/g) || [];
+    const slideText = textMatches
+      .map(match => match.replace(/<[^>]+>/g, '').trim())
+      .filter(t => t.length > 0)
+      .join(' ');
+
+    if (slideText.trim()) {
+      fullText += `\n[Slide ${i + 1}]\n${slideText}\n`;
+    }
+  }
+
+  return fullText.trim();
+}
 
 Deno.serve(async (req) => {
   let source_id;
@@ -71,37 +118,57 @@ Deno.serve(async (req) => {
       throw new Error('ANTHROPIC_API_KEY secret not set');
     }
 
-    // Use Claude's URL source type — let Claude fetch the document directly
+    const fileUrl = source.file_url;
+    const lowerUrl = fileUrl.toLowerCase();
+    const isPdf = lowerUrl.includes('.pdf');
+    const isPptx = lowerUrl.includes('.pptx') || lowerUrl.includes('.ppt');
+
+    let messageContent;
+    let claudeHeaders = {
+      'Content-Type': 'application/json',
+      'x-api-key': claudeApiKey,
+      'anthropic-version': '2023-06-01'
+    };
+
+    if (isPdf) {
+      // PDF: use Claude's native URL source type
+      claudeHeaders['anthropic-beta'] = 'pdfs-2024-09-25';
+      messageContent = [
+        {
+          type: 'document',
+          source: { type: 'url', url: fileUrl }
+        },
+        {
+          type: 'text',
+          text: `Extract all Palsgaard capability claims from this document titled: "${source.title}". Return only valid JSON, no markdown fences.`
+        }
+      ];
+    } else if (isPptx) {
+      // PPTX: extract text via JSZip, send as plain text to Claude
+      const extractedText = await extractTextFromPptx(fileUrl);
+
+      if (!extractedText || extractedText.length < 50) {
+        throw new Error('Could not extract text from PPTX — file may be empty or image-only');
+      }
+
+      messageContent = [
+        {
+          type: 'text',
+          text: `Extract all Palsgaard product capability claims from this PowerPoint presentation titled: "${source.title}". Return only valid JSON, no markdown fences.\n\nDOCUMENT CONTENT:\n${extractedText.substring(0, 15000)}`
+        }
+      ];
+    } else {
+      throw new Error(`Unsupported file type for: ${fileUrl}. Only PDF and PPTX are supported.`);
+    }
+
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': claudeApiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-beta': 'pdfs-2024-09-25'
-      },
+      headers: claudeHeaders,
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 4000,
         system: CLAUDE_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'document',
-                source: {
-                  type: 'url',
-                  url: source.file_url
-                }
-              },
-              {
-                type: 'text',
-                text: `Extract all Palsgaard capability claims from this document titled: "${source.title}". Return only valid JSON, no markdown fences.`
-              }
-            ]
-          }
-        ]
+        messages: [{ role: 'user', content: messageContent }]
       })
     });
 
@@ -123,7 +190,7 @@ Deno.serve(async (req) => {
       const jsonMatch = rawText.match(/```json\s*([\s\S]*?)```/) || rawText.match(/```\s*([\s\S]*?)```/);
       const jsonText = jsonMatch ? jsonMatch[1] : rawText.trim();
       parsed = JSON.parse(jsonText);
-    } catch (parseErr) {
+    } catch (_) {
       await base44.entities.Source.update(source_id, {
         status: 'failed',
         status_message: `JSON parse error: ${rawText.substring(0, 200)}`
