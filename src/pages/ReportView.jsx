@@ -4,11 +4,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Copy } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
-import DownloadReportButton from '@/components/project/DownloadReportButton';
+import { format } from 'date-fns';
 import FinalReportSection from '@/components/report/FinalReportSection';
 import ExecutiveSummaryCard from '@/components/report/ExecutiveSummaryCard';
 
@@ -58,6 +58,64 @@ export default function ReportView() {
     );
   }
 
+  const handleExportToClaude = () => {
+    const date = format(new Date(), 'MMMM yyyy');
+    const lines = [];
+
+    lines.push(`TRENDPALS REPORT — ${report.title}`);
+    lines.push(`Category: ${report.category} | Region: ${report.region} | Date: ${date}`);
+    lines.push('');
+
+    if (report.slides?.length) {
+      lines.push('TRENDS:');
+      report.slides.forEach((slide, idx) => {
+        lines.push(`${idx + 1}. ${slide.title || slide.slide_name || `Slide ${idx + 1}`}`);
+        if (slide.market_signal) lines.push(`   Market signal: ${slide.market_signal}`);
+        if (slide.customer_pains?.length) {
+          lines.push('   Customer pains:');
+          slide.customer_pains.forEach(cp => {
+            const angle = cp.palsgaard_angle ? ` → ${cp.palsgaard_angle}` : '';
+            lines.push(`   - ${cp.pain}${angle}`);
+          });
+        }
+        if (slide.conversation_openers?.length) {
+          lines.push(`   Conversation opener: ${slide.conversation_openers[0]}`);
+        }
+        if (slide.gnpd_examples?.length) {
+          lines.push(`   GNPD examples: ${slide.gnpd_examples.join('; ')}`);
+        }
+        lines.push('');
+      });
+    }
+
+    // Evidence pack as strategic imperatives / sources
+    if (report.evidence_pack?.length) {
+      const strategicItems = report.evidence_pack.filter(e => e.capability_area);
+      if (strategicItems.length) {
+        lines.push('STRATEGIC IMPERATIVES:');
+        strategicItems.forEach(e => {
+          lines.push(`- [${e.capability_area}] ${e.signal}`);
+        });
+        lines.push('');
+      }
+
+      lines.push('EVIDENCE SOURCES:');
+      report.evidence_pack.forEach(e => {
+        lines.push(`- ${e.signal} (${e.source_type || 'source'}, confidence: ${e.confidence || 'n/a'})`);
+      });
+      lines.push('');
+    }
+
+    if (report.warnings?.length) {
+      lines.push('HEADWINDS:');
+      report.warnings.forEach(w => lines.push(`- ${w.message || JSON.stringify(w)}`));
+      lines.push('');
+    }
+
+    navigator.clipboard.writeText(lines.join('\n'));
+    toast.success('Copied to clipboard — ready to paste into Claude.ai');
+  };
+
   const freshnessColors = {
     fresh: 'bg-green-100 text-green-700',
     use_with_caution: 'bg-yellow-100 text-yellow-700',
@@ -104,7 +162,10 @@ export default function ReportView() {
                   ))}
                 </div>
               )}
-              <DownloadReportButton report={report} size="sm" variant="secondary" label="Export prompt" />
+              <Button size="sm" variant="secondary" onClick={handleExportToClaude}>
+                <Copy className="w-4 h-4 mr-2" />
+                Export to Claude.ai
+              </Button>
             </div>
           </CardContent>
         </Card>
