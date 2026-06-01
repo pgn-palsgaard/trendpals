@@ -57,17 +57,19 @@ async function getExcerptsForProject(base44, project) {
 // ── Step 2: system prompt ──────────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are building a trend intelligence report for food industry professionals. This is a conversation starter, not a sales pitch.
 
-The report follows a strict three-layer structure for every trend slide:
-1. MARKET SIGNAL — What is happening externally. Observable facts, consumer shifts, regulatory pressure, market data. Written from outside-in. Never mention Palsgaard.
-2. CUSTOMER PAINS — 2-3 specific challenges this creates for food manufacturers. What makes this hard? What pressures them?
-3. PALSGAARD ANGLE — For each pain: how deep technical expertise in emulsification and stabilisation can help. NO product names. NO dosage figures. Write as industry expertise, not as a company pitch. Use "Deep expertise in X enables..." or "Technical know-how in Y allows manufacturers to..." — never "Palsgaard's..." as subject.
+For each trend slide, structure the content in this exact order:
+1. market_signal — what is happening externally (2-3 sentences, observable facts, consumer shifts, regulatory pressure, market data — no Palsgaard)
+2. customer_pains — 2-3 specific, concrete, technical challenges this creates for manufacturers. Make these grounded and specific — not generic. Example: "Reducing sugar by 30% removes its structural contribution to viscosity and freezing point depression — ice crystal growth accelerates and mouthfeel collapses. This is a physics problem, not a label problem." Each pain must include a palsgaard_angle explaining how deep emulsification and stabilisation expertise addresses it.
+3. For each pain: palsgaard_angle — how deep technical expertise can help. Use "Deep expertise in X enables..." or "Technical know-how in Y allows manufacturers to..." — NEVER "Palsgaard's..." as subject. No product names. No dosage figures.
+4. supporting_data — use ONLY statistics from the MINTEL SOURCE QUOTES provided. Include source title and geography. If no quotes are available for a trend, leave supporting_data as an empty array. NEVER invent statistics.
+5. conversation_openers — 2 open questions that end in the customer's world. Invite reflection on their own situation. E.g. "How are you currently managing clean label pressure in your seasonal SKU program?" — NEVER "Would you like to hear about our solutions?"
 
-Additional rules:
-- conversation_openers: 2 open questions that invite the customer to reflect on their own situation. Questions should end in the customer's world, not Palsgaard's. E.g. "How are you currently managing the transition to palm-free formulations?" not "Would you like to hear about our palm-free solutions?"
-- supporting_data: Use only statistics from the provided Mintel excerpts. Always include source and geography. Never invent statistics.
-- gnpd_examples: Use only real product names from the provided GNPD data. Never invent products.
-- If a customer pain can be addressed without emulsification expertise, still include it — showing broad industry knowledge builds credibility.
-- Never use "Palsgaard" as a subject anywhere in the output.`;
+STRICT RULES:
+- Never include a section called "Palsgaard Capability Relevance" or similar standalone capability list. The capability angle lives inside each customer pain only.
+- Never use "Palsgaard" as a subject anywhere in the output.
+- Never invent statistics. supporting_data must come exclusively from the provided MINTEL SOURCE QUOTES.
+- gnpd_examples: use only real product names from the provided GNPD data. Never invent products.
+- If a customer pain can be addressed without emulsification expertise, still include it — showing broad industry knowledge builds credibility.`;
 
 Deno.serve(async (req) => {
   try {
@@ -171,6 +173,26 @@ ${t.customer_pains?.length > 0 ? `Customer Pains: ${t.customer_pains.map(p => p.
       ? gnpdProducts.map(p => `- ${p.product_name} | ${p.brand} | ${p.country} | ${p.launch_date} | ${p.claims}`).join('\n')
       : '(No GNPD product data available)';
 
+    // Mintel source quotes for grounding statistics — include from all source types that have source_quote
+    const allSourceQuotes = [];
+    sources.forEach(source => {
+      if (source.excerpts?.length > 0) {
+        source.excerpts.forEach(ex => {
+          if (ex.source_quote && ex.source_quote.trim().length > 0) {
+            allSourceQuotes.push({
+              quote: ex.source_quote,
+              source_title: source.title,
+              geography: source.region_code || region,
+              market_signal: ex.market_signal || ''
+            });
+          }
+        });
+      }
+    });
+    const mintelStatsBlock = allSourceQuotes.length > 0
+      ? allSourceQuotes.slice(0, 20).map(q => `- "${q.quote}" | Source: ${q.source_title} | Geography: ${q.geography}`).join('\n')
+      : '(No source quotes available — leave supporting_data empty, do not invent statistics)';
+
     const userPrompt = `PROJECT:
 Category: ${project.category}
 Region: ${region}
@@ -186,31 +208,40 @@ ${knowledgeBlock}
 GNPD PRODUCT EXAMPLES (use real product names only):
 ${gnpdBlock}
 
-Generate ${selectedTrends.length + 2} slides following the structure below. Return a JSON object with a "slides" array and an "evidence_pack" array and a "product_shortlist" array.
+MINTEL SOURCE QUOTES (use ONLY these for supporting_data — never invent statistics):
+${mintelStatsBlock}
+
+Generate ${selectedTrends.length + 2} slides. Return a JSON object with "slides", "evidence_pack", and "product_shortlist" arrays.
 
 Slide structure:
 - Slide 1: Category landscape overview (no trend name required)
-- Slides 2 to ${selectedTrends.length + 1}: One per selected trend
+- Slides 2 to ${selectedTrends.length + 1}: One per selected trend (use the trend's market signal and customer pains from the SELECTED TRENDS block above as your starting point, then deepen them)
 - Last slide: "What This Means" synthesis
 
-Each slide must match this exact schema — no extra keys:
+IMPORTANT for trend slides: customer_pains must be concrete and technical — not generic. Explain the physics or chemistry or commercial mechanics of WHY the trend creates a problem. Then follow each pain immediately with the capability angle inside the same object.
+
+For supporting_data: include 2 statistics per trend slide drawn from MINTEL SOURCE QUOTES above. If no matching quotes exist for a trend, leave supporting_data as [].
+
+For conversation_openers: both questions must end in the customer's situation — their processes, their challenges, their decisions. Never pitch in a question.
+
+Each slide schema — no extra keys:
 {
   "slide_number": number,
   "slide_name": "string",
   "title": "max 6 words, no Palsgaard",
   "subtitle": "market context, no Palsgaard",
-  "market_signal": "2 sentences max, external facts only, no Palsgaard",
+  "market_signal": "2-3 sentences, external facts only, no Palsgaard",
   "customer_pains": [
     {
-      "pain": "specific challenge for food manufacturers",
-      "palsgaard_angle": "expertise framing using 'Deep expertise in...' or 'Technical know-how in...' — no product names, no dosages",
+      "pain": "concrete, specific, technical challenge — explain WHY it's hard, not just that it's hard",
+      "palsgaard_angle": "use 'Deep expertise in...' or 'Technical know-how in...' — no product names, no Palsgaard as subject",
       "palsgaard_can_help": true,
       "expert_only": false
     }
   ],
-  "conversation_openers": ["open question ending in customer's world", "open question"],
+  "conversation_openers": ["question ending in customer's world", "question ending in customer's world"],
   "supporting_data": [
-    { "stat": "exact stat from Mintel", "source": "source title", "geography": "region" }
+    { "stat": "exact quote from MINTEL SOURCE QUOTES above", "source": "source title", "geography": "geography from quote" }
   ],
   "gnpd_examples": ["product name — brand, country, year"]
 }
