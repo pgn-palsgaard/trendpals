@@ -7,8 +7,39 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { X, Upload, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
 import DuplicateDetectedModal from './DuplicateDetectedModal';
 import UploadStatusCard from './UploadStatusCard';
+
+async function buildGnpdTitleFromFile(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    // Sheet 2 (index 1) contains search details
+    const sheetName = wb.SheetNames[1];
+    if (!sheetName) return null;
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    // Collect non-empty cell values
+    const lines = rows.flat().map(v => String(v).trim()).filter(v => v.length > 0);
+    // Extract key parts: market, sub-categories, date window
+    const market = lines.find(l => l.toLowerCase().startsWith('where market matches'))?.replace(/where market matches/i, '').trim();
+    const subCat = lines.find(l => l.toLowerCase().includes('sub-category matches'));
+    const dateWin = lines.find(l => l.toLowerCase().includes('date published matches'))?.replace(/and date published matches/i, '').trim();
+    const parts = ['GNPD'];
+    if (market) parts.push(market);
+    if (subCat) {
+      // Take first sub-category only to keep name short
+      const cats = subCat.replace(/and sub-category matches one or more of/i, '').trim();
+      const firstCat = cats.split(';')[0].trim();
+      if (firstCat) parts.push(firstCat);
+    }
+    if (dateWin) parts.push(dateWin);
+    return parts.join(' - ');
+  } catch (e) {
+    return null;
+  }
+}
 
 export default function UploadSourceModal({ onClose, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
@@ -18,6 +49,7 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
   const [sourceId, setSourceId] = useState(null);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [sourceType, setSourceType] = useState('mintel');
+  const [autoTitle, setAutoTitle] = useState(null);
 
   const uploadSourceMutation = useMutation({
     mutationFn: async (data) => {
@@ -44,14 +76,20 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
     }
   });
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
       // Auto-detect source type from filename
       const name = selectedFile.name.toLowerCase();
-      if (name.includes('gnpd')) setSourceType('gnpd');
-      else if (name.includes('mintel')) setSourceType('mintel');
+      if (name.includes('gnpd') || name.startsWith('gnpd')) {
+        setSourceType('gnpd');
+        // Try to build a smart title from the Search details sheet
+        const smartTitle = await buildGnpdTitleFromFile(selectedFile);
+        if (smartTitle) setAutoTitle(smartTitle);
+      } else if (name.includes('mintel')) {
+        setSourceType('mintel');
+      }
     }
   };
 
@@ -69,7 +107,7 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
       await uploadSourceMutation.mutateAsync({
         source_type: sourceType,
         file_url,
-        title: file.name, // AI will overwrite this with the real title
+        title: autoTitle || file.name,
         project_id: projectId || null
       });
     } catch (error) {
@@ -164,9 +202,12 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
           </div>
 
           {file && (
-            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
-              <span className="font-medium">"{file.name}"</span> ready to upload.
-              After uploading, AI will read the document and automatically fill in all metadata fields.
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 space-y-1">
+              <div><span className="font-medium">"{autoTitle || file.name}"</span> ready to upload.</div>
+              {autoTitle && autoTitle !== file.name && (
+                <div className="text-xs text-blue-600">Filnavn auto-genereret fra søgekriterierne i Excel-filen.</div>
+              )}
+              {!autoTitle && <div>After uploading, AI will read the document and automatically fill in all metadata fields.</div>}
             </div>
           )}
 

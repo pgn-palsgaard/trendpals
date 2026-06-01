@@ -8,6 +8,33 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, FileText, AlertCircle, CheckCircle2, Loader2, ExternalLink, Trash2, History } from 'lucide-react';
 import { toast } from 'sonner';
+import * as XLSX from 'xlsx';
+
+async function buildGnpdTitleFromFile(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const sheetName = wb.SheetNames[1];
+    if (!sheetName) return null;
+    const sheet = wb.Sheets[sheetName];
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const lines = rows.flat().map(v => String(v).trim()).filter(v => v.length > 0);
+    const market = lines.find(l => l.toLowerCase().startsWith('where market matches'))?.replace(/where market matches/i, '').trim();
+    const subCat = lines.find(l => l.toLowerCase().includes('sub-category matches'));
+    const dateWin = lines.find(l => l.toLowerCase().includes('date published matches'))?.replace(/and date published matches/i, '').trim();
+    const parts = ['GNPD'];
+    if (market) parts.push(market);
+    if (subCat) {
+      const cats = subCat.replace(/and sub-category matches one or more of/i, '').trim();
+      const firstCat = cats.split(';')[0].trim();
+      if (firstCat) parts.push(firstCat);
+    }
+    if (dateWin) parts.push(dateWin);
+    return parts.join(' - ');
+  } catch (e) {
+    return null;
+  }
+}
 import SourceLibrary from './SourceLibrary';
 import DataReadinessCheck from './DataReadinessCheck';
 import LinkedSourcesPanel from './LinkedSourcesPanel';
@@ -97,30 +124,27 @@ export default function ProjectSources({ project, sources, imageExtractions = []
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    // Check for duplicates
-    const duplicates = files.filter(file => 
-      sources.find(s => s.title === file.name)
-    );
-    
-    if (duplicates.length > 0) {
-      toast.error(`File(s) already exist: ${duplicates.map(f => f.name).join(', ')}`);
-      e.target.value = ''; // Reset input
-      return;
-    }
-
     setUploading(true);
     setFailedUpload(null);
     
     try {
       // Upload all files
       for (const file of files) {
+        // For GNPD Excel files, auto-generate title from Search details sheet
+        let title = file.name;
+        const nameLower = file.name.toLowerCase();
+        if ((nameLower.includes('gnpd') || sourceType === 'gnpd') && (nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls'))) {
+          const smartTitle = await buildGnpdTitleFromFile(file);
+          if (smartTitle) title = smartTitle;
+        }
+
         const { file_url } = await base44.integrations.Core.UploadFile({ file });
         
         await uploadSourceMutation.mutateAsync({
           project_id: project.id,
           source_type: sourceType,
           file_url,
-          title: file.name
+          title
         });
       }
       toast.success(`${files.length} file(s) uploaded successfully`);
