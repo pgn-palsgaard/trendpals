@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +32,8 @@ export default function ReportView() {
   });
 
 
+  const [copied, setCopied] = useState(false);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center">
@@ -58,47 +60,42 @@ export default function ReportView() {
     );
   }
 
-  const handleExportToClaude = async () => {
+  const buildPromptText = () => {
     const date = format(new Date(), 'MMMM yyyy');
     const lines = [];
 
-    lines.push(`TRENDPALS REPORT — ${report.title}`);
+    lines.push(`TRENDPALS REPORT: ${report.title}`);
     lines.push(`Category: ${report.category} | Region: ${report.region} | Date: ${date}`);
     lines.push('');
 
-    if (report.slides?.length) {
-      lines.push('TRENDS:');
-      report.slides.forEach((slide, idx) => {
-        lines.push(`${idx + 1}. ${slide.title || slide.slide_name || `Slide ${idx + 1}`}`);
-        if (slide.market_signal) lines.push(`   Market signal: ${slide.market_signal}`);
-        if (slide.customer_pains?.length) {
-          lines.push('   Customer pains:');
-          slide.customer_pains.forEach(cp => {
-            const angle = cp.palsgaard_angle ? ` → ${cp.palsgaard_angle}` : '';
-            lines.push(`   - ${cp.pain}${angle}`);
-          });
-        }
-        if (slide.conversation_openers?.length) {
-          lines.push(`   Conversation opener: ${slide.conversation_openers[0]}`);
-        }
-        if (slide.gnpd_examples?.length) {
-          lines.push(`   GNPD examples: ${slide.gnpd_examples.join('; ')}`);
-        }
-        lines.push('');
-      });
-    }
-
-    // Evidence pack as strategic imperatives / sources
-    if (report.evidence_pack?.length) {
-      const strategicItems = report.evidence_pack.filter(e => e.capability_area);
-      if (strategicItems.length) {
-        lines.push('STRATEGIC IMPERATIVES:');
-        strategicItems.forEach(e => {
-          lines.push(`- [${e.capability_area}] ${e.signal}`);
-        });
-        lines.push('');
+    (report.slides || []).forEach((slide, idx) => {
+      lines.push(`TREND ${idx + 1}: ${slide.title || slide.slide_name || `Slide ${idx + 1}`}`);
+      if (slide.market_signal) {
+        lines.push(`Market signal: ${slide.market_signal}`);
       }
+      if (slide.customer_pains?.length) {
+        lines.push('Customer challenges:');
+        slide.customer_pains.forEach(cp => {
+          const angle = cp.palsgaard_angle ? ` -> How we can help: ${cp.palsgaard_angle}` : '';
+          lines.push(`- ${cp.pain}${angle}`);
+        });
+      }
+      if (slide.conversation_openers?.length) {
+        lines.push(`Conversation opener: ${slide.conversation_openers[0]}`);
+      }
+      if (slide.gnpd_examples?.length) {
+        lines.push(`Recent launches: ${slide.gnpd_examples.join(', ')}`);
+      }
+      if (slide.supporting_data?.length) {
+        lines.push('Supporting data:');
+        slide.supporting_data.forEach(d => {
+          lines.push(`- ${d.stat}${d.source ? ` (${d.source})` : ''}`);
+        });
+      }
+      lines.push('');
+    });
 
+    if (report.evidence_pack?.length) {
       lines.push('EVIDENCE SOURCES:');
       report.evidence_pack.forEach(e => {
         lines.push(`- ${e.signal} (${e.source_type || 'source'}, confidence: ${e.confidence || 'n/a'})`);
@@ -106,27 +103,29 @@ export default function ReportView() {
       lines.push('');
     }
 
-    if (report.warnings?.length) {
-      lines.push('HEADWINDS:');
-      report.warnings.forEach(w => lines.push(`- ${w.message || JSON.stringify(w)}`));
-      lines.push('');
+    return lines.join('\n');
+  };
+
+  const handleExportPrompt = () => {
+    if (!report.slides?.length) {
+      alert('No report content to export. Generate the report first.');
+      return;
     }
 
-    const text = lines.join('\n');
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success('Copied to clipboard — ready to paste into Claude.ai');
-    } catch {
+    const text = buildPromptText();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
       // Fallback: download as .txt
       const blob = new Blob([text], { type: 'text/plain' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `${report.title || 'report'}-claude-export.txt`;
+      a.download = `${report.title || 'report'}-prompt.txt`;
       a.click();
       URL.revokeObjectURL(url);
-      toast.success('Downloaded as .txt — paste into Claude.ai');
-    }
+    });
   };
 
   const freshnessColors = {
@@ -175,9 +174,9 @@ export default function ReportView() {
                   ))}
                 </div>
               )}
-              <Button size="sm" variant="secondary" onClick={handleExportToClaude}>
+              <Button size="sm" variant="secondary" onClick={handleExportPrompt}>
                 <Copy className="w-4 h-4 mr-2" />
-                Export to Claude.ai
+                {copied ? 'Copied!' : 'Export full report prompt'}
               </Button>
             </div>
           </CardContent>
