@@ -1,0 +1,36 @@
+{
+  "name": "ProjectKnowledgeLink",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Project ID"
+    },
+    "source_id": {
+      "type": "string",
+      "description": "Knowledge source ID"
+    },
+    "attached_by": {
+      "type": "string",
+      "description": "Email of user who attached this source"
+    },
+    "attached_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When source was attached"
+    },
+    "usage_notes": {
+      "type": "string",
+      "description": "Project-specific notes on how to use this source"
+    },
+    "is_primary": {
+      "type": "boolean",
+      "default": false,
+      "description": "Mark as primary knowledge source for this project"
+    }
+  },
+  "required": [
+    "project_id",
+    "source_id"
+  ]
+}

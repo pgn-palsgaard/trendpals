@@ -4,7 +4,7 @@ import { Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
 
-export default function DownloadReportButton({ report, project, variant = "outline", size = "default" }) {
+export default function DownloadReportButton({ report, project, variant = "outline", size = "default", label = "Download Report PDF" }) {
   const [downloading, setDownloading] = useState(false);
 
   const handleDownload = async () => {
@@ -195,7 +195,7 @@ export default function DownloadReportButton({ report, project, variant = "outli
       {downloading ? (
         <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating PDF...</>
       ) : (
-        <><Download className="w-4 h-4 mr-2" />Download Report PDF</>
+        <><Download className="w-4 h-4 mr-2" />{label}</>
       )}
     </Button>
   );

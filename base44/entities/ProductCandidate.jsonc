@@ -1,0 +1,184 @@
+{
+  "name": "ProductCandidate",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Associated project ID"
+    },
+    "trend_id": {
+      "type": "string",
+      "description": "Associated trend ID"
+    },
+    "source_pool": {
+      "type": "string",
+      "enum": [
+        "GNPD_EXCEL",
+        "PDF_CURATED",
+        "BOTH"
+      ],
+      "description": "Where this product came from"
+    },
+    "mintel_record_id": {
+      "type": "string",
+      "description": "Mintel GNPD Record ID"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name"
+    },
+    "brand": {
+      "type": "string",
+      "description": "Brand name"
+    },
+    "company": {
+      "type": "string",
+      "description": "Company/manufacturer"
+    },
+    "country": {
+      "type": "string",
+      "description": "Launch country"
+    },
+    "region_code": {
+      "type": "string",
+      "description": "Mapped region code"
+    },
+    "launch_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Product launch date"
+    },
+    "description": {
+      "type": "string",
+      "description": "Product description"
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Product claims"
+    },
+    "ingredients": {
+      "type": "string",
+      "description": "Ingredients list"
+    },
+    "format": {
+      "type": "string",
+      "description": "Product format"
+    },
+    "texture": {
+      "type": "string",
+      "description": "Texture/mouthfeel"
+    },
+    "flavours": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Flavours"
+    },
+    "gnpd_data_raw": {
+      "type": "object",
+      "description": "Full GNPD row data"
+    },
+    "evidence_links": {
+      "type": "object",
+      "properties": {
+        "gnpd_source_id": {
+          "type": "string"
+        },
+        "gnpd_row_index": {
+          "type": "number"
+        },
+        "pdf_curated_id": {
+          "type": "string"
+        },
+        "pdf_page": {
+          "type": "number"
+        },
+        "pdf_snippet": {
+          "type": "string"
+        }
+      },
+      "description": "Links to evidence sources"
+    },
+    "support_label": {
+      "type": "string",
+      "enum": [
+        "SUPPORTS",
+        "PARTIAL",
+        "NOT_SUPPORT"
+      ],
+      "description": "LLM classification"
+    },
+    "support_score": {
+      "type": "number",
+      "description": "LLM score 0-100"
+    },
+    "matched_evidence_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Fields that matched trend signals"
+    },
+    "rationale_bullets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Grounded rationale from LLM"
+    },
+    "recency_score": {
+      "type": "number",
+      "description": "Recency score"
+    },
+    "diversity_score": {
+      "type": "number",
+      "description": "Diversity score"
+    },
+    "final_rank_score": {
+      "type": "number",
+      "description": "Combined ranking score"
+    },
+    "is_pinned": {
+      "type": "boolean",
+      "default": false,
+      "description": "User pinned to shortlist"
+    },
+    "is_excluded": {
+      "type": "boolean",
+      "default": false,
+      "description": "User excluded from shortlist"
+    },
+    "exclusion_reason": {
+      "type": "string",
+      "description": "Why user excluded this"
+    },
+    "is_hero": {
+      "type": "boolean",
+      "default": false,
+      "description": "Marked as hero product"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Product packshot image URL"
+    },
+    "asset_status": {
+      "type": "string",
+      "enum": [
+        "packshot_missing",
+        "packshot_uploaded",
+        "packshot_pending"
+      ],
+      "default": "packshot_missing",
+      "description": "Image asset status"
+    }
+  },
+  "required": [
+    "project_id",
+    "trend_id",
+    "source_pool"
+  ]
+}

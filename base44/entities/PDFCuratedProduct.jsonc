@@ -1,0 +1,80 @@
+{
+  "name": "PDFCuratedProduct",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Associated project ID"
+    },
+    "source_id": {
+      "type": "string",
+      "description": "Source PDF ID"
+    },
+    "mintel_record_id": {
+      "type": "string",
+      "description": "Mintel GNPD Record ID extracted from URL or text"
+    },
+    "mintel_product_url": {
+      "type": "string",
+      "description": "Full Mintel GNPD product detail page URL"
+    },
+    "page_number": {
+      "type": "number",
+      "description": "Page number in PDF where product was found"
+    },
+    "section_heading": {
+      "type": "string",
+      "description": "Section heading above the product reference"
+    },
+    "context_snippet": {
+      "type": "string",
+      "description": "\u00b1300 chars context around the product mention"
+    },
+    "anchor_text": {
+      "type": "string",
+      "description": "Link anchor text if extracted from hyperlink"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name extracted from snippet or link"
+    },
+    "brand": {
+      "type": "string",
+      "description": "Brand name if mentioned in snippet"
+    },
+    "country": {
+      "type": "string",
+      "description": "Country if mentioned in snippet"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "extracted",
+        "suggested_match",
+        "matched",
+        "unmatched",
+        "excluded",
+        "needs_manual_review"
+      ],
+      "default": "extracted",
+      "description": "Processing status"
+    },
+    "matched_gnpd_record": {
+      "type": "object",
+      "description": "Matched GNPD product data if found"
+    },
+    "is_added_to_trend": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether user added this to a specific trend"
+    },
+    "trend_id": {
+      "type": "string",
+      "description": "Trend ID if added to specific trend"
+    }
+  },
+  "required": [
+    "source_id",
+    "page_number"
+  ]
+}

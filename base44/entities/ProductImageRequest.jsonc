@@ -1,0 +1,61 @@
+{
+  "name": "ProductImageRequest",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Associated project ID"
+    },
+    "product_id": {
+      "type": "string",
+      "description": "Product ID (e.g., GNPD record ID)"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name/description"
+    },
+    "company": {
+      "type": "string",
+      "description": "Company name of the product"
+    },
+    "brand": {
+      "type": "string",
+      "description": "Brand name of the product"
+    },
+    "supporting_trends": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of trend names this product supports"
+    },
+    "source": {
+      "type": "string",
+      "enum": [
+        "mintel_report",
+        "excel_file",
+        "both"
+      ],
+      "description": "Where this product was found"
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Uploaded product image URL"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "uploaded"
+      ],
+      "default": "pending",
+      "description": "Whether image has been uploaded"
+    }
+  },
+  "required": [
+    "project_id",
+    "product_id",
+    "product_name",
+    "supporting_trends"
+  ]
+}

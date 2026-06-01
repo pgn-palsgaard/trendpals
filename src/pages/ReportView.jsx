@@ -9,6 +9,8 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
 import DownloadReportButton from '@/components/project/DownloadReportButton';
+import FinalReportSection from '@/components/report/FinalReportSection';
+import ExecutiveSummaryCard from '@/components/report/ExecutiveSummaryCard';
 
 export default function ReportView() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -104,7 +106,6 @@ Evidence: ${slide.evidence_footer || ''}
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <DownloadReportButton report={report} size="sm" />
                 <Badge className={`${freshnessColors[report.freshness || 'fresh']}`}>
                   {report.freshness?.replace('_', ' ') || 'fresh'}
                 </Badge>
@@ -112,15 +113,24 @@ Evidence: ${slide.evidence_footer || ''}
             </div>
           </CardHeader>
           <CardContent>
-            {report.selected_trends && report.selected_trends.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {report.selected_trends.map((trend, idx) => (
-                  <Badge key={idx} variant="secondary">{trend}</Badge>
-                ))}
-              </div>
-            )}
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              {report.selected_trends && report.selected_trends.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {report.selected_trends.map((trend, idx) => (
+                    <Badge key={idx} variant="secondary">{trend}</Badge>
+                  ))}
+                </div>
+              )}
+              <DownloadReportButton report={report} size="sm" variant="secondary" label="Export prompt" />
+            </div>
           </CardContent>
         </Card>
+
+        {/* Final Report Files */}
+        <FinalReportSection report={report} />
+
+        {/* Executive Summary */}
+        <ExecutiveSummaryCard report={report} />
 
         {/* Slides */}
         {report.slides && report.slides.map((slide, idx) => (

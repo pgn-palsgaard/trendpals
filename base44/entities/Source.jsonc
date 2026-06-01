@@ -1,0 +1,491 @@
+{
+  "name": "Source",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Associated project ID (optional for shared sources)"
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "mintel",
+        "gnpd",
+        "report",
+        "url",
+        "knowledge",
+        "other"
+      ],
+      "description": "Type of source"
+    },
+    "knowledge_subtype": {
+      "type": "string",
+      "enum": [
+        "product_sheet",
+        "technical_doc",
+        "capability_overview",
+        "case_study",
+        "certification",
+        "sustainability",
+        "application_note",
+        "webpage_snapshot",
+        "pws",
+        "other"
+      ],
+      "description": "Subtype for knowledge sources only"
+    },
+    "owner_org": {
+      "type": "string",
+      "default": "Palsgaard",
+      "description": "Organization that owns this knowledge source"
+    },
+    "visibility": {
+      "type": "string",
+      "enum": [
+        "org_shared",
+        "project_only"
+      ],
+      "default": "org_shared"
+    },
+    "allowed_use": {
+      "type": "string",
+      "enum": [
+        "capability_proof_only",
+        "evidence",
+        "framing",
+        "reference",
+        "forbidden"
+      ],
+      "default": "capability_proof_only"
+    },
+    "folder_path": {
+      "type": "string"
+    },
+    "relative_path": {
+      "type": "string"
+    },
+    "last_reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "review_owner": {
+      "type": "string"
+    },
+    "expires_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "document_type": {
+      "type": "string",
+      "enum": [
+        "REPORT",
+        "INDUSTRY TREND",
+        "WEBINAR",
+        "PRESENTATION",
+        "WHITEPAPER",
+        "PWS",
+        "OTHER"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "description": "Source title or filename"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "author": {
+      "type": "string"
+    },
+    "publisher": {
+      "type": "string"
+    },
+    "file_url": {
+      "type": "string",
+      "description": "URL to uploaded file"
+    },
+    "url": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "date_published": {
+      "type": "string",
+      "format": "date"
+    },
+    "date_published_source": {
+      "type": "string",
+      "enum": [
+        "extracted",
+        "manual_override"
+      ]
+    },
+    "date_published_original_extracted": {
+      "type": "string",
+      "format": "date"
+    },
+    "date_published_override_reason": {
+      "type": "string"
+    },
+    "date_published_last_updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "date_published_updated_by": {
+      "type": "string"
+    },
+    "coverage_period": {
+      "type": "string"
+    },
+    "excerpts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "market_signal": {
+            "type": "string",
+            "description": "What is happening in the market or industry \u2014 trend, pressure, regulation, consumer shift"
+          },
+          "customer_pain": {
+            "type": "string",
+            "description": "The challenge or problem this creates for food manufacturers"
+          },
+          "palsgaard_angle": {
+            "type": "string",
+            "description": "How Palsgaard expertise or capability can address this \u2014 NO product names or dosage figures"
+          },
+          "has_direct_role": {
+            "type": "boolean",
+            "description": "True if Palsgaard can play a direct technical role; false if the insight is expert framing only"
+          },
+          "capability_area": {
+            "type": "string",
+            "enum": [
+              "sustainability",
+              "texture_quality",
+              "cost_efficiency",
+              "compliance_regulatory",
+              "new_product_development",
+              "food_safety",
+              "supply_chain",
+              "plant_based",
+              "general"
+            ],
+            "description": "Primary capability area this insight maps to"
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "description": "Confidence that this insight is well-supported by the source"
+          },
+          "source_quote": {
+            "type": "string",
+            "description": "Short grounding quote or data point from the source (max 2 sentences, no product names)"
+          },
+          "category_relevance": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Which food categories this insight applies to, e.g. ['Ice Cream', 'Dairy', 'Confectionery']"
+          },
+          "page_ref": {
+            "type": "string"
+          },
+          "trend_keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "description": "Structured insights: market signal \u2192 customer pain \u2192 Palsgaard angle"
+    },
+    "gnpd_data": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "gnpd_headers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "gnpd_row_count": {
+      "type": "number"
+    },
+    "gnpd_preview_rows": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "gnpd_processing_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "processing",
+        "ready",
+        "failed"
+      ]
+    },
+    "gnpd_processing_error": {
+      "type": "string"
+    },
+    "gnpd_mapping_status": {
+      "type": "string",
+      "enum": [
+        "not_started",
+        "detecting",
+        "complete",
+        "failed"
+      ]
+    },
+    "gnpd_column_mapping": {
+      "type": "object"
+    },
+    "gnpd_mapping_updated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "gnpd_mapping_error": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "uploading",
+        "uploaded",
+        "processing",
+        "ready",
+        "failed"
+      ],
+      "default": "queued"
+    },
+    "status_message": {
+      "type": "string"
+    },
+    "processing_error": {
+      "type": "string"
+    },
+    "upload_progress": {
+      "type": "number"
+    },
+    "processing_started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "processing_completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "freshness": {
+      "type": "string",
+      "enum": [
+        "recent",
+        "aging",
+        "outdated"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Bakery",
+        "Confectionery",
+        "Dairy",
+        "Feed",
+        "Fine Food",
+        "Ice Cream",
+        "Lipid",
+        "Meat",
+        "Other Food Applications",
+        "PCI",
+        "Polymer",
+        "Tech"
+      ]
+    },
+    "main_group": {
+      "type": "string",
+      "enum": [
+        "Food",
+        "BSA"
+      ]
+    },
+    "region_code": {
+      "type": "string",
+      "enum": [
+        "ASPAC",
+        "AMERICAS",
+        "EMEC",
+        "IMEA",
+        "Global"
+      ]
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "suggested_tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "trust_tier": {
+      "type": "string",
+      "enum": [
+        "approved",
+        "high",
+        "medium",
+        "low",
+        "draft",
+        "external_reference"
+      ],
+      "default": "medium"
+    },
+    "usage_permission": {
+      "type": "string",
+      "enum": [
+        "evidence",
+        "framing",
+        "reference",
+        "forbidden"
+      ],
+      "default": "evidence"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "is_archived": {
+      "type": "boolean",
+      "default": false
+    },
+    "subcategory": {
+      "type": "string"
+    },
+    "file_size": {
+      "type": "number"
+    },
+    "snapshot_url": {
+      "type": "string"
+    },
+    "file_hash": {
+      "type": "string"
+    },
+    "normalized_url": {
+      "type": "string"
+    },
+    "first_page_fingerprint": {
+      "type": "string"
+    },
+    "metadata_extraction": {
+      "type": "object"
+    },
+    "upload_batch_id": {
+      "type": "string"
+    },
+    "ai_summary": {
+      "type": "string",
+      "description": "AI-generated summary of the source content and key insights"
+    },
+    "rag_processed": {
+      "type": "boolean",
+      "default": false
+    },
+    "rag_excerpt_count": {
+      "type": "number"
+    },
+    "mintel_chunks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "chunk_id": {
+            "type": "string"
+          },
+          "chapter_title": {
+            "type": "string",
+            "description": "Chapter or section heading from the Mintel report"
+          },
+          "chapter_index": {
+            "type": "number"
+          },
+          "text": {
+            "type": "string",
+            "description": "Full text of the chapter chunk"
+          },
+          "statistics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "stat": {
+                  "type": "string"
+                },
+                "context": {
+                  "type": "string"
+                },
+                "geography": {
+                  "type": "string"
+                },
+                "year": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Quantitative statistics extracted from this chapter with their context preserved"
+          },
+          "key_insights": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "category_tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "trend_signals": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "description": "Mintel reports only: chapter-level chunks with statistics preserved in context"
+    },
+    "mintel_chunking_status": {
+      "type": "string",
+      "enum": [
+        "not_applicable",
+        "pending",
+        "ready",
+        "failed"
+      ],
+      "default": "not_applicable",
+      "description": "Chunking status for Mintel sources"
+    }
+  },
+  "required": [
+    "source_type",
+    "title"
+  ]
+}

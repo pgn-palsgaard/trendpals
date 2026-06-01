@@ -1,0 +1,143 @@
+{
+  "name": "UploadBatch",
+  "type": "object",
+  "properties": {
+    "batch_name": {
+      "type": "string",
+      "description": "User-friendly batch name"
+    },
+    "source_type": {
+      "type": "string",
+      "default": "knowledge",
+      "description": "Type of sources being uploaded"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "preparing",
+        "uploading",
+        "processing",
+        "completed",
+        "failed",
+        "cancelled"
+      ],
+      "default": "preparing",
+      "description": "Overall batch status"
+    },
+    "total_files": {
+      "type": "number",
+      "description": "Total number of files in batch"
+    },
+    "processed_files": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of files successfully processed"
+    },
+    "failed_files": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of files that failed"
+    },
+    "skipped_files": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of files skipped (duplicates)"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When batch upload started"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When batch upload completed"
+    },
+    "file_items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "relative_path": {
+            "type": "string"
+          },
+          "folder_path": {
+            "type": "string"
+          },
+          "file_size": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "uploading",
+              "processing",
+              "completed",
+              "failed",
+              "skipped_duplicate"
+            ]
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "error_message": {
+            "type": "string"
+          },
+          "progress": {
+            "type": "number"
+          }
+        }
+      },
+      "description": "Individual file items in batch"
+    },
+    "created_source_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "IDs of successfully created sources"
+    },
+    "duplicate_count": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of duplicates detected"
+    },
+    "error_log": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "Detailed error log for failed items"
+    },
+    "options": {
+      "type": "object",
+      "properties": {
+        "auto_tag_from_folders": {
+          "type": "boolean",
+          "default": true
+        },
+        "default_trust_tier": {
+          "type": "string",
+          "default": "draft"
+        },
+        "default_knowledge_subtype": {
+          "type": "string",
+          "default": "other"
+        },
+        "skip_duplicates": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "description": "Batch upload options"
+    }
+  },
+  "required": [
+    "batch_name",
+    "total_files"
+  ]
+}

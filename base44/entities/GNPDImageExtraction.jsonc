@@ -1,0 +1,51 @@
+{
+  "name": "GNPDImageExtraction",
+  "type": "object",
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Associated project ID"
+    },
+    "html_file_url": {
+      "type": "string",
+      "description": "URL to the uploaded HTML file"
+    },
+    "xlsx_file_url": {
+      "type": "string",
+      "description": "URL to the Excel file to merge with"
+    },
+    "product_ids_to_extract": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Specific product IDs to extract images for (only these will be processed to save credits)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "processing",
+        "completed",
+        "failed"
+      ],
+      "default": "pending",
+      "description": "Processing status"
+    },
+    "extracted_images": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Array of extracted image URLs"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "Error message if extraction failed"
+    }
+  },
+  "required": [
+    "project_id",
+    "html_file_url"
+  ]
+}

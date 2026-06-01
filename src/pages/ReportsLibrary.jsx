@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Search, ExternalLink, Copy, Calendar, TrendingUp } from 'lucide-react';
+import { FileText, Search, ExternalLink, Copy, Calendar, TrendingUp, Download } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
@@ -209,6 +209,26 @@ export default function ReportsLibrary() {
                       <Calendar className="w-3 h-3" />
                       <span>{new Date(report.created_date).toLocaleDateString()}</span>
                     </div>
+
+                    {/* Final file pills */}
+                    {(report.final_pptx_url || report.final_pdf_url) && (
+                      <div className="flex flex-wrap gap-2">
+                        {report.final_pptx_url && (
+                          <a href={report.final_pptx_url} target="_blank" rel="noopener noreferrer">
+                            <Badge className="bg-green-100 text-green-700 border-green-200 cursor-pointer hover:bg-green-200 gap-1">
+                              <Download className="w-3 h-3" /> PPTX ready
+                            </Badge>
+                          </a>
+                        )}
+                        {report.final_pdf_url && (
+                          <a href={report.final_pdf_url} target="_blank" rel="noopener noreferrer">
+                            <Badge className="bg-green-100 text-green-700 border-green-200 cursor-pointer hover:bg-green-200 gap-1">
+                              <Download className="w-3 h-3" /> PDF ready
+                            </Badge>
+                          </a>
+                        )}
+                      </div>
+                    )}
 
                     {/* Actions */}
                     <div className="flex gap-2 pt-2 border-t">

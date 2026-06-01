@@ -20,6 +20,7 @@
     },
     "slides": {
       "type": "array",
+      "description": "Complete slide deck (5-10 slides)",
       "items": {
         "type": "object",
         "properties": {
@@ -35,32 +36,67 @@
           "subtitle": {
             "type": "string"
           },
-          "bullets": {
+          "market_signal": {
+            "type": "string",
+            "description": "What is happening in the market \u2014 1-2 sentences, external signals only"
+          },
+          "customer_pains": {
             "type": "array",
+            "description": "2-3 specific challenges this creates for food manufacturers",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pain": {
+                  "type": "string"
+                },
+                "palsgaard_can_help": {
+                  "type": "boolean"
+                },
+                "palsgaard_angle": {
+                  "type": "string",
+                  "description": "How Palsgaard expertise addresses this \u2014 NO product names or dosages"
+                },
+                "expert_only": {
+                  "type": "boolean",
+                  "description": "True if valuable insight even without Palsgaard product"
+                }
+              }
+            }
+          },
+          "conversation_openers": {
+            "type": "array",
+            "description": "1-2 open questions to invite customer into dialogue",
             "items": {
               "type": "string"
             }
           },
-          "so_what": {
+          "supporting_data": {
             "type": "array",
+            "description": "Stats or market data that ground the slide \u2014 sourced from Mintel or GNPD",
             "items": {
-              "type": "string"
+              "type": "object",
+              "properties": {
+                "stat": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "geography": {
+                  "type": "string"
+                }
+              }
             }
           },
-          "where_palsgaard_supports": {
+          "gnpd_examples": {
             "type": "array",
+            "description": "2-4 real product launches that illustrate the trend",
             "items": {
               "type": "string"
             }
           },
           "evidence_footer": {
             "type": "string"
-          },
-          "evidence_links": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
           },
           "image_placements": {
             "type": "array",
@@ -69,39 +105,35 @@
             }
           }
         }
-      },
-      "description": "Complete slide deck (5-10 slides)"
+      }
     },
     "evidence_pack": {
       "type": "array",
+      "description": "5-10 evidence bullets linking market signals to Palsgaard capability areas",
       "items": {
         "type": "object",
         "properties": {
-          "bullet": {
+          "signal": {
+            "type": "string"
+          },
+          "capability_area": {
             "type": "string"
           },
           "source_type": {
             "type": "string"
           },
-          "excerpt_refs": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
           "confidence": {
             "type": "string"
           }
         }
-      },
-      "description": "5-10 evidence bullets"
+      }
     },
     "product_shortlist": {
       "type": "array",
       "items": {
         "type": "object"
       },
-      "description": "12-20 GNPD launches with priorities and mappings"
+      "description": "12-20 GNPD launches with priorities and trend mappings"
     },
     "image_map": {
       "type": "object",
@@ -127,55 +159,48 @@
         "fresh",
         "use_with_caution",
         "outdated"
-      ],
-      "description": "Overall freshness based on source dates"
+      ]
     },
     "selected_trends": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "Trend names as tags"
+      }
     },
     "warnings": {
       "type": "array",
       "items": {
         "type": "object"
-      },
-      "description": "Quality warnings or no-go conditions"
+      }
+    },
+    "executive_summary": {
+      "type": "string",
+      "description": "AI-generated executive summary of the report"
     },
     "gamma_url": {
-      "type": "string",
-      "description": "URL to the Gamma report"
+      "type": "string"
     },
     "gamma_pptx_url": {
-      "type": "string",
-      "description": "URL to download PPTX export"
+      "type": "string"
     },
     "gamma_pdf_url": {
-      "type": "string",
-      "description": "URL to download PDF export"
+      "type": "string"
     },
     "gamma_prompt": {
-      "type": "string",
-      "description": "The prompt sent to Gamma for auditing"
+      "type": "string"
     },
     "final_pptx_url": {
-      "type": "string",
-      "description": "URL to the final uploaded PowerPoint file"
+      "type": "string"
     },
     "final_pdf_url": {
-      "type": "string",
-      "description": "URL to the final uploaded PDF file"
+      "type": "string"
     },
     "final_uploaded_at": {
       "type": "string",
-      "format": "date-time",
-      "description": "When the final file was uploaded"
+      "format": "date-time"
     },
     "final_uploaded_by": {
-      "type": "string",
-      "description": "Email of user who uploaded the final file"
+      "type": "string"
     }
   },
   "required": [

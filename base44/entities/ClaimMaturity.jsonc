@@ -1,0 +1,41 @@
+{
+  "name": "ClaimMaturity",
+  "type": "object",
+  "properties": {
+    "claim": {
+      "type": "string",
+      "description": "Claim name"
+    },
+    "trend_bucket": {
+      "type": "string",
+      "enum": [
+        "Emerging",
+        "Established",
+        "Declining"
+      ],
+      "description": "Maturity stage of the claim"
+    },
+    "ranking": {
+      "type": "number",
+      "description": "Ranking within the trend bucket"
+    },
+    "category": {
+      "type": "string",
+      "description": "Product category (e.g., Ice Cream, Bakery, Confectionery)"
+    },
+    "region": {
+      "type": "string",
+      "description": "Region (e.g., EMEA, APAC, Americas)"
+    },
+    "upload_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Date when this data was uploaded"
+    }
+  },
+  "required": [
+    "claim",
+    "trend_bucket",
+    "ranking"
+  ]
+}

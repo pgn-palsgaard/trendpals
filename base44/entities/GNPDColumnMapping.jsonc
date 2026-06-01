@@ -1,0 +1,172 @@
+{
+  "name": "GNPDColumnMapping",
+  "type": "object",
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "description": "Associated GNPD source ID"
+    },
+    "project_id": {
+      "type": "string",
+      "description": "Associated project ID (optional, for project-specific overrides)"
+    },
+    "mappings": {
+      "type": "object",
+      "properties": {
+        "record_id": {
+          "type": "string",
+          "description": "Column name for Mintel Record ID (REQUIRED)"
+        },
+        "product_name": {
+          "type": "string",
+          "description": "Column name for Product name (REQUIRED)"
+        },
+        "market": {
+          "type": "string",
+          "description": "Column name for Market/Country (REQUIRED)"
+        },
+        "date_published": {
+          "type": "string",
+          "description": "Column name for Date Published/Launch Date (REQUIRED)"
+        },
+        "category": {
+          "type": "string",
+          "description": "Column name for Category (REQUIRED)"
+        },
+        "sub_category": {
+          "type": "string",
+          "description": "Column name for Sub-Category (REQUIRED)"
+        },
+        "brand": {
+          "type": "string",
+          "description": "Column name for Brand (recommended)"
+        },
+        "company": {
+          "type": "string",
+          "description": "Column name for Company (recommended)"
+        },
+        "ultimate_company": {
+          "type": "string",
+          "description": "Column name for Ultimate Company (recommended)"
+        },
+        "launch_type": {
+          "type": "string",
+          "description": "Column name for Launch Type (recommended)"
+        },
+        "claims": {
+          "type": "string",
+          "description": "Column name for Claims (recommended)"
+        },
+        "product_description": {
+          "type": "string",
+          "description": "Column name for Product Description (recommended)"
+        },
+        "flavours": {
+          "type": "string",
+          "description": "Column name for Flavours (recommended)"
+        },
+        "storage": {
+          "type": "string",
+          "description": "Column name for Storage (optional)"
+        },
+        "format_type": {
+          "type": "string",
+          "description": "Column name for Format Type (optional)"
+        },
+        "unit_pack_size": {
+          "type": "string",
+          "description": "Column name for Unit Pack Size (optional)"
+        },
+        "packaging_units": {
+          "type": "string",
+          "description": "Column name for Packaging Units (optional)"
+        },
+        "package_type": {
+          "type": "string",
+          "description": "Column name for Package Type (optional)"
+        },
+        "package_material": {
+          "type": "string",
+          "description": "Column name for Package Material (optional)"
+        },
+        "barcode": {
+          "type": "string",
+          "description": "Column name for Bar Code (optional)"
+        },
+        "price_usd": {
+          "type": "string",
+          "description": "Column name for Price in US Dollars (optional)"
+        },
+        "price_eur": {
+          "type": "string",
+          "description": "Column name for Price in Euros (optional)"
+        },
+        "product_variants": {
+          "type": "string",
+          "description": "Column name for Product Variants (optional)"
+        },
+        "record_hyperlink": {
+          "type": "string",
+          "description": "Column name for Record Hyperlink (optional)"
+        }
+      },
+      "description": "Column mappings for GNPD data"
+    },
+    "available_columns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of all available column headers in the source file"
+    },
+    "validation_status": {
+      "type": "object",
+      "properties": {
+        "required_mappings_complete": {
+          "type": "boolean"
+        },
+        "rows_loaded": {
+          "type": "number"
+        },
+        "date_parsing_success_rate": {
+          "type": "number"
+        },
+        "date_range_min": {
+          "type": "string",
+          "format": "date"
+        },
+        "date_range_max": {
+          "type": "string",
+          "format": "date"
+        },
+        "unique_markets_count": {
+          "type": "number"
+        },
+        "parsing_errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "Validation summary"
+    },
+    "auto_detected": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether mappings were auto-detected or manually set"
+    },
+    "sheet_name_used": {
+      "type": "string",
+      "description": "Name of the sheet that was used for parsing"
+    },
+    "header_map": {
+      "type": "object",
+      "description": "Map of unique_key -> display_name for duplicate headers"
+    }
+  },
+  "required": [
+    "source_id",
+    "mappings"
+  ]
+}
