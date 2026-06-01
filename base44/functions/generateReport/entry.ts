@@ -1,22 +1,93 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// ── Step 1: fetch & filter relevant knowledge excerpts ─────────────────────
+async function getExcerptsForProject(base44, project) {
+  const allKnowledge = await base44.entities.Source.filter({
+    source_type: 'knowledge',
+    visibility: 'org_shared'
+  });
+
+  // Also pull project-linked knowledge sources
+  const links = await base44.entities.ProjectKnowledgeLink.filter({ project_id: project.id });
+  const orgSharedIds = new Set(allKnowledge.map(s => s.id));
+  for (const link of links) {
+    if (!orgSharedIds.has(link.source_id)) {
+      try {
+        const ks = await base44.entities.Source.get(link.source_id);
+        if (ks) allKnowledge.push(ks);
+      } catch (e) {}
+    }
+  }
+
+  // Flatten excerpts, filter by category relevance
+  const category = project.category || '';
+  const allExcerpts = [];
+  for (const ks of allKnowledge) {
+    if (!ks.excerpts || ks.excerpts.length === 0) continue;
+    for (const ex of ks.excerpts) {
+      const relevantCategories = ex.category_relevance || [];
+      const isRelevant =
+        relevantCategories.length === 0 ||
+        relevantCategories.some(c => c.toLowerCase() === category.toLowerCase()) ||
+        relevantCategories.some(c => c.toLowerCase() === 'general');
+      if (isRelevant) {
+        allExcerpts.push({ ...ex, _source_title: ks.title });
+      }
+    }
+  }
+
+  // Group by capability_area, take top 3 per area (high confidence first)
+  const byArea = {};
+  for (const ex of allExcerpts) {
+    const area = ex.capability_area || 'general';
+    if (!byArea[area]) byArea[area] = [];
+    byArea[area].push(ex);
+  }
+  const confidenceOrder = { high: 0, medium: 1, low: 2 };
+  const selected = [];
+  for (const area of Object.keys(byArea)) {
+    const sorted = byArea[area].sort(
+      (a, b) => (confidenceOrder[a.confidence] ?? 2) - (confidenceOrder[b.confidence] ?? 2)
+    );
+    selected.push(...sorted.slice(0, 3));
+  }
+  return selected;
+}
+
+// ── Step 2: system prompt ──────────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are building a trend intelligence report for food industry professionals. This is a conversation starter, not a sales pitch.
+
+The report follows a strict three-layer structure for every trend slide:
+1. MARKET SIGNAL — What is happening externally. Observable facts, consumer shifts, regulatory pressure, market data. Written from outside-in. Never mention Palsgaard.
+2. CUSTOMER PAINS — 2-3 specific challenges this creates for food manufacturers. What makes this hard? What pressures them?
+3. PALSGAARD ANGLE — For each pain: how deep technical expertise in emulsification and stabilisation can help. NO product names. NO dosage figures. Write as industry expertise, not as a company pitch. Use "Deep expertise in X enables..." or "Technical know-how in Y allows manufacturers to..." — never "Palsgaard's..." as subject.
+
+Additional rules:
+- conversation_openers: 2 open questions that invite the customer to reflect on their own situation. Questions should end in the customer's world, not Palsgaard's. E.g. "How are you currently managing the transition to palm-free formulations?" not "Would you like to hear about our palm-free solutions?"
+- supporting_data: Use only statistics from the provided Mintel excerpts. Always include source and geography. Never invent statistics.
+- gnpd_examples: Use only real product names from the provided GNPD data. Never invent products.
+- If a customer pain can be addressed without emulsification expertise, still include it — showing broad industry knowledge builds credibility.
+- Never use "Palsgaard" as a subject anywhere in the output.`;
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
-    
+
     if (!user) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { project_id } = await req.json();
-
-    // Get project, sources, and selected trends
     const project = await base44.entities.Project.get(project_id);
-    
-    // Default region to "Global" if missing
-    const region = project.region_code || project.region || "Global";
-    // Get sources linked to this project via selected_source_ids
+
+    if (!project) {
+      return Response.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    const region = project.region_code || project.region || 'Global';
+
+    // Fetch evidence sources linked to project
     let sources = [];
     if (project.selected_source_ids && project.selected_source_ids.length > 0) {
       for (const sourceId of project.selected_source_ids) {
@@ -28,261 +99,193 @@ Deno.serve(async (req) => {
         }
       }
     } else {
-      // Fallback: old projects with direct project_id linkage
       sources = await base44.entities.Source.filter({ project_id });
     }
 
-    // Fetch org-shared Knowledge sources (Palsgaard capability docs)
-    const allKnowledgeSources = await base44.entities.Source.filter({ 
-      source_type: 'knowledge',
-      visibility: 'org_shared'
-    });
-    // Also fetch project-specific knowledge sources via ProjectKnowledgeLink
-    const knowledgeLinks = await base44.entities.ProjectKnowledgeLink.filter({ project_id });
-    const linkedKnowledgeIds = new Set(knowledgeLinks.map(l => l.source_id));
-    // Project-specific knowledge that isn't already in org_shared
-    const orgSharedIds = new Set(allKnowledgeSources.map(s => s.id));
-    for (const link of knowledgeLinks) {
-      if (!orgSharedIds.has(link.source_id)) {
-        try {
-          const ks = await base44.entities.Source.get(link.source_id);
-          if (ks) allKnowledgeSources.push(ks);
-        } catch (e) {}
-      }
-    }
-    const knowledgeSources = allKnowledgeSources;
+    // Fetch trends
     const trendCandidates = await base44.entities.TrendCandidate.filter({ project_id });
     const selectedTrends = trendCandidates.filter(t => t.is_selected);
 
-    if (!project) {
-      return Response.json({ error: 'Project not found' }, { status: 404 });
-    }
-
     if (selectedTrends.length < 3 || selectedTrends.length > 5) {
-      return Response.json({ 
-        error: 'Must select 3-5 trends for report generation' 
+      return Response.json({
+        error: 'Must select 3-5 trends for report generation'
       }, { status: 400 });
     }
 
-    // Include trend analysis context if available
-    let analysisContext = '';
-    if (project.include_trend_analysis_in_report && project.trend_analysis) {
-      const analysis = project.trend_analysis;
-      analysisContext = `
-
-    AI-Generated Trend Analysis Context:
-    ${analysis.perspective_customers ? `
-    Customer Perspective - What They're Seeking:
-    ${analysis.perspective_customers.what_consumers_want?.map(w => `- ${w}`).join('\n')}
-
-    Portfolio Directions to Consider:
-    ${analysis.perspective_customers.portfolio_directions?.map(p => `- ${p}`).join('\n')}
-    ` : ''}
-
-    ${analysis.perspective_palsgaard ? `
-    Palsgaard Value in These Trends:
-    ${analysis.perspective_palsgaard.value_propositions?.map(v => `- ${v}`).join('\n')}
-    ` : ''}
-    `;
+    const hasSources = sources.some(s => s.excerpts?.length > 0 || s.gnpd_data?.length > 0);
+    if (!hasSources) {
+      return Response.json({
+        error: 'No processed sources available. Please upload and process sources first.'
+      }, { status: 400 });
     }
 
-    // Compile evidence context - optimized for token limit
-     let evidenceContext = `Project: ${project.name}
-     Category: ${project.category}
-     Region: ${region}
-     Objective: ${project.objective}
-     Audience: ${project.audience}
-     ${analysisContext}
+    // ── Step 1: build knowledge context ───────────────────────────────────
+    const relevantExcerpts = await getExcerptsForProject(base44, project);
 
-     Selected Trends:
-     ${selectedTrends.map((t, i) => `${i+1}. ${t.trend_name}
-     What's changing: ${t.whats_changing?.join('; ')}
-     Why now: ${t.why_now?.join('; ')}
-     Evidence: ${t.evidence_anchors?.mintel_excerpts?.length || 0} excerpts, ${t.evidence_anchors?.gnpd_products?.length || 0} products
-     `).join('\n')}
+    // ── Step 3: build user prompt ──────────────────────────────────────────
 
-     Available Evidence (Top excerpts per source):
-     `;
-
-     // Include excerpts per source - cap to avoid timeout
-     sources.forEach(source => {
-       if (source.excerpts && source.excerpts.length > 0) {
-         evidenceContext += `\n[SOURCE: ${source.title} | Publisher: ${source.publisher || 'Unknown'} | Date: ${source.date_published || source.date || 'Unknown'}]\n`;
-         const seenTexts = new Set();
-         source.excerpts.slice(0, 10).forEach(excerpt => {
-           const text = excerpt.text.substring(0, 400);
-           if (!seenTexts.has(text)) {
-             evidenceContext += `  • [p.${excerpt.page_ref || '?'}] ${text}\n`;
-             seenTexts.add(text);
-           }
-         });
-       }
-       if (source.gnpd_data && source.gnpd_data.length > 0) {
-         evidenceContext += `\n[GNPD DATA: ${source.title} | ${source.gnpd_row_count || source.gnpd_data.length} products]\n`;
-         source.gnpd_data.slice(0, 20).forEach(p => {
-           evidenceContext += `  • ${p.product_name || p['Product Name'] || ''} | ${p.brand || p['Brand'] || ''} | ${p.market || p['Market'] || ''} | ${p.date_published || p['Date Published'] || ''} | Claims: ${(p.claims || p['Claims'] || '').substring(0, 150)}\n`;
-         });
-       }
-     });
-     // Hard cap total context to ~80k chars to avoid LLM timeout
-     if (evidenceContext.length > 80000) {
-       evidenceContext = evidenceContext.substring(0, 80000) + '\n[...evidence truncated for length]';
-     }
-
-     // Add RAG-retrieved knowledge — retrieve top excerpts per trend and inject as grounded context
-     const allTrendKeywords = selectedTrends.flatMap(t => t.signals_dictionary?.keywords || []);
-     let ragContext = '';
-     for (const trend of selectedTrends) {
-       const trendKeywords = [
-         ...(trend.signals_dictionary?.keywords || []),
-         ...(trend.signals_dictionary?.must_have_signals || []),
-         ...(trend.signals_dictionary?.claim_cues || []),
-       ];
-       try {
-         const ragResult = await base44.functions.invoke('retrieveRelevantKnowledge', {
-           trend_name: trend.trend_name,
-           trend_keywords: trendKeywords.length > 0 ? trendKeywords : allTrendKeywords.slice(0, 20),
-           category: project.category
-         });
-         const excerpts = ragResult?.data?.excerpts || [];
-         if (excerpts.length > 0) {
-           ragContext += `\n\n## VERIFIED PALSGAARD CAPABILITIES FOR TREND: "${trend.trend_name}"\n`;
-           ragContext += `Use ONLY the following verified claims. Cite the specific product and source. Do NOT use generic phrases.\n`;
-           excerpts.forEach(ex => {
-             const product = ex.product_name ? `${ex.product_name}${ex.product_code ? ` (${ex.product_code})` : ''}` : 'Palsgaard';
-             ragContext += `- ${product}: ${ex.text}`;
-             if (ex.quantitative_data) ragContext += ` [${ex.quantitative_data}]`;
-             ragContext += ` | Source: ${ex._source_title}\n`;
-           });
-         }
-         // Add web content if available
-         if (ragResult?.data?.web_content) {
-           ragContext += `\n[Palsgaard.com context for ${project.category}]:\n${ragResult.data.web_content.substring(0, 1500)}\n`;
-         }
-       } catch (e) {
-         console.warn(`RAG retrieval failed for trend "${trend.trend_name}":`, e.message);
-       }
-     }
-
-     if (ragContext) {
-       evidenceContext += `\n\n=== PALSGAARD KNOWLEDGE BASE (VERIFIED CLAIMS) ===\n${ragContext}`;
-     } else if (knowledgeSources.length > 0) {
-       // Fallback to old summary-based approach if RAG returned nothing
-       evidenceContext += `\n\n=== PALSGAARD CAPABILITY KNOWLEDGE SOURCES ===\n`;
-       knowledgeSources.forEach(ks => {
-         evidenceContext += `\n[${ks.knowledge_subtype || ks.source_type}] ${ks.title}\n`;
-         if (ks.ai_summary) evidenceContext += `Summary: ${ks.ai_summary}\n`;
-         if (ks.excerpts && ks.excerpts.length > 0) {
-           ks.excerpts.slice(0, 5).forEach(excerpt => {
-             evidenceContext += `  • ${excerpt.text.substring(0, 300)}\n`;
-           });
-         }
-       });
-     }
-
-    // Collect all GNPD products with images
-    const allGnpdProducts = [];
-    const imageMap = {};
+    // Mintel excerpts for supporting_data (sources with source_type = 'mintel')
+    const mintelExcerpts = [];
     sources.forEach(source => {
-      if (source.gnpd_data) {
-        source.gnpd_data.forEach(product => {
-          allGnpdProducts.push(product);
-          // Map product IDs to images for easy lookup
-          if (product.has_image && product.image_url) {
-            imageMap[product.record_id || product.id] = product.image_url;
-          }
+      if (source.source_type === 'mintel' && source.excerpts?.length > 0) {
+        source.excerpts.slice(0, 8).forEach(ex => {
+          mintelExcerpts.push({
+            market_signal: ex.market_signal || ex.text || '',
+            source_quote: ex.source_quote || '',
+            source_title: source.title,
+            geography: source.region_code || region
+          });
         });
       }
     });
 
-    // Abort if no sources have excerpts or products
-    const hasSources = sources.some(s => s.excerpts?.length > 0 || s.gnpd_data?.length > 0);
-    if (!hasSources) {
-      return Response.json({ 
-        error: 'No processed sources available. Please upload and process sources first.' 
-      }, { status: 400 });
+    // GNPD products (top 8 matched)
+    const gnpdProducts = [];
+    sources.forEach(source => {
+      if (source.gnpd_data && source.gnpd_data.length > 0) {
+        source.gnpd_data.slice(0, 8).forEach(p => {
+          gnpdProducts.push({
+            product_name: p.product_name || p['Product Name'] || '',
+            brand: p.brand || p['Brand'] || '',
+            country: p.market || p['Market'] || '',
+            launch_date: p.date_published || p['Date Published'] || '',
+            claims: (p.claims || p['Claims'] || '').substring(0, 150)
+          });
+        });
+      }
+    });
+
+    const trendsBlock = selectedTrends.map((t, i) => `
+${i + 1}. ${t.trend_name}
+Market Signal: ${t.market_signal || ''}
+What's Changing: ${(t.whats_changing || []).join('; ')}
+Why Now: ${(t.why_now || []).join('; ')}
+${t.customer_pains?.length > 0 ? `Customer Pains: ${t.customer_pains.map(p => p.pain).join('; ')}` : ''}
+`).join('\n');
+
+    const knowledgeBlock = relevantExcerpts.length > 0
+      ? relevantExcerpts.map(ex => `- [${ex.capability_area || 'general'}] Market Signal: ${ex.market_signal || ''} | Pain: ${ex.customer_pain || ''} | Angle: ${ex.palsgaard_angle || ''} | Quote: "${ex.source_quote || ''}" (${ex._source_title})`).join('\n')
+      : '(No relevant knowledge excerpts found — use general emulsification and stabilisation expertise)';
+
+    const gnpdBlock = gnpdProducts.length > 0
+      ? gnpdProducts.map(p => `- ${p.product_name} | ${p.brand} | ${p.country} | ${p.launch_date} | ${p.claims}`).join('\n')
+      : '(No GNPD product data available)';
+
+    const userPrompt = `PROJECT:
+Category: ${project.category}
+Region: ${region}
+Objective: ${project.objective}
+Audience: ${project.audience || 'Industrial food manufacturers'}
+
+SELECTED TRENDS:
+${trendsBlock}
+
+PALSGAARD KNOWLEDGE BASE (use these to inform palsgaard_angle — do not copy verbatim):
+${knowledgeBlock}
+
+GNPD PRODUCT EXAMPLES (use real product names only):
+${gnpdBlock}
+
+Generate ${selectedTrends.length + 2} slides following the structure below. Return a JSON object with a "slides" array and an "evidence_pack" array and a "product_shortlist" array.
+
+Slide structure:
+- Slide 1: Category landscape overview (no trend name required)
+- Slides 2 to ${selectedTrends.length + 1}: One per selected trend
+- Last slide: "What This Means" synthesis
+
+Each slide must match this exact schema — no extra keys:
+{
+  "slide_number": number,
+  "slide_name": "string",
+  "title": "max 6 words, no Palsgaard",
+  "subtitle": "market context, no Palsgaard",
+  "market_signal": "2 sentences max, external facts only, no Palsgaard",
+  "customer_pains": [
+    {
+      "pain": "specific challenge for food manufacturers",
+      "palsgaard_angle": "expertise framing using 'Deep expertise in...' or 'Technical know-how in...' — no product names, no dosages",
+      "palsgaard_can_help": true,
+      "expert_only": false
     }
+  ],
+  "conversation_openers": ["open question ending in customer's world", "open question"],
+  "supporting_data": [
+    { "stat": "exact stat from Mintel", "source": "source title", "geography": "region" }
+  ],
+  "gnpd_examples": ["product name — brand, country, year"]
+}
 
-    // Generate report pack using AI
-     const response = await base44.integrations.Core.InvokeLLM({
-       prompt: `Generate a professional B2B market trend report for ${project.category} in ${region} for Palsgaard (food ingredients company).
+evidence_pack items: { "signal": "string", "capability_area": "string", "source_type": "string", "confidence": "string" }
+product_shortlist items: { "product_name": "string", "brand": "string", "market": "string", "launch_date": "string", "claims": ["string"], "supporting_trends": ["string"] }`;
 
-    AUDIENCE: ${project.audience || 'Industrial food manufacturers'}
-    OBJECTIVE: ${project.objective}
-
-    EVIDENCE:
-    ${evidenceContext}
-
-    CREATE:
-    1. SLIDES (${selectedTrends.length + 2} slides):
-    - Slide 1: Overview/landscape (3-4 key meta-observations)
-    - Slides 2-${selectedTrends.length + 1}: One per trend — title, subtitle, 5 evidence-backed bullets, 2-3 "so what for manufacturers" bullets, 2-3 "where Palsgaard supports" (capabilities only, no product grades), evidence footer
-    - Last slide: "What This Means" synthesis slide
-
-    2. EVIDENCE PACK: 6-8 strongest data points with source + confidence
-
-    3. PRODUCT SHORTLIST: 10-15 GNPD launches exemplifying the trends (brand, product, market, date, claims, which trend)
-
-    4. WARNINGS: flag any weak evidence areas
-
-    Rules: Only use evidence from sources above. No invented stats. For "where_palsgaard_supports" bullets, you MUST cite specific Palsgaard products by name (e.g. "Palsgaard® ArtisanIce 158"). Never write generic capability statements like "Palsgaard's emulsifier expertise can help". If no relevant knowledge is found for a trend, write "Contact Palsgaard application team for formulation support in this specific application." Do not invent claims. Be specific with brand names and dates.
-
-    Return JSON.`,
+    // ── Call Claude via InvokeLLM ─────────────────────────────────────────
+    const response = await base44.integrations.Core.InvokeLLM({
+      model: 'claude_sonnet_4_6',
+      prompt: userPrompt,
       response_json_schema: {
-        type: "object",
+        type: 'object',
         properties: {
-          title: { type: "string" },
           slides: {
-            type: "array",
+            type: 'array',
             items: {
-              type: "object",
+              type: 'object',
               properties: {
-                slide_number: { type: "number" },
-                slide_name: { type: "string" },
-                title: { type: "string" },
-                subtitle: { type: "string" },
-                bullets: { type: "array", items: { type: "string" } },
-                so_what: { type: "array", items: { type: "string" } },
-                where_palsgaard_supports: { type: "array", items: { type: "string" } },
-                evidence_footer: { type: "string" },
-                image_placements: { type: "array", items: { type: "string" } }
+                slide_number: { type: 'number' },
+                slide_name: { type: 'string' },
+                title: { type: 'string' },
+                subtitle: { type: 'string' },
+                market_signal: { type: 'string' },
+                customer_pains: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      pain: { type: 'string' },
+                      palsgaard_angle: { type: 'string' },
+                      palsgaard_can_help: { type: 'boolean' },
+                      expert_only: { type: 'boolean' }
+                    }
+                  }
+                },
+                conversation_openers: { type: 'array', items: { type: 'string' } },
+                supporting_data: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      stat: { type: 'string' },
+                      source: { type: 'string' },
+                      geography: { type: 'string' }
+                    }
+                  }
+                },
+                gnpd_examples: { type: 'array', items: { type: 'string' } }
               }
             }
           },
           evidence_pack: {
-            type: "array",
+            type: 'array',
             items: {
-              type: "object",
+              type: 'object',
               properties: {
-                bullet: { type: "string" },
-                source_type: { type: "string" },
-                confidence: { type: "string" }
+                signal: { type: 'string' },
+                capability_area: { type: 'string' },
+                source_type: { type: 'string' },
+                confidence: { type: 'string' }
               }
             }
           },
           product_shortlist: {
-            type: "array",
+            type: 'array',
             items: {
-              type: "object",
+              type: 'object',
               properties: {
-                brand: { type: "string" },
-                product_name: { type: "string" },
-                market: { type: "string" },
-                launch_date: { type: "string" },
-                claims: { type: "array", items: { type: "string" } },
-                supporting_trends: { type: "array", items: { type: "string" } },
-                has_image: { type: "boolean" }
-              }
-            }
-          },
-          image_map: { type: "object" },
-          warnings: {
-            type: "array",
-            items: {
-              type: "object",
-              properties: {
-                type: { type: "string" },
-                message: { type: "string" }
+                product_name: { type: 'string' },
+                brand: { type: 'string' },
+                market: { type: 'string' },
+                launch_date: { type: 'string' },
+                claims: { type: 'array', items: { type: 'string' } },
+                supporting_trends: { type: 'array', items: { type: 'string' } }
               }
             }
           }
@@ -290,12 +293,12 @@ Deno.serve(async (req) => {
       }
     });
 
-    // Determine freshness — use date_published if available, otherwise upload date
+    // ── Determine freshness ────────────────────────────────────────────────
     const oldestSourceDate = sources
       .filter(s => s.date_published || s.date)
       .map(s => new Date(s.date_published || s.date))
       .sort((a, b) => a - b)[0];
-    
+
     let freshness = 'fresh';
     if (oldestSourceDate) {
       const ageMonths = (Date.now() - oldestSourceDate.getTime()) / (1000 * 60 * 60 * 24 * 30);
@@ -303,66 +306,38 @@ Deno.serve(async (req) => {
       else if (ageMonths > 12) freshness = 'use_with_caution';
     }
 
-    // Merge AI-generated image placements with actual image URLs
-    const enrichedSlides = (response.slides || []).map(slide => {
-      const slideWithImages = { ...slide };
-      // Add actual image URLs from extracted GNPD data
-      if (slide.image_placements && Array.isArray(slide.image_placements)) {
-        slideWithImages.product_examples = slide.image_placements
-          .map(productRef => {
-            // Find matching product in shortlist
-            const product = (response.product_shortlist || [])
-              .find(p => p.product_name && productRef.includes(p.product_name));
-            if (product && (product.image_url || imageMap[product.product_name])) {
-              return {
-                brand: product.brand,
-                product_name: product.product_name,
-                market: product.market,
-                launch_date: product.launch_date,
-                image_url: product.image_url || imageMap[product.product_name],
-                relevance: `Supports: ${product.supporting_trends?.join(', ')}`
-              };
-            }
-            return null;
-          })
-          .filter(Boolean);
-      }
-      return slideWithImages;
-    });
-
-    // Get existing reports for this project to determine version
+    // ── Step 4: save directly using new schema ─────────────────────────────
     const existingReports = await base44.entities.Report.filter({ project_id });
-    const nextVersion = existingReports.length > 0 
+    const nextVersion = existingReports.length > 0
       ? Math.max(...existingReports.map(r => r.version || 1)) + 1
       : 1;
 
-    // Create report entity
     const report = await base44.entities.Report.create({
       project_id,
-      title: response.title || `${project.category} Trends - ${region}`,
+      title: `${project.category} Trends — ${region}`,
       category: project.category,
-      region: region,
-      slides: enrichedSlides,
+      region,
+      slides: response.slides || [],
       evidence_pack: response.evidence_pack || [],
       product_shortlist: response.product_shortlist || [],
-      image_map: response.image_map || {},
+      image_map: {},
       selected_trends: selectedTrends.map(t => t.trend_name),
-      warnings: response.warnings || [],
+      warnings: [],
       freshness,
       status: 'draft',
       version: nextVersion
     });
 
-    return Response.json({ 
-      success: true, 
+    return Response.json({
+      success: true,
       report_id: report.id,
       version: nextVersion,
-      slides_count: report.slides.length,
-      warnings: report.warnings.length
+      slides_count: report.slides.length
     });
+
   } catch (error) {
     console.error('Generate report error:', error);
-    return Response.json({ 
+    return Response.json({
       error: error.message || 'Failed to generate report',
       details: error.stack
     }, { status: 500 });
