@@ -1,0 +1,74 @@
+{
+  "name": "ReportRequest",
+  "type": "object",
+  "properties": {
+    "requester_name": {
+      "type": "string",
+      "description": "Name of the person submitting the request"
+    },
+    "requester_email": {
+      "type": "string",
+      "description": "Email of the requester"
+    },
+    "account": {
+      "type": "string",
+      "description": "Customer account / company name"
+    },
+    "region": {
+      "type": "string",
+      "enum": [
+        "ASPAC",
+        "EMEA",
+        "Americas",
+        "LATAM",
+        "Global"
+      ],
+      "description": "Region"
+    },
+    "deadline": {
+      "type": "string",
+      "format": "date",
+      "description": "Requested delivery deadline"
+    },
+    "categories": {
+      "type": "string",
+      "description": "Comma-separated list of food categories"
+    },
+    "purpose": {
+      "type": "string",
+      "description": "Purpose or goal of the report"
+    },
+    "challenges": {
+      "type": "string",
+      "description": "Customer challenges or focus areas"
+    },
+    "notes": {
+      "type": "string",
+      "description": "Additional notes"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "new",
+        "in_progress",
+        "delivered"
+      ],
+      "default": "new",
+      "description": "Current status of the request"
+    },
+    "project_id": {
+      "type": "string",
+      "description": "Linked Project ID once converted"
+    },
+    "submitted_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the brief was submitted"
+    }
+  },
+  "required": [
+    "requester_name",
+    "requester_email",
+    "account"
+  ]
+}

@@ -58,6 +58,16 @@ export default function Layout({ children, currentPageName }) {
             >
               Reports
             </Link>
+            <Link 
+              to="/Briefs" 
+              className={`text-sm font-medium transition-colors ${
+                currentPageName === 'Briefs'
+                  ? 'text-blue-600' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Briefs
+            </Link>
             <button
               onClick={() => base44.auth.logout()}
               className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
