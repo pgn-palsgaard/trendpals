@@ -18,14 +18,36 @@ Deno.serve(async (req) => {
 
     const projects = await base44.entities.Project.filter({ id: project_id });
     const project = projects[0];
-    const sources = await base44.entities.Source.filter({ project_id });
-
-    // Fetch org-shared knowledge sources (Palsgaard capabilities)
-    const knowledgeSources = await base44.entities.Source.filter({ source_type: 'knowledge', visibility: 'org_shared' });
 
     if (!project) {
       return Response.json({ error: 'Project not found' }, { status: 404 });
     }
+
+    // Fetch sources using the same logic as the UI:
+    // 1. Sources directly on the project (project_id)
+    // 2. Sources linked via project.selected_source_ids (this is how SourceLibrary links sources)
+    // 3. Shared org sources matching project category (fallback)
+    const [directSources, allNonKnowledgeSources] = await Promise.all([
+      base44.entities.Source.filter({ project_id }),
+      base44.entities.Source.list('-created_date', 500)
+    ]);
+
+    const selectedSourceIds = project.selected_source_ids || [];
+
+    // Sources linked via selected_source_ids (excluding knowledge type)
+    const linkedSources = allNonKnowledgeSources.filter(s =>
+      s.source_type !== 'knowledge' && selectedSourceIds.includes(s.id)
+    );
+
+    // Merge direct + linked, deduplicate by id
+    const sourceMap = new Map();
+    [...directSources, ...linkedSources].forEach(s => sourceMap.set(s.id, s));
+    const sources = Array.from(sourceMap.values());
+
+    console.log(`[generateTrends] project_id=${project_id} | direct=${directSources.length} | linked via selected_source_ids=${linkedSources.length} | total unique=${sources.length} | selected_source_ids count=${selectedSourceIds.length}`);
+
+    // Fetch org-shared knowledge sources (Palsgaard capabilities)
+    const knowledgeSources = allNonKnowledgeSources.filter(s => s.source_type === 'knowledge' && s.visibility === 'org_shared');
 
     const region = project.region_code || project.region || 'Global';
 
@@ -85,7 +107,8 @@ ${project.customer_priorities?.length > 0 ? project.customer_priorities.join(', 
         knowledgeContext += '\n';
         if (ks.excerpts) {
           ks.excerpts.slice(0, 3).forEach(e => {
-            knowledgeContext += `  • ${e.text.substring(0, 180)}...\n`;
+            const text = e.market_signal || e.text || '';
+            if (text) knowledgeContext += `  • ${text.substring(0, 180)}\n`;
           });
         }
       });
