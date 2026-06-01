@@ -285,6 +285,9 @@ Deno.serve(async (req) => {
     let insights;
     let updatePayload;
 
+    // Clear existing excerpts first so stale data never persists
+    await base44.entities.Source.update(source_id, { excerpts: [] });
+
     if (isMintel) {
       insights = parsed.insights || [];
       const chunks = parsed.chunks || [];
