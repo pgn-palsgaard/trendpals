@@ -255,6 +255,7 @@ product_shortlist items: { "product_name": "string", "brand": "string", "market"
       prompt: userPrompt,
       response_json_schema: {
         type: 'object',
+        required: ['slides', 'evidence_pack', 'product_shortlist'],
         properties: {
           slides: {
             type: 'array',
@@ -337,6 +338,12 @@ product_shortlist items: { "product_name": "string", "brand": "string", "market"
       else if (ageMonths > 12) freshness = 'use_with_caution';
     }
 
+    // ── Unwrap InvokeLLM response (it nests the JSON under a "response" key) ──
+    const parsed = response?.response ?? response;
+    console.log('SLIDES TO SAVE:', Array.isArray(parsed.slides) ? parsed.slides.length : 'NOT AN ARRAY');
+    console.log('EVIDENCE_PACK TO SAVE:', Array.isArray(parsed.evidence_pack) ? parsed.evidence_pack.length : 'NOT AN ARRAY');
+    console.log('PRODUCT_SHORTLIST TO SAVE:', Array.isArray(parsed.product_shortlist) ? parsed.product_shortlist.length : 'NOT AN ARRAY');
+
     // ── Step 4: save directly using new schema ─────────────────────────────
     const existingReports = await base44.entities.Report.filter({ project_id });
     const nextVersion = existingReports.length > 0
@@ -348,9 +355,9 @@ product_shortlist items: { "product_name": "string", "brand": "string", "market"
       title: `${project.category} Trends — ${region}`,
       category: project.category,
       region,
-      slides: response.slides || [],
-      evidence_pack: response.evidence_pack || [],
-      product_shortlist: response.product_shortlist || [],
+      slides: parsed.slides || [],
+      evidence_pack: parsed.evidence_pack || [],
+      product_shortlist: parsed.product_shortlist || [],
       image_map: {},
       selected_trends: selectedTrends.map(t => t.trend_name),
       warnings: [],
