@@ -58,7 +58,7 @@ export default function ReportView() {
     );
   }
 
-  const handleExportToClaude = () => {
+  const handleExportToClaude = async () => {
     const date = format(new Date(), 'MMMM yyyy');
     const lines = [];
 
@@ -112,8 +112,21 @@ export default function ReportView() {
       lines.push('');
     }
 
-    navigator.clipboard.writeText(lines.join('\n'));
-    toast.success('Copied to clipboard — ready to paste into Claude.ai');
+    const text = lines.join('\n');
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Copied to clipboard — ready to paste into Claude.ai');
+    } catch {
+      // Fallback: download as .txt
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${report.title || 'report'}-claude-export.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Downloaded as .txt — paste into Claude.ai');
+    }
   };
 
   const freshnessColors = {
