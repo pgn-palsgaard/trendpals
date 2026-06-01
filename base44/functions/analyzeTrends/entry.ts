@@ -32,11 +32,11 @@ Deno.serve(async (req) => {
 
     // Fetch project context and sources
     const project = await base44.entities.Project.get(project_id);
+    console.log('[analyzeTrends] Project:', project.name, '| category:', project.category, '| region_code:', project.region_code, '| selected_source_ids count:', project.selected_source_ids?.length ?? 0);
     
-    // Get sources linked to this project
+    // Get sources linked to this project (same logic as generateTrends)
     let sources = [];
     if (project.selected_source_ids && project.selected_source_ids.length > 0) {
-      // Fetch sources by their IDs
       for (const sourceId of project.selected_source_ids) {
         try {
           const source = await base44.entities.Source.get(sourceId);
@@ -46,9 +46,9 @@ Deno.serve(async (req) => {
         }
       }
     } else {
-      // Fallback: fetch sources directly linked to project (legacy support)
       sources = await base44.entities.Source.filter({ project_id });
     }
+    console.log('[analyzeTrends] SOURCES FOUND:', sources.length, sources.map(s => s.title));
 
     // Fetch org-shared knowledge sources (Palsgaard capabilities)
     const knowledgeSources = await base44.entities.Source.filter({ source_type: 'knowledge', visibility: 'org_shared' });
@@ -63,7 +63,8 @@ Deno.serve(async (req) => {
         knowledgeCapabilityContext += '\n';
         if (ks.excerpts) {
           ks.excerpts.slice(0, 4).forEach(e => {
-            knowledgeCapabilityContext += `  • ${e.text.substring(0, 200)}...\n`;
+            const text = e.market_signal || e.text || '';
+            if (text) knowledgeCapabilityContext += `  • ${text.substring(0, 200)}\n`;
           });
         }
       });
@@ -101,7 +102,7 @@ Deno.serve(async (req) => {
     const mintelContent = sources
       .filter(s => s.source_type === 'mintel')
       .map(s => {
-        const excerpts = s.excerpts?.map(e => e.text).join('\n\n') || '';
+        const excerpts = s.excerpts?.map(e => e.market_signal || e.text || '').filter(Boolean).join('\n\n') || '';
         return `Report: ${s.title}\n${excerpts}`;
       })
       .join('\n\n---\n\n');
@@ -252,16 +253,18 @@ Format response as valid JSON only.`;
             items: { type: "string" }
           },
           implication_map: {
-            type: "object",
-            additionalProperties: {
+            type: "array",
+            items: {
               type: "object",
               properties: {
+                trend_name: { type: "string" },
                 rd: { type: "string" },
                 ops: { type: "string" },
                 quality_reg: { type: "string" },
                 procurement: { type: "string" },
                 marketing: { type: "string" }
-              }
+              },
+              required: ["trend_name", "rd", "ops", "quality_reg", "procurement", "marketing"]
             }
           }
         }
