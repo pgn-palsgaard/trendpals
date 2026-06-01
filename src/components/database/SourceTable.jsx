@@ -88,9 +88,22 @@ export default function SourceTable({ sources, selectedIds, onSelectAll, onSelec
                       <div className="font-medium text-slate-900 truncate max-w-md" title={source.title}>
                         {source.title}
                       </div>
-                      {source.is_archived && (
-                        <Badge variant="outline" className="text-xs mt-1">Archived</Badge>
-                      )}
+                      <div className="flex gap-1 mt-1 flex-wrap">
+                        {source.is_archived && (
+                          <Badge variant="outline" className="text-xs">Archived</Badge>
+                        )}
+                        {source.source_type === 'gnpd' && source.gnpd_processing_status === 'processing' && (
+                          <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">Processing…</Badge>
+                        )}
+                        {source.source_type === 'gnpd' && source.gnpd_processing_status === 'ready' && (
+                          <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                            {source.gnpd_row_count || 0} rows
+                          </Badge>
+                        )}
+                        {source.source_type === 'gnpd' && source.gnpd_processing_status === 'failed' && (
+                          <Badge variant="outline" className="text-xs text-red-600 border-red-300">GNPD failed</Badge>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </td>
@@ -105,26 +118,13 @@ export default function SourceTable({ sources, selectedIds, onSelectAll, onSelec
                   <span className="text-sm text-slate-700">{source.category || '-'}</span>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="flex flex-col gap-1">
-                    {source.source_type === 'gnpd' && source.gnpd_processing_status === 'processing' && (
-                      <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">Processing GNPD...</Badge>
-                    )}
-                    {source.source_type === 'gnpd' && source.gnpd_processing_status === 'ready' && (
-                      <Badge variant="outline" className="text-xs text-green-600 border-green-300">
-                        GNPD ready ({source.gnpd_row_count || 0} rows)
-                      </Badge>
-                    )}
-                    {source.source_type === 'gnpd' && source.gnpd_processing_status === 'failed' && (
-                      <Badge variant="outline" className="text-xs text-red-600 border-red-300">GNPD failed</Badge>
-                    )}
-                    {(source.date || source.date_published) ? (
-                      <span className="text-sm text-slate-700">
-                        {new Date(source.date || source.date_published).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 text-sm">-</span>
-                    )}
-                  </div>
+                  {(source.date || source.date_published) ? (
+                    <span className="text-sm text-slate-700">
+                      {new Date(source.date || source.date_published).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 text-sm">-</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   {freshness.text !== '-' ? (
