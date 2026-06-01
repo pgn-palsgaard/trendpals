@@ -507,6 +507,71 @@ Deno.serve(async (req) => {
             ? (dateParseSuccessCount / totalRowsWithDateColumn) * 100 
             : 0;
           
+          // ── Extract metadata from Sheet 2 (Search details) ──────────────────
+          let gnpdRegionCode = null;
+          let gnpdCategory = null;
+          let gnpdDatePublished = null;
+          try {
+            const searchSheetName = workbook.SheetNames[1];
+            if (searchSheetName) {
+              const searchSheet = workbook.Sheets[searchSheetName];
+              const searchRows = utils.sheet_to_json(searchSheet, { header: 1, defval: '' });
+              const searchLines = searchRows.flat().map(v => String(v).trim()).filter(v => v.length > 0);
+
+              // Extract market → region
+              const marketLine = searchLines.find(l => l.toLowerCase().startsWith('where market matches'));
+              if (marketLine) {
+                const market = marketLine.replace(/where market matches/i, '').trim();
+                // Map common market strings to region codes
+                const marketRegionMap = {
+                  china: 'ASPAC', japan: 'ASPAC', australia: 'ASPAC', india: 'ASPAC',
+                  'south korea': 'ASPAC', indonesia: 'ASPAC', thailand: 'ASPAC',
+                  'united states': 'AMERICAS', usa: 'AMERICAS', brazil: 'AMERICAS',
+                  mexico: 'AMERICAS', canada: 'AMERICAS',
+                  germany: 'EMEC', france: 'EMEC', 'united kingdom': 'EMEC', uk: 'EMEC',
+                  spain: 'EMEC', italy: 'EMEC', netherlands: 'EMEC', poland: 'EMEC',
+                  'saudi arabia': 'IMEA', uae: 'IMEA', turkey: 'IMEA', egypt: 'IMEA',
+                  'south africa': 'IMEA',
+                };
+                const key = market.toLowerCase();
+                gnpdRegionCode = marketRegionMap[key] || null;
+              }
+
+              // Extract sub-category → category
+              const subCatLine = searchLines.find(l => l.toLowerCase().includes('sub-category matches'));
+              if (subCatLine) {
+                const catsRaw = subCatLine.replace(/and sub-category matches one or more of/i, '').trim();
+                const firstCat = catsRaw.split(';')[0].trim();
+                // Map to known Palsgaard categories
+                const catMap = {
+                  'dairy based ice cream': 'Ice Cream', 'frozen desserts': 'Ice Cream',
+                  'plant based ice cream': 'Ice Cream', 'water based ice': 'Ice Cream',
+                  'ice cream': 'Ice Cream', 'chilled desserts': 'Dairy',
+                  'bakery': 'Bakery', 'confectionery': 'Confectionery',
+                  'chocolate': 'Confectionery', 'dairy': 'Dairy',
+                  'spreads': 'Fine Food', 'dressings': 'Fine Food',
+                };
+                const lc = firstCat.toLowerCase();
+                gnpdCategory = Object.entries(catMap).find(([k]) => lc.includes(k))?.[1] || null;
+              }
+
+              // Extract date window → use as date_published approximation
+              const dateLine = searchLines.find(l => l.toLowerCase().includes('date published matches'));
+              if (dateLine) {
+                const dateVal = dateLine.replace(/and date published matches/i, '').trim();
+                // Store as a readable string, convert to rough date
+                const sixMonthsAgo = new Date(); sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+                const twelveMonthsAgo = new Date(); twelveMonthsAgo.setFullYear(twelveMonthsAgo.getFullYear() - 1);
+                const twentyFourMonthsAgo = new Date(); twentyFourMonthsAgo.setFullYear(twentyFourMonthsAgo.getFullYear() - 2);
+                if (dateVal.includes('six months') || dateVal.includes('6 months')) gnpdDatePublished = sixMonthsAgo.toISOString().split('T')[0];
+                else if (dateVal.includes('twelve months') || dateVal.includes('12 months') || dateVal.includes('one year')) gnpdDatePublished = twelveMonthsAgo.toISOString().split('T')[0];
+                else if (dateVal.includes('24 months') || dateVal.includes('two years')) gnpdDatePublished = twentyFourMonthsAgo.toISOString().split('T')[0];
+              }
+            }
+          } catch (metaErr) {
+            console.warn('Could not parse Search details sheet:', metaErr.message);
+          }
+
           // Store parsed data immediately with metadata
           await base44.entities.Source.update(source.id, {
             gnpd_data: rows,
@@ -516,6 +581,9 @@ Deno.serve(async (req) => {
             gnpd_processing_status: 'ready',
             status: 'ready',
             processing_completed_at: new Date().toISOString(),
+            ...(gnpdRegionCode && { region_code: gnpdRegionCode }),
+            ...(gnpdCategory && { category: gnpdCategory }),
+            ...(gnpdDatePublished && { date_published: gnpdDatePublished }),
             // Add metadata for readiness checks
             metadata_extraction: {
               status: 'extracted',
