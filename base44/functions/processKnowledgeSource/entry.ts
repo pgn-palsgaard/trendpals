@@ -280,6 +280,9 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'JSON parse failed', raw: rawText.substring(0, 200) }, { status: 500 });
     }
 
+    // DEBUG: log raw Claude response and first parsed insight
+    console.log('CLAUDE RAW RESPONSE:', JSON.stringify(rawText).substring(0, 2000));
+
     // For Mintel: expect { insights: [...], chunks: [...] }
     // For others: expect a plain array of insight objects
     let insights;
@@ -290,6 +293,7 @@ Deno.serve(async (req) => {
 
     if (isMintel) {
       insights = parsed.insights || [];
+      console.log('PARSED INSIGHTS SAMPLE (mintel):', JSON.stringify(insights[0]));
       const chunks = parsed.chunks || [];
       const excerptCount = insights.length;
       updatePayload = {
@@ -305,6 +309,7 @@ Deno.serve(async (req) => {
       };
     } else {
       insights = Array.isArray(parsed) ? parsed : (parsed.excerpts || []);
+      console.log('PARSED INSIGHTS SAMPLE:', JSON.stringify(insights[0]));
       const excerptCount = insights.length;
       updatePayload = {
         excerpts: insights,
