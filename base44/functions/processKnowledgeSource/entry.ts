@@ -18,7 +18,7 @@ For each meaningful insight in the document, return a JSON object with this exac
   "id": "unique_snake_case_id",
   "market_signal": "What is happening in the market or industry — a consumer shift, regulatory pressure, economic driver, sustainability challenge, or category trend. Write from the outside in. Max 2 sentences.",
   "customer_pain": "The concrete challenge or pressure this creates for food manufacturers. What makes this hard for them? What are they struggling with? Max 2 sentences.",
-  "palsgaard_angle": "How Palsgaard technical expertise and capability can help address this challenge. Frame as know-how and problem-solving ability, not as a product. No product names, no dosages. Max 2 sentences.",
+  "palsgaard_angle": "How deep food industry expertise and technical capability can address this challenge. Write in third person as industry knowledge — e.g. 'Deep expertise in emulsification enables...' or 'Technical know-how in stabiliser systems allows manufacturers to...'. NEVER use 'Palsgaard' as the subject. No product names, no dosages. Max 2 sentences.",
   "has_direct_role": true,
   "capability_area": "sustainability | texture_quality | cost_efficiency | compliance_regulatory | new_product_development | food_safety | supply_chain | plant_based | general",
   "category_relevance": ["Ice Cream", "Dairy", "Confectionery", "Bakery", "Spreads", "Dressings"],
