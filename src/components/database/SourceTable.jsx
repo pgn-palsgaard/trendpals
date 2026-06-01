@@ -14,8 +14,9 @@ export default function SourceTable({ sources, selectedIds, onSelectAll, onSelec
   };
 
   const getCompleteness = (source) => {
-    const fields = ['region', 'category', 'date', 'trust_tier'];
-    const filled = fields.filter(f => source[f]).length;
+    const fields = ['region_code', 'category', 'trust_tier'];
+    const hasDate = source.date || source.date_published;
+    const filled = fields.filter(f => source[f]).length + (hasDate ? 1 : 0);
     const total = fields.length;
     const percentage = Math.round((filled / total) * 100);
     
@@ -122,9 +123,9 @@ export default function SourceTable({ sources, selectedIds, onSelectAll, onSelec
                         </Badge>
                       )}
                     </div>
-                  ) : source.date ? (
+                  ) : (source.date || source.date_published) ? (
                     <span className="text-sm text-slate-700">
-                      {new Date(source.date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                      {new Date(source.date || source.date_published).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
                     </span>
                   ) : (
                     <span className="text-slate-400 text-sm">-</span>
