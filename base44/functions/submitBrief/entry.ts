@@ -39,9 +39,9 @@ Deno.serve(async (req) => {
     submitted_at,
   } = body;
 
-  if (!requester_name || !requester_email || !account) {
+  if (!requester_name) {
     return Response.json(
-      { success: false, error: 'requester_name, requester_email, and account are required' },
+      { success: false, error: 'requester_name is required' },
       { status: 400, headers: corsHeaders }
     );
   }
