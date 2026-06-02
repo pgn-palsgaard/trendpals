@@ -19,6 +19,7 @@ Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
 
   const body = await req.json();
+  console.log('Incoming request body:', body);
 
   const {
     requester_name,
@@ -30,6 +31,12 @@ Deno.serve(async (req) => {
     purpose,
     challenges,
     notes,
+    report_type,
+    pains,
+    context,
+    region_zoom,
+    contact_name,
+    submitted_at,
   } = body;
 
   if (!requester_name || !requester_email || !account) {
@@ -42,15 +49,20 @@ Deno.serve(async (req) => {
   const record = await base44.asServiceRole.entities.ReportRequest.create({
     requester_name,
     requester_email,
-    account,
-    region: region || undefined,
-    deadline: deadline || undefined,
-    categories: categories || undefined,
-    purpose: purpose || undefined,
-    challenges: challenges || undefined,
-    notes: notes || undefined,
+    account: account || '',
+    region,
+    deadline: deadline || null,
+    categories,
+    purpose,
+    challenges,
+    notes,
+    report_type: report_type || 'category',
+    pains: pains || '',
+    context: context || '',
+    region_zoom: region_zoom || '',
+    contact_name: contact_name || '',
     status: 'new',
-    submitted_at: new Date().toISOString(),
+    submitted_at: submitted_at || new Date().toISOString(),
   });
 
   return Response.json({ success: true, id: record.id }, { status: 201, headers: corsHeaders });

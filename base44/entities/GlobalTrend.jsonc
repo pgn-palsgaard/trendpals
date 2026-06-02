@@ -1,0 +1,112 @@
+{
+  "name": "GlobalTrend",
+  "type": "object",
+  "required": [
+    "trend_name",
+    "category"
+  ],
+  "properties": {
+    "trend_name": {
+      "type": "string",
+      "description": "e.g. Plant-based indulgence parity"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Ice Cream",
+        "Dairy",
+        "Confectionery",
+        "Bakery",
+        "Spreads",
+        "Dressings",
+        "Other"
+      ]
+    },
+    "market_signal": {
+      "type": "string",
+      "description": "The global signal written outside-in"
+    },
+    "whats_changing": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "3-4 bullets on what is shifting globally"
+    },
+    "why_now": {
+      "type": "string",
+      "description": "Why this trend is relevant right now"
+    },
+    "capability_area": {
+      "type": "string",
+      "enum": [
+        "sustainability",
+        "texture_quality",
+        "cost_efficiency",
+        "compliance_regulatory",
+        "new_product_development",
+        "food_safety",
+        "supply_chain",
+        "plant_based",
+        "general"
+      ]
+    },
+    "trend_keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "regional_manifestations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "region": {
+            "type": "string"
+          },
+          "signal": {
+            "type": "string",
+            "description": "How this global trend shows up in this region"
+          },
+          "intensity": {
+            "type": "string",
+            "enum": [
+              "strong",
+              "moderate",
+              "emerging"
+            ]
+          },
+          "gnpd_evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "last_updated": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      }
+    },
+    "confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ]
+    },
+    "source_references": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}
