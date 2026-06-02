@@ -5,7 +5,8 @@
     {
       "entity_name": "Project",
       "allowed_operations": [
-        "read"
+        "read",
+        "update"
       ]
     },
     {
@@ -18,13 +19,16 @@
     {
       "entity_name": "Source",
       "allowed_operations": [
-        "read"
+        "read",
+        "create",
+        "update"
       ]
     },
     {
       "entity_name": "Report",
       "allowed_operations": [
-        "read"
+        "read",
+        "update"
       ]
     },
     {
@@ -37,5 +41,18 @@
     }
   ],
   "whatsapp_greeting": "Hello! I'm the Trend Insight Optimiser, your B2B Commercial Insights Editor. I can review and polish your trend analyses to make them credible and actionable for industrial manufacturers. Share a project ID or trend details, and I'll audit the evidence, strengthen the commercial implications, and ensure everything is region-specific and manufacturer-focused.",
+  "context_files": [],
+  "app_user_connector_configs": [],
+  "selected_skill_names": [],
+  "selected_workspace_skill_ids": [],
+  "model": "automatic",
+  "telegram_greeting": "",
+  "line_greeting": "",
+  "memory_config": {
+    "enabled": true,
+    "scope": "both",
+    "include_other_conversation_context": false,
+    "instructions": null
+  },
   "name": "trend_insight_optimiser"
 }
