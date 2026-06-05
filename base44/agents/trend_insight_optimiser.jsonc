@@ -45,7 +45,7 @@
   "app_user_connector_configs": [],
   "selected_skill_names": [],
   "selected_workspace_skill_ids": [],
-  "model": "automatic",
+  "model": "claude_opus_4_7",
   "telegram_greeting": "",
   "line_greeting": "",
   "memory_config": {
