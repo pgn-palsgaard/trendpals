@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
           let fileContent = '';
           if (source.file_url || source.url) {
             try {
-              const contentRes = await base44.functions.invoke('readSourceContent', { source_id: source.id });
+              const contentRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
               // base44.functions.invoke returns axios response: { data: { ok, content, ... } }
               const body = contentRes?.data ?? contentRes;
               fileContent = body?.content || '';
