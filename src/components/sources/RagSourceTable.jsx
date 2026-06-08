@@ -20,6 +20,8 @@ import {
 import DeleteSourcesDialog from './DeleteSourcesDialog';
 import SourceDetailPanel from './SourceDetailPanel';
 import KnowledgeUploadModal from '../knowledge/KnowledgeUploadModal';
+import ProcessQueueControls, { RetryRowButton } from './ProcessQueueControls';
+import ProcessingStatusBar from './ProcessingStatusBar';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 export const PIPELINE_BADGE = {
@@ -81,10 +83,11 @@ export default function RagSourceTable({
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [applying, setApplying] = useState(false);
   const [openSourceId, setOpenSourceId] = useState(null);
+  const [processing, setProcessing] = useState({ active: false, batchDone: 0, batchTotal: 0, stopped: false });
 
   const queryKey = ['ragSources', JSON.stringify(sourceTypeFilter)];
 
-  const { data: sources = [], isLoading } = useQuery({
+  const { data: sources = [], isLoading, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
       if (Array.isArray(sourceTypeFilter)) {
@@ -95,8 +98,13 @@ export default function RagSourceTable({
       }
       const q = sourceTypeFilter ? { source_type: sourceTypeFilter } : {};
       return await base44.entities.Source.filter(q, '-created_date', 500);
-    }
+    },
+    refetchInterval: processing.active ? 15000 : false,
   });
+
+  const handleRefresh = () => queryClient.invalidateQueries({ queryKey });
+
+  const updateProcessing = (update) => setProcessing(prev => ({ ...prev, ...update }));
 
   useEffect(() => { setSelectedIds(new Set()); }, [activeTab]);
 
@@ -190,6 +198,10 @@ export default function RagSourceTable({
 
   return (
     <div className="min-h-screen bg-slate-50">
+      <ProcessingStatusBar
+        processing={processing}
+        onStop={() => updateProcessing({ stopped: true, active: false })}
+      />
       <div className="max-w-[1600px] mx-auto p-6 space-y-5">
 
         {/* Header */}
@@ -266,6 +278,18 @@ export default function RagSourceTable({
 
         {/* Extra filters */}
         {ExtraFilterBar}
+
+        {/* Process queue / retry failed controls */}
+        <ProcessQueueControls
+          activeTab={activeTab}
+          visibleRows={visibleRows}
+          selectedIds={selectedIds}
+          allQueueCount={counts.uploaded}
+          allFailedCount={counts.failed}
+          processing={processing}
+          onProcessingChange={updateProcessing}
+          onRefresh={handleRefresh}
+        />
 
         {/* Search + bulk */}
         <div className="flex items-center gap-3">
@@ -382,11 +406,16 @@ export default function RagSourceTable({
                             {col.render(s)}
                           </td>
                         ))}
-                        <td className="px-4 py-3 max-w-[180px]">
+                        <td className="px-4 py-3 max-w-[200px]">
                           {s.failure_reason && <p className="text-xs text-red-600 font-medium">{s.failure_reason}</p>}
                           {s.skip_reason && <p className="text-xs text-slate-500">{s.skip_reason}</p>}
                           {s.review_notes && (
                             <p className="text-xs text-slate-500 italic truncate">{s.review_notes.slice(0, 40)}{s.review_notes.length > 40 ? '…' : ''}</p>
+                          )}
+                          {s.pipeline_stage === 'failed' && (
+                            <div className="mt-1" onClick={e => e.stopPropagation()}>
+                              <RetryRowButton sourceId={s.id} onDone={handleRefresh} />
+                            </div>
                           )}
                         </td>
                       </tr>
