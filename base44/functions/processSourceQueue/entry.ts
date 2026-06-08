@@ -76,7 +76,7 @@ Deno.serve(async (req) => {
           let fileContent = '';
           if (source.file_url) {
             try {
-              const contentRes = await base44.functions.invoke('readSourceContent', { sourceId: source.id });
+              const contentRes = await base44.functions.invoke('readSourceContent', { source_id: source.id });
               fileContent = contentRes?.data?.content || '';
             } catch (readErr) {
               console.warn(`[processSourceQueue] Could not read content for ${source.id}: ${readErr.message}`);
