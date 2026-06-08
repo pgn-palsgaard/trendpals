@@ -78,6 +78,16 @@ export default function Layout({ children, currentPageName }) {
             >
               Trend Library
             </Link>
+            <Link 
+              to="/AgentActivity" 
+              className={`text-sm font-medium transition-colors ${
+                currentPageName === 'AgentActivity'
+                  ? 'text-blue-600' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Agent Activity
+            </Link>
             <button
               onClick={() => base44.auth.logout()}
               className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"

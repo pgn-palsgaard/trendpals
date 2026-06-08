@@ -26,7 +26,8 @@ export default function MegaTrendsSection({ trends, activeMegaTrend, onSelect, o
     megaTrends.forEach(m => {
       const matching = trends.filter(t => t.mega_trend === m.mega_trend_name);
       const categories = [...new Set(matching.map(t => t.category).filter(Boolean))];
-      map[m.mega_trend_name] = { count: matching.length, categories };
+      const pendingCount = matching.reduce((acc, t) => acc + (t.sources || []).filter(s => s.review_status === 'pending').length, 0);
+      map[m.mega_trend_name] = { count: matching.length, categories, pendingCount };
     });
     return map;
   }, [megaTrends, trends]);
@@ -65,8 +66,15 @@ export default function MegaTrendsSection({ trends, activeMegaTrend, onSelect, o
             >
               <div className={`font-bold text-sm leading-snug mb-1 ${c.text}`}>{m.mega_trend_name}</div>
               <div className={`text-xs mb-2 leading-snug ${c.sub}`}>{m.short_description}</div>
-              <div className={`text-xs font-semibold mb-2 ${c.text}`}>
-                {s.count} {s.count === 1 ? 'trend' : 'trends'} in {s.categories.length} {s.categories.length === 1 ? 'category' : 'categories'}
+              <div className={`flex items-center gap-2 mb-2`}>
+                <span className={`text-xs font-semibold ${c.text}`}>
+                  {s.count} {s.count === 1 ? 'trend' : 'trends'} in {s.categories.length} {s.categories.length === 1 ? 'category' : 'categories'}
+                </span>
+                {s.pendingCount > 0 && (
+                  <span className="text-xs font-bold px-1.5 py-0.5 rounded-full bg-amber-500 text-white">
+                    {s.pendingCount} pending
+                  </span>
+                )}
               </div>
               {s.categories.length > 0 && (
                 <div className="flex flex-wrap gap-1">

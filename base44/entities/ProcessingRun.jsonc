@@ -1,0 +1,217 @@
+{
+  "name": "ProcessingRun",
+  "type": "object",
+  "required": [
+    "source_id",
+    "status"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "description": "ID of the Source record being processed"
+    },
+    "source_title": {
+      "type": "string",
+      "description": "Snapshot of Source.title at the time of run (for audit even if title changes later)"
+    },
+    "source_publisher": {
+      "type": "string",
+      "description": "Snapshot of Source.publisher at the time of run"
+    },
+    "source_type_snapshot": {
+      "type": "string",
+      "description": "Snapshot of Source.source_type"
+    },
+    "triggered_by": {
+      "type": "string",
+      "enum": [
+        "auto_upload",
+        "manual_button",
+        "schedule",
+        "retry"
+      ],
+      "description": "How this run was initiated"
+    },
+    "triggered_by_user": {
+      "type": "string",
+      "description": "Email of user who triggered (for manual_button)"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "failed",
+        "skipped"
+      ],
+      "default": "queued",
+      "description": "Current run status"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_seconds": {
+      "type": "number",
+      "description": "Wall clock duration of the run"
+    },
+    "excerpts_extracted": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of excerpts the agent extracted from the source"
+    },
+    "high_confidence_links": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of source-to-trend links auto-applied (high confidence)"
+    },
+    "medium_confidence_links": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of source-to-trend links queued for review (medium confidence)"
+    },
+    "low_confidence_rejects": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of source-to-trend match attempts rejected as too weak (low confidence)"
+    },
+    "new_trend_proposals": {
+      "type": "number",
+      "default": 0,
+      "description": "Number of new GlobalTrend (is_active=false) records created by this run"
+    },
+    "actions": {
+      "type": "array",
+      "description": "Per-action audit trail. One entry per meaningful operation: excerpt extraction, trend link decision, new trend proposal.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "action_type": {
+            "type": "string",
+            "enum": [
+              "excerpt_extracted",
+              "trend_linked_auto",
+              "trend_link_proposed",
+              "trend_link_rejected",
+              "new_trend_proposed",
+              "skip_rule_applied"
+            ],
+            "description": "What the agent did"
+          },
+          "excerpt_id": {
+            "type": "string",
+            "description": "Reference to Source.excerpts[].id this action was based on"
+          },
+          "target_globaltrend_id": {
+            "type": "string",
+            "description": "Reference to the GlobalTrend this action linked to or created"
+          },
+          "target_globaltrend_name": {
+            "type": "string",
+            "description": "Snapshot of GlobalTrend.trend_name at time of action"
+          },
+          "link_confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ],
+            "description": "Confidence tier that determined the action"
+          },
+          "confidence_score": {
+            "type": "number",
+            "description": "0-100 numeric confidence score"
+          },
+          "confidence_reasoning": {
+            "type": "string",
+            "description": "Plain-language explanation of why this confidence level was assigned"
+          },
+          "keyword_overlap": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The trend_keywords that matched between excerpt and GlobalTrend"
+          },
+          "category_match": {
+            "type": "boolean",
+            "description": "True if Source.category matches GlobalTrend.category"
+          },
+          "publisher_trust_tier": {
+            "type": "string",
+            "enum": [
+              "trusted",
+              "standard",
+              "low"
+            ],
+            "description": "Publisher trust signal used in confidence scoring"
+          },
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "auto_applied",
+              "pending",
+              "approved",
+              "rejected",
+              "reverted"
+            ],
+            "description": "Current review state of this action"
+          },
+          "reviewed_by": {
+            "type": "string",
+            "description": "Email of user who approved/rejected"
+          },
+          "reviewed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "review_notes": {
+            "type": "string",
+            "description": "Optional notes from the reviewer"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When the action occurred"
+          }
+        }
+      }
+    },
+    "errors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Non-fatal errors during the run (e.g. one excerpt failed to extract)"
+    },
+    "fatal_error": {
+      "type": "string",
+      "description": "Error message if status=failed"
+    },
+    "skip_reason": {
+      "type": "string",
+      "description": "If status=skipped, why (e.g. 'image source', 'gnpd data file', 'no readable content')"
+    },
+    "agent_model": {
+      "type": "string",
+      "description": "Model used (e.g. claude-opus-4-7)"
+    },
+    "agent_version": {
+      "type": "string",
+      "description": "Internal version tag for the agent prompt/logic"
+    },
+    "input_tokens": {
+      "type": "number",
+      "description": "Token cost tracking"
+    },
+    "output_tokens": {
+      "type": "number"
+    }
+  }
+}

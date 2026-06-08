@@ -26,6 +26,7 @@ export default function TrendCard({ trend, onActivate, onDeactivate, onArchive, 
   const keywords = trend.trend_keywords || [];
   const visibleKeywords = keywords.slice(0, 5);
   const extraCount = keywords.length - 5;
+  const pendingSourceCount = (trend.sources || []).filter(s => s.review_status === 'pending').length;
 
   return (
     <div
@@ -37,6 +38,11 @@ export default function TrendCard({ trend, onActivate, onDeactivate, onArchive, 
           <h3 className="font-semibold text-slate-900 text-base leading-snug">{trend.trend_name}</h3>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {pendingSourceCount > 0 && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white border border-amber-600">
+              {pendingSourceCount} pending
+            </span>
+          )}
           {isPending ? (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 border border-yellow-200">
               Pending review
