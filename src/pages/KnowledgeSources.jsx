@@ -20,6 +20,7 @@ import KnowledgeFilters from '../components/knowledge/KnowledgeFilters';
 import KnowledgeTable from '../components/knowledge/KnowledgeTable';
 import BulkEditKnowledgePanel from '../components/knowledge/BulkEditKnowledgePanel';
 import RAGProcessingPanel from '../components/knowledge/RAGProcessingPanel';
+import NeedsAttentionWidget from '../components/knowledge/NeedsAttentionWidget';
 
 export default function KnowledgeSources() {
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -106,6 +107,12 @@ export default function KnowledgeSources() {
             Upload Files
           </Button>
         </div>
+
+        {/* Needs Attention Widget */}
+        <NeedsAttentionWidget
+          sources={sources}
+          onRefresh={refetchSources}
+        />
 
         {/* RAG Processing Panel */}
         <RAGProcessingPanel

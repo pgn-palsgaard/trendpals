@@ -2,7 +2,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { FileText, FolderOpen, Shield, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { FileText, FolderOpen, Shield, AlertCircle, CheckCircle2, Loader2, Clock } from 'lucide-react';
 
 export default function KnowledgeTable({ sources, isLoading, selectedIds, onSelectionChange }) {
   const toggleSelection = (id) => {
@@ -28,6 +28,33 @@ export default function KnowledgeTable({ sources, isLoading, selectedIds, onSele
       case 'external_reference': return 'bg-blue-100 text-blue-700';
       default: return 'bg-slate-100 text-slate-700';
     }
+  };
+
+  const getExtractionStatusChip = (source) => {
+    const me = source.metadata_extraction;
+    if (!me) return null;
+    if (me.status === 'skipped') return null;
+    if (me.status === 'failed') return (
+      <span className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 border border-red-200 font-medium">
+        <AlertCircle className="w-2.5 h-2.5" /> failed extraction
+      </span>
+    );
+    if (me.status === 'extracted' && !me.verified) return (
+      <span className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-medium">
+        <Clock className="w-2.5 h-2.5" /> needs verification
+      </span>
+    );
+    if (me.status === 'extracted' && me.verified && source.rag_processed) return (
+      <span className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 border border-blue-200 font-medium">
+        <CheckCircle2 className="w-2.5 h-2.5" /> processed
+      </span>
+    );
+    if (me.status === 'extracted' && me.verified) return (
+      <span className="inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium">
+        <CheckCircle2 className="w-2.5 h-2.5" /> extracted
+      </span>
+    );
+    return null;
   };
 
   const getSubtypeLabel = (subtype) => {
@@ -109,6 +136,9 @@ export default function KnowledgeTable({ sources, isLoading, selectedIds, onSele
                         <div className="font-medium text-sm text-slate-900 truncate">{source.title}</div>
                         {source.relative_path && source.relative_path !== source.title && (
                           <div className="text-xs text-slate-500 truncate">{source.relative_path}</div>
+                        )}
+                        {getExtractionStatusChip(source) && (
+                          <div className="mt-1">{getExtractionStatusChip(source)}</div>
                         )}
                         {source.expires_at && new Date(source.expires_at) < new Date() && (
                           <div className="flex items-center gap-1 text-xs text-red-600 mt-1">

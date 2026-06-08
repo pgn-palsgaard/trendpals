@@ -3,10 +3,26 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
 
+    // Support both direct call and entity automation payload
     const body = await req.json();
-    const { source_id, triggered_by = 'manual_button' } = body;
+    let source_id = body.source_id;
+    let triggered_by = body.triggered_by || 'manual_button';
+
+    // Entity automation payload shape: { event, data }
+    if (!source_id && body.data?.id) {
+      source_id = body.data.id;
+      triggered_by = 'auto_upload';
+    }
+
+    // Try to get the calling user (may be null in automation context)
+    let userEmail = body.triggered_by_user || null;
+    try {
+      const user = await base44.auth.me();
+      if (user?.email) userEmail = user.email;
+    } catch (_) {
+      // no user session in automation context — that's fine
+    }
 
     if (!source_id) {
       return Response.json({ error: 'source_id is required' }, { status: 400 });
@@ -27,7 +43,7 @@ Deno.serve(async (req) => {
       source_publisher: source.publisher || '',
       source_type_snapshot: source.source_type || '',
       triggered_by,
-      triggered_by_user: user?.email || null,
+      triggered_by_user: userEmail,
       status: 'queued',
       started_at: now,
       excerpts_extracted: 0,

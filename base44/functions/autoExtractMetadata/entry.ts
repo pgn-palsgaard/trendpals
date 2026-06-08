@@ -29,14 +29,53 @@ Deno.serve(async (req) => {
       return Response.json({ skipped: true, reason: 'No file or URL to process' });
     }
 
-    // Skip GNPD sources — they have their own processing pipeline
-    if (source.source_type === 'gnpd') {
-      return Response.json({ skipped: true, reason: 'GNPD handled by separate pipeline' });
-    }
-
     // Skip if metadata already extracted and verified
     if (source.metadata_extraction?.status === 'extracted' && source.metadata_extraction?.verified) {
       return Response.json({ skipped: true, reason: 'Already verified' });
+    }
+
+    // ── Smart skip rules (DEL 4) ──────────────────────────────────────────────
+    // GNPD: has its own column-mapping pipeline
+    if (source.source_type === 'gnpd') {
+      await base44.asServiceRole.entities.Source.update(source_id, {
+        metadata_extraction: { ...(source.metadata_extraction || {}), status: 'skipped', skip_reason: 'GNPD handled by separate pipeline' }
+      });
+      return Response.json({ skipped: true, reason: 'GNPD handled by separate pipeline' });
+    }
+
+    // Archive or image file extensions — no extractable text
+    const fileUrl = source.file_url || source.url || '';
+    const lowerUrl = fileUrl.toLowerCase();
+    if (/\.(zip|rar|7z)(\?|$)/.test(lowerUrl)) {
+      await base44.asServiceRole.entities.Source.update(source_id, {
+        metadata_extraction: { ...(source.metadata_extraction || {}), status: 'skipped', skip_reason: 'Archive file — no extractable content' }
+      });
+      return Response.json({ skipped: true, reason: 'Archive file' });
+    }
+    if (/\.(jpg|jpeg|png|gif|webp)(\?|$)/.test(lowerUrl)) {
+      await base44.asServiceRole.entities.Source.update(source_id, {
+        metadata_extraction: { ...(source.metadata_extraction || {}), status: 'skipped', skip_reason: 'Image file — no text content' }
+      });
+      return Response.json({ skipped: true, reason: 'Image file' });
+    }
+    // Excel files that are NOT Mintel: structured data, not a narrative document
+    if (/\.xlsx(\?|$)/.test(lowerUrl) && source.source_type !== 'mintel') {
+      await base44.asServiceRole.entities.Source.update(source_id, {
+        metadata_extraction: { ...(source.metadata_extraction || {}), status: 'skipped', skip_reason: 'Excel/structured data — not a narrative document' }
+      });
+      return Response.json({ skipped: true, reason: 'Excel structured data' });
+    }
+
+    // Only run full extraction for narrative document types
+    const narrativeExtensions = /\.(pdf|docx|pptx|txt|md|html|htm)(\?|$)/;
+    const narrativeTypes = ['mintel', 'report', 'url', 'knowledge'];
+    const isNarrativeExt = narrativeExtensions.test(lowerUrl) || !lowerUrl.includes('.');
+    const isNarrativeType = narrativeTypes.includes(source.source_type);
+    if (!isNarrativeExt && !isNarrativeType) {
+      await base44.asServiceRole.entities.Source.update(source_id, {
+        metadata_extraction: { ...(source.metadata_extraction || {}), status: 'skipped', skip_reason: 'Not a supported narrative document type' }
+      });
+      return Response.json({ skipped: true, reason: 'Not a narrative document' });
     }
 
     console.log(`[autoExtractMetadata] Processing source: ${source_id} (${source.title})`);
