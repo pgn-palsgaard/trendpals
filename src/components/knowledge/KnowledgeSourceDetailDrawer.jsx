@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { 
   X, FileText, ExternalLink, CheckCircle2, AlertCircle, Clock, 
-  Zap, Edit2, Save, Tag, Calendar, Building2, Globe, BookOpen
+  Zap, Edit2, Save, Tag, Calendar, Building2, Globe, BookOpen, Trash2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +18,7 @@ export default function KnowledgeSourceDetailDrawer({ source, onClose, onRefresh
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [edits, setEdits] = useState({});
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const me = source?.metadata_extraction || {};
   const extracted = me.extracted_data || {};
@@ -47,6 +48,18 @@ export default function KnowledgeSourceDetailDrawer({ source, onClose, onRefresh
       toast.success('Source verified — Source Processor will run automatically');
       setEditing(false);
       onRefresh();
+      onClose();
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      await base44.entities.Source.delete(source.id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['knowledgeSources'] });
+      toast.success('Source deleted');
       onClose();
     },
     onError: (e) => toast.error(e.message),
@@ -241,49 +254,67 @@ export default function KnowledgeSourceDetailDrawer({ source, onClose, onRefresh
         </div>
 
         {/* Footer actions */}
-        <div className="border-t border-slate-200 p-4 flex items-center justify-between gap-3">
-          {editing ? (
-            <>
-              <Button variant="outline" size="sm" onClick={() => { setEditing(false); setEdits({}); }}>Cancel</Button>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-                onClick={() => verifyMutation.mutate()}
-                disabled={verifyMutation.isPending}
-              >
-                <Save className="w-3.5 h-3.5 mr-1" />
-                {verifyMutation.isPending ? 'Saving...' : 'Save & Verify'}
-              </Button>
-            </>
-          ) : me.status === 'extracted' && !me.verified ? (
-            <>
-              <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-                onClick={() => verifyMutation.mutate()}
-                disabled={verifyMutation.isPending}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
-                {verifyMutation.isPending ? 'Verifying...' : 'Verify & Process'}
-              </Button>
-            </>
-          ) : me.verified && !source.rag_processed ? (
-            <>
-              <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
-              <Button
-                size="sm"
-                className="bg-blue-600 hover:bg-blue-700"
-                onClick={() => processNowMutation.mutate()}
-                disabled={processNowMutation.isPending}
-              >
-                <Zap className="w-3.5 h-3.5 mr-1" />
-                {processNowMutation.isPending ? 'Queuing...' : 'Process now'}
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+        <div className="border-t border-slate-200 p-4 space-y-2">
+          {confirmDelete && (
+            <div className="flex items-center justify-between gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              <span className="text-xs text-red-700 font-medium">Delete permanently?</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setConfirmDelete(false)}>Cancel</Button>
+                <Button size="sm" className="h-7 text-xs bg-red-600 hover:bg-red-700 text-white" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
+                  {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+                </Button>
+              </div>
+            </div>
           )}
+          <div className="flex items-center justify-between gap-3">
+            {editing ? (
+              <>
+                <Button variant="outline" size="sm" onClick={() => { setEditing(false); setEdits({}); }}>Cancel</Button>
+                <Button
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700"
+                  onClick={() => verifyMutation.mutate()}
+                  disabled={verifyMutation.isPending}
+                >
+                  <Save className="w-3.5 h-3.5 mr-1" />
+                  {verifyMutation.isPending ? 'Saving...' : 'Save & Verify'}
+                </Button>
+              </>
+            ) : me.status === 'extracted' && !me.verified ? (
+              <>
+                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+                  <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => verifyMutation.mutate()} disabled={verifyMutation.isPending}>
+                    <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+                    {verifyMutation.isPending ? 'Verifying...' : 'Verify & Process'}
+                  </Button>
+                </div>
+              </>
+            ) : me.verified && !source.rag_processed ? (
+              <>
+                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700" onClick={() => processNowMutation.mutate()} disabled={processNowMutation.isPending}>
+                    <Zap className="w-3.5 h-3.5 mr-1" />
+                    {processNowMutation.isPending ? 'Queuing...' : 'Process now'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => setConfirmDelete(true)}>
+                  <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete
+                </Button>
+                <Button variant="outline" size="sm" onClick={onClose}>Close</Button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
