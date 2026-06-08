@@ -21,12 +21,14 @@ import KnowledgeTable from '../components/knowledge/KnowledgeTable';
 import BulkEditKnowledgePanel from '../components/knowledge/BulkEditKnowledgePanel';
 import RAGProcessingPanel from '../components/knowledge/RAGProcessingPanel';
 import NeedsAttentionWidget from '../components/knowledge/NeedsAttentionWidget';
+import KnowledgeSourceDetailDrawer from '../components/knowledge/KnowledgeSourceDetailDrawer';
 
 export default function KnowledgeSources() {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
+  const [selectedSource, setSelectedSource] = useState(null);
   const [filters, setFilters] = useState({
     subtype: 'all',
     trust_tier: 'all',
@@ -258,7 +260,17 @@ export default function KnowledgeSources() {
           isLoading={isLoading}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
+          onRowClick={setSelectedSource}
         />
+
+        {/* Source Detail Drawer */}
+        {selectedSource && (
+          <KnowledgeSourceDetailDrawer
+            source={selectedSource}
+            onClose={() => setSelectedSource(null)}
+            onRefresh={refetchSources}
+          />
+        )}
 
         {/* Upload Modal */}
         {showUploadModal && (

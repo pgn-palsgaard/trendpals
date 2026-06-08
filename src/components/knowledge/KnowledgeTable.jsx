@@ -4,7 +4,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { FileText, FolderOpen, Shield, AlertCircle, CheckCircle2, Loader2, Clock } from 'lucide-react';
 
-export default function KnowledgeTable({ sources, isLoading, selectedIds, onSelectionChange }) {
+export default function KnowledgeTable({ sources, isLoading, selectedIds, onSelectionChange, onRowClick }) {
   const toggleSelection = (id) => {
     if (selectedIds.includes(id)) {
       onSelectionChange(selectedIds.filter(sid => sid !== id));
@@ -120,13 +120,15 @@ export default function KnowledgeTable({ sources, isLoading, selectedIds, onSele
             <tbody className="divide-y">
               {sources.map(source => (
                 <tr 
-                  key={source.id}
-                  className={`hover:bg-slate-50 ${selectedIds.includes(source.id) ? 'bg-blue-50' : ''}`}
-                >
-                  <td className="p-3">
+                   key={source.id}
+                   className={`hover:bg-slate-50 cursor-pointer ${selectedIds.includes(source.id) ? 'bg-blue-50' : ''}`}
+                   onClick={(e) => { if (e.target.closest('[data-checkbox]')) return; onRowClick?.(source); }}
+                 >
+                  <td className="p-3" data-checkbox>
                     <Checkbox
                       checked={selectedIds.includes(source.id)}
                       onCheckedChange={() => toggleSelection(source.id)}
+                      onClick={(e) => e.stopPropagation()}
                     />
                   </td>
                   <td className="p-3">
