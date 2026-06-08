@@ -31,10 +31,10 @@ Deno.serve(async (req) => {
       const fetched = await Promise.all(
         sourceIds.map(id => base44.entities.Source.get(id).catch(() => null))
       );
+      // When specific IDs are passed, only skip GNPD type — force reprocess regardless of stage
       sourcesToProcess = fetched.filter(s =>
         s &&
-        !SKIP_TYPES.has(s.source_type) &&
-        !SKIP_STAGES.has(s.pipeline_stage)
+        !SKIP_TYPES.has(s.source_type)
       );
     } else {
       // Find all uploaded sources (excluding GNPD)
@@ -74,10 +74,17 @@ Deno.serve(async (req) => {
         try {
           // Read the source content
           let fileContent = '';
-          if (source.file_url) {
+          if (source.file_url || source.url) {
             try {
               const contentRes = await base44.functions.invoke('readSourceContent', { source_id: source.id });
-              fileContent = contentRes?.data?.content || '';
+              // base44.functions.invoke returns axios response: { data: { ok, content, ... } }
+              const body = contentRes?.data ?? contentRes;
+              fileContent = body?.content || '';
+              if (!fileContent) {
+                console.warn(`[processSourceQueue] readSourceContent returned no content for ${source.id}. ok=${body?.ok}, error=${body?.error}`);
+              } else {
+                console.log(`[processSourceQueue] Got ${fileContent.length} chars for ${source.id}`);
+              }
             } catch (readErr) {
               console.warn(`[processSourceQueue] Could not read content for ${source.id}: ${readErr.message}`);
             }
