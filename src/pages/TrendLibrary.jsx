@@ -8,6 +8,7 @@ import TrendCard from '@/components/trendlibrary/TrendCard';
 import TrendDetailPanel from '@/components/trendlibrary/TrendDetailPanel';
 import TrendEditModal from '@/components/trendlibrary/TrendEditModal';
 import MegaTrendsSection from '@/components/trendlibrary/MegaTrendsSection';
+import MegaTrendDetailPanel from '@/components/trendlibrary/MegaTrendDetailPanel';
 
 const CATEGORIES = ['Ice Cream', 'Dairy', 'Confectionery', 'Bakery', 'Spreads', 'Dressings', 'Other'];
 const TABS = [
@@ -24,6 +25,7 @@ export default function TrendLibrary() {
   const [megaTrendFilter, setMegaTrendFilter] = useState(null);
   const [selectedTrend, setSelectedTrend] = useState(null);
   const [editingTrend, setEditingTrend] = useState(null);
+  const [selectedMegaTrend, setSelectedMegaTrend] = useState(null);
 
   const { data: trends = [], isLoading } = useQuery({
     queryKey: ['globalTrends'],
@@ -107,7 +109,12 @@ export default function TrendLibrary() {
         </div>
 
         {/* Mega-trends section */}
-        <MegaTrendsSection trends={trends} activeMegaTrend={megaTrendFilter} onSelect={setMegaTrendFilter} />
+        <MegaTrendsSection
+          trends={trends}
+          activeMegaTrend={megaTrendFilter}
+          onSelect={setMegaTrendFilter}
+          onOpenDetail={setSelectedMegaTrend}
+        />
 
         {/* Filters row */}
         <div className="flex flex-col md:flex-row md:items-center gap-3 mb-6">
@@ -212,6 +219,16 @@ export default function TrendLibrary() {
           onDeactivate={handleDeactivate}
           onArchive={handleArchive}
           onEdit={handleEdit}
+        />
+      )}
+
+      {/* Mega-trend detail panel */}
+      {selectedMegaTrend && (
+        <MegaTrendDetailPanel
+          megaTrend={selectedMegaTrend}
+          linkedTrends={trends.filter(t => t.mega_trend === selectedMegaTrend.mega_trend_name)}
+          onClose={() => setSelectedMegaTrend(null)}
+          onSelectTrend={(t) => { setSelectedMegaTrend(null); setSelectedTrend(t); }}
         />
       )}
 

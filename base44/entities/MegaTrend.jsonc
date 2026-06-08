@@ -1,0 +1,71 @@
+{
+  "name": "MegaTrend",
+  "type": "object",
+  "required": [
+    "mega_trend_name"
+  ],
+  "properties": {
+    "mega_trend_name": {
+      "type": "string",
+      "description": "Name of the mega-trend (must match GlobalTrend.mega_trend enum value)"
+    },
+    "short_description": {
+      "type": "string",
+      "description": "One-line blurb shown on the card"
+    },
+    "description": {
+      "type": "string",
+      "description": "Long-form narrative description \u2014 multiple paragraphs separated by \\n\\n"
+    },
+    "sources": {
+      "type": "array",
+      "description": "Source citations backing this mega-trend",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          },
+          "source_type": {
+            "type": "string",
+            "enum": [
+              "mintel",
+              "trade_press",
+              "industry_data",
+              "research_report",
+              "internal_palsgaard",
+              "gnpd",
+              "web_article",
+              "press_release",
+              "other"
+            ]
+          },
+          "url": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "key_finding": {
+            "type": "string"
+          },
+          "quote": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "display_order": {
+      "type": "number",
+      "description": "Sort order for card display (ascending)"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true
+    }
+  }
+}
