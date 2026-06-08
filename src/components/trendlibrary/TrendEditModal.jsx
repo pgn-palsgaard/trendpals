@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { X } from 'lucide-react';
+import TrendSourcesEditor from './TrendSourcesEditor';
 
 const CATEGORIES = ['Ice Cream', 'Dairy', 'Confectionery', 'Bakery', 'Spreads', 'Dressings', 'Other'];
 const MEGA_TRENDS = ['GLP-1', 'Cost reformulation', 'Sustainability', 'Plant-based parity', 'Functional & gut health', 'Premium indulgence', 'Protein-as-default'];
@@ -27,6 +28,8 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
     confidence: trend.confidence || 'medium',
     category: trend.category || 'Other',
     mega_trend: trend.mega_trend || '',
+    description: trend.description || '',
+    sources: trend.sources || [],
     is_active: trend.is_active || false,
   });
 
@@ -38,6 +41,7 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
       whats_changing: form.whats_changing.split('\n').map(s => s.trim()).filter(Boolean),
       trend_keywords: form.trend_keywords.split(',').map(s => s.trim()).filter(Boolean),
       mega_trend: form.mega_trend || null,
+      description: form.description || null,
     };
     onSave(payload);
   };
@@ -56,6 +60,19 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
           <div>
             <label className="text-xs font-medium text-slate-600 mb-1 block">Trend Name</label>
             <Input value={form.trend_name} onChange={e => set('trend_name', e.target.value)} />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block">
+              Description
+              <span className="ml-1 text-slate-400 font-normal">— 3-5 paragraphs covering context, drivers, evidence, and what this means for ingredient suppliers</span>
+            </label>
+            <textarea
+              className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[200px] resize-y"
+              placeholder="Write a narrative description of this trend. Separate paragraphs with a blank line."
+              value={form.description}
+              onChange={e => set('description', e.target.value)}
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -106,6 +123,11 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
               {MEGA_TRENDS.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
+
+          <TrendSourcesEditor
+            sources={form.sources}
+            onChange={v => set('sources', v)}
+          />
 
           <div className="grid grid-cols-2 gap-3">
             <div>
