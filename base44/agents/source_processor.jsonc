@@ -30,7 +30,7 @@
     "enabled": true,
     "scope": "both",
     "include_other_conversation_context": false,
-    "instructions": null
+    "instructions": "Save memories when the user corrects you, expresses \na preference, or establishes a quality standard. \nExamples to save:\n- Specific phrasing patterns the user prefers or rejects\n- Calibration of confidence levels (when to use high/medium/low)\n- Capability_area mapping decisions that aren't obvious \n  from guidelines alone\n- Source-type-specific extraction patterns (e.g. how to \n  handle Innova reports vs Mintel PDFs)\n- Trend taxonomy decisions (e.g. when something should \n  be a new GlobalTrend vs link to existing)\n\nDo NOT save:\n- Specific Source contents or excerpts (those live in the \n  database)\n- Anything that contradicts the hard rules in Guidelines"
   },
   "name": "source_processor"
 }
