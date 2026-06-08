@@ -28,14 +28,16 @@ Deno.serve(async (req) => {
     let sourcesToProcess;
     if (Array.isArray(sourceIds) && sourceIds.length > 0) {
       // Fetch requested sources and filter out ineligible ones
-      const fetched = await Promise.all(
-        sourceIds.map(id => base44.entities.Source.get(id).catch(() => null))
-      );
+      // Fetch all sources and match by ID in-memory (filter by id not supported)
+      const allSources = await base44.entities.Source.list('-created_date', 500);
+      const idSet = new Set(sourceIds);
       // When specific IDs are passed, only skip GNPD type — force reprocess regardless of stage
-      sourcesToProcess = fetched.filter(s =>
+      sourcesToProcess = allSources.filter(s =>
         s &&
+        idSet.has(s.id) &&
         !SKIP_TYPES.has(s.source_type)
       );
+      console.log(`[processSourceQueue] Requested ${sourceIds.length} IDs, found ${sourcesToProcess.length} eligible sources`);
     } else {
       // Find all uploaded sources (excluding GNPD)
       const uploaded = await base44.entities.Source.filter({ pipeline_stage: 'uploaded' }, '-created_date', 500);
