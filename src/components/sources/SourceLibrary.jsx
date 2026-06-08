@@ -153,6 +153,14 @@ export default function SourceLibrary({ sourceTypeFilter, title, subtitle }) {
           reviewed_at: new Date().toISOString(),
         })));
         toast.success(`${ids.length} source(s) rejected`);
+      } else if (bulkAction === 'retry') {
+        await Promise.all(ids.map(id => base44.entities.Source.update(id, {
+          pipeline_stage: 'uploaded',
+          failure_reason: null,
+          retry_count: 0,
+          last_retry_at: new Date().toISOString(),
+        })));
+        toast.success(`${ids.length} source(s) reset to queue for retry`);
       } else if (bulkAction === 'mark_deletion') {
         const selected = sources.filter(s => ids.includes(s.id));
         await Promise.all(selected.map(s => {
@@ -298,6 +306,7 @@ export default function SourceLibrary({ sourceTypeFilter, title, subtitle }) {
                 <SelectContent>
                   <SelectItem value="approve">Approve</SelectItem>
                   <SelectItem value="reject">Reject</SelectItem>
+                  <SelectItem value="retry">Retry (reset to queue)</SelectItem>
                   <SelectItem value="mark_deletion">Mark for deletion</SelectItem>
                   <SelectItem value="delete" className="text-red-600">Delete permanently</SelectItem>
                 </SelectContent>
