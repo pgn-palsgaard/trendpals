@@ -78,15 +78,31 @@ Deno.serve(async (req) => {
           let fileContent = '';
           if (source.file_url || source.url) {
             try {
-              const contentRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
-              // base44.functions.invoke returns axios response: { data: { ok, content, ... } }
-              const body = contentRes?.data ?? contentRes;
-              fileContent = body?.content || '';
-              if (!fileContent) {
-                console.warn(`[processSourceQueue] readSourceContent returned no content for ${source.id}. ok=${body?.ok}, error=${body?.error}`);
-              } else {
-                console.log(`[processSourceQueue] Got ${fileContent.length} chars for ${source.id}`);
+              // Get a signed URL for private files to avoid 403
+              let fetchUrl = source.file_url || source.url;
+              try {
+                const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+                  file_uri: fetchUrl,
+                  expires_in: 300,
+                });
+                if (signed?.signed_url) fetchUrl = signed.signed_url;
+              } catch (_) {
+                // Not a private file or signing not needed — use original URL
               }
+
+              const { getDocument } = await import('npm:pdfjs-dist@4.4.168/legacy/build/pdf.mjs');
+              const res = await fetch(fetchUrl);
+              if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+              const arrayBuffer = await res.arrayBuffer();
+              const pdf = await getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+              const parts = [];
+              for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                parts.push(content.items.map(item => item.str).join(' '));
+              }
+              fileContent = parts.join('\n');
+              console.log(`[processSourceQueue] Got ${fileContent.length} chars for ${source.id}`);
             } catch (readErr) {
               console.warn(`[processSourceQueue] Could not read content for ${source.id}: ${readErr.message}`);
             }
