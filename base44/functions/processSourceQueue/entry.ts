@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 const SKIP_TYPES = new Set(['gnpd']);
-const SKIP_STAGES = new Set(['extracting', 'extracted', 'gnpd_ready', 'skipped']);
+const SKIP_STAGES = new Set(['extracting', 'extracted', 'gnpd_ready']);
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
