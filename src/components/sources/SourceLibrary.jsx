@@ -14,6 +14,7 @@ import {
   FileText, SkipForward, Loader2, Eye, AlertTriangle, Database
 } from 'lucide-react';
 import DeleteSourcesDialog from './DeleteSourcesDialog';
+import SourceDetailPanel from './SourceDetailPanel';
 import KnowledgeUploadModal from '../knowledge/KnowledgeUploadModal';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -66,6 +67,7 @@ export default function SourceLibrary({ sourceTypeFilter, title, subtitle }) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [applying, setApplying] = useState(false);
+  const [openSourceId, setOpenSourceId] = useState(null);
 
   const queryKey = ['sourceLibrary', JSON.stringify(sourceTypeFilter)];
 
@@ -356,8 +358,12 @@ export default function SourceLibrary({ sourceTypeFilter, title, subtitle }) {
                     const extraTags = (s.tags || []).filter(t => t !== 'deletion_pending').length - visibleTags.length;
 
                     return (
-                      <tr key={s.id} className={isSelected ? 'bg-blue-50' : 'hover:bg-slate-50'}>
-                        <td className="px-4 py-3">
+                      <tr
+                        key={s.id}
+                        className={`cursor-pointer ${isSelected ? 'bg-blue-50' : 'hover:bg-slate-50'} ${openSourceId === s.id ? 'border-l-4 border-l-blue-500' : ''}`}
+                        onClick={() => setOpenSourceId(s.id)}
+                      >
+                        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                           <Checkbox checked={isSelected} onCheckedChange={() => toggleOne(s.id)} />
                         </td>
                         <td className="px-4 py-3 max-w-xs">
@@ -430,6 +436,13 @@ export default function SourceLibrary({ sourceTypeFilter, title, subtitle }) {
       {showUploadModal && (
         <KnowledgeUploadModal onClose={() => setShowUploadModal(false)} />
       )}
+
+      {/* Source detail panel */}
+      <SourceDetailPanel
+        sourceId={openSourceId}
+        onClose={() => setOpenSourceId(null)}
+        onRefresh={() => queryClient.invalidateQueries({ queryKey })}
+      />
     </div>
   );
 }
