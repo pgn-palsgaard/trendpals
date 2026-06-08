@@ -1,12 +1,6 @@
 import React from 'react';
-import SourceLibrary from '../components/sources/SourceLibrary';
+import MarketIntelLibrary from '../components/sources/MarketIntelLibrary';
 
 export default function SourcesDatabase() {
-  return (
-    <SourceLibrary
-      sourceTypeFilter={['mintel', 'report', 'url', 'gnpd', 'other']}
-      title="Evidence Sources"
-      subtitle="Mintel reports, GNPD exports, trade press, and external market data"
-    />
-  );
+  return <MarketIntelLibrary />;
 }

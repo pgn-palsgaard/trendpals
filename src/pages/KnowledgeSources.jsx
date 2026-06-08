@@ -1,12 +1,6 @@
 import React from 'react';
-import SourceLibrary from '../components/sources/SourceLibrary';
+import KnowledgeLibrary from '../components/sources/KnowledgeLibrary';
 
 export default function KnowledgeSources() {
-  return (
-    <SourceLibrary
-      sourceTypeFilter="knowledge"
-      title="Knowledge Sources"
-      subtitle="Palsgaard product sheets, technical docs, capabilities, and internal references"
-    />
-  );
+  return <KnowledgeLibrary />;
 }

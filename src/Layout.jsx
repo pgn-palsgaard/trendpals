@@ -29,16 +29,6 @@ export default function Layout({ children, currentPageName }) {
               Projects
             </Link>
             <Link 
-              to={createPageUrl('SourcesDatabase')} 
-              className={`text-sm font-medium transition-colors ${
-                currentPageName === 'SourcesDatabase'
-                  ? 'text-blue-600' 
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Evidence Sources
-            </Link>
-            <Link 
               to={createPageUrl('KnowledgeSources')} 
               className={`text-sm font-medium transition-colors ${
                 currentPageName === 'KnowledgeSources'
@@ -47,6 +37,26 @@ export default function Layout({ children, currentPageName }) {
               }`}
             >
               Knowledge Sources
+            </Link>
+            <Link 
+              to={createPageUrl('SourcesDatabase')} 
+              className={`text-sm font-medium transition-colors ${
+                currentPageName === 'SourcesDatabase'
+                  ? 'text-blue-600' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Market Intelligence
+            </Link>
+            <Link 
+              to="/GnpdLibrary" 
+              className={`text-sm font-medium transition-colors ${
+                currentPageName === 'GnpdLibrary'
+                  ? 'text-blue-600' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              GNPD Library
             </Link>
             <Link 
               to={createPageUrl('ReportsLibrary')} 
