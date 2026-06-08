@@ -1,132 +1,122 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.23';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-/**
- * readSourceContent
- * 
- * Given a source_id, this function:
- * 1. Fetches the Source entity (metadata + stored excerpts)
- * 2. If the source has a file_url (public) or private file_uri, generates a signed URL and extracts full text via AI
- * 3. Returns both the stored excerpts AND a full-text extraction if possible
- * 
- * Used by the AI agent to read actual source content, not just metadata.
- */
+// Extract text from a URL using fetch + basic mime detection
+async function fetchAndExtract(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
+
+  const contentType = res.headers.get('content-type') || '';
+  const mime = contentType.split(';')[0].trim().toLowerCase();
+
+  // Image — skip
+  if (mime.startsWith('image/')) {
+    return { skip: true, reason: 'Image source — skip' };
+  }
+
+  // PDF
+  if (mime === 'application/pdf' || url.toLowerCase().endsWith('.pdf')) {
+    const arrayBuffer = await res.arrayBuffer();
+    const { getDocument } = await import('npm:pdfjs-dist@4.4.168/legacy/build/pdf.mjs');
+    const pdf = await getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+    const parts = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      parts.push(content.items.map(item => item.str).join(' '));
+    }
+    return { text: parts.join('\n'), mime_type: 'application/pdf' };
+  }
+
+  // DOCX
+  if (
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    url.toLowerCase().endsWith('.docx')
+  ) {
+    const arrayBuffer = await res.arrayBuffer();
+    const mammoth = await import('npm:mammoth@1.8.0');
+    const result = await mammoth.extractRawText({ arrayBuffer });
+    return { text: result.value, mime_type: mime };
+  }
+
+  // PPTX
+  if (
+    mime === 'application/vnd.openxmlformats-officedocument.presentationml.presentation' ||
+    url.toLowerCase().endsWith('.pptx')
+  ) {
+    const arrayBuffer = await res.arrayBuffer();
+    // Extract text from pptx xml manually
+    const JSZip = (await import('npm:jszip@3.10.1')).default;
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    const slideFiles = Object.keys(zip.files).filter(f => /ppt\/slides\/slide[0-9]+\.xml/.test(f));
+    slideFiles.sort();
+    const parts = [];
+    for (const slideFile of slideFiles) {
+      const xml = await zip.files[slideFile].async('string');
+      const text = xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      if (text) parts.push(text);
+    }
+    return { text: parts.join('\n'), mime_type: mime };
+  }
+
+  // HTML — strip tags
+  if (mime === 'text/html' || url.toLowerCase().endsWith('.html') || url.toLowerCase().endsWith('.htm')) {
+    const html = await res.text();
+    const text = html.replace(/<script[\s\S]*?<\/script>/gi, '')
+                     .replace(/<style[\s\S]*?<\/style>/gi, '')
+                     .replace(/<[^>]+>/g, ' ')
+                     .replace(/\s+/g, ' ')
+                     .trim();
+    return { text, mime_type: 'text/html' };
+  }
+
+  // Plain text / markdown
+  if (mime.startsWith('text/') || url.toLowerCase().endsWith('.md') || url.toLowerCase().endsWith('.txt')) {
+    const text = await res.text();
+    return { text, mime_type: mime || 'text/plain' };
+  }
+
+  // Unsupported
+  return { skip: true, reason: `Unsupported mime type: ${mime || 'unknown'}` };
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
 
-    if (!user) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { source_id, max_excerpts } = await req.json();
-
+    const { source_id } = await req.json();
     if (!source_id) {
-      return Response.json({ error: 'source_id is required' }, { status: 400 });
+      return Response.json({ ok: false, error: 'source_id is required' }, { status: 400 });
     }
 
-    // Fetch the source entity
-    const source = await base44.entities.Source.get(source_id);
+    // Look up source record (use service role so agent can call without user session)
+    const sources = await base44.asServiceRole.entities.Source.filter({ id: source_id });
+    const source = sources?.[0];
     if (!source) {
-      return Response.json({ error: 'Source not found' }, { status: 404 });
+      return Response.json({ ok: false, error: 'Source not found' });
     }
 
-    const excerptLimit = max_excerpts || 50;
-
-    // Build base response from stored excerpts
-    const storedExcerpts = (source.excerpts || []).slice(0, excerptLimit).map(e => ({
-      id: e.id,
-      text: e.text,
-      page_ref: e.page_ref
-    }));
-
-    // Attempt to extract full text from the file if a file_url exists
-    let fullTextExtraction = null;
-    const fileUrl = source.file_url;
-
-    if (fileUrl && source.source_type !== 'gnpd') {
-      try {
-        const extractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
-          file_url: fileUrl,
-          json_schema: {
-            type: "object",
-            properties: {
-              full_text: {
-                type: "string",
-                description: "The complete readable text content of the document"
-              },
-              key_statistics: {
-                type: "array",
-                items: { type: "string" },
-                description: "Any specific statistics, percentages, or data points mentioned"
-              },
-              key_themes: {
-                type: "array",
-                items: { type: "string" },
-                description: "Main themes and topics covered"
-              },
-              publication_date: {
-                type: "string",
-                description: "Publication date if mentioned"
-              }
-            }
-          }
-        });
-
-        if (extractResult.status === 'success' && extractResult.output) {
-          fullTextExtraction = extractResult.output;
-        }
-      } catch (extractError) {
-        console.warn('Full text extraction failed:', extractError.message);
-        // Continue with stored excerpts only
-      }
+    const targetUrl = source.file_url || source.url;
+    if (!targetUrl) {
+      return Response.json({ ok: false, error: 'No file_url or url on source' });
     }
 
-    // For GNPD sources, return structured product data summary
-    let gnpdSummary = null;
-    if (source.source_type === 'gnpd' && source.gnpd_data) {
-      const products = source.gnpd_data.slice(0, 100);
-      gnpdSummary = {
-        total_products: source.gnpd_row_count || source.gnpd_data.length,
-        columns: source.gnpd_headers || [],
-        sample_products: products.slice(0, 20),
-        date_range: {
-          min: products.reduce((min, p) => {
-            const d = p._date_published_parsed;
-            return d && (!min || d < min) ? d : min;
-          }, null),
-          max: products.reduce((max, p) => {
-            const d = p._date_published_parsed;
-            return d && (!max || d > max) ? d : max;
-          }, null)
-        }
-      };
+    const result = await fetchAndExtract(targetUrl);
+
+    if (result.skip) {
+      return Response.json({ ok: false, error: result.reason });
     }
+
+    const fullText = result.text || '';
+    const truncated = fullText.slice(0, 200_000);
 
     return Response.json({
-      source_id: source.id,
-      title: source.title,
-      source_type: source.source_type,
-      publisher: source.publisher,
-      date_published: source.date_published || source.date,
-      coverage_period: source.coverage_period,
-      category: source.category,
-      region_code: source.region_code,
-      ai_summary: source.ai_summary,
-      notes: source.notes,
-      status: source.status,
-      stored_excerpts: storedExcerpts,
-      stored_excerpts_count: source.excerpts?.length || 0,
-      full_text_extraction: fullTextExtraction,
-      gnpd_summary: gnpdSummary,
-      has_file: !!fileUrl
+      ok: true,
+      content: truncated,
+      mime_type: result.mime_type,
+      char_count: fullText.length,
     });
 
   } catch (error) {
-    console.error('readSourceContent error:', error);
-    return Response.json({
-      error: error.message || 'Failed to read source content',
-      details: error.stack
-    }, { status: 500 });
+    return Response.json({ ok: false, error: error.message });
   }
 });
