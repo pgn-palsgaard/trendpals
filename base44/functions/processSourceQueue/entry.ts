@@ -94,7 +94,8 @@ Deno.serve(async (req) => {
           }
 
           // Truncate very large content to avoid token overruns
-          const MAX_CHARS = 120000; // ~30k tokens
+          // ~15k tokens to stay safely under 30k/min rate limit for Claude Sonnet
+          const MAX_CHARS = 60000;
           const truncated = fileContent.length > MAX_CHARS;
           const contentForLLM = truncated ? fileContent.slice(0, MAX_CHARS) + '\n\n[Content truncated for token limits]' : fileContent;
 
