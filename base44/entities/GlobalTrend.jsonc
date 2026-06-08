@@ -22,6 +22,19 @@
         "Other"
       ]
     },
+    "mega_trend": {
+      "type": "string",
+      "enum": [
+        "GLP-1",
+        "Cost reformulation",
+        "Sustainability",
+        "Plant-based parity",
+        "Functional & gut health",
+        "Premium indulgence",
+        "Protein-as-default"
+      ],
+      "description": "Cross-category consumer mega-trend this trend belongs to (optional)"
+    },
     "market_signal": {
       "type": "string",
       "description": "The global signal written outside-in"

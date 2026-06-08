@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { X } from 'lucide-react';
 
 const CATEGORIES = ['Ice Cream', 'Dairy', 'Confectionery', 'Bakery', 'Spreads', 'Dressings', 'Other'];
+const MEGA_TRENDS = ['GLP-1', 'Cost reformulation', 'Sustainability', 'Plant-based parity', 'Functional & gut health', 'Premium indulgence', 'Protein-as-default'];
 const CAPABILITY_AREAS = [
   'sustainability', 'texture_quality', 'cost_efficiency', 'compliance_regulatory',
   'new_product_development', 'food_safety', 'supply_chain', 'plant_based', 'general',
@@ -25,6 +26,7 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
     trend_keywords: (trend.trend_keywords || []).join(', '),
     confidence: trend.confidence || 'medium',
     category: trend.category || 'Other',
+    mega_trend: trend.mega_trend || '',
     is_active: trend.is_active || false,
   });
 
@@ -35,6 +37,7 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
       ...form,
       whats_changing: form.whats_changing.split('\n').map(s => s.trim()).filter(Boolean),
       trend_keywords: form.trend_keywords.split(',').map(s => s.trim()).filter(Boolean),
+      mega_trend: form.mega_trend || null,
     };
     onSave(payload);
   };
@@ -93,6 +96,15 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
           <div>
             <label className="text-xs font-medium text-slate-600 mb-1 block">Trend Keywords (comma-separated)</label>
             <Input value={form.trend_keywords} onChange={e => set('trend_keywords', e.target.value)} placeholder="e.g. sustainability, clean label, plant-based" />
+          </div>
+
+          <div>
+            <label className="text-xs font-medium text-slate-600 mb-1 block">Mega-trend (optional)</label>
+            <select className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={form.mega_trend} onChange={e => set('mega_trend', e.target.value)}>
+              <option value="">None</option>
+              {MEGA_TRENDS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

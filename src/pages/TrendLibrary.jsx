@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import TrendCard from '@/components/trendlibrary/TrendCard';
 import TrendDetailPanel from '@/components/trendlibrary/TrendDetailPanel';
 import TrendEditModal from '@/components/trendlibrary/TrendEditModal';
+import MegaTrendsSection from '@/components/trendlibrary/MegaTrendsSection';
 
 const CATEGORIES = ['Ice Cream', 'Dairy', 'Confectionery', 'Bakery', 'Spreads', 'Dressings', 'Other'];
 const TABS = [
@@ -20,6 +21,7 @@ export default function TrendLibrary() {
   const [tab, setTab] = useState('pending');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [search, setSearch] = useState('');
+  const [megaTrendFilter, setMegaTrendFilter] = useState(null);
   const [selectedTrend, setSelectedTrend] = useState(null);
   const [editingTrend, setEditingTrend] = useState(null);
 
@@ -71,6 +73,7 @@ export default function TrendLibrary() {
       if (tab === 'pending' && t.is_active !== false) return false;
       if (tab === 'active' && t.is_active !== true) return false;
       if (categoryFilter && t.category !== categoryFilter) return false;
+      if (megaTrendFilter && t.mega_trend !== megaTrendFilter) return false;
       if (search) {
         const q = search.toLowerCase();
         const nameMatch = t.trend_name?.toLowerCase().includes(q);
@@ -79,7 +82,7 @@ export default function TrendLibrary() {
       }
       return true;
     });
-  }, [trends, tab, categoryFilter, search]);
+  }, [trends, tab, categoryFilter, search, megaTrendFilter]);
 
   // Group by category
   const grouped = useMemo(() => {
@@ -102,6 +105,9 @@ export default function TrendLibrary() {
           <h1 className="text-2xl font-bold text-slate-900">Trend Library</h1>
           <p className="text-sm text-slate-500 mt-1">Review and manage the GlobalTrend taxonomy used across TrendPals</p>
         </div>
+
+        {/* Mega-trends section */}
+        <MegaTrendsSection trends={trends} activeMegaTrend={megaTrendFilter} onSelect={setMegaTrendFilter} />
 
         {/* Filters row */}
         <div className="flex flex-col md:flex-row md:items-center gap-3 mb-6">
@@ -142,6 +148,16 @@ export default function TrendLibrary() {
               className="pl-9 bg-white"
             />
           </div>
+
+          {/* Clear mega-trend filter */}
+          {megaTrendFilter && (
+            <button
+              onClick={() => setMegaTrendFilter(null)}
+              className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-lg shrink-0"
+            >
+              ✕ Clear: {megaTrendFilter}
+            </button>
+          )}
 
           {/* Count */}
           <span className="text-sm text-slate-500 shrink-0">
