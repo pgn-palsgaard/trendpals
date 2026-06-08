@@ -100,7 +100,33 @@ Deno.serve(async (req) => {
       return Response.json({ ok: false, error: 'No file_url or url on source' });
     }
 
-    const result = await fetchAndExtract(targetUrl);
+    // Resolve fetch URL — private files need a signed URL
+    let fetchUrl = targetUrl;
+    if (!targetUrl.startsWith('http')) {
+      // Explicit private URI — get signed URL directly
+      const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+        file_uri: targetUrl,
+        expires_in: 300,
+      });
+      fetchUrl = signed.signed_url;
+    }
+
+    // Try fetching; if 403, the file is private — attempt signed URL via file_uri field
+    let result;
+    try {
+      result = await fetchAndExtract(fetchUrl);
+    } catch (fetchErr) {
+      if (fetchErr.message?.includes('403') && source.file_url && source.file_url.startsWith('http')) {
+        // Try to get a signed URL using the file_url as a URI reference
+        const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
+          file_uri: source.file_url,
+          expires_in: 300,
+        });
+        result = await fetchAndExtract(signed.signed_url);
+      } else {
+        throw fetchErr;
+      }
+    }
 
     if (result.skip) {
       return Response.json({ ok: false, error: result.reason });

@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
             console.log(`[processSourceQueue] Skipping ${source.id} — no readable content`);
             await base44.entities.Source.update(source.id, {
               pipeline_stage: 'skipped',
-              skip_reason: 'manual_skip',
+              skip_reason: 'image_only',
             });
             skipped++;
             continue;
@@ -169,6 +169,8 @@ Return ONLY a JSON object with this structure:
             ai_summary: result?.ai_summary || '',
             processing_completed_at: new Date().toISOString(),
             processing_error: null,
+            skip_reason: null,
+            failure_reason: null,
           });
 
           console.log(`[processSourceQueue] ✓ ${source.id} — ${excerpts.length} excerpts`);
