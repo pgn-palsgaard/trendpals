@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { getAllRegionCodes } from '@/components/RegionsTaxonomy';
+import { getAllRegionCodes, getRegionDisplayName } from '@/components/RegionsTaxonomy';
 
 const categories = [
   "Cake premixes & Long shelf-life cakes",
@@ -24,7 +24,7 @@ const categories = [
   "RUTF and RUSF",
 ];
 
-const regions = [...getAllRegionCodes(), "Global"];
+const regions = ["Global", "IMEA", "EMEC", "ASPAC", "AMERICAS"];
 const trendTimeWindows = ["last 6 months", "last 12 months", "last 24 months", "last 36 months"];
 const meetingContextOptions = ["discovery", "innovation_day", "technical_workshop", "other"];
 const customerPrioritiesOptions = ["cost", "clean label", "sustainability", "texture", "indulgence", "health & wellness", "convenience"];
@@ -113,7 +113,7 @@ export default function EditProjectModal({ project, open, onClose }) {
                 <SelectContent>
                   {regions.map(reg => (
                     <SelectItem key={reg} value={reg}>
-                      {reg === 'IMEA' ? 'IMEA (India, Middle East & Africa)' : reg}
+                      {getRegionDisplayName(reg)}
                     </SelectItem>
                   ))}
                 </SelectContent>

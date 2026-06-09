@@ -29,7 +29,7 @@ export default function Briefs() {
 
   const convertToProject = useMutation({
     mutationFn: async (req) => {
-      const regionMap = { ASPAC: 'ASPAC', EMEA: 'EMEC', Americas: 'AMERICAS', LATAM: 'AMERICAS', Global: 'Global' };
+      const regionMap = { ASPAC: 'ASPAC', 'ASPAC & China': 'ASPAC', EMEA: 'EMEC', EMEC: 'EMEC', Americas: 'Americas', LATAM: 'Americas', Global: 'Global', IMEA: 'IMEA' };
       const project = await base44.entities.Project.create({
         name: `${req.account} — ${req.categories || 'Report'}`,
         category: req.categories ? req.categories.split(',')[0].trim() : 'Other',

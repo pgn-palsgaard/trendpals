@@ -26,7 +26,7 @@ import { useNavigate } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { toast } from "sonner";
 import { ArrowLeft, Mail } from "lucide-react";
-import { getAllRegionCodes } from "@/components/RegionsTaxonomy";
+import { getAllRegionCodes, getRegionDisplayName } from "@/components/RegionsTaxonomy";
 import ImportFromEmailModal from "@/components/project/ImportFromEmailModal";
 
 const formSchema = z.object({
@@ -55,7 +55,7 @@ const categories = [
   "Plant-based products",
   "RUTF and RUSF",
 ];
-const regions = [...getAllRegionCodes(), "Global"];
+const regions = ["Global", "IMEA", "EMEC", "ASPAC", "AMERICAS"];
 const trendTimeWindows = ["last 6 months", "last 12 months", "last 24 months", "last 36 months"];
 const meetingContextOptions = ["discovery", "innovation_day", "technical_workshop", "other"];
 const customerPrioritiesOptions = ["cost", "clean label", "sustainability", "texture", "indulgence", "health & wellness", "convenience"];
@@ -206,7 +206,7 @@ export default function NewProject() {
                         <SelectContent>
                           {regions.map((reg) => (
                             <SelectItem key={reg} value={reg}>
-                              {reg === 'IMEA' ? 'IMEA (India, Middle East & Africa)' : reg}
+                              {getRegionDisplayName(reg)}
                             </SelectItem>
                           ))}
                         </SelectContent>

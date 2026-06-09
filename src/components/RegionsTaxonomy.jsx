@@ -186,10 +186,11 @@ export function getAllRegionCodes() {
  */
 export function getRegionDisplayName(regionCode) {
   const displayNames = {
-    ASPAC: 'ASPAC',
-    AMERICAS: 'AMERICAS',
+    ASPAC: 'ASPAC & China',
+    AMERICAS: 'Americas',
     EMEC: 'EMEC',
-    IMEA: 'IMEA'
+    IMEA: 'IMEA',
+    Global: 'Global',
   };
   return displayNames[regionCode] || regionCode;
 }

@@ -3,7 +3,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { format } from 'date-fns';
 import RagSourceTable from './RagSourceTable';
 
-const REGIONS = ['ASPAC', 'AMERICAS', 'EMEC', 'IMEA', 'Global'];
+const REGIONS = ['Global', 'IMEA', 'EMEC', 'ASPAC', 'AMERICAS'];
 const CATEGORIES = ['Bakery', 'Confectionery', 'Dairy', 'Feed', 'Fine Food', 'Ice Cream', 'Lipid', 'Meat', 'Other Food Applications', 'PCI', 'Polymer', 'Tech'];
 
 const SOURCE_TYPE_LABELS = {
@@ -56,7 +56,9 @@ export default function MarketIntelLibrary() {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All regions</SelectItem>
-          {REGIONS.map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+          {REGIONS.map(r => <SelectItem key={r} value={r}>{
+            r === 'ASPAC' ? 'ASPAC & China' : r === 'AMERICAS' ? 'Americas' : r
+          }</SelectItem>)}
         </SelectContent>
       </Select>
       <Select value={categoryFilter} onValueChange={setCategoryFilter}>
