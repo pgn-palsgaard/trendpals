@@ -35,11 +35,19 @@ export default function GnpdDetailPanel({ sourceId, onClose, onRefresh, onDelete
   }, [sourceId]);
 
   const handleRerunMapping = async () => {
-    await base44.entities.Source.update(sourceId, {
-      gnpd_mapping_status: 'detecting',
-    });
-    toast.success('Column detection re-queued');
-    onRefresh?.();
+    setLoading(true);
+    try {
+      await base44.entities.Source.update(sourceId, { gnpd_mapping_status: 'detecting' });
+      const res = await base44.functions.invoke('detectGNPDColumns', { sourceId });
+      const updated = await base44.entities.Source.filter({ id: sourceId }, null, 1);
+      setSource(updated[0]);
+      toast.success('Column detection complete');
+      onRefresh?.();
+    } catch (e) {
+      toast.error('Detection failed: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDelete = async () => {
@@ -121,7 +129,7 @@ export default function GnpdDetailPanel({ sourceId, onClose, onRefresh, onDelete
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <h3 className="text-sm font-semibold text-slate-800">Column Mapping</h3>
-                  {(source.gnpd_mapping_status === 'not_started' || source.gnpd_mapping_status === 'failed' || !source.gnpd_mapping_status) && (
+                  {source.gnpd_mapping_status !== 'detecting' && (
                     <Button size="sm" variant="outline" onClick={handleRerunMapping}>
                       <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
                       Re-run detection
