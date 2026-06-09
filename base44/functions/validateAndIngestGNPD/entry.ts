@@ -91,21 +91,43 @@ function parseSearchDetails(sheet, utils) {
   };
 
   for (const row of rawData) {
-    const cellA = String(row[0] || '').trim().toLowerCase();
+    // Support both A/B layout and key: value in same cell
+    const cellA = String(row[0] || '').trim();
     const cellB = String(row[1] || '').trim();
+    const cellALower = cellA.toLowerCase();
 
-    if (!cellA || !cellB) continue;
+    // Value may be in column B, or appended after a colon in column A
+    let label = cellALower;
+    let value = cellB;
+    if (!value && cellA.includes(':')) {
+      const idx = cellA.indexOf(':');
+      label = cellA.slice(0, idx).toLowerCase().trim();
+      value = cellA.slice(idx + 1).trim();
+    }
 
-    if (cellA.includes('category') || cellA.includes('categories')) {
-      metadata.categories.push(...cellB.split(/[,;/]/).map(s => s.trim()).filter(Boolean));
-    } else if (cellA.includes('market') || cellA.includes('country') || cellA.includes('countries')) {
-      metadata.markets.push(...cellB.split(/[,;/]/).map(s => s.trim()).filter(Boolean));
-    } else if (cellA.includes('date') || cellA.includes('period') || cellA.includes('time')) {
-      metadata.dateRange = cellB;
-    } else if (cellA.includes('title') || cellA.includes('search name') || cellA.includes('export')) {
-      metadata.searchTitle = cellB;
+    if (!label || !value) continue;
+
+    // Categories / Sub-categories
+    if (label.includes('categor') || label.includes('sub-cat') || label.includes('sub cat')) {
+      metadata.categories.push(...value.split(/[,;]/).map(s => s.trim()).filter(Boolean));
+    }
+    // Markets / Countries / Geographies
+    else if (label.includes('market') || label.includes('countr') || label.includes('geograph') || label.includes('region')) {
+      metadata.markets.push(...value.split(/[,;]/).map(s => s.trim()).filter(Boolean));
+    }
+    // Date / Period / Time range
+    else if (label.includes('date') || label.includes('period') || label.includes('time range') || label.includes('launch date')) {
+      if (!metadata.dateRange) metadata.dateRange = value;
+    }
+    // Title / Search name / Export name
+    else if (label.includes('title') || label.includes('search name') || label.includes('report name') || label.includes('export name')) {
+      if (!metadata.searchTitle) metadata.searchTitle = value;
     }
   }
+
+  // Deduplicate
+  metadata.categories = [...new Set(metadata.categories)];
+  metadata.markets    = [...new Set(metadata.markets)];
 
   return metadata;
 }
@@ -248,13 +270,27 @@ Deno.serve(async (req) => {
     const region_code = mapRegion(searchMetadata.markets);
     const category = mapCategory(searchMetadata.categories);
 
-    // Build a human-readable title from search metadata
-    const titleParts = [];
-    if (searchMetadata.categories.length > 0) titleParts.push(searchMetadata.categories.slice(0, 2).join(' & '));
-    if (searchMetadata.markets.length > 0) titleParts.push(searchMetadata.markets.slice(0, 2).join(', '));
-    if (searchMetadata.dateRange) titleParts.push(searchMetadata.dateRange);
-    const autoTitle = searchMetadata.searchTitle
-      || (titleParts.length > 0 ? `GNPD: ${titleParts.join(' — ')}` : `GNPD Export — ${new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`);
+    // Build a rich human-readable title from search metadata
+    // Format: "Ice Cream · Dairy — Germany, France, UK — Jan 2024–Dec 2024"
+    const catLabel    = searchMetadata.categories.length > 0
+      ? searchMetadata.categories.join(' · ')
+      : null;
+    const marketLabel = searchMetadata.markets.length > 0
+      ? (searchMetadata.markets.length <= 4
+          ? searchMetadata.markets.join(', ')
+          : `${searchMetadata.markets.slice(0, 3).join(', ')} +${searchMetadata.markets.length - 3} more`)
+      : null;
+    const dateLabel   = searchMetadata.dateRange || null;
+
+    let autoTitle;
+    if (searchMetadata.searchTitle) {
+      autoTitle = searchMetadata.searchTitle;
+    } else {
+      const segments = [catLabel, marketLabel, dateLabel].filter(Boolean);
+      autoTitle = segments.length > 0
+        ? segments.join(' — ')
+        : `GNPD Export — ${new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
+    }
 
     // Build structured rows for the data sheet
     const seenHeaders = {};
