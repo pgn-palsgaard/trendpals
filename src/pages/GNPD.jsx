@@ -35,11 +35,49 @@ function UploadsTab() {
   const [parsing, setParsing]         = useState({});   // { sourceId: {status, rows, created} }
 
   const queryKey = ['gnpdSources'];
+  const [detectingTimers, setDetectingTimers] = useState({});
 
   const { data: sources = [], isLoading } = useQuery({
     queryKey,
     queryFn: () => base44.entities.Source.filter({ source_type: 'gnpd' }, '-created_date', 300),
+    refetchInterval: (data) => {
+      const sources = data?.state?.data ?? [];
+      return sources.some(s => s.gnpd_mapping_status === 'detecting') ? 3000 : false;
+    },
   });
+
+  // Track elapsed seconds for detecting sources
+  useEffect(() => {
+    const detecting = sources.filter(s => s.gnpd_mapping_status === 'detecting');
+    detecting.forEach(s => {
+      if (!detectingTimers[s.id]) {
+        setDetectingTimers(prev => ({ ...prev, [s.id]: { start: Date.now(), elapsed: 0 } }));
+      }
+    });
+    // Clear timers for sources no longer detecting
+    setDetectingTimers(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(id => {
+        if (!detecting.find(s => s.id === id)) delete next[id];
+      });
+      return next;
+    });
+  }, [sources]);
+
+  useEffect(() => {
+    const hasDetecting = Object.keys(detectingTimers).length > 0;
+    if (!hasDetecting) return;
+    const interval = setInterval(() => {
+      setDetectingTimers(prev => {
+        const next = { ...prev };
+        Object.keys(next).forEach(id => {
+          next[id] = { ...next[id], elapsed: Math.floor((Date.now() - next[id].start) / 1000) };
+        });
+        return next;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [Object.keys(detectingTimers).length]);
 
   const stats = useMemo(() => ({
     total:  sources.length,
@@ -172,7 +210,7 @@ function UploadsTab() {
                     <td style={{ padding: "10px 14px", color: DARK_BLUE }}>{s.category || '—'}</td>
                     <td style={{ padding: "10px 14px", textAlign: "right", color: DARK_BLUE }}>{s.gnpd_row_count?.toLocaleString() || '—'}</td>
                     <td style={{ padding: "10px 14px" }}>
-                      <MappingBadge status={s.gnpd_mapping_status} />
+                      <MappingBadge status={s.gnpd_mapping_status} elapsed={detectingTimers[s.id]?.elapsed} />
                     </td>
                     <td style={{ padding: "10px 14px" }} onClick={e => e.stopPropagation()}>
                       {inDb ? (
@@ -212,18 +250,24 @@ function UploadsTab() {
   );
 }
 
-function MappingBadge({ status }) {
+function MappingBadge({ status, elapsed }) {
   const cfg = {
     not_started: { label: "Not started", bg: "#f1f1f1", color: GREY },
-    detecting:   { label: "Detecting",   bg: "#E8EEF6", color: BLUE },
+    detecting:   { label: "Detecting columns…", bg: "#E8EEF6", color: BLUE },
     complete:    { label: "Complete",    bg: "#EDF4EA", color: GREEN },
     failed:      { label: "Failed",      bg: "#FDECEA", color: ORANGE },
   };
   const c = cfg[status] || { label: status || "—", bg: "#f1f1f1", color: GREY };
+  const elapsedLabel = elapsed != null && elapsed > 0
+    ? elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`
+    : null;
   return (
-    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: c.bg, color: c.color, fontWeight: 600, display: "flex", alignItems: "center", gap: 5, width: "fit-content" }}>
+    <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: c.bg, color: c.color, fontWeight: 600, display: "inline-flex", alignItems: "center", gap: 5 }}>
       {status === "detecting" && <Loader2 size={10} className="animate-spin" />}
       {c.label}
+      {status === "detecting" && elapsedLabel && (
+        <span style={{ opacity: 0.7, fontWeight: 400 }}>{elapsedLabel}</span>
+      )}
     </span>
   );
 }
