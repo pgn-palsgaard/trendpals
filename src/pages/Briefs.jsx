@@ -30,6 +30,7 @@ export default function Briefs() {
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
   const [convertResult, setConvertResult] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   useEffect(() => { loadBriefs(); }, []);
 
@@ -56,6 +57,23 @@ export default function Briefs() {
       setConvertResult({ success: false, error: e.message });
     }
     setConverting(false);
+  }
+
+  async function deleteBrief(briefId) {
+    await base44.entities.ReportRequest.delete(briefId);
+    setBriefs(prev => prev.filter(b => b.id !== briefId));
+    setSelected(null);
+    setConfirmDelete(false);
+  }
+
+  async function unlinkAndRecreate(brief) {
+    // Clear existing project link, then convert fresh
+    await base44.entities.ReportRequest.update(brief.id, { project_id: null, status: "new" });
+    const refreshed = { ...brief, project_id: null, status: "new" };
+    setSelected(refreshed);
+    setBriefs(prev => prev.map(b => b.id === brief.id ? refreshed : b));
+    setConvertResult(null);
+    await convertToProject(refreshed);
   }
 
   async function updateStatus(briefId, status) {
@@ -95,7 +113,7 @@ export default function Briefs() {
             const st = STATUS_STYLES[brief.status] || STATUS_STYLES.new;
             const isSelected = selected?.id === brief.id;
             return (
-              <div key={brief.id} onClick={() => { setSelected(brief); setConvertResult(null); }} style={{
+              <div key={brief.id} onClick={() => { setSelected(brief); setConvertResult(null); setConfirmDelete(false); }} style={{
                 padding: "0.875rem 1rem", cursor: "pointer",
                 borderBottom: `1px solid #d8d3c8`,
                 background: isSelected ? "#E8EEF6" : "transparent",
@@ -150,6 +168,28 @@ export default function Briefs() {
                       fontSize: 12, fontFamily: "inherit"
                     }}>{STATUS_STYLES[s].label}</button>
                   ))}
+                  <div style={{ width: 1, height: 24, background: "#d8d3c8", margin: "0 2px" }} />
+                  {!confirmDelete ? (
+                    <button onClick={() => setConfirmDelete(true)} style={{
+                      background: "white", color: ORANGE,
+                      border: `1px solid #d8d3c8`, borderRadius: 6,
+                      padding: "5px 12px", cursor: "pointer", fontSize: 12, fontFamily: "inherit"
+                    }}>Delete</button>
+                  ) : (
+                    <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                      <span style={{ fontSize: 12, color: ORANGE }}>Delete brief?</span>
+                      <button onClick={() => deleteBrief(selected.id)} style={{
+                        background: ORANGE, color: "white", border: "none",
+                        borderRadius: 6, padding: "5px 12px", cursor: "pointer",
+                        fontSize: 12, fontFamily: "inherit", fontWeight: 600
+                      }}>Yes, delete</button>
+                      <button onClick={() => setConfirmDelete(false)} style={{
+                        background: "white", color: DARK_BLUE,
+                        border: `1px solid #d8d3c8`, borderRadius: 6,
+                        padding: "5px 10px", cursor: "pointer", fontSize: 12, fontFamily: "inherit"
+                      }}>Cancel</button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -195,12 +235,35 @@ export default function Briefs() {
               <p style={{ fontSize: 11, color: GREY, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 0.75rem" }}>Project</p>
 
               {selected.project_id ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 13, color: GREEN, fontWeight: 600 }}>✓ Linked to project</span>
-                  <Link to={`/ProjectDetail?id=${selected.project_id}`} style={{
-                    fontSize: 13, color: BLUE, textDecoration: "none",
-                    border: `1px solid #d8d3c8`, borderRadius: 6, padding: "4px 12px"
-                  }}>Open project →</Link>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 13, color: GREEN, fontWeight: 600 }}>✓ Linked to project</span>
+                    <Link to={`/ProjectDetail?id=${selected.project_id}`} style={{
+                      fontSize: 13, color: BLUE, textDecoration: "none",
+                      border: `1px solid #d8d3c8`, borderRadius: 6, padding: "4px 12px"
+                    }}>Open project →</Link>
+                  </div>
+                  <div>
+                    <p style={{ fontSize: 12, color: GREY, margin: "0 0 8px" }}>Need to start over with a fresh project?</p>
+                    <button onClick={() => unlinkAndRecreate(selected)} disabled={converting} style={{
+                      background: converting ? "#ccc" : "white",
+                      color: converting ? GREY : DARK_BLUE,
+                      border: `1px solid #d8d3c8`, borderRadius: 6,
+                      padding: "7px 14px", cursor: converting ? "default" : "pointer",
+                      fontSize: 13, fontFamily: "inherit"
+                    }}>
+                      {converting ? "Creating project…" : "↺ Recreate project"}
+                    </button>
+                    {convertResult?.success && (
+                      <div style={{ marginTop: 10, background: "#EDF4EA", borderLeft: `4px solid ${GREEN}`, borderRadius: 6, padding: "10px 14px", fontSize: 13 }}>
+                        <p style={{ color: GREEN, fontWeight: 600, margin: "0 0 4px" }}>✓ New project created: {convertResult.project_name}</p>
+                        <Link to={`/ProjectDetail?id=${convertResult.project_id}`} style={{ color: BLUE, fontSize: 13, display: "inline-block", marginTop: 4 }}>Open project →</Link>
+                      </div>
+                    )}
+                    {convertResult && !convertResult.success && (
+                      <p style={{ color: ORANGE, fontSize: 13, marginTop: 8 }}>Error: {convertResult.error}</p>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <>
