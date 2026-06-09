@@ -154,33 +154,29 @@ Return ONLY a JSON object with this structure:
   "ai_summary": "2-3 sentence summary of the document's key insights for Palsgaard"
 }`;
 
-          const result = await base44.integrations.Core.InvokeLLM({
-            prompt,
-            model: 'claude_sonnet_4_6',
-            response_json_schema: {
-              type: 'object',
-              properties: {
-                excerpts: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      market_signal: { type: 'string' },
-                      customer_pain: { type: 'string' },
-                      palsgaard_angle: { type: 'string' },
-                      has_direct_role: { type: 'boolean' },
-                      capability_area: { type: 'string' },
-                      confidence: { type: 'string' },
-                      source_quote: { type: 'string' },
-                      category_relevance: { type: 'array', items: { type: 'string' } },
-                      trend_keywords: { type: 'array', items: { type: 'string' } },
-                    },
-                  },
-                },
-                ai_summary: { type: 'string' },
-              },
+          const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'x-api-key': Deno.env.get('ANTHROPIC_API_KEY'),
+              'anthropic-version': '2023-06-01',
+              'content-type': 'application/json',
             },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-5',
+              max_tokens: 4096,
+              messages: [{ role: 'user', content: prompt }],
+            }),
           });
+          if (!anthropicRes.ok) {
+            const errText = await anthropicRes.text();
+            throw new Error(`Anthropic API error ${anthropicRes.status}: ${errText}`);
+          }
+          const anthropicData = await anthropicRes.json();
+          const rawText = anthropicData.content?.[0]?.text || '';
+          // Extract JSON from response
+          const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) throw new Error('No JSON found in Anthropic response');
+          const result = JSON.parse(jsonMatch[0]);
 
           const excerpts = (result?.excerpts || []).map((e, i) => ({
             ...e,
