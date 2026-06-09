@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { Upload, Search, Database, CheckCircle2, AlertCircle, Loader2, FileText, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import GnpdDetailPanel from '../components/sources/GnpdDetailPanel';
-import KnowledgeUploadModal from '../components/knowledge/KnowledgeUploadModal';
+import GNPDUploadModal from '../components/gnpd/GNPDUploadModal';
 
 // ── Brand colours ────────────────────────────────────────────────────────────
 const BLUE      = "#1D428A";
@@ -271,7 +271,12 @@ function UploadsTab() {
         </div>
       </div>
 
-      {showUploadModal && <KnowledgeUploadModal onClose={() => setShowUploadModal(false)} />}
+      {showUploadModal && (
+        <GNPDUploadModal
+          onClose={() => setShowUploadModal(false)}
+          onUploaded={() => queryClient.invalidateQueries({ queryKey })}
+        />
+      )}
       <GnpdDetailPanel
         sourceId={openSourceId}
         onClose={() => setOpenSourceId(null)}
