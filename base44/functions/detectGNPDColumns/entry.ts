@@ -187,6 +187,59 @@ function parseGNPDHtml(html) {
     return { headers, rows };
   }
 
+  // --- FORMAT 3: Standard HTML table format (<table><thead><tbody>) ---
+  // Mintel list-view exports as an HTML table
+  const tableMatch = html.match(/<table[^>]*>([\s\S]*?)<\/table>/i);
+  if (tableMatch) {
+    const tableHtml = tableMatch[1];
+
+    // Extract header row
+    const theadMatch = tableHtml.match(/<thead[^>]*>([\s\S]*?)<\/thead>/i);
+    const headerRowHtml = theadMatch
+      ? theadMatch[1]
+      : tableHtml.match(/<tr[^>]*>([\s\S]*?)<\/tr>/i)?.[1];
+
+    if (headerRowHtml) {
+      const thCells = [...headerRowHtml.matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)];
+      const headers = thCells.map(c => stripHtml(c[1])).filter(Boolean);
+
+      if (headers.length > 0) {
+        headers.forEach(h => fieldSet.add(h));
+
+        // Extract data rows from tbody (or all <tr> after the first)
+        const tbodyMatch = tableHtml.match(/<tbody[^>]*>([\s\S]*?)<\/tbody>/i);
+        const bodyHtml = tbodyMatch ? tbodyMatch[1] : tableHtml;
+        const trRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+        let tr;
+        let rowCount = 0;
+        while ((tr = trRegex.exec(bodyHtml)) !== null) {
+          const cells = [...tr[1].matchAll(/<t[hd][^>]*>([\s\S]*?)<\/t[hd]>/gi)];
+          const values = cells.map(c => stripHtml(c[1]));
+          if (values.length > 0 && values.some(v => v && v !== '&nbsp;')) {
+            const row = {};
+            headers.forEach((h, i) => {
+              const v = values[i] || '';
+              if (v && v !== '&nbsp;') row[h] = v;
+            });
+            if (Object.keys(row).length > 1) {
+              rows.push(row);
+              rowCount++;
+            }
+          }
+        }
+
+        if (rowCount > 0) {
+          const fixedOrder = ['Record ID', 'Product', 'Brand', 'Company', 'Ultimate Company', 'Market', 'Category', 'Sub-Category', 'Date Published', 'Launch Type', 'Product Description', 'Claims', 'Flavours', 'Record Hyperlink'];
+          const finalHeaders = [
+            ...fixedOrder.filter(f => fieldSet.has(f)),
+            ...[...fieldSet].filter(f => !fixedOrder.includes(f))
+          ];
+          return { headers: finalHeaders, rows };
+        }
+      }
+    }
+  }
+
   // --- FORMAT 1: Definition-list format (<dl>/<dt>/<dd>) ---
   const dlRegex = /<dl>([\s\S]*?)<\/dl>/gi;
   let m;
