@@ -57,14 +57,14 @@ export default function Layout({ children, currentPageName }) {
               Market Intelligence
             </Link>
             <Link 
-              to="/GnpdLibrary" 
+              to="/GNPD" 
               className={`text-sm font-medium transition-colors ${
-                currentPageName === 'GnpdLibrary'
+                currentPageName === 'GNPD'
                   ? 'text-blue-600' 
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              GNPD Library
+              GNPD
             </Link>
             <Link 
               to={createPageUrl('ReportsLibrary')} 
