@@ -221,7 +221,10 @@ function MappingBadge({ status }) {
   };
   const c = cfg[status] || { label: status || "—", bg: "#f1f1f1", color: GREY };
   return (
-    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: c.bg, color: c.color, fontWeight: 600 }}>{c.label}</span>
+    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: c.bg, color: c.color, fontWeight: 600, display: "flex", alignItems: "center", gap: 5, width: "fit-content" }}>
+      {status === "detecting" && <Loader2 size={10} className="animate-spin" />}
+      {c.label}
+    </span>
   );
 }
 
