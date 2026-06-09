@@ -5,9 +5,13 @@
     "mega_trend_name"
   ],
   "properties": {
+    "key": {
+      "type": "string",
+      "description": "Stable slug \u2014 the immutable join key used by GlobalTrend.driver_key. Never change this after creation."
+    },
     "mega_trend_name": {
       "type": "string",
-      "description": "Name of the mega-trend (must match GlobalTrend.mega_trend enum value)"
+      "description": "Editable display label for the driver. Renaming this does NOT break GlobalTrend links (which use 'key')."
     },
     "short_description": {
       "type": "string",
@@ -19,7 +23,7 @@
     },
     "sources": {
       "type": "array",
-      "description": "Source citations backing this mega-trend",
+      "description": "Source citations backing this driver",
       "items": {
         "type": "object",
         "properties": {

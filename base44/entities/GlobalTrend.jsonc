@@ -25,15 +25,52 @@
     "mega_trend": {
       "type": "string",
       "enum": [
-        "GLP-1",
-        "Cost reformulation",
-        "Sustainability",
-        "Plant-based parity",
-        "Functional & gut health",
-        "Premium indulgence",
-        "Protein-as-default"
+        "Value",
+        "Wellbeing",
+        "Surroundings",
+        "Experiences",
+        "Rights",
+        "Identity"
       ],
-      "description": "Cross-category consumer mega-trend this trend belongs to (optional)"
+      "description": "Display label of the driver this trend belongs to. Matches MegaTrend.mega_trend_name."
+    },
+    "driver_key": {
+      "type": "string",
+      "description": "Stable join key to MegaTrend.key (e.g. 'value', 'wellbeing'). Use this for all programmatic links \u2014 renaming a driver's display label never changes this key."
+    },
+    "overlap_flags": {
+      "type": "array",
+      "description": "Auto-detected same-category keyword overlap candidates. Human-resolved \u2014 never auto-merged.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "overlapping_trend_id": {
+            "type": "string"
+          },
+          "overlap_score": {
+            "type": "number"
+          },
+          "shared_keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "detected_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "confirmed_distinct",
+              "merge_recommended",
+              "resolved"
+            ]
+          }
+        }
+      }
     },
     "description": {
       "type": "string",
@@ -117,7 +154,7 @@
     },
     "sources": {
       "type": "array",
-      "description": "Structured source citations backing this trend.",
+      "description": "Structured source citations backing this trend. Entries may be manually curated or added by the Source Processor agent \u2014 see review_status to distinguish.",
       "items": {
         "type": "object",
         "properties": {
@@ -163,6 +200,46 @@
           "quote": {
             "type": "string",
             "description": "Optional short verbatim quote or data point from the source"
+          },
+          "auto_linked": {
+            "type": "boolean",
+            "description": "True if added by the Source Processor agent (auto-applied or auto-proposed). False or absent for manually curated entries."
+          },
+          "linked_via_run_id": {
+            "type": "string",
+            "description": "Reference to the ProcessingRun.id that created this entry (audit trail)"
+          },
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "auto_applied",
+              "pending",
+              "approved",
+              "rejected",
+              "reverted",
+              "manual_curated"
+            ],
+            "description": "Governance state."
+          },
+          "link_confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "confidence_score": {
+            "type": "number"
+          },
+          "confidence_reasoning": {
+            "type": "string"
+          },
+          "keyword_overlap": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }
