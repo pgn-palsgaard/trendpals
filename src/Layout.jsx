@@ -1,10 +1,18 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { base44 } from '@/api/base44Client';
 import { LogOut } from 'lucide-react';
 
 export default function Layout({ children, currentPageName }) {
+  const [newBriefCount, setNewBriefCount] = useState(0);
+
+  useEffect(() => {
+    base44.entities.ReportRequest.filter({ status: 'new' }).then(results => {
+      setNewBriefCount(results.length);
+    }).catch(() => {});
+  }, []);
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Header with Palsgaard Logo */}
@@ -70,13 +78,18 @@ export default function Layout({ children, currentPageName }) {
             </Link>
             <Link 
               to="/Briefs" 
-              className={`text-sm font-medium transition-colors ${
+              className={`text-sm font-medium transition-colors relative inline-flex items-center gap-1.5 ${
                 currentPageName === 'Briefs'
                   ? 'text-blue-600' 
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Briefs
+              {newBriefCount > 0 && (
+                <span style={{ background: '#C15338', color: 'white', borderRadius: '50%', width: 17, height: 17, fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {newBriefCount > 9 ? '9+' : newBriefCount}
+                </span>
+              )}
             </Link>
             <Link 
               to="/TrendLibrary" 
