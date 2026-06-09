@@ -118,9 +118,8 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Truncate very large content to avoid token overruns
-          // ~15k tokens to stay safely under 30k/min rate limit for Claude Sonnet
-          const MAX_CHARS = 60000;
+          // Truncate to stay under 30k input tokens/min rate limit (~4 chars per token, target ~20k tokens)
+          const MAX_CHARS = 25000;
           const truncated = fileContent.length > MAX_CHARS;
           const contentForLLM = truncated ? fileContent.slice(0, MAX_CHARS) + '\n\n[Content truncated for token limits]' : fileContent;
 
@@ -187,6 +186,10 @@ Return ONLY a JSON object with this structure:
             ...e,
             id: `${source.id}_exc_${Date.now()}_${i}`,
           }));
+
+          if (excerpts.length === 0) {
+            throw new Error('LLM returned 0 excerpts — likely a rate limit or empty response');
+          }
 
           await base44.entities.Source.update(source.id, {
             pipeline_stage: 'extracted',
