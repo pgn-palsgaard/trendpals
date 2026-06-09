@@ -102,7 +102,7 @@ function UploadsTab() {
     if (!confirm('Delete this GNPD export and all its parsed products? This cannot be undone.')) return;
     setDeleting(prev => ({ ...prev, [sourceId]: true }));
     try {
-      await base44.functions.invoke('deleteSourceRecords', { sourceIds: [sourceId] });
+      await base44.functions.invoke('deleteSourceRecords', { ids: [sourceId] });
       toast.success('Deleted');
       if (openSourceId === sourceId) setOpenSourceId(null);
       queryClient.invalidateQueries({ queryKey });
