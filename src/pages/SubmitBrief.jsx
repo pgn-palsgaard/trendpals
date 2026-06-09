@@ -98,21 +98,27 @@ export default function SubmitBrief() {
     setLoading(true);
     try {
       await base44.entities.ReportRequest.create({
-        account: brief.account || "",
+        requester_name: brief.requester_name || "Unknown",
+        requester_email: brief.requester_email || "",
+        account: brief.account || "Unknown",
+        jtbd: selectedJtbd,
         categories: brief.categories || "",
         region: brief.region || "",
-        deadline: brief.deadline || "",
+        deadline: brief.deadline || null,
         purpose: brief.purpose || "",
         challenges: brief.challenges || "",
-        notes: (brief.notes || "") + (brief.gnpd_history_window ? `\n\nProduct launch history: ${brief.gnpd_history_window}` : "") + (brief.external_data_needed ? `\n\nExternal data needed: ${brief.external_data_needed}` : ""),
-        requester_name: brief.requester_name || "",
-        requester_email: brief.requester_email || "",
+        notes: [
+          brief.notes,
+          brief.gnpd_history_window ? `Product launch history: ${brief.gnpd_history_window}` : null,
+        ].filter(Boolean).join("\n\n") || "",
+        external_data_needed: brief.external_data_needed || "",
         status: "new",
         submitted_at: new Date().toISOString(),
+        conversation_log: conversationLog,
       });
       setStep("done");
-    } catch {
-      alert("Submission failed — please try again.");
+    } catch (e) {
+      alert("Submission failed — " + (e.message || "please try again."));
     }
     setLoading(false);
   }
