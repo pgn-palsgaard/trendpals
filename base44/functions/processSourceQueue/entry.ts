@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
           const truncated = fileContent.length > MAX_CHARS;
           const contentForLLM = truncated ? fileContent.slice(0, MAX_CHARS) + '\n\n[Content truncated for token limits]' : fileContent;
 
-          const prompt = `You are the Palsgaard Source Processor. Extract structured market intelligence excerpts from the following document.
+          const prompt = `You are a market intelligence processor for an emulsifier and stabilizer supplier. Extract structured market intelligence excerpts from the following document.
 
 Source metadata:
 - Title: ${source.title || 'Unknown'}
@@ -135,13 +135,13 @@ Source metadata:
 Document content:
 ${contentForLLM}
 
-Extract 3-8 structured excerpts from this document. Each excerpt should represent a distinct market signal, customer pain point, or strategic insight relevant to Palsgaard as an emulsifier and stabilizer supplier.
+Extract 3-8 structured excerpts from this document. Each excerpt should represent a distinct market signal, customer pain point, or strategic insight relevant to an emulsifier and stabilizer supplier.
 
 For each excerpt, identify:
-1. market_signal: What is the observable market trend or shift (1-2 sentences, outside-in, no Palsgaard mention)
+1. market_signal: What is the observable market trend or shift (1-2 sentences, outside-in, factual)
 2. customer_pain: The specific challenge this creates for food manufacturers (1-2 sentences)
-3. palsgaard_angle: How Palsgaard emulsifier/stabilizer expertise addresses this (1-2 sentences, NO product names, NO dosages)
-4. has_direct_role: true if Palsgaard can directly help, false if it's general market context
+3. palsgaard_angle: How emulsifier/stabilizer expertise can address this challenge (1-2 sentences, NO product names, NO dosages)
+4. has_direct_role: true if emulsifier/stabilizer expertise can directly help, false if it's general market context
 5. capability_area: One of: sustainability, texture_quality, cost_efficiency, compliance_regulatory, new_product_development, food_safety, supply_chain, plant_based, general
 6. confidence: high/medium/low based on how clearly the source supports this excerpt
 7. source_quote: A verbatim quote from the document (max 200 chars)
@@ -151,7 +151,7 @@ For each excerpt, identify:
 Return ONLY a JSON object with this structure:
 {
   "excerpts": [...],
-  "ai_summary": "2-3 sentence summary of the document's key insights for Palsgaard"
+  "ai_summary": "2-3 sentence summary of the document's key market intelligence insights"
 }`;
 
           const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
