@@ -1,179 +1,265 @@
-import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { base44 } from '@/api/base44Client';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { format } from 'date-fns';
-import { ArrowRight, X } from 'lucide-react';
+import { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { Link } from "react-router-dom";
 
-const statusBadge = (status) => {
-  if (status === 'new') return <Badge className="bg-green-100 text-green-700 border-green-200">New</Badge>;
-  if (status === 'in_progress') return <Badge className="bg-yellow-100 text-yellow-700 border-yellow-200">In Progress</Badge>;
-  return <Badge className="bg-slate-100 text-slate-500 border-slate-200">Delivered</Badge>;
+const BLUE = "#1D428A";
+const DARK_BLUE = "#1D2B47";
+const GOLD = "#F7F4EE";
+const TEAL = "#22566E";
+const ORANGE = "#C15338";
+const GREY = "#969696";
+const GREEN = "#6F8263";
+
+const JTBD_LABELS = {
+  prepare_customer_meeting: "Customer meeting",
+  build_trend_deck: "Trend deck",
+  understand_market: "Market understanding",
+  support_innovation_pipeline: "Innovation pipeline",
+  other: "Other"
+};
+
+const STATUS_STYLES = {
+  new: { bg: "#FEF6EC", color: ORANGE, label: "New" },
+  in_progress: { bg: "#E8EEF6", color: BLUE, label: "In progress" },
+  delivered: { bg: "#EDF4EA", color: GREEN, label: "Delivered" }
 };
 
 export default function Briefs() {
-  const queryClient = useQueryClient();
+  const [briefs, setBriefs] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [converting, setConverting] = useState(false);
+  const [convertResult, setConvertResult] = useState(null);
 
-  const { data: requests = [], isLoading } = useQuery({
-    queryKey: ['report-requests'],
-    queryFn: () => base44.entities.ReportRequest.list('-submitted_at', 100),
-  });
+  useEffect(() => { loadBriefs(); }, []);
 
-  const updateStatus = useMutation({
-    mutationFn: ({ id, status }) => base44.entities.ReportRequest.update(id, { status }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['report-requests'] }),
-  });
-
-  const convertToProject = useMutation({
-    mutationFn: async (req) => {
-      const regionMap = { ASPAC: 'ASPAC', 'ASPAC & China': 'ASPAC', EMEA: 'EMEC', EMEC: 'EMEC', Americas: 'Americas', LATAM: 'Americas', Global: 'Global', IMEA: 'IMEA' };
-      const project = await base44.entities.Project.create({
-        name: `${req.account} — ${req.categories || 'Report'}`,
-        category: req.categories ? req.categories.split(',')[0].trim() : 'Other',
-        region_code: regionMap[req.region] || 'Global',
-        objective: req.purpose || '',
-        customer_name: req.account,
-        audience: 'Industrial manufacturers',
-      });
-      await base44.entities.ReportRequest.update(req.id, {
-        status: 'in_progress',
-        project_id: project.id,
-      });
-      return project;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['report-requests'] });
-      setSelected(prev => prev ? { ...prev, status: 'in_progress' } : prev);
-    },
-  });
-
-  if (isLoading) {
-    return <div className="flex items-center justify-center h-64 text-slate-500">Loading briefs…</div>;
+  async function loadBriefs() {
+    setLoading(true);
+    try {
+      const results = await base44.entities.ReportRequest.list('-submitted_at', 100);
+      setBriefs(results);
+      if (results.length > 0 && !selected) setSelected(results[0]);
+    } catch (e) { console.error(e); }
+    setLoading(false);
   }
 
-  return (
-    <div className="max-w-6xl mx-auto px-6 py-8">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Report Briefs</h1>
-        <p className="text-slate-500 mt-1">{requests.length} request{requests.length !== 1 ? 's' : ''}</p>
-      </div>
+  async function convertToProject(brief) {
+    setConverting(true);
+    setConvertResult(null);
+    try {
+      const res = await base44.functions.invoke("convertBriefToProject", { briefId: brief.id });
+      setConvertResult({ success: true, ...res.data });
+      await loadBriefs();
+      const updated = await base44.entities.ReportRequest.get(brief.id);
+      setSelected(updated);
+    } catch (e) {
+      setConvertResult({ success: false, error: e.message });
+    }
+    setConverting(false);
+  }
 
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
-            <tr>
-              <th className="px-4 py-3 text-left font-medium text-slate-600">Requester</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-600">Account</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-600">Region</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-600">Categories</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-600">Deadline</th>
-              <th className="px-4 py-3 text-left font-medium text-slate-600">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {requests.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-slate-400">No briefs yet</td>
-              </tr>
+  async function updateStatus(briefId, status) {
+    await base44.entities.ReportRequest.update(briefId, { status });
+    setBriefs(prev => prev.map(b => b.id === briefId ? { ...b, status } : b));
+    setSelected(prev => prev?.id === briefId ? { ...prev, status } : prev);
+  }
+
+  const newCount = briefs.filter(b => b.status === "new").length;
+  const minDeadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+  return (
+    <div style={{ display: "flex", height: "calc(100vh - 73px)", fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif", color: DARK_BLUE, background: GOLD }}>
+
+      {/* Left panel — list */}
+      <div style={{ width: 300, borderRight: `1px solid #d8d3c8`, display: "flex", flexDirection: "column", flexShrink: 0, background: GOLD }}>
+        <div style={{ padding: "1.25rem 1rem", borderBottom: `2px solid ${BLUE}` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <h1 style={{ fontSize: 18, fontWeight: 700, color: BLUE, margin: 0 }}>Brief inbox</h1>
+            {newCount > 0 && (
+              <span style={{
+                background: ORANGE, color: "white", borderRadius: "50%",
+                width: 20, height: 20, fontSize: 11, fontWeight: 700,
+                display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0
+              }}>{newCount > 9 ? "9+" : newCount}</span>
             )}
-            {requests.map((req) => (
-              <tr
-                key={req.id}
-                onClick={() => setSelected(req)}
-                className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition-colors"
-              >
-                <td className="px-4 py-3 font-medium text-slate-800">{req.requester_name}</td>
-                <td className="px-4 py-3 text-slate-600">{req.account}</td>
-                <td className="px-4 py-3 text-slate-600">{req.region || '—'}</td>
-                <td className="px-4 py-3 text-slate-600 max-w-xs truncate">{req.categories || '—'}</td>
-                <td className="px-4 py-3 text-slate-600">
-                  {req.deadline ? format(new Date(req.deadline), 'dd MMM yyyy') : '—'}
-                </td>
-                <td className="px-4 py-3">{statusBadge(req.status)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+          </div>
+          <p style={{ fontSize: 12, color: GREY, margin: "4px 0 0" }}>{briefs.length} brief{briefs.length !== 1 ? "s" : ""} total</p>
+        </div>
+
+        <div style={{ overflowY: "auto", flex: 1 }}>
+          {loading ? (
+            <p style={{ padding: "1rem", color: GREY, fontSize: 13 }}>Loading…</p>
+          ) : briefs.length === 0 ? (
+            <p style={{ padding: "1rem", color: GREY, fontSize: 13 }}>No briefs yet.</p>
+          ) : briefs.map(brief => {
+            const st = STATUS_STYLES[brief.status] || STATUS_STYLES.new;
+            const isSelected = selected?.id === brief.id;
+            return (
+              <div key={brief.id} onClick={() => { setSelected(brief); setConvertResult(null); }} style={{
+                padding: "0.875rem 1rem", cursor: "pointer",
+                borderBottom: `1px solid #d8d3c8`,
+                background: isSelected ? "#E8EEF6" : "transparent",
+                borderLeft: isSelected ? `3px solid ${BLUE}` : "3px solid transparent"
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 6 }}>
+                  <span style={{ fontSize: 13, fontWeight: 600, color: DARK_BLUE, lineHeight: 1.3 }}>{brief.account || "—"}</span>
+                  <span style={{
+                    fontSize: 10, padding: "2px 7px", borderRadius: 20, flexShrink: 0,
+                    background: st.bg, color: st.color, fontWeight: 700
+                  }}>{st.label}</span>
+                </div>
+                <p style={{ fontSize: 12, color: GREY, margin: "3px 0 0" }}>
+                  {JTBD_LABELS[brief.jtbd] || "Brief"}{brief.categories ? ` · ${brief.categories}` : ""}
+                </p>
+                <p style={{ fontSize: 11, color: GREY, margin: "2px 0 0" }}>
+                  {brief.submitted_at ? new Date(brief.submitted_at).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                  {brief.deadline ? ` · deadline ${brief.deadline}` : ""}
+                </p>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Detail panel */}
-      {selected && (
-        <div className="fixed inset-0 z-50 flex">
-          <div className="flex-1 bg-black/30" onClick={() => setSelected(null)} />
-          <div className="w-full max-w-lg bg-white shadow-2xl overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">{selected.account}</h2>
-              <button onClick={() => setSelected(null)} className="text-slate-400 hover:text-slate-700">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="px-6 py-6 space-y-5">
-              <Field label="Requester" value={`${selected.requester_name} (${selected.requester_email})`} />
-              <Field label="Account" value={selected.account} />
-              <Field label="Region" value={selected.region} />
-              <Field label="Categories" value={selected.categories} />
-              <Field label="Deadline" value={selected.deadline ? format(new Date(selected.deadline), 'dd MMM yyyy') : null} />
-              <Field label="Purpose" value={selected.purpose} />
-              <Field label="Challenges" value={selected.challenges} />
-              <Field label="Notes" value={selected.notes} />
-              <Field label="Submitted" value={selected.submitted_at ? format(new Date(selected.submitted_at), 'dd MMM yyyy HH:mm') : null} />
-              {selected.project_id && (
-                <Field label="Project ID" value={selected.project_id} />
-              )}
-
-              <div>
-                <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
-                <Select
-                  value={selected.status}
-                  onValueChange={(val) => {
-                    updateStatus.mutate({ id: selected.id, status: val });
-                    setSelected({ ...selected, status: val });
-                  }}
-                >
-                  <SelectTrigger className="mt-1 w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="new">New</SelectItem>
-                    <SelectItem value="in_progress">In Progress</SelectItem>
-                    <SelectItem value="delivered">Delivered</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {!selected.project_id && (
-                <Button
-                  className="w-full mt-2"
-                  onClick={() => convertToProject.mutate(selected)}
-                  disabled={convertToProject.isPending}
-                >
-                  <ArrowRight className="w-4 h-4 mr-2" />
-                  {convertToProject.isPending ? 'Converting…' : 'Convert to Project'}
-                </Button>
-              )}
-              {selected.project_id && (
-                <div className="text-sm text-green-700 bg-green-50 rounded-lg px-4 py-2">
-                  ✓ Linked to project
+      {/* Right panel — detail */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "1.5rem 2rem" }}>
+        {!selected ? (
+          <p style={{ color: GREY, fontSize: 14 }}>Select a brief to review.</p>
+        ) : (
+          <>
+            {/* Header */}
+            <div style={{ borderBottom: `2px solid ${BLUE}`, paddingBottom: "1rem", marginBottom: "1.5rem" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+                <div>
+                  <p style={{ fontSize: 11, color: GREY, margin: "0 0 2px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    {JTBD_LABELS[selected.jtbd] || "Brief"}
+                  </p>
+                  <h2 style={{ fontSize: 22, fontWeight: 700, color: BLUE, margin: "0 0 4px" }}>{selected.account}</h2>
+                  <p style={{ fontSize: 13, color: GREY, margin: 0 }}>
+                    {selected.requester_name || "—"}{selected.requester_email ? ` (${selected.requester_email})` : ""}
+                    {selected.submitted_at ? ` · ${new Date(selected.submitted_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}` : ""}
+                  </p>
                 </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  {["new", "in_progress", "delivered"].map(s => (
+                    <button key={s} onClick={() => updateStatus(selected.id, s)} style={{
+                      background: selected.status === s ? BLUE : "white",
+                      color: selected.status === s ? "white" : DARK_BLUE,
+                      border: `1px solid ${selected.status === s ? BLUE : "#d8d3c8"}`,
+                      borderRadius: 6, padding: "5px 12px", cursor: "pointer",
+                      fontSize: 12, fontFamily: "inherit"
+                    }}>{STATUS_STYLES[s].label}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Warnings */}
+            {(selected.deadline && selected.deadline < minDeadline || selected.external_data_needed) && (
+              <div style={{ marginBottom: "1.5rem", display: "flex", flexDirection: "column", gap: 8 }}>
+                {selected.deadline && selected.deadline < minDeadline && (
+                  <div style={{ background: "#FEF6EC", borderLeft: `4px solid ${ORANGE}`, borderRadius: 6, padding: "10px 14px", fontSize: 13 }}>
+                    <strong style={{ color: ORANGE }}>Tight deadline</strong>
+                    <span style={{ color: DARK_BLUE }}> · Requested {selected.deadline} — under 2 weeks away</span>
+                  </div>
+                )}
+                {selected.external_data_needed && (
+                  <div style={{ background: "#E8EEF6", borderLeft: `4px solid ${BLUE}`, borderRadius: 6, padding: "10px 14px", fontSize: 13 }}>
+                    <strong style={{ color: BLUE }}>External data needed</strong>
+                    <span style={{ color: DARK_BLUE }}> · {selected.external_data_needed}</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Brief fields */}
+            <div style={{ background: "white", border: `1px solid #d8d3c8`, borderRadius: 8, padding: "1.25rem", marginBottom: "1.5rem" }}>
+              <p style={{ fontSize: 11, color: GREY, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 1rem" }}>Brief details</p>
+              {[
+                ["Categories", selected.categories],
+                ["Region", selected.region],
+                ["Deadline", selected.deadline],
+                ["Purpose", selected.purpose],
+                ["Focus areas / challenges", selected.challenges],
+                ["Notes", selected.notes],
+              ].filter(r => r[1]).map(([label, value]) => (
+                <div key={label} style={{ display: "flex", gap: 12, marginBottom: 10, fontSize: 14 }}>
+                  <span style={{ color: GREY, minWidth: 160, flexShrink: 0, paddingTop: 1 }}>{label}</span>
+                  <span style={{ color: DARK_BLUE, lineHeight: 1.5, whiteSpace: "pre-line" }}>{value}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Convert to project */}
+            <div style={{ background: "white", border: `1px solid #d8d3c8`, borderRadius: 8, padding: "1.25rem", marginBottom: "1.5rem" }}>
+              <p style={{ fontSize: 11, color: GREY, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 0.75rem" }}>Project</p>
+
+              {selected.project_id ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 13, color: GREEN, fontWeight: 600 }}>✓ Linked to project</span>
+                  <Link to={`/ProjectDetail?id=${selected.project_id}`} style={{
+                    fontSize: 13, color: BLUE, textDecoration: "none",
+                    border: `1px solid #d8d3c8`, borderRadius: 6, padding: "4px 12px"
+                  }}>Open project →</Link>
+                </div>
+              ) : (
+                <>
+                  <p style={{ fontSize: 13, color: DARK_BLUE, margin: "0 0 1rem", lineHeight: 1.5 }}>
+                    Creates a project with all brief fields mapped — specific focus, GNPD time window, meeting context, customer priorities, and deadline warnings pre-filled by AI.
+                  </p>
+                  <button onClick={() => convertToProject(selected)} disabled={converting} style={{
+                    background: converting ? "#ccc" : TEAL,
+                    color: "white", border: "none", borderRadius: 6,
+                    padding: "10px 20px", cursor: converting ? "default" : "pointer",
+                    fontSize: 14, fontWeight: 600, fontFamily: "inherit"
+                  }}>
+                    {converting ? "Creating project…" : "Convert to project →"}
+                  </button>
+
+                  {convertResult?.success && (
+                    <div style={{ marginTop: 12, background: "#EDF4EA", borderLeft: `4px solid ${GREEN}`, borderRadius: 6, padding: "10px 14px", fontSize: 13 }}>
+                      <p style={{ color: GREEN, fontWeight: 600, margin: "0 0 4px" }}>✓ Project created: {convertResult.project_name}</p>
+                      {convertResult.warnings?.length > 0 && (
+                        <ul style={{ margin: "4px 0 0", paddingLeft: 16, color: DARK_BLUE }}>
+                          {convertResult.warnings.map((w, i) => <li key={i} style={{ fontSize: 12 }}>{w.message}</li>)}
+                        </ul>
+                      )}
+                      <Link to={`/ProjectDetail?id=${convertResult.project_id}`} style={{ color: BLUE, fontSize: 13, display: "inline-block", marginTop: 6 }}>Open project →</Link>
+                    </div>
+                  )}
+                  {convertResult && !convertResult.success && (
+                    <p style={{ color: ORANGE, fontSize: 13, marginTop: 8 }}>Error: {convertResult.error}</p>
+                  )}
+                </>
               )}
             </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
-function Field({ label, value }) {
-  if (!value) return null;
-  return (
-    <div>
-      <div className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</div>
-      <div className="mt-0.5 text-sm text-slate-800 whitespace-pre-wrap">{value}</div>
+            {/* Conversation log */}
+            {selected.conversation_log?.length > 0 && (
+              <div style={{ background: "white", border: `1px solid #d8d3c8`, borderRadius: 8, padding: "1.25rem" }}>
+                <p style={{ fontSize: 11, color: GREY, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 1rem" }}>Conversation log</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {selected.conversation_log.filter(m => m.role !== "system").map((m, i) => (
+                    <div key={i} style={{
+                      alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                      maxWidth: "80%",
+                      background: m.role === "user" ? BLUE : GOLD,
+                      color: m.role === "user" ? "white" : DARK_BLUE,
+                      padding: "8px 12px", borderRadius: 8,
+                      borderBottomRightRadius: m.role === "user" ? 2 : 8,
+                      borderBottomLeftRadius: m.role === "assistant" ? 2 : 8,
+                      fontSize: 13, lineHeight: 1.5,
+                      border: m.role === "assistant" ? `1px solid #d8d3c8` : "none"
+                    }}>
+                      {m.content.replace(/BRIEF_READY[\s\S]*$/, "").trim()}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
