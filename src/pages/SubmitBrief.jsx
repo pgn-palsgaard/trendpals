@@ -102,7 +102,7 @@ export default function SubmitBrief() {
         requester_email: brief.requester_email || "",
         account: brief.account || "Unknown",
         jtbd: selectedJtbd,
-        categories: brief.categories || "",
+        categories: Array.isArray(brief.categories) ? brief.categories.join(", ") : (brief.categories || ""),
         region: brief.region || "",
         deadline: brief.deadline || null,
         purpose: brief.purpose || "",
