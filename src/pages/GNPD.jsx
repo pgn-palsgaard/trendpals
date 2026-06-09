@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from 'sonner';
-import { Upload, Search, Database, CheckCircle2, AlertCircle, Loader2, FileText } from 'lucide-react';
+import { Upload, Search, Database, CheckCircle2, AlertCircle, Loader2, FileText, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import GnpdDetailPanel from '../components/sources/GnpdDetailPanel';
 import KnowledgeUploadModal from '../components/knowledge/KnowledgeUploadModal';
@@ -33,6 +33,7 @@ function UploadsTab() {
   const [openSourceId, setOpenSourceId] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [parsing, setParsing]         = useState({});   // { sourceId: {status, rows, created} }
+  const [deleting, setDeleting]       = useState({});   // { sourceId: true }
 
   const queryKey = ['gnpdSources'];
   const [detectingTimers, setDetectingTimers] = useState({});
@@ -95,6 +96,21 @@ function UploadsTab() {
     if (categoryFilter !== 'all') rows = rows.filter(s => s.category === categoryFilter);
     return rows;
   }, [sources, search, regionFilter, categoryFilter]);
+
+  async function handleDelete(sourceId, e) {
+    e.stopPropagation();
+    if (!confirm('Delete this GNPD export and all its parsed products? This cannot be undone.')) return;
+    setDeleting(prev => ({ ...prev, [sourceId]: true }));
+    try {
+      await base44.functions.invoke('deleteSourceRecords', { sourceIds: [sourceId] });
+      toast.success('Deleted');
+      if (openSourceId === sourceId) setOpenSourceId(null);
+      queryClient.invalidateQueries({ queryKey });
+    } catch (err) {
+      toast.error(err.message);
+    }
+    setDeleting(prev => { const n = { ...prev }; delete n[sourceId]; return n; });
+  }
 
   async function handleParse(sourceId, e) {
     e.stopPropagation();
@@ -180,7 +196,7 @@ function UploadsTab() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: GOLD, borderBottom: "1px solid #d8d3c8" }}>
-                {["Title", "Uploaded", "Region", "Category", "Rows", "Mapping status", ""].map(h => (
+                {["Title", "Uploaded", "Region", "Category", "Rows", "Mapping status", "", ""].map(h => (
                   <th key={h} style={{ textAlign: h === "Rows" ? "right" : "left", padding: "10px 14px", fontWeight: 600, color: DARK_BLUE, fontSize: 12 }}>{h}</th>
                 ))}
               </tr>
@@ -229,6 +245,21 @@ function UploadsTab() {
                           style={{ fontSize: 12, color: BLUE, background: "none", border: `1px solid ${BLUE}`, borderRadius: 5, padding: "3px 10px", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}
                         >
                           Parse to database →
+                        </button>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 8px" }} onClick={e => e.stopPropagation()}>
+                      {deleting[s.id] ? (
+                        <Loader2 size={13} className="animate-spin" style={{ color: GREY }} />
+                      ) : (
+                        <button
+                          onClick={e => handleDelete(s.id, e)}
+                          title="Delete this upload"
+                          style={{ background: "none", border: "none", cursor: "pointer", color: GREY, padding: 4, borderRadius: 4, display: "flex", alignItems: "center" }}
+                          onMouseEnter={e => e.currentTarget.style.color = ORANGE}
+                          onMouseLeave={e => e.currentTarget.style.color = GREY}
+                        >
+                          <Trash2 size={14} />
                         </button>
                       )}
                     </td>
