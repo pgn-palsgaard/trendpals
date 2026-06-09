@@ -65,6 +65,113 @@ function linkToTrends(trendIndex, megaTrendMap, ingredients, claims, productName
   return { links, linkedTrendIds, linkedMegaTrendIds, supportLabel };
 }
 
+// Parse "Apr 2026" or "April 2026" style dates to ISO
+function parseMonthYearDate(str) {
+  if (!str) return null;
+  const s = String(str).trim();
+  // Already ISO or numeric
+  const d = new Date(s);
+  if (!isNaN(d.getTime()) && s.includes('-')) return s.split('T')[0];
+  // "Apr 2026" or "April 2026"
+  const m = s.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (m) {
+    const parsed = new Date(`${m[1]} 1, ${m[2]}`);
+    if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+  }
+  return null;
+}
+
+// Extract product name (and company) from HTML-format "Company\n - \n Brand\n - \n Product" cell
+function extractProductName(raw) {
+  if (!raw) return '';
+  const parts = String(raw).split(/\n\s*-\s*\n/);
+  // Last part is the actual product name
+  return parts[parts.length - 1].trim();
+}
+
+function extractCompany(raw) {
+  if (!raw) return '';
+  const parts = String(raw).split(/\n\s*-\s*\n/);
+  return parts.length >= 3 ? parts[0].trim() : '';
+}
+
+// Parse Mintel GNPD HTML export (dl/dt/dd format, one div per product)
+function parseGNPDHtml(html) {
+  const rows = [];
+  // Each product is wrapped in a <div style="border:..."> containing a <dl>
+  const divBlocks = html.split(/<div style="border:/i).slice(1);
+
+  for (const block of divBlocks) {
+    // Extract record ID from href
+    const hrefMatch = block.match(/href="[^"]*\/recordpage\/(\d+)\//i);
+    if (!hrefMatch) continue;
+    const recordId = hrefMatch[1];
+
+    // Extract the href URL itself
+    const urlMatch = block.match(/href="(http[^"]+\/recordpage\/\d+\/)"/i);
+    const recordUrl = urlMatch ? urlMatch[1] : `https://www.gnpd.com/sinatra/recordpage/${recordId}/`;
+
+    // Extract all <dt>/<dd> pairs
+    const dtMatches = [...block.matchAll(/<dt>([\s\S]*?)<\/dt>/gi)];
+    const ddMatches = [...block.matchAll(/<dd>([\s\S]*?)<\/dd>/gi)];
+
+    const clean = (s) => s
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&nbsp;/g, ' ').replace(/&#\d+;/g, '').replace(/&[a-z]+;/g, '')
+      .replace(/\s+/g, ' ').trim();
+
+    // First <dt> is the product compound name (Company - Brand - ProductName)
+    const productCompound = dtMatches.length > 0 ? clean(dtMatches[0][1]) : '';
+
+    const fields = {};
+    // Remaining dt/dd pairs are key-value
+    for (let i = 1; i < dtMatches.length; i++) {
+      const key = clean(dtMatches[i][1]);
+      // Find matching dd - dd index = i (first dd is blank &nbsp; after product title)
+      const dd = ddMatches[i + 1]; // +1 offset because first dd is the blank separator
+      fields[key] = dd ? clean(dd[1]) : '';
+    }
+
+    // Parse date: "Apr 2026" or "<monthname ...>Apr</monthname> 2026"
+    const rawDate = fields['Date Published'] || '';
+    const cleanDate = rawDate.replace(/<[^>]+>/g, '').trim();
+
+    rows.push({
+      'Record ID': recordId,
+      'Product': productCompound,
+      'Brand': fields['Brand'] || '',
+      'Market': fields['Market'] || '',
+      'Category': fields['Category'] || '',
+      'Sub-Category': fields['Sub-Category'] || '',
+      'Date Published': cleanDate,
+      'Launch Type': fields['Launch Type'] || '',
+      'Product Description': fields['Product Description'] || '',
+      'Record Hyperlink': recordUrl,
+      'Flavours': fields['Flavours'] || '',
+      'Positioning Claims': fields['Positioning Claims'] || '',
+      'Format Type': fields['Format Type'] || '',
+      'Storage': fields['Storage'] || '',
+      'Package Type': fields['Package Type'] || '',
+      'Ingredients (On pack)': fields['Ingredients (On pack)'] || '',
+    });
+  }
+  return rows;
+}
+
+async function parseRows(fileBuffer, fileUrl) {
+  const isHtml = /\.html?($|\?)/i.test(fileUrl);
+  if (isHtml) {
+    const text = new TextDecoder().decode(fileBuffer);
+    const rows = parseGNPDHtml(text);
+    return { rows, isHtml: true };
+  } else {
+    const wb = XLSX.read(new Uint8Array(fileBuffer), { type: 'array', cellDates: true });
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: null });
+    return { rows, isHtml: false };
+  }
+}
+
 async function processOneSource(base44, sourceId, batchSize = 50) {
   const source = await base44.asServiceRole.entities.Source.get(sourceId);
   if (!source) throw new Error(`Source not found: ${sourceId}`);
@@ -75,12 +182,11 @@ async function processOneSource(base44, sourceId, batchSize = 50) {
   const mappingRecords = await base44.asServiceRole.entities.GNPDColumnMapping.filter({ source_id: sourceId });
   const colMap = mappingRecords.length > 0 ? (mappingRecords[0].mappings || {}) : (source.gnpd_column_mapping || {});
 
-  // Fetch and parse XLSX
+  // Fetch and parse file (XLSX or HTML)
   const fileResponse = await fetch(source.file_url);
   if (!fileResponse.ok) throw new Error(`Failed to fetch file: ${fileResponse.status}`);
   const fileBuffer = await fileResponse.arrayBuffer();
-  const workbook = XLSX.read(new Uint8Array(fileBuffer), { type: 'array', cellDates: true });
-  const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { defval: null });
+  const { rows, isHtml } = await parseRows(fileBuffer, source.file_url);
   if (rows.length === 0) throw new Error('No rows parsed from file');
 
   // Deduplicate
@@ -105,6 +211,38 @@ async function processOneSource(base44, sourceId, batchSize = 50) {
     return (col && row[col] !== undefined) ? row[col] : null;
   };
 
+  // For HTML exports, columns are named differently
+  const getRecordId   = (row) => get(row, 'record_id')   || row['Record ID']   || null;
+  const getProductRaw = (row) => get(row, 'product_name') || row['Product']     || null;
+  const getBrand      = (row) => get(row, 'brand')        || row['Brand']       || '';
+  const getMarket     = (row) => get(row, 'market')       || row['Market']      || '';
+  const getCategory   = (row) => get(row, 'category')     || row['Category']    || '';
+  const getSubCat     = (row) => get(row, 'sub_category') || row['Sub-Category']|| '';
+  const getLaunchType = (row) => get(row, 'launch_type')  || row['Launch Type'] || '';
+  const getDescription= (row) => get(row, 'product_description') || row['Product Description'] || '';
+  const getHyperlink  = (row) => get(row, 'record_hyperlink') || row['Record Hyperlink'] || row['Record hyperlink'] || null;
+  const getFlavours   = (row) => get(row, 'flavours')     || row['Flavours']    || '';
+  const getFormatType = (row) => get(row, 'format_type')  || row['Format Type'] || '';
+  const getStorage    = (row) => get(row, 'storage')      || row['Storage']     || '';
+  const getPackageType= (row) => get(row, 'package_type') || row['Package Type']|| '';
+
+  const getDatePublished = (row) => {
+    const raw = get(row, 'date_published') || row['Date Published'];
+    if (!raw) return null;
+    // HTML format: "Apr 2026"
+    const monthYear = parseMonthYearDate(String(raw));
+    if (monthYear) return monthYear;
+    // Excel serial number
+    if (typeof raw === 'number') {
+      const d = new Date((raw - 25569) * 86400 * 1000);
+      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    }
+    // ISO / other parseable
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    return null;
+  };
+
   // Fallback columns for ingredients and claims
   const getIngredients = (row) => {
     return get(row, 'ingredients') || row['Ingredients (On pack)'] || row['Ingredients'] || '';
@@ -118,11 +256,14 @@ async function processOneSource(base44, sourceId, batchSize = 50) {
 
   for (const row of rows) {
     try {
-      const recordId = String(get(row, 'record_id') || '').trim();
+      const recordId = String(getRecordId(row) || '').trim();
       if (!recordId || recordId === 'null') { skipped++; continue; }
       if (existingIds.has(recordId)) { skipped++; continue; }
 
-      const productName = String(get(row, 'product_name') || '').trim();
+      // HTML: product cell = "Company\n - \n Brand\n - \n Product name"
+      const productRaw  = getProductRaw(row);
+      const productName = isHtml ? extractProductName(productRaw) : String(productRaw || '').trim();
+      const company     = isHtml ? extractCompany(productRaw) : String(get(row, 'company') || row['Company'] || '');
       if (!productName) { skipped++; continue; }
 
       const ingredients = String(getIngredients(row) || '');
@@ -134,26 +275,20 @@ async function processOneSource(base44, sourceId, batchSize = 50) {
       const claims = typeof rawClaims === 'string'
         ? rawClaims.split(',').map(c => c.trim()).filter(Boolean) : [];
 
-      const rawFlavours = get(row, 'flavours') || '';
+      const rawFlavours = getFlavours(row) || '';
       const flavours = typeof rawFlavours === 'string'
         ? rawFlavours.split(',').map(f => f.trim()).filter(Boolean) : [];
 
-      const country = String(get(row, 'market') || '');
+      const country    = String(getMarket(row) || '');
       const regionCode = COUNTRY_REGION[country] || source.region_code || 'Global';
+      const launchDate = getDatePublished(row);
 
-      const rawDate = get(row, 'date_published');
-      let launchDate = null;
-      if (rawDate) {
-        const d = new Date(rawDate);
-        if (!isNaN(d.getTime())) launchDate = d.toISOString().split('T')[0];
-      }
-
-      const recordHyperlink = get(row, 'record_hyperlink');
+      const recordHyperlink = getHyperlink(row);
       const mintelUrl = (recordHyperlink && typeof recordHyperlink === 'string')
-        ? recordHyperlink
+        ? recordHyperlink.trim()
         : `https://www.gnpd.com/sinatra/recordpage/${recordId}/`;
 
-      const description = String(get(row, 'product_description') || '');
+      const description = String(getDescription(row) || '');
       const { links, linkedTrendIds, linkedMegaTrendIds, supportLabel } =
         linkToTrends(trendIndex, megaTrendMap, ingredients, claims, productName, description);
 
@@ -162,20 +297,20 @@ async function processOneSource(base44, sourceId, batchSize = 50) {
       toCreate.push({
         gnpd_record_id: recordId,
         product_name: productName,
-        brand: String(get(row, 'brand') || ''),
-        company: String(get(row, 'company') || ''),
+        brand: String(getBrand(row) || ''),
+        company,
         ultimate_company: String(get(row, 'ultimate_company') || ''),
         country, region_code: regionCode,
-        category: source.category || String(get(row, 'category') || ''),
-        sub_category: String(get(row, 'sub_category') || ''),
+        category: source.category || String(getCategory(row) || ''),
+        sub_category: String(getSubCat(row) || ''),
         launch_date: launchDate,
-        launch_type: String(get(row, 'launch_type') || ''),
+        launch_type: String(getLaunchType(row) || ''),
         product_description: description,
         ingredients: ingredients || null,
         claims, flavours,
-        format_type: String(get(row, 'format_type') || ''),
-        storage: String(get(row, 'storage') || ''),
-        package_type: String(get(row, 'package_type') || ''),
+        format_type: String(getFormatType(row) || ''),
+        storage: String(getStorage(row) || ''),
+        package_type: String(getPackageType(row) || ''),
         has_emulsifier: hasEmulsifier,
         emulsifier_keywords: foundEmulsifiers,
         has_palsgaard_relevance: hasPalsgaardRelevance,
