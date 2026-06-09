@@ -3,7 +3,7 @@ import { base44 } from '@/api/base44Client';
 
 const CATEGORIES = ['Ice Cream', 'Dairy', 'Confectionery', 'Bakery', 'Dressings', 'Spreads', 'Plant-based', 'Other'];
 const REGIONS = ['Global', 'IMEA', 'EMEC', 'ASPAC & China', 'Americas'];
-const REGION_ZOOMS = ['None — stay global', 'ASPAC & China', 'EMEC', 'IMEA', 'Americas', 'China', 'Southeast Asia', 'Northern Europe', 'Southern Europe'];
+const REGION_ZOOMS = ['None — stay global', 'Asia Pacific', 'Europe', 'Middle East & Africa', 'Americas', 'China', 'Southeast Asia', 'Northern Europe', 'Southern Europe', 'India', 'Latin America'];
 const PAINS = [
   'Clean label', 'Cost pressure', 'Texture & stability', 'Sugar / fat reduction',
   'Plant-based formulation', 'Speed to market', 'Sustainability / ESG',
