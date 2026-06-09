@@ -266,7 +266,22 @@ Deno.serve(async (req) => {
     const isHtmlFile = lowerUrl.includes('.html') || lowerUrl.includes('.htm');
 
     if (source.file_url && (isHtmlFile || !gnpdData.length)) {
-      const fileResponse = await fetch(source.file_url);
+      // Get a signed URL if this is a private file URI
+      let fetchUrl = source.file_url;
+      if (fetchUrl.startsWith('private://') || fetchUrl.includes('/private/')) {
+        const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: fetchUrl, expires_in: 300 });
+        fetchUrl = signed.signed_url;
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000); // 60s timeout
+      let fileResponse;
+      try {
+        fileResponse = await fetch(fetchUrl, { signal: controller.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
+      if (!fileResponse.ok) throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
       const contentType = fileResponse.headers.get('content-type') || '';
       const fileText = await fileResponse.text();
       const isHtml = isHtmlFile || contentType.includes('html') || fileText.trim().startsWith('<');
@@ -290,7 +305,7 @@ Deno.serve(async (req) => {
         });
       } else {
         // Excel/CSV parsing
-        const fileBuffer = await (await fetch(source.file_url)).arrayBuffer();
+        const fileBuffer = await (await fetch(fetchUrl)).arrayBuffer();
         const { read, utils } = await import('npm:xlsx@0.18.5');
         const workbook = read(fileBuffer, { type: 'buffer' });
         const sheetName = workbook.SheetNames.find(n => n.toLowerCase() === 'gnpd-download') || workbook.SheetNames[0];
@@ -298,7 +313,20 @@ Deno.serve(async (req) => {
         const rawData = utils.sheet_to_json(sheet, { header: 1, defval: '' });
         if (rawData.length === 0) throw new Error('Empty GNPD file');
 
-        const originalHeaders = rawData[0];
+        // Find the real header row — Mintel GNPD exports have metadata rows at the top.
+        // The real header row contains 'Record ID' or 'Product' or similar known fields.
+        const knownHeaders = ['record id', 'product', 'brand', 'market', 'date published', 'category'];
+        let headerRowIndex = 0;
+        for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+          const row = rawData[i];
+          const rowLower = row.map(c => String(c || '').toLowerCase().trim());
+          if (knownHeaders.some(h => rowLower.includes(h))) {
+            headerRowIndex = i;
+            break;
+          }
+        }
+
+        const originalHeaders = rawData[headerRowIndex];
         const seenHeaders = {};
         const headers = originalHeaders.map((h, i) => {
           const hs = String(h || `Column_${i}`).trim();
@@ -306,11 +334,13 @@ Deno.serve(async (req) => {
           return `${hs}__${++seenHeaders[hs]}`;
         });
 
-        const rows = rawData.slice(1).map(rowArr => {
-          const obj = {};
-          headers.forEach((h, i) => { obj[h] = rowArr[i] !== undefined ? rowArr[i] : ''; });
-          return obj;
-        });
+        const rows = rawData.slice(headerRowIndex + 1)
+          .filter(rowArr => rowArr.some(c => c !== '' && c !== null && c !== undefined))
+          .map(rowArr => {
+            const obj = {};
+            headers.forEach((h, i) => { obj[h] = rowArr[i] !== undefined ? rowArr[i] : ''; });
+            return obj;
+          });
 
         gnpdData = rows;
         availableColumns = headers;
