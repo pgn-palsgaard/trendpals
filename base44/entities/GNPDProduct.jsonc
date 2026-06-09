@@ -1,0 +1,214 @@
+{
+  "name": "GNPDProduct",
+  "type": "object",
+  "required": [
+    "gnpd_record_id",
+    "product_name",
+    "source_id"
+  ],
+  "properties": {
+    "gnpd_record_id": {
+      "type": "string",
+      "description": "Mintel GNPD record ID \u2014 primary dedup key"
+    },
+    "source_id": {
+      "type": "string",
+      "description": "Source entity ID this product was parsed from"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Full product name"
+    },
+    "brand": {
+      "type": "string"
+    },
+    "company": {
+      "type": "string"
+    },
+    "ultimate_company": {
+      "type": "string",
+      "description": "Parent company / ultimate owner"
+    },
+    "country": {
+      "type": "string"
+    },
+    "region_code": {
+      "type": "string",
+      "enum": [
+        "ASPAC",
+        "AMERICAS",
+        "EMEC",
+        "IMEA",
+        "Global"
+      ],
+      "description": "Mapped canonical region"
+    },
+    "launch_date": {
+      "type": "string",
+      "format": "date"
+    },
+    "launch_type": {
+      "type": "string",
+      "description": "e.g. New, Relaunch, New Variety, Limited Edition"
+    },
+    "category": {
+      "type": "string",
+      "description": "Primary Mintel category e.g. Ice Cream, Confectionery"
+    },
+    "sub_category": {
+      "type": "string"
+    },
+    "product_description": {
+      "type": "string"
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "All Mintel claims on the product"
+    },
+    "ingredients": {
+      "type": "string",
+      "description": "Full ingredients list as string"
+    },
+    "flavours": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "format_type": {
+      "type": "string"
+    },
+    "package_type": {
+      "type": "string"
+    },
+    "storage": {
+      "type": "string"
+    },
+    "price_usd": {
+      "type": "number"
+    },
+    "has_emulsifier": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if ingredients contain emulsifier-related terms"
+    },
+    "emulsifier_keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Detected emulsifier/stabiliser terms from ingredients"
+    },
+    "has_palsgaard_relevance": {
+      "type": "boolean",
+      "default": false,
+      "description": "True if product is likely relevant to Palsgaard capability areas"
+    },
+    "palsgaard_relevance_reason": {
+      "type": "string",
+      "description": "Short explanation of why this product is relevant"
+    },
+    "linked_trend_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "GlobalTrend IDs this product supports"
+    },
+    "linked_mega_trend_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "MegaTrend IDs this product supports"
+    },
+    "trend_links": {
+      "type": "array",
+      "description": "Detailed trend link records with confidence and reasoning",
+      "items": {
+        "type": "object",
+        "properties": {
+          "trend_id": {
+            "type": "string"
+          },
+          "trend_name": {
+            "type": "string"
+          },
+          "trend_type": {
+            "type": "string",
+            "enum": [
+              "global",
+              "mega"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "confidence_score": {
+            "type": "number"
+          },
+          "reasoning": {
+            "type": "string"
+          },
+          "matched_keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "auto_applied",
+              "pending",
+              "approved",
+              "rejected"
+            ]
+          },
+          "linked_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "support_label": {
+      "type": "string",
+      "enum": [
+        "SUPPORTS",
+        "PARTIAL",
+        "NOT_SUPPORT"
+      ],
+      "description": "Overall assessment of how well this product evidences trends"
+    },
+    "image_url": {
+      "type": "string"
+    },
+    "mintel_record_url": {
+      "type": "string",
+      "description": "Direct URL to Mintel GNPD product page"
+    },
+    "processing_status": {
+      "type": "string",
+      "enum": [
+        "parsed",
+        "trend_linking_pending",
+        "trend_linked",
+        "skipped"
+      ],
+      "default": "parsed",
+      "description": "Pipeline stage for trend-linking agent"
+    },
+    "processing_error": {
+      "type": "string"
+    }
+  }
+}
