@@ -201,7 +201,7 @@ Return ONLY a JSON object with this structure:
           if (source.source_type === 'mintel') {
             try {
               console.log(`[processSourceQueue] Running expert example extraction for mintel source ${source.id}`);
-              const exRes = await base44.asServiceRole.functions.invoke('extractExpertExamples', { source_id: source.id });
+              const exRes = await base44.functions.invoke('extractExpertExamples', { source_id: source.id });
               console.log(`[processSourceQueue] Expert examples: ${exRes?.examples_created ?? 0} created`);
             } catch (exErr) {
               console.warn(`[processSourceQueue] Expert example extraction failed for ${source.id}: ${exErr.message}`);
