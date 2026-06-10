@@ -25,7 +25,10 @@ Deno.serve(async (req) => {
     const existingJobs = await base44.asServiceRole.entities.ProcessingJob.filter(
       { job_type: 'backfill_expert_examples' }, '-created_date', 5
     );
-    const activeJob = existingJobs.find(j => j.status === 'running' || j.status === 'paused_timeout');
+    const activeJob = existingJobs.find(j =>
+      (j.status === 'running' || j.status === 'paused_timeout' || j.status === 'failed')
+      && j.current_cursor
+    );
 
     let resumeCursor = null;
 

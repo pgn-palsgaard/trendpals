@@ -98,7 +98,12 @@ Deno.serve(async (req) => {
     const existingJobs = await base44.asServiceRole.entities.ProcessingJob.filter(
       { job_type: 'revalidate_trend_links' }, '-created_date', 5
     );
-    const activeJob = existingJobs.find(j => j.status === 'running' || j.status === 'paused_timeout');
+    // Resume jobs that are still in progress — including ones that failed/stalled
+    // mid-sweep (they still have a valid cursor + processed_items to pick up from).
+    const activeJob = existingJobs.find(j =>
+      (j.status === 'running' || j.status === 'paused_timeout' || j.status === 'failed')
+      && j.current_cursor
+    );
 
     let resumeCursor = null;
 
