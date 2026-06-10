@@ -1,0 +1,82 @@
+{
+  "name": "ProcessingJob",
+  "type": "object",
+  "required": [
+    "job_type",
+    "status"
+  ],
+  "properties": {
+    "job_type": {
+      "type": "string",
+      "enum": [
+        "revalidate_trend_links",
+        "backfill_expert_examples"
+      ],
+      "description": "Type of long-running sweep job"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "running",
+        "paused_timeout",
+        "completed",
+        "failed"
+      ],
+      "description": "Current job status"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_progress_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Updated after each batch"
+    },
+    "total_items": {
+      "type": "number",
+      "description": "Total work items expected"
+    },
+    "processed_items": {
+      "type": "number",
+      "default": 0,
+      "description": "Work items completed so far"
+    },
+    "current_cursor": {
+      "type": "string",
+      "description": "Opaque resume cursor \u2014 last processed product/source id"
+    },
+    "summary": {
+      "type": "object",
+      "description": "Running counts of outcomes",
+      "properties": {
+        "links_rejected": {
+          "type": "number"
+        },
+        "links_upgraded_to_auto_applied": {
+          "type": "number"
+        },
+        "links_revalidated": {
+          "type": "number"
+        },
+        "examples_created": {
+          "type": "number"
+        },
+        "sources_processed": {
+          "type": "number"
+        },
+        "errors": {
+          "type": "number"
+        }
+      }
+    },
+    "last_error": {
+      "type": "string",
+      "description": "Last error message if status=failed"
+    },
+    "triggered_by": {
+      "type": "string",
+      "description": "User email who triggered the job"
+    }
+  }
+}

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 import RagSourceTable from './RagSourceTable';
+import BackfillJobPanel from '../BackfillJobPanel';
 
 const REGIONS = ['Global', 'IMEA', 'EMEC', 'ASPAC', 'AMERICAS'];
 const CATEGORIES = ['Bakery', 'Confectionery', 'Dairy', 'Feed', 'Fine Food', 'Ice Cream', 'Lipid', 'Meat', 'Other Food Applications', 'PCI', 'Polymer', 'Tech'];
@@ -74,13 +75,18 @@ export default function MarketIntelLibrary() {
   );
 
   return (
-    <RagSourceTable
-      sourceTypeFilter={['mintel', 'market_intel', 'url', 'report']}
-      title="Market Intelligence"
-      subtitle="Mintel reports, trade press, consumer research, and external trend data"
-      applyExtraFilters={applyExtraFilters}
-      ExtraFilterBar={ExtraFilterBar}
-      extraColumns={extraColumns}
-    />
+    <div>
+      <RagSourceTable
+        sourceTypeFilter={['mintel', 'market_intel', 'url', 'report']}
+        title="Market Intelligence"
+        subtitle="Mintel reports, trade press, consumer research, and external trend data"
+        applyExtraFilters={applyExtraFilters}
+        ExtraFilterBar={ExtraFilterBar}
+        extraColumns={extraColumns}
+      />
+      <div style={{ maxWidth: 500, margin: '0 24px 32px', fontFamily: 'Calibri, Arial, sans-serif' }}>
+        <BackfillJobPanel />
+      </div>
+    </div>
   );
 }

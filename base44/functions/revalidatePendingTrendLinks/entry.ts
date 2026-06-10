@@ -1,7 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import Anthropic from 'npm:@anthropic-ai/sdk@0.27.3';
 
-// Inline validation logic (no local imports)
+// ── Validation logic (unchanged) ─────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are validating whether a GNPD product launch is genuine evidence of a market trend, or whether the keyword overlap is incidental.
 
 A product GENUINELY EXPRESSES a trend when the product's positioning, formulation, or claims actively embody what the trend describes — not merely when the same words happen to appear.
@@ -75,6 +75,11 @@ function isLegacyReasoning(reasoning) {
   return /^Matched \d+ keyword/i.test(reasoning);
 }
 
+// ── Resumable orchestration ───────────────────────────────────────────────────
+const BATCH_SIZE = 5;
+const PAUSE_MS = 30000;
+const TIME_BUDGET_MS = 4 * 60 * 1000; // 4 minutes soft cap
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -82,11 +87,7 @@ Deno.serve(async (req) => {
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Admin access required' }, { status: 403 });
 
-    const body = await req.json().catch(() => ({}));
-    const productId = body.product_id || null; // optional: single product
-    const BATCH_SIZE = 5;
-    const PAUSE_MS = 30000;
-
+    const invocationStart = Date.now();
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
 
     // Load trend lookup map
@@ -94,12 +95,69 @@ Deno.serve(async (req) => {
     const trendMap = {};
     globalTrends.forEach(t => { trendMap[t.id] = t; });
 
-    let productsProcessed = 0;
-    let linksRevalidated = 0;
-    let linksUpgraded = 0;    // pending → auto_applied
-    let linksRejected = 0;    // removed as NOT_SUPPORT
-    let linksErrors = 0;
+    // ── Find or create ProcessingJob ─────────────────────────────────────────
+    const existingJobs = await base44.asServiceRole.entities.ProcessingJob.filter(
+      { job_type: 'revalidate_trend_links' }, '-created_date', 5
+    );
+    const activeJob = existingJobs.find(j => j.status === 'running' || j.status === 'paused_timeout');
 
+    let job;
+    let resumeCursor = null; // last processed product id
+
+    if (activeJob) {
+      // Resume existing job
+      resumeCursor = activeJob.current_cursor || null;
+      job = await base44.asServiceRole.entities.ProcessingJob.update(activeJob.id, {
+        status: 'running',
+        last_progress_at: new Date().toISOString(),
+      });
+      job = { ...activeJob, status: 'running' };
+      console.log(`[revalidate] Resuming job ${activeJob.id} from cursor ${resumeCursor}, processed so far: ${activeJob.processed_items}`);
+    } else {
+      // Count total pending legacy items
+      let totalItems = 0;
+      let countSkip = 0;
+      while (true) {
+        const batch = await base44.asServiceRole.entities.GNPDProduct.filter(
+          { processing_status: 'trend_linking_pending' }, null, 100, countSkip
+        );
+        if (batch.length === 0) break;
+        for (const p of batch) {
+          const hasLegacy = (p.trend_links || []).some(
+            l => l.review_status === 'pending' && isLegacyReasoning(l.reasoning)
+          );
+          if (hasLegacy) totalItems++;
+        }
+        if (batch.length < 100) break;
+        countSkip += 100;
+      }
+
+      const newJob = await base44.asServiceRole.entities.ProcessingJob.create({
+        job_type: 'revalidate_trend_links',
+        status: 'running',
+        started_at: new Date().toISOString(),
+        last_progress_at: new Date().toISOString(),
+        total_items: totalItems,
+        processed_items: 0,
+        current_cursor: null,
+        summary: { links_rejected: 0, links_upgraded_to_auto_applied: 0, links_revalidated: 0, errors: 0 },
+        triggered_by: user.email || user.id,
+      });
+      job = newJob;
+      console.log(`[revalidate] Created new job ${job.id}, total_items: ${totalItems}`);
+    }
+
+    // ── Running summary (accumulate on top of existing) ───────────────────────
+    const existingSummary = job.summary || {};
+    let linksRevalidated = existingSummary.links_revalidated || 0;
+    let linksUpgraded    = existingSummary.links_upgraded_to_auto_applied || 0;
+    let linksRejected    = existingSummary.links_rejected || 0;
+    let linksErrors      = existingSummary.errors || 0;
+    let processedItems   = job.processed_items || 0;
+    let lastCursor       = resumeCursor;
+    let timedOut         = false;
+
+    // ── Inner processing loop ─────────────────────────────────────────────────
     async function processProduct(product) {
       const pendingLegacyLinks = (product.trend_links || []).filter(
         l => l.review_status === 'pending' && isLegacyReasoning(l.reasoning)
@@ -129,7 +187,6 @@ Deno.serve(async (req) => {
         if (idx === -1) continue;
 
         if (result.verdict === 'NOT_SUPPORT') {
-          // Remove the link, add to rejected audit trail
           updatedLinks.splice(idx, 1);
           rejectedCandidates.push({
             trend_id: link.trend_id,
@@ -143,17 +200,10 @@ Deno.serve(async (req) => {
           linksRejected++;
           changed = true;
         } else if (result.verdict === 'ERROR') {
-          // Keep as pending, update reasoning
-          updatedLinks[idx] = {
-            ...updatedLinks[idx],
-            confidence: 'low',
-            confidence_score: 0,
-            reasoning: result.reasoning
-          };
+          updatedLinks[idx] = { ...updatedLinks[idx], confidence: 'low', confidence_score: 0, reasoning: result.reasoning };
           linksErrors++;
           changed = true;
         } else {
-          // SUPPORTS or PARTIAL — update status and reasoning
           let newStatus = 'pending';
           let newConfidence = 'medium';
           if (result.verdict === 'SUPPORTS' && result.confidence_score >= 70) {
@@ -177,7 +227,6 @@ Deno.serve(async (req) => {
         const hasPending = updatedLinks.some(l => l.review_status === 'pending');
         const supportLabel = updatedLinks.length === 0 ? 'NOT_SUPPORT'
           : updatedLinks.some(l => l.confidence === 'high') ? 'SUPPORTS' : 'PARTIAL';
-
         await base44.asServiceRole.entities.GNPDProduct.update(product.id, {
           trend_links: updatedLinks,
           rejected_link_candidates: rejectedCandidates,
@@ -186,45 +235,98 @@ Deno.serve(async (req) => {
           support_label: supportLabel
         });
       }
-
-      productsProcessed++;
     }
 
-    if (productId) {
-      // Single-product mode
-      const products = await base44.asServiceRole.entities.GNPDProduct.filter({ id: productId }, null, 1);
-      if (products[0]) await processProduct(products[0]);
-    } else {
-      // Full sweep with batching + rate-limit pauses
-      let skip = 0;
-      while (true) {
-        const batch = await base44.asServiceRole.entities.GNPDProduct.filter(
-          { processing_status: 'trend_linking_pending' }, null, BATCH_SIZE, skip
-        );
-        if (batch.length === 0) break;
+    // Paginate from cursor
+    let skip = 0;
+    let passedCursor = !resumeCursor; // if no cursor, start from beginning
 
-        for (const product of batch) {
-          await processProduct(product);
+    outerLoop:
+    while (true) {
+      // Time check before each batch
+      if (Date.now() - invocationStart > TIME_BUDGET_MS) {
+        timedOut = true;
+        break;
+      }
+
+      const batch = await base44.asServiceRole.entities.GNPDProduct.filter(
+        { processing_status: 'trend_linking_pending' }, 'created_date', BATCH_SIZE, skip
+      );
+      if (batch.length === 0) break;
+
+      for (const product of batch) {
+        // Skip products until we pass the cursor
+        if (!passedCursor) {
+          if (product.id === resumeCursor) {
+            passedCursor = true;
+          }
+          continue;
         }
 
-        skip += batch.length;
-        if (batch.length === BATCH_SIZE) {
-          // Pause between batches to stay under rate limits
-          await new Promise(r => setTimeout(r, PAUSE_MS));
-        } else {
-          break;
+        // Time check before each product
+        if (Date.now() - invocationStart > TIME_BUDGET_MS) {
+          timedOut = true;
+          break outerLoop;
         }
+
+        await processProduct(product);
+        lastCursor = product.id;
+        processedItems++;
+
+        // Persist progress after each product
+        await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+          processed_items: processedItems,
+          current_cursor: lastCursor,
+          last_progress_at: new Date().toISOString(),
+          summary: {
+            links_revalidated: linksRevalidated,
+            links_upgraded_to_auto_applied: linksUpgraded,
+            links_rejected: linksRejected,
+            errors: linksErrors,
+          },
+        });
+      }
+
+      skip += batch.length;
+
+      if (timedOut) break;
+
+      if (batch.length === BATCH_SIZE) {
+        await new Promise(r => setTimeout(r, PAUSE_MS));
+      } else {
+        break;
       }
     }
 
+    // ── Final job status update ───────────────────────────────────────────────
+    const finalStatus = timedOut ? 'paused_timeout' : 'completed';
+    await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+      status: finalStatus,
+      processed_items: processedItems,
+      current_cursor: timedOut ? lastCursor : null,
+      last_progress_at: new Date().toISOString(),
+      summary: {
+        links_revalidated: linksRevalidated,
+        links_upgraded_to_auto_applied: linksUpgraded,
+        links_rejected: linksRejected,
+        errors: linksErrors,
+      },
+    });
+
+    console.log(`[revalidate] Done — status=${finalStatus}, processed=${processedItems}, rejected=${linksRejected}, upgraded=${linksUpgraded}`);
+
     return Response.json({
-      products_processed: productsProcessed,
+      job_id: job.id,
+      status: finalStatus,
+      products_processed: processedItems,
       links_revalidated: linksRevalidated,
       links_upgraded_to_auto_applied: linksUpgraded,
       links_rejected: linksRejected,
-      links_errors: linksErrors
+      links_errors: linksErrors,
     });
+
   } catch (error) {
+    console.error('[revalidate] Fatal:', error.message);
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
