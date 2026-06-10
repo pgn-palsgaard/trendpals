@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 // Extract text from a URL using fetch + basic mime detection
 async function fetchAndExtract(url) {
-  const res = await fetch(url);
+  const res = await fetch(url, { signal: AbortSignal.timeout(60_000) });
   if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
 
   const contentType = res.headers.get('content-type') || '';
@@ -80,13 +80,21 @@ async function fetchAndExtract(url) {
 }
 
 Deno.serve(async (req) => {
+  let base44 = null;
+  let sourceId = null;
   try {
-    const base44 = createClientFromRequest(req);
+    base44 = createClientFromRequest(req);
+
+    const isAuthenticated = await base44.auth.isAuthenticated();
+    if (!isAuthenticated) {
+      return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
+    }
 
     const { source_id } = await req.json();
     if (!source_id) {
       return Response.json({ ok: false, error: 'source_id is required' }, { status: 400 });
     }
+    sourceId = source_id;
 
     // Look up source record (use service role so agent can call without user session)
     const sources = await base44.asServiceRole.entities.Source.filter({ id: source_id });
@@ -143,6 +151,12 @@ Deno.serve(async (req) => {
     });
 
   } catch (error) {
+    // Write failure_reason to the Source record (best effort)
+    if (base44 && sourceId) {
+      try {
+        await base44.asServiceRole.entities.Source.update(sourceId, { failure_reason: error.message });
+      } catch (_) { /* best effort */ }
+    }
     return Response.json({ ok: false, error: error.message });
   }
 });

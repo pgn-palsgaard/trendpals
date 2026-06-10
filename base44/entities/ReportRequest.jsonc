@@ -46,6 +46,46 @@
       "type": "string",
       "description": "Additional notes"
     },
+    "jtbd": {
+      "type": "string",
+      "enum": [
+        "prepare_customer_meeting",
+        "build_trend_deck",
+        "understand_market",
+        "support_innovation_pipeline",
+        "other"
+      ],
+      "description": "Job to be done selected on the SubmitBrief page"
+    },
+    "external_data_needed": {
+      "type": "string",
+      "description": "External data the requester flagged as needed (e.g. specific Mintel reports)"
+    },
+    "suggested_source_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Source IDs suggested during brief intake"
+    },
+    "conversation_log": {
+      "type": "array",
+      "description": "Full AI intake conversation transcript",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string"
+          },
+          "content": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "status": {
       "type": "string",
       "enum": [

@@ -146,8 +146,19 @@ Deno.serve(async (req) => {
         const productName = String(get(row, 'product_name') || '').trim();
         if (!productName) { skipped++; continue; }
 
-        const ingredients = get(row, 'ingredients') || '';
-        const ingredientsLower = String(ingredients).toLowerCase();
+        // Build full ingredient declaration: prefer 'Ingredients (On pack)', else join Ingredient 1..N
+        let ingredients = String(get(row, 'ingredients') || row['Ingredients (On pack)'] || '').trim();
+        if (!ingredients) {
+          const parts = [];
+          for (let n = 1; n <= 40; n++) {
+            const v = row[`Ingredient ${n}`];
+            if (v && String(v).trim()) parts.push(String(v).trim());
+          }
+          const rem = row['Remaining Ingredients'];
+          if (rem && String(rem).trim()) parts.push(String(rem).trim());
+          ingredients = parts.join(', ');
+        }
+        const ingredientsLower = ingredients.toLowerCase();
         const foundEmulsifiers = EMULSIFIER_TERMS.filter(term => ingredientsLower.includes(term));
         const hasEmulsifier = foundEmulsifiers.length > 0;
 
@@ -231,7 +242,7 @@ Deno.serve(async (req) => {
     }
 
     // 8. Update source stage
-    await base44.asServiceRole.entities.Source.update(sourceId, { pipeline_stage: 'extracted' });
+    await base44.asServiceRole.entities.Source.update(sourceId, { pipeline_stage: 'gnpd_ready', review_status: 'approved' });
 
     return Response.json({
       source_id: sourceId,

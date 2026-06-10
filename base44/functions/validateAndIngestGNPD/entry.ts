@@ -275,7 +275,7 @@ Deno.serve(async (req) => {
 
     // Check C: Column presence (check that core required columns exist)
     const headersLower = headers.map(h => h.toLowerCase().trim());
-    const coreRequired = ['record id', 'product', 'market', 'date published', 'category'];
+    const coreRequired = ['record id', 'product', 'market', 'date published', 'ingredient 1'];
     const missingColumns = coreRequired.filter(col => !headersLower.includes(col));
     if (missingColumns.length > 0) {
       errors.push(`Missing required columns: ${missingColumns.map(c => `"${c}"`).join(', ')}. Found columns: ${headers.slice(0, 10).join(', ')}${headers.length > 10 ? '...' : ''}. Make sure you selected "Spreadsheet" format (not CSV or HTML) in Mintel.`);
@@ -396,7 +396,6 @@ Deno.serve(async (req) => {
       gnpd_mapping_status: requiredMappingsComplete ? 'complete' : 'failed',
       gnpd_mapping_updated_at: new Date().toISOString(),
       gnpd_mapping_error: requiredMappingsComplete ? null : `Missing required column mappings: ${missingMappings.join(', ')}`,
-      status: 'ready',
       processing_completed_at: new Date().toISOString(),
       notes: searchMetadata.dateRange ? `Search period: ${searchMetadata.dateRange}` : undefined
     });

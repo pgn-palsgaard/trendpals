@@ -1,28 +1,102 @@
 {
   "name": "TrendCandidate",
   "type": "object",
+  "required": [
+    "project_id",
+    "trend_name"
+  ],
   "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "Associated project ID"
+    },
+    "global_trend_id": {
+      "type": "string",
+      "description": "Reference to the GlobalTrend this selection points to. TrendCandidate is a thin selection layer \u2014 report content comes from the GlobalTrend record."
+    },
+    "project_notes": {
+      "type": "string",
+      "description": "Optional project-specific notes on why this trend was selected / how to angle it"
+    },
+    "migration_status": {
+      "type": "string",
+      "enum": [
+        "mapped",
+        "unmapped",
+        "legacy"
+      ],
+      "description": "Migration state: 'mapped' = linked to a GlobalTrend, 'unmapped' = no confident GlobalTrend match found (needs human review), 'legacy' = pre-migration record"
+    },
+    "trend_name": {
+      "type": "string",
+      "description": "Trend name (max 5 words)"
+    },
+    "is_selected": {
+      "type": "boolean",
+      "default": false
+    },
+    "is_excluded": {
+      "type": "boolean",
+      "default": false
+    },
+    "exclusion_reason": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "primary",
+        "secondary"
+      ]
+    },
     "confidence": {
-      "description": "Evidence strength",
+      "type": "string",
       "enum": [
         "high",
         "medium",
         "low"
       ],
-      "type": "string"
+      "description": "Evidence strength"
     },
-    "conversation_openers": {
-      "description": "2-3 open questions to start a customer conversation around this trend",
+    "market_signal": {
+      "type": "string",
+      "description": "DEPRECATED \u2014 content now lives on the GlobalTrend record"
+    },
+    "whats_changing": {
+      "type": "array",
       "items": {
         "type": "string"
       },
-      "type": "array"
+      "description": "DEPRECATED \u2014 content now lives on the GlobalTrend record"
+    },
+    "why_now": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "DEPRECATED \u2014 content now lives on the GlobalTrend record"
     },
     "customer_pains": {
-      "description": "Customer pains this trend creates, each with Palsgaard angle where relevant",
+      "type": "array",
+      "description": "DEPRECATED \u2014 content now lives on the GlobalTrend record",
       "items": {
+        "type": "object",
         "properties": {
+          "pain": {
+            "type": "string"
+          },
+          "palsgaard_can_help": {
+            "type": "boolean"
+          },
+          "palsgaard_angle": {
+            "type": "string"
+          },
+          "expert_only": {
+            "type": "boolean",
+            "default": false
+          },
           "capability_area": {
+            "type": "string",
             "enum": [
               "sustainability",
               "texture_quality",
@@ -33,147 +107,86 @@
               "supply_chain",
               "plant_based",
               "general"
-            ],
-            "type": "string"
-          },
-          "expert_only": {
-            "default": false,
-            "description": "True if this is valuable expert framing even without a Palsgaard product",
-            "type": "boolean"
-          },
-          "pain": {
-            "description": "The specific challenge or pain point for the customer",
-            "type": "string"
-          },
-          "palsgaard_angle": {
-            "description": "How Palsgaard can help address this pain \u2014 NO product names or dosage figures",
-            "type": "string"
-          },
-          "palsgaard_can_help": {
-            "description": "True if Palsgaard has relevant expertise or capability",
-            "type": "boolean"
+            ]
           }
-        },
-        "type": "object"
+        }
+      }
+    },
+    "conversation_openers": {
+      "type": "array",
+      "items": {
+        "type": "string"
       },
-      "type": "array"
+      "description": "DEPRECATED \u2014 generated at report time"
     },
     "evidence_anchors": {
+      "type": "object",
       "description": "Links to supporting evidence including PWS insights",
       "properties": {
         "gnpd_product_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "mintel_excerpts": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "pws_insight_ids": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         }
-      },
-      "type": "object"
-    },
-    "exclusion_reason": {
-      "type": "string"
-    },
-    "is_excluded": {
-      "default": false,
-      "type": "boolean"
-    },
-    "is_selected": {
-      "default": false,
-      "type": "boolean"
-    },
-    "market_signal": {
-      "description": "What is happening in the market \u2014 the observable trend or shift",
-      "type": "string"
-    },
-    "priority": {
-      "enum": [
-        "primary",
-        "secondary"
-      ],
-      "type": "string"
-    },
-    "project_id": {
-      "description": "Associated project ID",
-      "type": "string"
+      }
     },
     "signals_dictionary": {
+      "type": "object",
       "properties": {
         "claim_cues": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "exclusions": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "format_cues": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "keywords": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "must_have_signals": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         },
         "nice_to_have_signals": {
+          "type": "array",
           "items": {
             "type": "string"
-          },
-          "type": "array"
+          }
         }
-      },
-      "type": "object"
-    },
-    "trend_name": {
-      "description": "Trend name (max 5 words)",
-      "type": "string"
+      }
     },
     "what_could_be_wrong": {
-      "description": "Self-critique: where might this trend analysis be off?",
-      "type": "string"
-    },
-    "whats_changing": {
-      "description": "2-4 bullets on what is changing for food manufacturers in this category",
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
-    },
-    "why_now": {
-      "description": "1-2 bullets on why this trend is relevant right now",
-      "items": {
-        "type": "string"
-      },
-      "type": "array"
+      "type": "string",
+      "description": "Self-critique: where might this trend analysis be off?"
     }
-  },
-  "required": [
-    "project_id",
-    "trend_name"
-  ]
+  }
 }

@@ -31,13 +31,22 @@ Deno.serve(async (req) => {
       const fetched = await Promise.all(sourceIds.map(async (id) => {
         try { return await base44.entities.Source.get(id); } catch { return null; }
       }));
-      // When specific IDs are passed, only skip GNPD type — force reprocess regardless of stage
-      sourcesToProcess = fetched.filter(s => s && !SKIP_TYPES.has(s.source_type));
+      // When specific IDs are passed, skip GNPD type and enforce the human verification gate
+      sourcesToProcess = fetched.filter(s =>
+        s && !SKIP_TYPES.has(s.source_type) &&
+        s.metadata_extraction?.verified === true &&
+        s.review_status === 'approved'
+      );
       console.log(`[processSourceQueue] Requested ${sourceIds.length} IDs, found ${sourcesToProcess.length} eligible sources`);
     } else {
       // Find all uploaded sources (excluding GNPD)
       const uploaded = await base44.entities.Source.filter({ pipeline_stage: 'uploaded' }, '-created_date', 500);
-      sourcesToProcess = uploaded.filter(s => !SKIP_TYPES.has(s.source_type));
+      // Verification gate: only human-verified + approved sources may be extracted
+      sourcesToProcess = uploaded.filter(s =>
+        !SKIP_TYPES.has(s.source_type) &&
+        s.metadata_extraction?.verified === true &&
+        s.review_status === 'approved'
+      );
     }
 
     if (sourcesToProcess.length === 0) {
@@ -79,8 +88,20 @@ Deno.serve(async (req) => {
           console.warn(`[processSourceQueue] LARGE FILE WARNING: ${source.title} (${Math.round(source.file_size / 1024 / 1024)}MB) — may cause rate limiting`);
         }
 
-        // Mark as extracting
+        // Mark as extracting + open a ProcessingRun audit record
         await base44.entities.Source.update(source.id, { pipeline_stage: 'extracting' });
+        const runStartedAt = new Date();
+        const run = await base44.asServiceRole.entities.ProcessingRun.create({
+          source_id: source.id,
+          source_title: source.title || '',
+          source_publisher: source.publisher || null,
+          source_type_snapshot: source.source_type || null,
+          triggered_by: 'manual_button',
+          triggered_by_user: user.email,
+          status: 'running',
+          started_at: runStartedAt.toISOString(),
+          agent_model: 'claude-sonnet-4-5',
+        });
 
         try {
           // Read the source content
@@ -122,6 +143,13 @@ Deno.serve(async (req) => {
             await base44.entities.Source.update(source.id, {
               pipeline_stage: 'skipped',
               skip_reason: 'image_only',
+            });
+            await base44.asServiceRole.entities.ProcessingRun.update(run.id, {
+              status: 'skipped',
+              skip_reason: 'no readable content',
+              completed_at: new Date().toISOString(),
+              duration_seconds: Math.round((Date.now() - runStartedAt.getTime()) / 1000),
+              actions: [{ action_type: 'skip_rule_applied', timestamp: new Date().toISOString() }],
             });
             skipped++;
             continue;
@@ -207,6 +235,19 @@ Return ONLY a JSON object with this structure:
             failure_reason: null,
           });
 
+          await base44.asServiceRole.entities.ProcessingRun.update(run.id, {
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            duration_seconds: Math.round((Date.now() - runStartedAt.getTime()) / 1000),
+            excerpts_extracted: excerpts.length,
+            actions: excerpts.map(e => ({
+              action_type: 'excerpt_extracted',
+              excerpt_id: e.id,
+              link_confidence: e.confidence || null,
+              timestamp: new Date().toISOString(),
+            })),
+          });
+
           console.log(`[processSourceQueue] ✓ ${source.id} — ${excerpts.length} excerpts`);
           succeeded++;
 
@@ -223,6 +264,12 @@ Return ONLY a JSON object with this structure:
             processing_error: err.message?.slice(0, 500) || 'Unknown error',
             retry_count: (source.retry_count || 0) + 1,
             last_retry_at: new Date().toISOString(),
+          });
+          await base44.asServiceRole.entities.ProcessingRun.update(run.id, {
+            status: 'failed',
+            fatal_error: err.message?.slice(0, 500) || 'Unknown error',
+            completed_at: new Date().toISOString(),
+            duration_seconds: Math.round((Date.now() - runStartedAt.getTime()) / 1000),
           });
           failed++;
         }
