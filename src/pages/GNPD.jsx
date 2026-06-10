@@ -607,6 +607,22 @@ function ProductDetail({ product: p, onProductUpdated }) {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function GNPD() {
   const [tab, setTab] = useState("uploads");
+  const [revalidating, setRevalidating] = useState(false);
+  const [revalidateResult, setRevalidateResult] = useState(null);
+
+  async function handleRevalidate() {
+    if (!confirm('Re-validate all pending trend links using the LLM? This will call the Claude API for each legacy pending link and may take several minutes. Continue?')) return;
+    setRevalidating(true);
+    setRevalidateResult(null);
+    try {
+      const res = await base44.functions.invoke('revalidatePendingTrendLinks', {});
+      setRevalidateResult(res.data);
+      toast.success(`Done: ${res.data.links_rejected} rejected, ${res.data.links_upgraded_to_auto_applied} upgraded`);
+    } catch (e) {
+      toast.error(e.message || 'Re-validation failed');
+    }
+    setRevalidating(false);
+  }
 
   return (
     <div style={{ fontFamily: "Calibri, Arial, sans-serif", minHeight: "100vh", background: GOLD }}>
@@ -615,6 +631,21 @@ export default function GNPD() {
         <div>
           <h1 style={{ color: "white", margin: 0, fontSize: 20, fontWeight: 700, letterSpacing: "0.01em" }}>GNPD</h1>
           <p style={{ color: "rgba(255,255,255,0.65)", margin: "2px 0 0", fontSize: 12 }}>Global New Products Database</p>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+          <button
+            onClick={handleRevalidate}
+            disabled={revalidating}
+            style={{ fontSize: 12, padding: "6px 14px", borderRadius: 5, border: "1px solid rgba(255,255,255,0.4)", background: "rgba(255,255,255,0.12)", color: "white", cursor: "pointer", fontFamily: "inherit", fontWeight: 600, display: "flex", alignItems: "center", gap: 6, opacity: revalidating ? 0.7 : 1 }}
+          >
+            {revalidating && <Loader2 size={12} className="animate-spin" />}
+            {revalidating ? 'Re-validating…' : 'Re-validate pending trend links'}
+          </button>
+          {revalidateResult && (
+            <span style={{ fontSize: 11, color: "rgba(255,255,255,0.75)" }}>
+              Last run: {revalidateResult.links_rejected} removed · {revalidateResult.links_upgraded_to_auto_applied} upgraded · {revalidateResult.links_revalidated} checked
+            </span>
+          )}
         </div>
       </div>
 

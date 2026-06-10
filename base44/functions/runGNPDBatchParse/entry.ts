@@ -1,5 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import * as XLSX from 'npm:xlsx@0.18.5';
+import Anthropic from 'npm:@anthropic-ai/sdk@0.27.3';
 
 const EMULSIFIER_TERMS = [
   'lecithin', 'mono and diglycerides', 'monoglycerides', 'diglycerides',
@@ -29,30 +30,122 @@ const COUNTRY_REGION = {
   'Hong Kong': 'ASPAC', 'Singapore': 'ASPAC'
 };
 
-function linkToTrends(trendIndex, megaTrendMap, ingredients, claims, productName, description) {
-  const textToSearch = [productName, description, ingredients,
+const LLM_SYSTEM_PROMPT = `You are validating whether a GNPD product launch is genuine evidence of a market trend, or whether the keyword overlap is incidental.
+
+A product GENUINELY EXPRESSES a trend when the product's positioning, formulation, or claims actively embody what the trend describes — not merely when the same words happen to appear.
+
+Example of genuine evidence:
+- Trend: "Plant-based indulgence parity"
+- Product: "Oatly Oat-Based Ice Cream Stick with Belgian Chocolate Coating", claims include "vegan, no animal ingredients"
+- Verdict: SUPPORTS — the product is explicitly a plant-based version of an indulgent format
+
+Example of incidental match:
+- Trend: "Texture innovation — crunch integrity at scale"
+- Product: "Dark Chocolate Coated Coconut Chips" (ingredients mention "crunchy")
+- Verdict: NOT_SUPPORT — crunch is a passive property of coconut chips, not an innovation the product is built around
+
+You will respond ONLY with a JSON object of the form:
+{
+  "verdict": "SUPPORTS" | "PARTIAL" | "NOT_SUPPORT",
+  "confidence_score": <integer 0-100>,
+  "reasoning": "<one sentence, max 30 words, why>"
+}
+
+Scoring guidance:
+- SUPPORTS, score 70-95: product clearly and primarily expresses the trend
+- PARTIAL, score 40-69: some elements align but the product is not primarily about this trend
+- NOT_SUPPORT, score 0-39: the keyword overlap is incidental; the product does not express this trend
+
+No prose outside the JSON. No markdown. No commentary.`;
+
+async function validateCandidateLink(anthropic, product, trend, matchedKeywords) {
+  try {
+    const userPrompt = `PRODUCT
+Name: ${product.product_name || ''}
+Brand: ${product.brand || ''} (${product.company || ''})
+Country: ${product.country || ''}
+Category: ${product.category || ''} / ${product.sub_category || ''}
+Description: ${product.product_description || ''}
+Claims: ${Array.isArray(product.claims) ? product.claims.join(', ') : (product.claims || '')}
+Flavours: ${Array.isArray(product.flavours) ? product.flavours.join(', ') : (product.flavours || '')}
+Ingredients: ${product.ingredients || ''}
+
+TREND
+Name: ${trend.name || ''}
+Market signal: ${trend.market_signal || ''}
+Description: ${(trend.description || '').slice(0, 400)}
+Category: ${trend.category || ''}
+
+KEYWORD OVERLAP
+Matched: ${matchedKeywords.join(', ')}
+
+Is this product genuine evidence of this trend? Respond with JSON only.`;
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 400,
+      system: LLM_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userPrompt }]
+    });
+
+    const text = response.content[0]?.text?.trim() || '';
+    const jsonText = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+    const parsed = JSON.parse(jsonText);
+    return { verdict: parsed.verdict, confidence_score: parsed.confidence_score, reasoning: parsed.reasoning };
+  } catch (e) {
+    return { verdict: 'ERROR', confidence_score: 0, reasoning: `LLM validation failed: ${e.message?.slice(0, 100)}` };
+  }
+}
+
+async function linkToTrends(anthropic, trendIndex, trendDetails, megaTrendMap, product) {
+  const { ingredients = '', claims = [], product_name = '', product_description = '' } = product;
+  const textToSearch = [product_name, product_description, ingredients,
     Array.isArray(claims) ? claims.join(' ') : (claims || '')
   ].join(' ').toLowerCase();
 
   const links = [];
+  const rejectedCandidates = [];
   const linkedMegaTrendIds = [];
+  const now = new Date().toISOString();
 
   for (const trend of trendIndex) {
     const matchedKeywords = trend.keywords.filter(kw => kw.length > 3 && textToSearch.includes(kw));
-    if (matchedKeywords.length === 0) continue;
-    const score = Math.min(100, matchedKeywords.length * 25);
-    let confidence, reviewStatus;
-    if (score >= 70) { confidence = 'high'; reviewStatus = 'auto_applied'; }
-    else if (score >= 40) { confidence = 'medium'; reviewStatus = 'pending'; }
-    else { confidence = 'low'; reviewStatus = 'pending'; }
-    if (confidence === 'low' && matchedKeywords.length < 2) continue;
+    if (matchedKeywords.length < 2) continue; // pre-filter: must have ≥2 keyword matches
+
+    // LLM validation gate
+    const trendDetail = trendDetails[trend.id] || {};
+    const validation = await validateCandidateLink(anthropic, product, { ...trend, ...trendDetail }, matchedKeywords);
+
+    if (validation.verdict === 'NOT_SUPPORT') {
+      rejectedCandidates.push({
+        trend_id: trend.id,
+        trend_name: trend.name,
+        matched_keywords: matchedKeywords,
+        llm_verdict: validation.verdict,
+        llm_reasoning: validation.reasoning,
+        llm_score: validation.confidence_score,
+        rejected_at: now
+      });
+      continue;
+    }
+
+    let confidence, reviewStatus, score;
+    if (validation.verdict === 'ERROR') {
+      confidence = 'low'; reviewStatus = 'pending'; score = 0;
+    } else if (validation.verdict === 'SUPPORTS' && validation.confidence_score >= 70) {
+      confidence = 'high'; reviewStatus = 'auto_applied'; score = validation.confidence_score;
+    } else {
+      // SUPPORTS <70 or PARTIAL
+      confidence = 'medium'; reviewStatus = 'pending'; score = validation.confidence_score;
+    }
 
     links.push({
       trend_id: trend.id, trend_name: trend.name, trend_type: 'global',
       confidence, confidence_score: score, matched_keywords: matchedKeywords,
-      reasoning: `Matched ${matchedKeywords.length} keyword(s): ${matchedKeywords.join(', ')}`,
-      review_status: reviewStatus, linked_at: new Date().toISOString()
+      reasoning: validation.reasoning,
+      review_status: reviewStatus, linked_at: now
     });
+
     if (trend.mega_trend && megaTrendMap[trend.mega_trend]) {
       const mtId = megaTrendMap[trend.mega_trend];
       if (!linkedMegaTrendIds.includes(mtId)) linkedMegaTrendIds.push(mtId);
@@ -62,7 +155,7 @@ function linkToTrends(trendIndex, megaTrendMap, ingredients, claims, productName
   const linkedTrendIds = links.filter(l => l.review_status === 'auto_applied').map(l => l.trend_id);
   const supportLabel = links.length === 0 ? 'NOT_SUPPORT'
     : links.some(l => l.confidence === 'high') ? 'SUPPORTS' : 'PARTIAL';
-  return { links, linkedTrendIds, linkedMegaTrendIds, supportLabel };
+  return { links, linkedTrendIds, linkedMegaTrendIds, supportLabel, rejectedCandidates };
 }
 
 // Parse "Apr 2026" or "April 2026" style dates to ISO
@@ -172,7 +265,7 @@ async function parseRows(fileBuffer, fileUrl) {
   }
 }
 
-async function processOneSource(base44, sourceId, batchSize = 50) {
+async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
   const source = await base44.asServiceRole.entities.Source.get(sourceId);
   if (!source) throw new Error(`Source not found: ${sourceId}`);
   if (source.source_type !== 'gnpd') throw new Error('Source is not GNPD type');
@@ -203,6 +296,15 @@ async function processOneSource(base44, sourceId, batchSize = 50) {
     keywords: (t.trend_keywords || []).map(k => k.toLowerCase()),
     mega_trend: t.mega_trend
   }));
+  // Build detail map for LLM prompts
+  const trendDetails = {};
+  globalTrends.forEach(t => {
+    trendDetails[t.id] = {
+      market_signal: t.market_signal || '',
+      description: t.description || '',
+      category: t.category || ''
+    };
+  });
   const megaTrendMap = {};
   megaTrends.forEach(mt => { megaTrendMap[mt.mega_trend_name] = mt.id; });
 
@@ -289,8 +391,20 @@ async function processOneSource(base44, sourceId, batchSize = 50) {
         : `https://www.gnpd.com/sinatra/recordpage/${recordId}/`;
 
       const description = String(getDescription(row) || '');
-      const { links, linkedTrendIds, linkedMegaTrendIds, supportLabel } =
-        linkToTrends(trendIndex, megaTrendMap, ingredients, claims, productName, description);
+      const productForLinking = {
+        product_name: productName,
+        brand: String(getBrand(row) || ''),
+        company,
+        country: String(getMarket(row) || ''),
+        category: source.category || String(getCategory(row) || ''),
+        sub_category: String(getSubCat(row) || ''),
+        product_description: description,
+        claims,
+        flavours,
+        ingredients
+      };
+      const { links, linkedTrendIds, linkedMegaTrendIds, supportLabel, rejectedCandidates } =
+        await linkToTrends(anthropic, trendIndex, trendDetails, megaTrendMap, productForLinking);
 
       const hasPalsgaardRelevance = hasEmulsifier || linkedTrendIds.length > 0;
 
@@ -318,6 +432,7 @@ async function processOneSource(base44, sourceId, batchSize = 50) {
           ? `Contains: ${foundEmulsifiers.slice(0, 3).join(', ')}`
           : hasPalsgaardRelevance ? 'Trend-linked product' : null,
         trend_links: links,
+        rejected_link_candidates: rejectedCandidates,
         linked_trend_ids: linkedTrendIds,
         linked_mega_trend_ids: linkedMegaTrendIds,
         support_label: supportLabel,
@@ -362,10 +477,12 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'sourceIds must be a non-empty array' }, { status: 400 });
     }
 
+    const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
+
     const results = [];
     for (const sourceId of sourceIds) {
       try {
-        const result = await processOneSource(base44, sourceId, batchSize);
+        const result = await processOneSource(base44, anthropic, sourceId, batchSize);
         results.push({ sourceId, status: 'ok', ...result });
       } catch (e) {
         console.error(`Error processing ${sourceId}:`, e.message);

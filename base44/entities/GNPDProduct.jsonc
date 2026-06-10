@@ -176,6 +176,47 @@
           "linked_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "reviewed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reviewed_by": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rejected_link_candidates": {
+      "type": "array",
+      "description": "Audit trail of trend link candidates rejected by LLM validation",
+      "items": {
+        "type": "object",
+        "properties": {
+          "trend_id": {
+            "type": "string"
+          },
+          "trend_name": {
+            "type": "string"
+          },
+          "matched_keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "llm_verdict": {
+            "type": "string"
+          },
+          "llm_reasoning": {
+            "type": "string"
+          },
+          "llm_score": {
+            "type": "number"
+          },
+          "rejected_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }
