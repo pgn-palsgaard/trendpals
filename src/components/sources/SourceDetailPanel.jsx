@@ -9,7 +9,14 @@ import {
   ExternalLink, Loader2, AlertTriangle, SkipForward, Check, X,
   FileText, RefreshCw
 } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
+
+// Safely format a date string — returns null for missing/invalid dates instead of throwing
+function safeFormat(value, fmt) {
+  if (!value) return null;
+  const d = new Date(value);
+  return isValid(d) ? format(d, fmt) : null;
+}
 
 // ─── config ───────────────────────────────────────────────────────────────────
 const CAPABILITY_COLORS = {
@@ -308,7 +315,7 @@ export default function SourceDetailPanel({ sourceId, onClose, onRefresh }) {
               {[
                 source.category,
                 source.region_code,
-                source.date_published ? format(new Date(source.date_published), 'MMM yyyy') : null,
+                safeFormat(source.date_published, 'MMM yyyy'),
                 source.rag_excerpt_count != null ? `${source.rag_excerpt_count} excerpts` : null,
               ].filter(Boolean).join(' · ')}
             </div>
