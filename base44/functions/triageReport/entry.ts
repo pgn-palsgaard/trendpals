@@ -7,7 +7,8 @@ Deno.serve(async (req) => {
     const user = await base44.auth.me();
     if (!user || user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: 403 });
 
-    const { since } = await req.json().catch(() => ({}));
+    const { since, fix_status } = await req.json().catch(() => ({}));
+    let statusFixed = 0;
     const sinceTs = since ? new Date(since).getTime() : 0;
 
     const perTrend = {};
@@ -23,6 +24,11 @@ Deno.serve(async (req) => {
       if (batch.length === 0) break;
 
       for (const p of batch) {
+        if (fix_status && p.processing_status !== 'trend_linking_pending'
+          && (p.trend_links || []).some(l => l.review_status === 'pending' && !l.llm_validated_at)) {
+          await base44.asServiceRole.entities.GNPDProduct.update(p.id, { processing_status: 'trend_linking_pending' });
+          statusFixed++;
+        }
         for (const l of (p.trend_links || [])) {
           if (l.review_status === 'pending') {
             totalPendingLinks++;
@@ -42,7 +48,7 @@ Deno.serve(async (req) => {
       skip += 200;
     }
 
-    return Response.json({ per_trend: perTrend, total_pending_links_now: totalPendingLinks, pending_links_not_yet_llm_validated: totalUnvalidatedPending });
+    return Response.json({ per_trend: perTrend, total_pending_links_now: totalPendingLinks, pending_links_not_yet_llm_validated: totalUnvalidatedPending, status_fixed: statusFixed });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

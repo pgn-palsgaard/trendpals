@@ -314,7 +314,25 @@ Deno.serve(async (req) => {
 
       for (const link of targets) {
         const trend = trendMap[link.trend_id];
-        if (!trend) continue;
+        if (!trend) {
+          // Trend is inactive or deleted — the link can never be approved; reject it
+          const idxDead = updatedLinks.findIndex(l => l.trend_id === link.trend_id && l.review_status === 'pending' && !l.llm_validated_at);
+          if (idxDead !== -1) {
+            updatedLinks.splice(idxDead, 1);
+            rejectedCandidates.push({
+              trend_id: link.trend_id,
+              trend_name: link.trend_name,
+              matched_keywords: link.matched_keywords || [],
+              llm_verdict: 'NOT_SUPPORT',
+              llm_reasoning: 'Target trend is inactive or no longer exists',
+              llm_score: 0,
+              rejected_at: new Date().toISOString()
+            });
+            linksRejected++;
+            changed = true;
+          }
+          continue;
+        }
 
         const examples = await getExpertExamples(link.trend_id);
         const result = await runValidation(anthropic, product, {
