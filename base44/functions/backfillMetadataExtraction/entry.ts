@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
     }
 
     const candidates = await base44.asServiceRole.entities.Source.filter(
-      { pipeline_stage: 'uploaded', source_type: { $in: ['mintel', 'market_intel', 'url'] } },
+      { pipeline_stage: { $in: ['uploaded', 'extracted'] }, source_type: { $in: ['mintel', 'market_intel', 'url', 'knowledge'] } },
       '-created_date',
       500
     );
