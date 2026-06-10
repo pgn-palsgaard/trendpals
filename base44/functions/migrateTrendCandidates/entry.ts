@@ -22,14 +22,23 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    const [trends, candidates, projects] = await Promise.all([
+    const [trends, inactiveTrends, candidates, projects] = await Promise.all([
       base44.asServiceRole.entities.GlobalTrend.filter({ is_active: true }, null, 500),
+      base44.asServiceRole.entities.GlobalTrend.filter({ is_active: false }, null, 500),
       base44.asServiceRole.entities.TrendCandidate.filter({}, null, 1000),
       base44.asServiceRole.entities.Project.filter({}, null, 500),
     ]);
 
     const projCat = {};
-    projects.forEach(p => { projCat[p.id] = (p.category || '').toLowerCase(); });
+    const projCatRaw = {};
+    projects.forEach(p => {
+      projCat[p.id] = (p.category || '').toLowerCase();
+      projCatRaw[p.id] = p.category || '';
+    });
+
+    const GT_CATEGORIES = ['Ice Cream', 'Dairy', 'Confectionery', 'Bakery', 'Spreads', 'Dressings'];
+    const pendingByName = {};
+    inactiveTrends.forEach(gt => { pendingByName[gt.trend_name.toLowerCase().trim()] = gt.id; });
 
     const trendData = trends.map(gt => ({
       id: gt.id,
@@ -39,7 +48,7 @@ Deno.serve(async (req) => {
       kwTokens: tokens((gt.trend_keywords || []).join(' ')),
     }));
 
-    let mapped = 0, unmapped = 0, alreadyMapped = 0;
+    let mapped = 0, unmapped = 0, alreadyMapped = 0, proposalsCreated = 0;
     const unmappedList = [];
 
     for (const tc of candidates) {
@@ -76,15 +85,38 @@ Deno.serve(async (req) => {
         });
         mapped++;
       } else {
+        // Never silently drop: create (or reuse) a pending GlobalTrend proposal for review
+        const nameKey = (tc.trend_name || '').toLowerCase().trim();
+        let proposalId = pendingByName[nameKey];
+        if (!proposalId) {
+          const rawCat = projCatRaw[tc.project_id] || '';
+          const proposal = await base44.asServiceRole.entities.GlobalTrend.create({
+            trend_name: tc.trend_name,
+            category: GT_CATEGORIES.includes(rawCat) ? rawCat : 'Other',
+            mega_trend: 'Experiences',
+            driver_key: 'experiences',
+            is_active: false,
+            confidence: tc.confidence || 'medium',
+            market_signal: tc.market_signal || '',
+            whats_changing: tc.whats_changing || [],
+            trend_keywords: tc.signals_dictionary?.keywords || [],
+            why_now: 'Proposed automatically from project trend migration — no matching Trend Library trend found. Pending review and enrichment before activation.',
+            sources: [],
+          });
+          proposalId = proposal.id;
+          pendingByName[nameKey] = proposalId;
+          proposalsCreated++;
+        }
         await base44.asServiceRole.entities.TrendCandidate.update(tc.id, {
+          global_trend_id: proposalId,
           migration_status: 'unmapped',
         });
         unmapped++;
-        unmappedList.push({ id: tc.id, trend_name: tc.trend_name, project_id: tc.project_id });
+        unmappedList.push({ id: tc.id, trend_name: tc.trend_name, project_id: tc.project_id, proposal_trend_id: proposalId });
       }
     }
 
-    return Response.json({ mapped, unmapped, already_mapped: alreadyMapped, unmapped_for_review: unmappedList });
+    return Response.json({ mapped, unmapped, proposals_created: proposalsCreated, already_mapped: alreadyMapped, unmapped_for_review: unmappedList });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
