@@ -225,59 +225,61 @@ Deno.serve(async (req) => {
       });
     }
 
+    // ── Snapshot product IDs needing triage (stable against status mutations) ─
+    const pendingIds = [];
+    let scanSkip = 0;
+    while (true) {
+      const scanBatch = await base44.asServiceRole.entities.GNPDProduct.filter(
+        { processing_status: 'trend_linking_pending' }, 'created_date', 100, scanSkip
+      );
+      if (scanBatch.length === 0) break;
+      for (const p of scanBatch) {
+        if ((p.trend_links || []).some(needsTriage)) pendingIds.push(p.id);
+      }
+      if (scanBatch.length < 100) break;
+      scanSkip += 100;
+    }
+
     // ── Find or create ProcessingJob ─────────────────────────────────────────
     const existingJobs = await base44.asServiceRole.entities.ProcessingJob.filter(
       { job_type: 'revalidate_trend_links' }, '-created_date', 5
     );
     const activeJob = existingJobs.find(j =>
-      (j.status === 'running' || j.status === 'paused_timeout' || j.status === 'failed')
-      && j.current_cursor
+      j.status === 'running' || j.status === 'paused_timeout'
+      || (j.status === 'failed' && j.current_cursor)
     );
 
-    let resumeCursor = null;
+    // Nothing to triage — close out any open job and exit cheaply
+    if (pendingIds.length === 0) {
+      if (activeJob) {
+        await base44.asServiceRole.entities.ProcessingJob.update(activeJob.id, {
+          status: 'completed', current_cursor: null, last_progress_at: new Date().toISOString(),
+        });
+      }
+      return Response.json({ idle: true, message: 'No pending links need LLM triage' });
+    }
 
     if (activeJob) {
-      resumeCursor = activeJob.current_cursor || null;
       await base44.asServiceRole.entities.ProcessingJob.update(activeJob.id, {
         status: 'running',
         last_progress_at: new Date().toISOString(),
       });
       job = { ...activeJob, status: 'running' };
-      console.log(`[triage] Resuming job ${activeJob.id} from cursor ${resumeCursor}, processed: ${activeJob.processed_items}`);
+      console.log(`[triage] Resuming job ${activeJob.id}, processed: ${activeJob.processed_items}, remaining products: ${pendingIds.length}`);
     } else {
-      // Count products with links needing triage
-      let totalItems = 0;
-      let countSkip = 0;
-      while (true) {
-        const batch = await base44.asServiceRole.entities.GNPDProduct.filter(
-          { processing_status: 'trend_linking_pending' }, null, 100, countSkip
-        );
-        if (batch.length === 0) break;
-        for (const p of batch) {
-          if ((p.trend_links || []).some(needsTriage)) totalItems++;
-        }
-        if (batch.length < 100) break;
-        countSkip += 100;
-      }
-
-      // Nothing to triage — exit without creating a job (keeps scheduled resume cheap)
-      if (totalItems === 0) {
-        return Response.json({ idle: true, message: 'No pending links need LLM triage' });
-      }
-
       const newJob = await base44.asServiceRole.entities.ProcessingJob.create({
         job_type: 'revalidate_trend_links',
         status: 'running',
         started_at: new Date().toISOString(),
         last_progress_at: new Date().toISOString(),
-        total_items: totalItems,
+        total_items: pendingIds.length,
         processed_items: 0,
         current_cursor: null,
         summary: { links_rejected: 0, links_upgraded_to_auto_applied: 0, links_revalidated: 0, errors: 0 },
         triggered_by: user?.email || body.source || 'pipeline',
       });
       job = newJob;
-      console.log(`[triage] Created new job ${job.id}, total_items: ${totalItems}`);
+      console.log(`[triage] Created new job ${job.id}, total_items: ${pendingIds.length}`);
     }
 
     const existingSummary = job.summary || {};
@@ -288,7 +290,7 @@ Deno.serve(async (req) => {
     let linksErrors      = existingSummary.errors || 0;
     const perTrend       = existingSummary.per_trend || {};
     let processedItems   = job.processed_items || 0;
-    let lastCursor       = resumeCursor;
+    let lastCursor       = null;
     let timedOut         = false;
 
     function summarySnapshot() {
@@ -393,48 +395,22 @@ Deno.serve(async (req) => {
 
     // ── Main loop wrapped in try/finally ─────────────────────────────────────
     try {
-      let skip = 0;
-      let passedCursor = !resumeCursor;
-
-      outerLoop:
-      while (true) {
+      for (const productId of pendingIds) {
         if (Date.now() - invocationStart > timeBudget) { timedOut = true; break; }
 
-        const batch = await base44.asServiceRole.entities.GNPDProduct.filter(
-          { processing_status: 'trend_linking_pending' }, 'created_date', BATCH_SIZE, skip
-        );
-        if (batch.length === 0) break;
+        const product = await base44.asServiceRole.entities.GNPDProduct.get(productId);
+        if (!product || !(product.trend_links || []).some(needsTriage)) continue;
 
-        for (const product of batch) {
-          if (!passedCursor) {
-            if (product.id === resumeCursor) passedCursor = true;
-            continue;
-          }
+        await processProduct(product);
+        lastCursor = product.id;
+        processedItems++;
 
-          if (Date.now() - invocationStart > timeBudget) { timedOut = true; break outerLoop; }
-
-          await processProduct(product);
-          lastCursor = product.id;
-          processedItems++;
-
-          await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
-            processed_items: processedItems,
-            current_cursor: lastCursor,
-            last_progress_at: new Date().toISOString(),
-            summary: summarySnapshot(),
-          });
-
-          if (Date.now() - invocationStart > timeBudget) { timedOut = true; break outerLoop; }
-        }
-
-        skip += batch.length;
-        if (timedOut) break;
-
-        if (batch.length === BATCH_SIZE) {
-          await new Promise(r => setTimeout(r, PAUSE_MS));
-        } else {
-          break;
-        }
+        await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+          processed_items: processedItems,
+          current_cursor: lastCursor,
+          last_progress_at: new Date().toISOString(),
+          summary: summarySnapshot(),
+        });
       }
     } finally {
       const finalStatus = timedOut ? 'paused_timeout' : 'completed';
