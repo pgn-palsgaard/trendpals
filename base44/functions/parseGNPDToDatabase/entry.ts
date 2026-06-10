@@ -249,7 +249,23 @@ Deno.serve(async (req) => {
     // 8. Update source stage
     await base44.asServiceRole.entities.Source.update(sourceId, { pipeline_stage: 'gnpd_ready', review_status: 'approved' });
 
+    // 9. LLM triage of the new pending links — runs the first chunk now (60s budget),
+    // the scheduled "Resume trend link triage" automation drains the rest.
+    let triage = null;
+    if (toCreate.some(p => p.trend_links.some(l => l.review_status === 'pending'))) {
+      try {
+        const triageRes = await base44.functions.invoke('revalidatePendingTrendLinks', {
+          source: 'auto_parse_chain',
+          time_budget_ms: 60000
+        });
+        triage = triageRes.data;
+      } catch (e) {
+        console.warn('Triage kickoff failed (scheduled resume will pick it up):', e.message);
+      }
+    }
+
     return Response.json({
+      triage,
       source_id: sourceId,
       source_title: source.title,
       rows_parsed: rows.length,

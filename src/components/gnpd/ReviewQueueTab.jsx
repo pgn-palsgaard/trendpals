@@ -207,7 +207,7 @@ export default function ReviewQueueTab() {
                     style={{ cursor: "pointer" }}
                   />
                 </th>
-                {["Product", "Brand", "Country", "Category", "Trend", "Confidence", "Score", "Matched keywords", "Actions"].map(h => (
+                {["Product", "Brand", "Country", "Category", "Trend", "Confidence", "Score", "LLM reasoning", "Actions"].map(h => (
                   <th key={h} style={{ textAlign: "left", padding: "10px 10px", fontWeight: 600, color: DARK_BLUE, fontSize: 11, whiteSpace: "nowrap" }}>{h}</th>
                 ))}
               </tr>
@@ -241,15 +241,13 @@ export default function ReviewQueueTab() {
                       </span>
                     </td>
                     <td style={{ padding: "8px 10px", color: DARK_BLUE, fontWeight: 600 }}>{l.confidence_score}</td>
-                    <td style={{ padding: "8px 10px", maxWidth: 200 }}>
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-                        {(l.matched_keywords || []).slice(0, 4).map((kw, ki) => (
-                          <span key={ki} style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#f0f0f0", color: DARK_BLUE }}>{kw}</span>
-                        ))}
-                        {l.matched_keywords?.length > 4 && (
-                          <span style={{ fontSize: 10, color: GREY }}>+{l.matched_keywords.length - 4}</span>
-                        )}
-                      </div>
+                    <td style={{ padding: "8px 10px", maxWidth: 280 }}>
+                      <div style={{ fontSize: 11, color: DARK_BLUE, lineHeight: 1.4 }}>{l.reasoning || '—'}</div>
+                      {l.matched_keywords?.length > 0 && (
+                        <div style={{ fontSize: 9, color: GREY, marginTop: 2 }}>
+                          kw: {l.matched_keywords.slice(0, 4).join(', ')}{l.matched_keywords.length > 4 ? ` +${l.matched_keywords.length - 4}` : ''}
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
                       <ApproveRejectButtons link={l} onDone={fetchLinks} />

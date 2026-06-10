@@ -177,6 +177,11 @@
             "type": "string",
             "format": "date-time"
           },
+          "llm_validated_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Set when the grounded LLM triage has evaluated this link \u2014 links without it are queued for triage"
+          },
           "reviewed_at": {
             "type": "string",
             "format": "date-time"

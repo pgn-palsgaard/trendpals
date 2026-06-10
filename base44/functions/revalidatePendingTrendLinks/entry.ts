@@ -1,19 +1,35 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import Anthropic from 'npm:@anthropic-ai/sdk@0.27.3';
 
+// LLM triage of GNPD→trend keyword matches. Every pending link is evaluated with
+// full product context, the trend's description/market signal, and up to 5 Mintel
+// analyst-curated ExpertExamples as grounding. Outcomes:
+//   SUPPORTS ≥70  → auto_applied
+//   SUPPORTS <70 / PARTIAL → stays pending WITH the LLM's reasoning
+//   NOT_SUPPORT   → auto-rejected into rejected_link_candidates (never reaches the queue)
+
 const SYSTEM_PROMPT = `You are validating whether a GNPD product launch is genuine evidence of a market trend, or whether the keyword overlap is incidental.
 
 A product GENUINELY EXPRESSES a trend when the product's positioning, formulation, or claims actively embody what the trend describes — not merely when the same words happen to appear.
+
+HARD RULE — ingredient presence is NEVER positioning evidence:
+The mere presence of an ingredient does not qualify a product for a positioning trend (plant-based, clean label, premium, free-from, health, sustainability, etc.).
+Example: coconut oil or almonds in the ingredient list of a DAIRY ice cream does not make it plant-based. A positioning trend requires the product's actual positioning — its claims, descriptors, category placement, or marketing — to express the trend.
 
 Example of genuine evidence:
 - Trend: "Plant-based indulgence parity"
 - Product: "Oatly Oat-Based Ice Cream Stick with Belgian Chocolate Coating", claims include "vegan, no animal ingredients"
 - Verdict: SUPPORTS — the product is explicitly a plant-based version of an indulgent format
 
-Example of incidental match:
+Examples of incidental matches:
+- Trend: "Plant-based indulgence parity"
+- Product: "Black Truffle + Vanilla Mini Ice Creams with Crispy Chocolate Coating" (dairy ice cream; ingredients include coconut oil, almonds)
+- Verdict: NOT_SUPPORT — plant ingredients in a dairy product are not plant-based positioning; no vegan or dairy-free claims
 - Trend: "Texture innovation — crunch integrity at scale"
 - Product: "Dark Chocolate Coated Coconut Chips" (ingredients mention "crunchy")
 - Verdict: NOT_SUPPORT — crunch is a passive property of coconut chips, not an innovation the product is built around
+
+If REFERENCE EXAMPLES are provided, they are products Mintel analysts themselves cited as evidence for this trend. Use them to calibrate what genuinely qualifies — a candidate should express the trend in a comparable way.
 
 You will respond ONLY with a JSON object of the form:
 {
@@ -24,12 +40,21 @@ You will respond ONLY with a JSON object of the form:
 
 Scoring guidance:
 - SUPPORTS, score 70-95: product clearly and primarily expresses the trend
-- PARTIAL, score 40-69: some elements align but the product is not primarily about this trend
-- NOT_SUPPORT, score 0-39: the keyword overlap is incidental; the product does not express this trend
+- SUPPORTS, score 40-69: product expresses the trend but not as its primary positioning
+- PARTIAL, score 40-69: some elements align but the evidence is mixed
+- NOT_SUPPORT, score 0-39: the keyword overlap is incidental or contradicts the trend; the product does not express it
 
 No prose outside the JSON. No markdown. No commentary.`;
 
-async function runValidation(anthropic, product, trend, matched_keywords) {
+function formatExpertExamples(examples) {
+  if (!examples || examples.length === 0) return '';
+  const lines = examples.slice(0, 5).map((ex, i) =>
+    `${i + 1}. ${ex.product_name}${ex.brand ? ` (${ex.brand}${ex.country ? ', ' + ex.country : ''})` : ''} — claims: ${(ex.claims || []).join(', ') || 'n/a'}; analyst note: "${(ex.analyst_quote || ex.analyst_framing || '').slice(0, 200)}"`
+  );
+  return `\nREFERENCE EXAMPLES (Mintel analyst-curated evidence for this trend):\n${lines.join('\n')}\n`;
+}
+
+async function runValidation(anthropic, product, trend, matched_keywords, expertExamples = []) {
   const validated_at = new Date().toISOString();
   try {
     const userPrompt = `PRODUCT
@@ -45,9 +70,9 @@ Ingredients: ${product.ingredients || ''}
 TREND
 Name: ${trend.trend_name || ''}
 Market signal: ${trend.market_signal || ''}
-Description: ${(trend.description || '').slice(0, 400)}
+Description: ${(trend.description || '').slice(0, 600)}
 Category: ${trend.category || ''}
-
+${formatExpertExamples(expertExamples)}
 KEYWORD OVERLAP
 Matched: ${(matched_keywords || []).join(', ')}
 
@@ -74,30 +99,48 @@ function isLegacyReasoning(reasoning) {
   return /^(Backfill: )?Matched \d+ keyword/i.test(reasoning);
 }
 
+// A pending link needs triage until the NEW grounded validator has stamped it
+function needsTriage(link) {
+  return link.review_status === 'pending' && !link.llm_validated_at;
+}
+
 const BATCH_SIZE = 5;
-const PAUSE_MS = 30000;
-const TIME_BUDGET_MS = 4 * 60 * 1000; // 4 minutes soft cap
+const PAUSE_MS = 10000;
+const MAX_TIME_BUDGET_MS = 4 * 60 * 1000;
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   let job = null;
 
   try {
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-    if (user.role !== 'admin') return Response.json({ error: 'Admin access required' }, { status: 403 });
+    const body = await req.json().catch(() => ({}));
+    const isPipeline = body.source === 'auto_parse_chain' || body.source === 'scheduled_resume' || !!body.event;
+
+    let user = null;
+    try { user = await base44.auth.me(); } catch (_) { /* automation context */ }
+    if (!user && !isPipeline) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    if (user && user.role !== 'admin' && !isPipeline) return Response.json({ error: 'Admin access required' }, { status: 403 });
 
     const invocationStart = Date.now();
+    const timeBudget = Math.min(Number(body.time_budget_ms) || MAX_TIME_BUDGET_MS, MAX_TIME_BUDGET_MS);
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
 
     const globalTrends = await base44.asServiceRole.entities.GlobalTrend.filter({ is_active: true });
     const trendMap = {};
     globalTrends.forEach(t => { trendMap[t.id] = t; });
 
-    const body = await req.json().catch(() => ({}));
+    // ExpertExample grounding — cached per trend
+    const expertCache = {};
+    async function getExpertExamples(trendId) {
+      if (!(trendId in expertCache)) {
+        try {
+          expertCache[trendId] = await base44.asServiceRole.entities.ExpertExample.filter({ linked_trend_ids: trendId }, null, 5);
+        } catch (_) { expertCache[trendId] = []; }
+      }
+      return expertCache[trendId];
+    }
 
     // ── Audit mode: re-validate existing keyword-only AUTO_APPLIED links ──────
-    // Pass → keep auto_applied (with LLM reasoning). Fail → demote to pending review.
     if (body.mode === 'audit_auto_applied') {
       const auditStart = Date.now();
       let skip = Number(body.cursor) || 0;
@@ -106,12 +149,12 @@ Deno.serve(async (req) => {
 
       auditLoop:
       while (true) {
-        if (Date.now() - auditStart > TIME_BUDGET_MS) { auditTimedOut = true; break; }
+        if (Date.now() - auditStart > timeBudget) { auditTimedOut = true; break; }
         const batch = await base44.asServiceRole.entities.GNPDProduct.filter({}, 'created_date', 100, skip);
         if (batch.length === 0) break;
 
         for (const p of batch) {
-          if (Date.now() - auditStart > TIME_BUDGET_MS) { auditTimedOut = true; break auditLoop; }
+          if (Date.now() - auditStart > timeBudget) { auditTimedOut = true; break auditLoop; }
           const targets = (p.trend_links || []).filter(
             l => l.review_status === 'auto_applied' && isLegacyReasoning(l.reasoning)
           );
@@ -123,22 +166,22 @@ Deno.serve(async (req) => {
           for (const link of targets) {
             const trend = trendMap[link.trend_id];
             if (!trend) continue;
+            const examples = await getExpertExamples(link.trend_id);
             const result = await runValidation(anthropic, p, {
-              trend_id: trend.id,
               trend_name: trend.trend_name,
               market_signal: trend.market_signal || '',
               description: trend.description || '',
               category: trend.category || ''
-            }, link.matched_keywords || []);
+            }, link.matched_keywords || [], examples);
             validated++;
 
             const idx = updatedLinks.findIndex(l => l.trend_id === link.trend_id && l.review_status === 'auto_applied');
             if (idx === -1) continue;
 
             if (result.verdict === 'ERROR') {
-              auditErrors++; // leave unchanged — retried on next run
+              auditErrors++;
             } else if (result.verdict === 'SUPPORTS' && result.confidence_score >= 70) {
-              updatedLinks[idx] = { ...updatedLinks[idx], confidence: 'high', confidence_score: result.confidence_score, reasoning: result.reasoning };
+              updatedLinks[idx] = { ...updatedLinks[idx], confidence: 'high', confidence_score: result.confidence_score, reasoning: result.reasoning, llm_validated_at: result.validated_at };
               kept++; changed = true;
             } else {
               updatedLinks[idx] = {
@@ -146,7 +189,8 @@ Deno.serve(async (req) => {
                 review_status: 'pending',
                 confidence: result.verdict === 'PARTIAL' ? 'medium' : 'low',
                 confidence_score: result.confidence_score,
-                reasoning: result.reasoning
+                reasoning: result.reasoning,
+                llm_validated_at: result.validated_at
               };
               demoted++; changed = true;
             }
@@ -185,8 +229,6 @@ Deno.serve(async (req) => {
     const existingJobs = await base44.asServiceRole.entities.ProcessingJob.filter(
       { job_type: 'revalidate_trend_links' }, '-created_date', 5
     );
-    // Resume jobs that are still in progress — including ones that failed/stalled
-    // mid-sweep (they still have a valid cursor + processed_items to pick up from).
     const activeJob = existingJobs.find(j =>
       (j.status === 'running' || j.status === 'paused_timeout' || j.status === 'failed')
       && j.current_cursor
@@ -201,8 +243,9 @@ Deno.serve(async (req) => {
         last_progress_at: new Date().toISOString(),
       });
       job = { ...activeJob, status: 'running' };
-      console.log(`[revalidate] Resuming job ${activeJob.id} from cursor ${resumeCursor}, processed so far: ${activeJob.processed_items}`);
+      console.log(`[triage] Resuming job ${activeJob.id} from cursor ${resumeCursor}, processed: ${activeJob.processed_items}`);
     } else {
+      // Count products with links needing triage
       let totalItems = 0;
       let countSkip = 0;
       while (true) {
@@ -211,13 +254,15 @@ Deno.serve(async (req) => {
         );
         if (batch.length === 0) break;
         for (const p of batch) {
-          const hasLegacy = (p.trend_links || []).some(
-            l => l.review_status === 'pending' && isLegacyReasoning(l.reasoning)
-          );
-          if (hasLegacy) totalItems++;
+          if ((p.trend_links || []).some(needsTriage)) totalItems++;
         }
         if (batch.length < 100) break;
         countSkip += 100;
+      }
+
+      // Nothing to triage — exit without creating a job (keeps scheduled resume cheap)
+      if (totalItems === 0) {
+        return Response.json({ idle: true, message: 'No pending links need LLM triage' });
       }
 
       const newJob = await base44.asServiceRole.entities.ProcessingJob.create({
@@ -229,48 +274,66 @@ Deno.serve(async (req) => {
         processed_items: 0,
         current_cursor: null,
         summary: { links_rejected: 0, links_upgraded_to_auto_applied: 0, links_revalidated: 0, errors: 0 },
-        triggered_by: user.email || user.id,
+        triggered_by: user?.email || body.source || 'pipeline',
       });
       job = newJob;
-      console.log(`[revalidate] Created new job ${job.id}, total_items: ${totalItems}`);
+      console.log(`[triage] Created new job ${job.id}, total_items: ${totalItems}`);
     }
 
     const existingSummary = job.summary || {};
     let linksRevalidated = existingSummary.links_revalidated || 0;
     let linksUpgraded    = existingSummary.links_upgraded_to_auto_applied || 0;
     let linksRejected    = existingSummary.links_rejected || 0;
+    let linksKeptPending = existingSummary.links_kept_pending || 0;
     let linksErrors      = existingSummary.errors || 0;
+    const perTrend       = existingSummary.per_trend || {};
     let processedItems   = job.processed_items || 0;
     let lastCursor       = resumeCursor;
     let timedOut         = false;
 
+    function summarySnapshot() {
+      return {
+        links_revalidated: linksRevalidated,
+        links_upgraded_to_auto_applied: linksUpgraded,
+        links_rejected: linksRejected,
+        links_kept_pending: linksKeptPending,
+        errors: linksErrors,
+        per_trend: perTrend,
+      };
+    }
+
     async function processProduct(product) {
-      const pendingLegacyLinks = (product.trend_links || []).filter(
-        l => l.review_status === 'pending' && isLegacyReasoning(l.reasoning)
-      );
-      if (pendingLegacyLinks.length === 0) return;
+      const targets = (product.trend_links || []).filter(needsTriage);
+      if (targets.length === 0) return;
 
       const updatedLinks = [...(product.trend_links || [])];
       const rejectedCandidates = [...(product.rejected_link_candidates || [])];
       let changed = false;
 
-      for (const link of pendingLegacyLinks) {
+      for (const link of targets) {
         const trend = trendMap[link.trend_id];
         if (!trend) continue;
 
+        const examples = await getExpertExamples(link.trend_id);
         const result = await runValidation(anthropic, product, {
-          trend_id: trend.id,
           trend_name: trend.trend_name,
           market_signal: trend.market_signal || '',
           description: trend.description || '',
-          category: trend.category || '',
-          trend_keywords: trend.trend_keywords || []
-        }, link.matched_keywords || []);
+          category: trend.category || ''
+        }, link.matched_keywords || [], examples);
 
         linksRevalidated++;
+        const tName = link.trend_name || trend.trend_name;
+        if (!perTrend[tName]) perTrend[tName] = { promoted: 0, kept_pending: 0, rejected: 0 };
 
-        const idx = updatedLinks.findIndex(l => l.trend_id === link.trend_id && l.review_status === 'pending');
+        const idx = updatedLinks.findIndex(l => l.trend_id === link.trend_id && l.review_status === 'pending' && !l.llm_validated_at);
         if (idx === -1) continue;
+
+        if (result.verdict === 'ERROR') {
+          // Leave the link untouched — it will be retried on the next run
+          linksErrors++;
+          continue;
+        }
 
         if (result.verdict === 'NOT_SUPPORT') {
           updatedLinks.splice(idx, 1);
@@ -284,26 +347,31 @@ Deno.serve(async (req) => {
             rejected_at: result.validated_at
           });
           linksRejected++;
+          perTrend[tName].rejected++;
           changed = true;
-        } else if (result.verdict === 'ERROR') {
-          updatedLinks[idx] = { ...updatedLinks[idx], confidence: 'low', confidence_score: 0, reasoning: result.reasoning };
-          linksErrors++;
-          changed = true;
-        } else {
-          let newStatus = 'pending';
-          let newConfidence = 'medium';
-          if (result.verdict === 'SUPPORTS' && result.confidence_score >= 70) {
-            newStatus = 'auto_applied';
-            newConfidence = 'high';
-            linksUpgraded++;
-          }
+        } else if (result.verdict === 'SUPPORTS' && result.confidence_score >= 70) {
           updatedLinks[idx] = {
             ...updatedLinks[idx],
-            review_status: newStatus,
-            confidence: newConfidence,
+            review_status: 'auto_applied',
+            confidence: 'high',
             confidence_score: result.confidence_score,
-            reasoning: result.reasoning
+            reasoning: result.reasoning,
+            llm_validated_at: result.validated_at
           };
+          linksUpgraded++;
+          perTrend[tName].promoted++;
+          changed = true;
+        } else {
+          updatedLinks[idx] = {
+            ...updatedLinks[idx],
+            review_status: 'pending',
+            confidence: 'medium',
+            confidence_score: result.confidence_score,
+            reasoning: result.reasoning,
+            llm_validated_at: result.validated_at
+          };
+          linksKeptPending++;
+          perTrend[tName].kept_pending++;
           changed = true;
         }
       }
@@ -330,10 +398,7 @@ Deno.serve(async (req) => {
 
       outerLoop:
       while (true) {
-        if (Date.now() - invocationStart > TIME_BUDGET_MS) {
-          timedOut = true;
-          break;
-        }
+        if (Date.now() - invocationStart > timeBudget) { timedOut = true; break; }
 
         const batch = await base44.asServiceRole.entities.GNPDProduct.filter(
           { processing_status: 'trend_linking_pending' }, 'created_date', BATCH_SIZE, skip
@@ -346,34 +411,20 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Check time AFTER each product (not just between batches)
-          if (Date.now() - invocationStart > TIME_BUDGET_MS) {
-            timedOut = true;
-            break outerLoop;
-          }
+          if (Date.now() - invocationStart > timeBudget) { timedOut = true; break outerLoop; }
 
           await processProduct(product);
           lastCursor = product.id;
           processedItems++;
 
-          // Persist progress immediately after each product
           await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
             processed_items: processedItems,
             current_cursor: lastCursor,
             last_progress_at: new Date().toISOString(),
-            summary: {
-              links_revalidated: linksRevalidated,
-              links_upgraded_to_auto_applied: linksUpgraded,
-              links_rejected: linksRejected,
-              errors: linksErrors,
-            },
+            summary: summarySnapshot(),
           });
 
-          // Check time again after persisting
-          if (Date.now() - invocationStart > TIME_BUDGET_MS) {
-            timedOut = true;
-            break outerLoop;
-          }
+          if (Date.now() - invocationStart > timeBudget) { timedOut = true; break outerLoop; }
         }
 
         skip += batch.length;
@@ -386,7 +437,6 @@ Deno.serve(async (req) => {
         }
       }
     } finally {
-      // ALWAYS write final status — even if an exception escaped the loop
       const finalStatus = timedOut ? 'paused_timeout' : 'completed';
       try {
         await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
@@ -394,16 +444,11 @@ Deno.serve(async (req) => {
           processed_items: processedItems,
           current_cursor: timedOut ? lastCursor : null,
           last_progress_at: new Date().toISOString(),
-          summary: {
-            links_revalidated: linksRevalidated,
-            links_upgraded_to_auto_applied: linksUpgraded,
-            links_rejected: linksRejected,
-            errors: linksErrors,
-          },
+          summary: summarySnapshot(),
         });
-        console.log(`[revalidate] Done — status=${finalStatus}, processed=${processedItems}, rejected=${linksRejected}, upgraded=${linksUpgraded}`);
+        console.log(`[triage] Done — status=${finalStatus}, processed=${processedItems}, rejected=${linksRejected}, promoted=${linksUpgraded}, kept=${linksKeptPending}`);
       } catch (persistErr) {
-        console.error('[revalidate] Failed to persist final status:', persistErr.message);
+        console.error('[triage] Failed to persist final status:', persistErr.message);
       }
     }
 
@@ -412,14 +457,15 @@ Deno.serve(async (req) => {
       status: timedOut ? 'paused_timeout' : 'completed',
       products_processed: processedItems,
       links_revalidated: linksRevalidated,
-      links_upgraded_to_auto_applied: linksUpgraded,
-      links_rejected: linksRejected,
+      links_promoted_to_auto_applied: linksUpgraded,
+      links_kept_for_review: linksKeptPending,
+      links_auto_rejected: linksRejected,
       links_errors: linksErrors,
+      per_trend: perTrend,
     });
 
   } catch (error) {
-    console.error('[revalidate] Fatal:', error.message);
-    // If job was created, mark it failed
+    console.error('[triage] Fatal:', error.message);
     if (job?.id) {
       try {
         await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
