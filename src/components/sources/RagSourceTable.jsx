@@ -73,6 +73,8 @@ export default function RagSourceTable({
   ExtraFilterBar,
   // optional: array of { key, header, render(s) } added after Review Status column
   extraColumns = [],
+  // default source_type pre-selected in the upload modal
+  uploadDefaultSourceType = 'knowledge',
 }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('awaiting_review');
@@ -437,7 +439,7 @@ export default function RagSourceTable({
         sources={selectedSources}
       />
 
-      {showUploadModal && <KnowledgeUploadModal onClose={() => setShowUploadModal(false)} />}
+      {showUploadModal && <KnowledgeUploadModal onClose={() => setShowUploadModal(false)} defaultSourceType={uploadDefaultSourceType} />}
 
       <SourceDetailPanel
         sourceId={openSourceId}

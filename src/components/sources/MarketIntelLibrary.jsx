@@ -83,6 +83,7 @@ export default function MarketIntelLibrary() {
         applyExtraFilters={applyExtraFilters}
         ExtraFilterBar={ExtraFilterBar}
         extraColumns={extraColumns}
+        uploadDefaultSourceType="mintel"
       />
       <div style={{ maxWidth: 500, margin: '0 24px 32px', fontFamily: 'Calibri, Arial, sans-serif' }}>
         <BackfillJobPanel />

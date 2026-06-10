@@ -748,64 +748,16 @@ Deno.serve(async (req) => {
           freshness: hasRecentProducts ? 'recent' : 'aging'
         });
       } else {
-        // Process PDF or other report
-        // Use ExtractDataFromUploadedFile for PDFs
-        const extractResult = await base44.integrations.Core.ExtractDataFromUploadedFile({
-          file_url,
-          json_schema: {
-            type: "object",
-            properties: {
-              excerpts: {
-                type: "array",
-                items: {
-                  type: "object",
-                  properties: {
-                    text: { type: "string" },
-                    page_number: { type: "number" }
-                  }
-                }
-              },
-              publication_date: { type: "string" }
-            }
-          }
-        });
-
-        let excerpts = [];
-        let publicationDate = null;
-
-        if (extractResult.status === 'success' && extractResult.output) {
-          const data = extractResult.output;
-          
-          // Create excerpt chunks
-          if (data.excerpts && Array.isArray(data.excerpts)) {
-            excerpts = data.excerpts.map((excerpt, idx) => ({
-              id: `excerpt_${source.id}_${idx}`,
-              text: excerpt.text,
-              page_ref: excerpt.page_number ? `p${excerpt.page_number}` : `chunk_${idx}`
-            }));
-          }
-
-          publicationDate = data.publication_date;
-        }
-
-        // Determine freshness based on publication date
-        let freshness = 'recent';
-        if (publicationDate) {
-          const pubYear = new Date(publicationDate).getFullYear();
-          const currentYear = new Date().getFullYear();
-          const age = currentYear - pubYear;
-          
-          if (age > 2) freshness = 'outdated';
-          else if (age > 1) freshness = 'aging';
-        }
-
+        // Narrative report (PDF etc.) — route into the RAG extraction pipeline.
+        // processSourceQueue uses pdfjs (no 10MB limit) + structured Claude extraction.
         await base44.entities.Source.update(source.id, {
-          status: 'ready',
-          processing_completed_at: new Date().toISOString(),
-          excerpts,
-          date: publicationDate,
-          freshness
+          status: 'uploaded',
+          pipeline_stage: 'uploaded',
+          review_status: 'pending',
+          status_message: 'Queued for AI extraction',
         });
+
+        await base44.functions.invoke('processSourceQueue', { sourceIds: [source.id] });
       }
 
       // Update project data sufficiency score (only if project_id provided)

@@ -116,6 +116,35 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Fallback for PDFs that ExtractDataFromUploadedFile rejects (e.g. >10MB): pdfjs text extraction
+    if (!documentText && source.file_url && (/\.pdf(\?|$)/.test(lowerUrl) || !lowerUrl.includes('.'))) {
+      try {
+        let fetchUrl = source.file_url;
+        try {
+          const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: fetchUrl, expires_in: 300 });
+          if (signed?.signed_url) fetchUrl = signed.signed_url;
+        } catch (_) { /* not a private file */ }
+        const { getDocument } = await import('npm:pdfjs-dist@4.4.168/legacy/build/pdf.mjs');
+        const res = await fetch(fetchUrl);
+        if (res.ok) {
+          const buf = new Uint8Array(await res.arrayBuffer());
+          const pdf = await getDocument({ data: buf }).promise;
+          const parts = [];
+          const maxPages = Math.min(pdf.numPages, 40);
+          for (let i = 1; i <= maxPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            parts.push(content.items.map(it => it.str).join(' '));
+          }
+          documentText = parts.join('\n');
+          extractionMethod = 'pdfjs_fallback';
+          console.log(`[autoExtractMetadata] pdfjs fallback extracted ${documentText.length} chars`);
+        }
+      } catch (e) {
+        console.warn('[autoExtractMetadata] pdfjs fallback failed:', e.message);
+      }
+    }
+
     // For URL sources, fetch the content
     if (!documentText && source.url) {
       try {

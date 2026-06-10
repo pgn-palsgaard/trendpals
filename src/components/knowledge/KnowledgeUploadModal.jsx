@@ -9,12 +9,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Upload, FolderOpen, File, X, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function KnowledgeUploadModal({ onClose }) {
+export default function KnowledgeUploadModal({ onClose, defaultSourceType = 'knowledge' }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const [files, setFiles] = useState([]);
   const [batchName, setBatchName] = useState('');
+  const [sourceType, setSourceType] = useState(defaultSourceType);
   const [options, setOptions] = useState({
     default_trust_tier: 'draft',
     default_knowledge_subtype: 'other',
@@ -121,8 +122,8 @@ export default function KnowledgeUploadModal({ onClose }) {
         : [];
 
       await base44.entities.Source.create({
-        source_type: 'knowledge',
-        knowledge_subtype: options.default_knowledge_subtype,
+        source_type: sourceType,
+        ...(sourceType === 'knowledge' && { knowledge_subtype: options.default_knowledge_subtype }),
         title: fileItem.filename,
         file_url,
         relative_path: fileItem.relative_path,
@@ -134,6 +135,8 @@ export default function KnowledgeUploadModal({ onClose }) {
         tags,
         upload_batch_id: batchId,
         status: 'uploaded',
+        pipeline_stage: 'uploaded',
+        review_status: 'pending',
         date: new Date().toISOString().split('T')[0]
       });
 
@@ -176,6 +179,21 @@ export default function KnowledgeUploadModal({ onClose }) {
               value={batchName}
               onChange={(e) => setBatchName(e.target.value)}
             />
+          </div>
+
+          {/* Source type */}
+          <div>
+            <Label>Source Type</Label>
+            <Select value={sourceType} onValueChange={setSourceType}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="mintel">Mintel Report</SelectItem>
+                <SelectItem value="report">Other Report / Trade Press</SelectItem>
+                <SelectItem value="knowledge">Knowledge / Internal Doc</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Upload Options */}
