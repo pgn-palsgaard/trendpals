@@ -159,9 +159,11 @@ Deno.serve(async (req) => {
     });
 
     // GNPD launch evidence: products linked to the selected GlobalTrends (HIGH-confidence links), images first
+    // Region gate: launch examples must match the project region (Global projects see everything)
     const gnpdProducts = [];
     for (const { gt } of resolvedTrends) {
-      const linked = await base44.entities.GNPDProduct.filter({ linked_trend_ids: gt.id }, '-launch_date', 12);
+      const fetched = await base44.entities.GNPDProduct.filter({ linked_trend_ids: gt.id }, '-launch_date', 40);
+      const linked = region === 'Global' ? fetched : fetched.filter(p => p.region_code === region);
       linked.sort((a, b) => (b.image_url ? 1 : 0) - (a.image_url ? 1 : 0));
       for (const p of linked.slice(0, 6)) {
         gnpdProducts.push({
