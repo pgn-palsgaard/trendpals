@@ -72,7 +72,7 @@ async function callAnthropicExtraction(apiKey, content, sourceTitle) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-5',
-      max_tokens: 4000,
+      max_tokens: 16000,
       system: EXTRACTION_SYSTEM_PROMPT,
       messages: [{
         role: 'user',
@@ -88,9 +88,19 @@ async function callAnthropicExtraction(apiKey, content, sourceTitle) {
   const raw = data.content?.[0]?.text || '';
   // Strip markdown code fences if present
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
-  const match = cleaned.match(/\[[\s\S]*\]/);
-  if (!match) throw new Error('No JSON array in extraction response');
-  return JSON.parse(match[0]);
+  const start = cleaned.indexOf('[');
+  if (start === -1) throw new Error('No JSON array in extraction response');
+  let jsonText = cleaned.slice(start);
+  try {
+    return JSON.parse(jsonText);
+  } catch (_) {
+    // Salvage a truncated array: cut back to the last complete object and close the array
+    const lastClose = jsonText.lastIndexOf('}');
+    if (lastClose === -1) throw new Error('Unparseable extraction response');
+    const salvaged = jsonText.slice(0, lastClose + 1) + ']';
+    console.warn('[extractExpertExamples] Response truncated — salvaging complete objects');
+    return JSON.parse(salvaged);
+  }
 }
 
 async function validateTrendLinkLocal(apiKey, product, trend) {
@@ -240,10 +250,17 @@ async function linkExampleToTrends(apiKey, example, trendIndex, trendDetails) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { source_id } = await req.json();
+    // Support both direct calls ({source_id}) and entity automation payloads ({event, data})
+    const body = await req.json().catch(() => ({}));
+    const isAutomation = !!body?.event?.entity_name;
+    const source_id = body.source_id || body?.event?.entity_id || body?.data?.id;
+
+    if (!isAutomation) {
+      const user = await base44.auth.me();
+      if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     if (!source_id) return Response.json({ error: 'source_id required' }, { status: 400 });
 
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
@@ -376,6 +393,15 @@ Deno.serve(async (req) => {
         extracted_at: now,
         extracted_via_run_id: null,
       });
+    }
+
+    // Idempotency: remove any existing examples for this source before recreating
+    const existing = await base44.asServiceRole.entities.ExpertExample.filter({ source_id }, '-created_date', 500);
+    for (const old of existing) {
+      await base44.asServiceRole.entities.ExpertExample.delete(old.id);
+    }
+    if (existing.length > 0) {
+      console.log(`[extractExpertExamples] Replaced ${existing.length} existing examples for source ${source_id}`);
     }
 
     // Bulk create in batches of 25

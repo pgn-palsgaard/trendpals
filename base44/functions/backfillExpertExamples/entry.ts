@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
       { source_type: 'mintel', pipeline_stage: 'extracted' }, 'created_date', 200
     );
 
-    const existingExamples = await base44.asServiceRole.entities.ExpertExample.list('-extracted_at', 500);
+    const existingExamples = await base44.asServiceRole.entities.ExpertExample.list('-extracted_at', 5000);
     const sourcesWithExamples = new Set(existingExamples.map(e => e.source_id));
     const pendingSources = allMintelSources.filter(s => !sourcesWithExamples.has(s.id));
 
@@ -64,6 +64,7 @@ Deno.serve(async (req) => {
     let processedItems   = job.processed_items || 0;
     let lastCursor       = resumeCursor;
     let timedOut         = false;
+    const errorDetails   = [];
 
     let startIdx = 0;
     if (resumeCursor) {
@@ -84,7 +85,7 @@ Deno.serve(async (req) => {
         console.log(`[backfill] Processing source: ${source.id} — ${source.title}`);
 
         try {
-          const result = await base44.asServiceRole.functions.invoke('extractExpertExamples', {
+          const result = await base44.functions.invoke('extractExpertExamples', {
             source_id: source.id,
           });
           const created = result?.examples_created ?? 0;
@@ -93,7 +94,9 @@ Deno.serve(async (req) => {
           console.log(`[backfill] Source ${source.id}: ${created} examples created`);
         } catch (e) {
           errors++;
-          console.warn(`[backfill] Source ${source.id} failed: ${e.message}`);
+          const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : '';
+          errorDetails.push({ source_id: source.id, message: e.message, detail, status: e.response?.status });
+          console.warn(`[backfill] Source ${source.id} failed: ${e.message} ${detail}`);
         }
 
         lastCursor = source.id;
@@ -137,6 +140,7 @@ Deno.serve(async (req) => {
       sources_processed: sourcesProcessed,
       examples_created: examplesCreated,
       errors,
+      error_details: errorDetails,
       total_pending: pendingSources.length,
     });
 

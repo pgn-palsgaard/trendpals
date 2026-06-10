@@ -210,17 +210,9 @@ Return ONLY a JSON object with this structure:
           console.log(`[processSourceQueue] ✓ ${source.id} — ${excerpts.length} excerpts`);
           succeeded++;
 
-          // Second pass for Mintel reports: extract expert product examples
-          if (source.source_type === 'mintel') {
-            try {
-              console.log(`[processSourceQueue] Running expert example extraction for mintel source ${source.id}`);
-              const exRes = await base44.functions.invoke('extractExpertExamples', { source_id: source.id });
-              console.log(`[processSourceQueue] Expert examples: ${exRes?.examples_created ?? 0} created`);
-            } catch (exErr) {
-              console.warn(`[processSourceQueue] Expert example extraction failed for ${source.id}: ${exErr.message}`);
-              // Non-fatal — excerpt extraction still succeeded
-            }
-          }
+          // Expert example extraction for Mintel reports is handled automatically
+          // by the "Extract Expert Examples on Mintel extraction" entity automation
+          // (fires when pipeline_stage changes to 'extracted').
 
         } catch (err) {
           const reason = detectFailureReason(err);
