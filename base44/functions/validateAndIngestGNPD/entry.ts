@@ -87,41 +87,68 @@ function parseSearchDetails(sheet, utils) {
     categories: [],
     markets: [],
     dateRange: null,
-    searchTitle: null
+    searchTitle: null,
+    ingredientSearch: null
   };
 
+  // Collect all non-empty cell text from the sheet (single or multi-column)
+  const allLines = [];
   for (const row of rawData) {
-    // Support both A/B layout and key: value in same cell
-    const cellA = String(row[0] || '').trim();
-    const cellB = String(row[1] || '').trim();
-    const cellALower = cellA.toLowerCase();
+    for (const cell of row) {
+      const text = String(cell || '').trim();
+      if (text) allLines.push(text);
+    }
+  }
 
-    // Value may be in column B, or appended after a colon in column A
-    let label = cellALower;
-    let value = cellB;
-    if (!value && cellA.includes(':')) {
-      const idx = cellA.indexOf(':');
-      label = cellA.slice(0, idx).toLowerCase().trim();
-      value = cellA.slice(idx + 1).trim();
+  for (const line of allLines) {
+    const lower = line.toLowerCase();
+
+    // Mintel sentence-style: "where Ingredient Search matches X as the Ingredients"
+    const ingredientMatch = line.match(/ingredient search matches (.+?) as the ingredients?/i);
+    if (ingredientMatch) {
+      metadata.ingredientSearch = ingredientMatch[1].trim();
     }
 
-    if (!label || !value) continue;
+    // "and Sub-Category matches one or more of A; B; C"
+    const subCatMatch = line.match(/sub-?category matches.+?of (.+)/i);
+    if (subCatMatch) {
+      metadata.categories.push(...subCatMatch[1].split(/[;,]/).map(s => s.trim()).filter(Boolean));
+    }
 
-    // Categories / Sub-categories
-    if (label.includes('categor') || label.includes('sub-cat') || label.includes('sub cat')) {
-      metadata.categories.push(...value.split(/[,;]/).map(s => s.trim()).filter(Boolean));
+    // "and Category matches one or more of A; B"
+    const catMatch = !subCatMatch && line.match(/\bcategory matches.+?of (.+)/i);
+    if (catMatch) {
+      metadata.categories.push(...catMatch[1].split(/[;,]/).map(s => s.trim()).filter(Boolean));
     }
-    // Markets / Countries / Geographies
-    else if (label.includes('market') || label.includes('countr') || label.includes('geograph') || label.includes('region')) {
-      metadata.markets.push(...value.split(/[,;]/).map(s => s.trim()).filter(Boolean));
+
+    // "and Market matches one or more of A; B"
+    const marketMatch = line.match(/market matches.+?of (.+)/i);
+    if (marketMatch) {
+      metadata.markets.push(...marketMatch[1].split(/[;,]/).map(s => s.trim()).filter(Boolean));
     }
-    // Date / Period / Time range
-    else if (label.includes('date') || label.includes('period') || label.includes('time range') || label.includes('launch date')) {
-      if (!metadata.dateRange) metadata.dateRange = value;
+
+    // "and Date Published is between Jan 2015 and Jun 2026"
+    const dateMatch = line.match(/date published is between (.+)/i);
+    if (dateMatch) {
+      metadata.dateRange = dateMatch[1].trim();
     }
-    // Title / Search name / Export name
-    else if (label.includes('title') || label.includes('search name') || label.includes('report name') || label.includes('export name')) {
-      if (!metadata.searchTitle) metadata.searchTitle = value;
+
+    // Key: value style (older export formats)
+    if (line.includes(':')) {
+      const idx = line.indexOf(':');
+      const label = line.slice(0, idx).toLowerCase().trim();
+      const value = line.slice(idx + 1).trim();
+      if (!value) continue;
+
+      if (label.includes('categor') || label.includes('sub-cat')) {
+        metadata.categories.push(...value.split(/[,;]/).map(s => s.trim()).filter(Boolean));
+      } else if (label.includes('market') || label.includes('countr') || label.includes('geograph') || label.includes('region')) {
+        metadata.markets.push(...value.split(/[,;]/).map(s => s.trim()).filter(Boolean));
+      } else if (label.includes('date') || label.includes('period') || label.includes('time range')) {
+        if (!metadata.dateRange) metadata.dateRange = value;
+      } else if (label.includes('title') || label.includes('search name') || label.includes('report name')) {
+        if (!metadata.searchTitle) metadata.searchTitle = value;
+      }
     }
   }
 
@@ -270,23 +297,28 @@ Deno.serve(async (req) => {
     const region_code = mapRegion(searchMetadata.markets);
     const category = mapCategory(searchMetadata.categories);
 
-    // Build a rich human-readable title from search metadata
-    // Format: "Ice Cream · Dairy — Germany, France, UK — Jan 2024–Dec 2024"
-    const catLabel    = searchMetadata.categories.length > 0
-      ? searchMetadata.categories.join(' · ')
+    // Build a human-readable title from search metadata
+    // Format: "<Ingredient> — <Sub-Categories> — <Date Range>"
+    // e.g. "Compound Chocolate — Chocolate Tablets; Countlines; ... — Jan 2015–Jun 2026"
+    const ingredientLabel = searchMetadata.ingredientSearch || null;
+    const catLabel = searchMetadata.categories.length > 0
+      ? (searchMetadata.categories.length <= 5
+          ? searchMetadata.categories.join('; ')
+          : `${searchMetadata.categories.slice(0, 4).join('; ')} +${searchMetadata.categories.length - 4} more`)
       : null;
     const marketLabel = searchMetadata.markets.length > 0
       ? (searchMetadata.markets.length <= 4
           ? searchMetadata.markets.join(', ')
           : `${searchMetadata.markets.slice(0, 3).join(', ')} +${searchMetadata.markets.length - 3} more`)
       : null;
-    const dateLabel   = searchMetadata.dateRange || null;
+    const dateLabel = searchMetadata.dateRange || null;
 
     let autoTitle;
     if (searchMetadata.searchTitle) {
       autoTitle = searchMetadata.searchTitle;
     } else {
-      const segments = [catLabel, marketLabel, dateLabel].filter(Boolean);
+      // Priority: ingredient — categories — markets — date
+      const segments = [ingredientLabel, catLabel, marketLabel, dateLabel].filter(Boolean);
       autoTitle = segments.length > 0
         ? segments.join(' — ')
         : `GNPD Export — ${new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
