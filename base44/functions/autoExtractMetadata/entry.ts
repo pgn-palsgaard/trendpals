@@ -160,6 +160,8 @@ Deno.serve(async (req) => {
 
     if (!documentText || documentText.length < 100) {
       await base44.asServiceRole.entities.Source.update(source_id, {
+        pipeline_stage: 'failed',
+        failure_reason: 'Metadata extraction failed: could not extract text from document',
         metadata_extraction: {
           status: 'failed',
           last_attempted: new Date().toISOString(),
@@ -241,6 +243,8 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
     } catch (llmError) {
       console.error('[autoExtractMetadata] LLM call failed:', llmError.message);
       await base44.asServiceRole.entities.Source.update(source_id, {
+        pipeline_stage: 'failed',
+        failure_reason: `Metadata extraction failed: ${llmError.message}`,
         metadata_extraction: {
           status: 'failed',
           last_attempted: new Date().toISOString(),

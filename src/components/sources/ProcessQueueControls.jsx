@@ -109,11 +109,19 @@ export default function ProcessQueueControls({
           delaySeconds: 45,
         });
         const data = res.data;
-        // No eligible sources — explain why instead of reporting a silent "0 succeeded"
-        if (rounds === 1 && data.processed === 0 && data.message) {
+        // No eligible sources — explain exactly why instead of appearing to succeed
+        if (rounds === 1 && data.processed === 0) {
           clearInterval(pollInterval);
           onProcessingChange({ active: false });
-          toast.warning('No eligible sources — sources must be human-verified and approved (and not already extracted) before processing.');
+          const reasons = {};
+          for (const s of visibleRows) {
+            const r = !s.metadata_extraction ? 'metadata extraction missing'
+              : !s.metadata_extraction.verified ? 'awaiting metadata verification'
+              : s.review_status !== 'approved' ? 'awaiting approval' : null;
+            if (r) reasons[r] = (reasons[r] || 0) + 1;
+          }
+          const breakdown = Object.entries(reasons).map(([r, n]) => `${n} ${r}`).join(', ');
+          toast.warning(`Processed 0, skipped ${count}${breakdown ? ` (${breakdown})` : ''} — see the "Blocked by" column for each source.`, { duration: 8000 });
           onRefresh();
           return;
         }
@@ -128,7 +136,7 @@ export default function ProcessQueueControls({
       clearInterval(pollInterval);
       onProcessingChange({ active: false, batchDone: batches, batchTotal: batches });
       toast.success(
-        `Processing complete — ${totals.succeeded} succeeded, ${totals.failed} failed${totals.skipped ? `, ${totals.skipped} skipped` : ''}`
+        `Processed ${totals.succeeded}, failed ${totals.failed}, skipped ${totals.skipped}${totals.skipped ? ' (not verified/approved — see "Blocked by")' : ''}`
       );
       onRefresh();
     } catch (err) {

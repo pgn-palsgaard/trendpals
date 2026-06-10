@@ -49,6 +49,9 @@ export async function intakeFile({ file, sourceType, projectId = null, title = n
     pipeline_stage: 'uploaded',
     review_status: 'pending',
     date: new Date().toISOString().split('T')[0],
+    // Guardrail: a Source must never sit in Queue with metadata_extraction=null —
+    // the extraction automation overwrites this placeholder with real status.
+    metadata_extraction: { status: 'pending', verified: false },
   });
   // Metadata extraction fires automatically via the "Auto Extract Source Metadata" automation (Source create).
   // Verification + approval happens in the source library; approval triggers auto-excerpt processing.
@@ -65,6 +68,7 @@ export async function intakeUrl({ url, title = null, projectId = null, extraFiel
     pipeline_stage: 'uploaded',
     review_status: 'pending',
     date: new Date().toISOString().split('T')[0],
+    metadata_extraction: { status: 'pending', verified: false },
     ...extraFields,
   });
   if (projectId) await linkSourceToProject(projectId, source.id);

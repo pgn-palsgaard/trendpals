@@ -49,9 +49,24 @@ export function RBadge({ status }) {
   return <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${cfg.cls}`}>{cfg.label}</span>;
 }
 
+// A source is "ready for review" when excerpts are extracted OR metadata extraction
+// finished — regardless of how it entered the system.
+function isReadyForReview(s) {
+  return s.pipeline_stage === 'extracted' ||
+    ['extracted', 'partial'].includes(s.metadata_extraction?.status);
+}
+
+// Why a queued source can't be processed yet (null = not blocked)
+export function queueBlockedReason(s) {
+  if (!s.metadata_extraction) return 'Metadata extraction missing';
+  if (!s.metadata_extraction.verified) return 'Awaiting metadata verification';
+  if (s.review_status !== 'approved') return 'Awaiting approval';
+  return null;
+}
+
 function tabFilter(tab, s) {
   switch (tab) {
-    case 'awaiting_review': return s.pipeline_stage === 'extracted' && s.review_status === 'pending';
+    case 'awaiting_review': return s.review_status === 'pending' && isReadyForReview(s);
     case 'approved':        return s.review_status === 'approved';
     case 'rejected':        return s.review_status === 'rejected';
     case 'failed':          return s.pipeline_stage === 'failed';
@@ -416,6 +431,12 @@ export default function RagSourceTable({
                           </td>
                         ))}
                         <td className="px-4 py-3 max-w-[200px]">
+                          {activeTab === 'uploaded' && queueBlockedReason(s) && (
+                            <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium mb-1">
+                              <AlertCircle className="w-3 h-3" />
+                              {queueBlockedReason(s)}
+                            </span>
+                          )}
                           {s.failure_reason && <p className="text-xs text-red-600 font-medium">{s.failure_reason}</p>}
                           {s.skip_reason && <p className="text-xs text-slate-500">{s.skip_reason}</p>}
                           {s.review_notes && (
