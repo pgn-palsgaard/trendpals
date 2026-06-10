@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, RefreshCw, BookOpen } from 'lucide-react';
+import { Loader2, RefreshCw, BookOpen, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, differenceInMinutes } from 'date-fns';
 
-const BLUE  = '#1D428A';
-const GREEN = '#6F8263';
+const BLUE        = '#1D428A';
+const GREEN       = '#6F8263';
+const ORANGE      = '#C15338';
+const STALE_MINUTES = 3;
 
-async function fetchActiveJob() {
+async function fetchLatestJob() {
   const jobs = await base44.entities.ProcessingJob.filter(
     { job_type: 'backfill_expert_examples' }, '-created_date', 1
   );
@@ -23,7 +25,7 @@ export default function BackfillJobPanel() {
   function startPolling() {
     if (pollRef.current) return;
     pollRef.current = setInterval(async () => {
-      const latest = await fetchActiveJob().catch(() => null);
+      const latest = await fetchLatestJob().catch(() => null);
       if (latest) {
         setJob(latest);
         if (latest.status === 'completed') {
@@ -35,30 +37,22 @@ export default function BackfillJobPanel() {
   }
 
   function stopPolling() {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
   }
 
   useEffect(() => {
-    fetchActiveJob().then(j => {
+    fetchLatestJob().then(j => {
       setJob(j);
       setLoading(false);
-      if (j?.status === 'running' || j?.status === 'paused_timeout') {
-        startPolling();
-      }
+      if (j?.status === 'running' || j?.status === 'paused_timeout') startPolling();
     }).catch(() => setLoading(false));
     return stopPolling;
   }, []);
 
   useEffect(() => {
     if (!job) return;
-    if (job.status === 'running' || job.status === 'paused_timeout') {
-      startPolling();
-    } else {
-      stopPolling();
-    }
+    if (job.status === 'running' || job.status === 'paused_timeout') startPolling();
+    else stopPolling();
   }, [job?.status]);
 
   async function handleInvoke() {
@@ -68,19 +62,28 @@ export default function BackfillJobPanel() {
       let found = null;
       for (let i = 0; i < 5; i++) {
         await new Promise(r => setTimeout(r, 2000));
-        found = await fetchActiveJob().catch(() => null);
+        found = await fetchLatestJob().catch(() => null);
         if (found && (found.status === 'running' || found.status === 'paused_timeout')) break;
       }
-      if (found) {
-        setJob(found);
-        startPolling();
-      } else {
-        toast.error('Job did not start — check logs');
-      }
+      if (found) { setJob(found); startPolling(); }
+      else toast.error('Job did not start — check logs');
     } catch (e) {
       toast.error(e.message || 'Backfill failed to start');
     }
     setInvoking(false);
+  }
+
+  async function handleMarkFailed() {
+    if (!job?.id) return;
+    try {
+      await base44.entities.ProcessingJob.update(job.id, { status: 'failed', last_error: 'Manually marked as failed by user' });
+      const updated = await fetchLatestJob();
+      setJob(updated);
+      stopPolling();
+      toast.success('Job marked as failed. You can now start a fresh backfill.');
+    } catch (e) {
+      toast.error('Could not mark as failed: ' + e.message);
+    }
   }
 
   if (loading) return null;
@@ -92,6 +95,9 @@ export default function BackfillJobPanel() {
     ? formatDistanceToNow(new Date(job.last_progress_at), { addSuffix: true })
     : null;
 
+  const isStalled = job?.status === 'running' && job?.last_progress_at &&
+    differenceInMinutes(new Date(), new Date(job.last_progress_at)) >= STALE_MINUTES;
+
   return (
     <div style={{ border: '1px solid #d8d3c8', borderRadius: 8, padding: '14px 18px', background: 'white', fontFamily: 'Calibri, Arial, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
@@ -102,7 +108,32 @@ export default function BackfillJobPanel() {
         Run <code>extractExpertExamples</code> on all Mintel reports that pre-date the extractor. Resumable — safe to click multiple times.
       </p>
 
-      {isActive && (
+      {/* Stalled warning */}
+      {isStalled && (
+        <div style={{ background: '#FEF6EC', border: `1px solid ${ORANGE}`, borderRadius: 6, padding: '10px 12px', marginBottom: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+            <AlertTriangle size={13} style={{ color: ORANGE }} />
+            <span style={{ fontSize: 12, fontWeight: 700, color: ORANGE }}>Job stalled — last update {lastUpdate}</span>
+          </div>
+          <p style={{ fontSize: 11, color: '#666', margin: '0 0 8px' }}>
+            {job.processed_items ?? 0} / {job.total_items ?? '?'} sources processed. The backend process appears to have died.
+          </p>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button onClick={handleInvoke} disabled={invoking}
+              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 4, border: `1px solid ${BLUE}`, background: BLUE, color: 'white', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+              {invoking ? <Loader2 size={10} className="animate-spin" /> : <RefreshCw size={10} />}
+              Resume
+            </button>
+            <button onClick={handleMarkFailed}
+              style={{ fontSize: 11, padding: '4px 10px', borderRadius: 4, border: `1px solid ${ORANGE}`, background: 'white', color: ORANGE, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }}>
+              Mark as failed
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Active progress (not stalled) */}
+      {isActive && !isStalled && (
         <div style={{ marginBottom: 10 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#1D2B47', marginBottom: 4 }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -115,9 +146,7 @@ export default function BackfillJobPanel() {
           <div style={{ height: 6, background: '#f0ede8', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${pct}%`, background: BLUE, borderRadius: 10, transition: 'width 0.4s' }} />
           </div>
-          {lastUpdate && (
-            <p style={{ fontSize: 11, color: '#969696', margin: '4px 0 0' }}>Last update {lastUpdate}</p>
-          )}
+          {lastUpdate && <p style={{ fontSize: 11, color: '#969696', margin: '4px 0 0' }}>Last update {lastUpdate}</p>}
         </div>
       )}
 

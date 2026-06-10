@@ -1,7 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import Anthropic from 'npm:@anthropic-ai/sdk@0.27.3';
 
-// ── Validation logic (unchanged) ─────────────────────────────────────────────
 const SYSTEM_PROMPT = `You are validating whether a GNPD product launch is genuine evidence of a market trend, or whether the keyword overlap is incidental.
 
 A product GENUINELY EXPRESSES a trend when the product's positioning, formulation, or claims actively embody what the trend describes — not merely when the same words happen to appear.
@@ -75,14 +74,15 @@ function isLegacyReasoning(reasoning) {
   return /^Matched \d+ keyword/i.test(reasoning);
 }
 
-// ── Resumable orchestration ───────────────────────────────────────────────────
 const BATCH_SIZE = 5;
 const PAUSE_MS = 30000;
 const TIME_BUDGET_MS = 4 * 60 * 1000; // 4 minutes soft cap
 
 Deno.serve(async (req) => {
+  const base44 = createClientFromRequest(req);
+  let job = null;
+
   try {
-    const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     if (user.role !== 'admin') return Response.json({ error: 'Admin access required' }, { status: 403 });
@@ -90,7 +90,6 @@ Deno.serve(async (req) => {
     const invocationStart = Date.now();
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
 
-    // Load trend lookup map
     const globalTrends = await base44.asServiceRole.entities.GlobalTrend.filter({ is_active: true });
     const trendMap = {};
     globalTrends.forEach(t => { trendMap[t.id] = t; });
@@ -101,20 +100,17 @@ Deno.serve(async (req) => {
     );
     const activeJob = existingJobs.find(j => j.status === 'running' || j.status === 'paused_timeout');
 
-    let job;
-    let resumeCursor = null; // last processed product id
+    let resumeCursor = null;
 
     if (activeJob) {
-      // Resume existing job
       resumeCursor = activeJob.current_cursor || null;
-      job = await base44.asServiceRole.entities.ProcessingJob.update(activeJob.id, {
+      await base44.asServiceRole.entities.ProcessingJob.update(activeJob.id, {
         status: 'running',
         last_progress_at: new Date().toISOString(),
       });
       job = { ...activeJob, status: 'running' };
       console.log(`[revalidate] Resuming job ${activeJob.id} from cursor ${resumeCursor}, processed so far: ${activeJob.processed_items}`);
     } else {
-      // Count total pending legacy items
       let totalItems = 0;
       let countSkip = 0;
       while (true) {
@@ -147,7 +143,6 @@ Deno.serve(async (req) => {
       console.log(`[revalidate] Created new job ${job.id}, total_items: ${totalItems}`);
     }
 
-    // ── Running summary (accumulate on top of existing) ───────────────────────
     const existingSummary = job.summary || {};
     let linksRevalidated = existingSummary.links_revalidated || 0;
     let linksUpgraded    = existingSummary.links_upgraded_to_auto_applied || 0;
@@ -157,7 +152,6 @@ Deno.serve(async (req) => {
     let lastCursor       = resumeCursor;
     let timedOut         = false;
 
-    // ── Inner processing loop ─────────────────────────────────────────────────
     async function processProduct(product) {
       const pendingLegacyLinks = (product.trend_links || []).filter(
         l => l.review_status === 'pending' && isLegacyReasoning(l.reasoning)
@@ -237,46 +231,76 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Paginate from cursor
-    let skip = 0;
-    let passedCursor = !resumeCursor; // if no cursor, start from beginning
+    // ── Main loop wrapped in try/finally ─────────────────────────────────────
+    try {
+      let skip = 0;
+      let passedCursor = !resumeCursor;
 
-    outerLoop:
-    while (true) {
-      // Time check before each batch
-      if (Date.now() - invocationStart > TIME_BUDGET_MS) {
-        timedOut = true;
-        break;
-      }
-
-      const batch = await base44.asServiceRole.entities.GNPDProduct.filter(
-        { processing_status: 'trend_linking_pending' }, 'created_date', BATCH_SIZE, skip
-      );
-      if (batch.length === 0) break;
-
-      for (const product of batch) {
-        // Skip products until we pass the cursor
-        if (!passedCursor) {
-          if (product.id === resumeCursor) {
-            passedCursor = true;
-          }
-          continue;
-        }
-
-        // Time check before each product
+      outerLoop:
+      while (true) {
         if (Date.now() - invocationStart > TIME_BUDGET_MS) {
           timedOut = true;
-          break outerLoop;
+          break;
         }
 
-        await processProduct(product);
-        lastCursor = product.id;
-        processedItems++;
+        const batch = await base44.asServiceRole.entities.GNPDProduct.filter(
+          { processing_status: 'trend_linking_pending' }, 'created_date', BATCH_SIZE, skip
+        );
+        if (batch.length === 0) break;
 
-        // Persist progress after each product
+        for (const product of batch) {
+          if (!passedCursor) {
+            if (product.id === resumeCursor) passedCursor = true;
+            continue;
+          }
+
+          // Check time AFTER each product (not just between batches)
+          if (Date.now() - invocationStart > TIME_BUDGET_MS) {
+            timedOut = true;
+            break outerLoop;
+          }
+
+          await processProduct(product);
+          lastCursor = product.id;
+          processedItems++;
+
+          // Persist progress immediately after each product
+          await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+            processed_items: processedItems,
+            current_cursor: lastCursor,
+            last_progress_at: new Date().toISOString(),
+            summary: {
+              links_revalidated: linksRevalidated,
+              links_upgraded_to_auto_applied: linksUpgraded,
+              links_rejected: linksRejected,
+              errors: linksErrors,
+            },
+          });
+
+          // Check time again after persisting
+          if (Date.now() - invocationStart > TIME_BUDGET_MS) {
+            timedOut = true;
+            break outerLoop;
+          }
+        }
+
+        skip += batch.length;
+        if (timedOut) break;
+
+        if (batch.length === BATCH_SIZE) {
+          await new Promise(r => setTimeout(r, PAUSE_MS));
+        } else {
+          break;
+        }
+      }
+    } finally {
+      // ALWAYS write final status — even if an exception escaped the loop
+      const finalStatus = timedOut ? 'paused_timeout' : 'completed';
+      try {
         await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+          status: finalStatus,
           processed_items: processedItems,
-          current_cursor: lastCursor,
+          current_cursor: timedOut ? lastCursor : null,
           last_progress_at: new Date().toISOString(),
           summary: {
             links_revalidated: linksRevalidated,
@@ -285,39 +309,15 @@ Deno.serve(async (req) => {
             errors: linksErrors,
           },
         });
-      }
-
-      skip += batch.length;
-
-      if (timedOut) break;
-
-      if (batch.length === BATCH_SIZE) {
-        await new Promise(r => setTimeout(r, PAUSE_MS));
-      } else {
-        break;
+        console.log(`[revalidate] Done — status=${finalStatus}, processed=${processedItems}, rejected=${linksRejected}, upgraded=${linksUpgraded}`);
+      } catch (persistErr) {
+        console.error('[revalidate] Failed to persist final status:', persistErr.message);
       }
     }
 
-    // ── Final job status update ───────────────────────────────────────────────
-    const finalStatus = timedOut ? 'paused_timeout' : 'completed';
-    await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
-      status: finalStatus,
-      processed_items: processedItems,
-      current_cursor: timedOut ? lastCursor : null,
-      last_progress_at: new Date().toISOString(),
-      summary: {
-        links_revalidated: linksRevalidated,
-        links_upgraded_to_auto_applied: linksUpgraded,
-        links_rejected: linksRejected,
-        errors: linksErrors,
-      },
-    });
-
-    console.log(`[revalidate] Done — status=${finalStatus}, processed=${processedItems}, rejected=${linksRejected}, upgraded=${linksUpgraded}`);
-
     return Response.json({
       job_id: job.id,
-      status: finalStatus,
+      status: timedOut ? 'paused_timeout' : 'completed',
       products_processed: processedItems,
       links_revalidated: linksRevalidated,
       links_upgraded_to_auto_applied: linksUpgraded,
@@ -327,6 +327,16 @@ Deno.serve(async (req) => {
 
   } catch (error) {
     console.error('[revalidate] Fatal:', error.message);
+    // If job was created, mark it failed
+    if (job?.id) {
+      try {
+        await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+          status: 'failed',
+          last_error: error.message,
+          last_progress_at: new Date().toISOString(),
+        });
+      } catch (e) { /* ignore */ }
+    }
     return Response.json({ error: error.message }, { status: 500 });
   }
 });
