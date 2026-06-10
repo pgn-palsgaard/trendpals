@@ -408,7 +408,7 @@ export default function RagSourceTable({
                           <RBadge status={s.review_status} />
                         </td>
                         <td className="px-4 py-3 text-right text-slate-600">
-                          {s.rag_excerpt_count ?? 0}
+                          {(s.excerpts || []).length}
                         </td>
                         {extraColumns.map(col => (
                           <td key={col.key} className="px-4 py-3">

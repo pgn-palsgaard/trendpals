@@ -316,7 +316,7 @@ export default function SourceDetailPanel({ sourceId, onClose, onRefresh }) {
                 source.category,
                 source.region_code,
                 safeFormat(source.date_published, 'MMM yyyy'),
-                source.rag_excerpt_count != null ? `${source.rag_excerpt_count} excerpts` : null,
+                !isGnpd ? `${(source.excerpts || []).length} excerpts` : null,
               ].filter(Boolean).join(' · ')}
             </div>
           )}

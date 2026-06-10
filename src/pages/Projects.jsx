@@ -37,7 +37,7 @@ export default function Projects() {
     const matchesSearch = 
       project.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       project.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      project.region?.toLowerCase().includes(searchQuery.toLowerCase());
+      project.region_code?.toLowerCase().includes(searchQuery.toLowerCase());
     
     const matchesFilter = filterState === 'all' || project.state === filterState;
     
@@ -153,7 +153,7 @@ export default function Projects() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-slate-700">Region:</span>
-                        <span className="text-slate-600">{project.region}</span>
+                        <span className="text-slate-600">{project.region_code}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-slate-700">Trends:</span>

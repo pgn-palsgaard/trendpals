@@ -83,10 +83,16 @@ function UploadsTab() {
     return () => clearInterval(interval);
   }, [Object.keys(detectingTimers).length]);
 
+  // Live product counts per source — canonical, derived from GNPDProduct records
+  const { data: productStats } = useQuery({
+    queryKey: ['gnpdStats'],
+    queryFn: async () => (await base44.functions.invoke('getGNPDStats', {})).data,
+  });
+
   const stats = useMemo(() => ({
     total:  sources.length,
-    inDb:   sources.filter(s => s.pipeline_stage === 'extracted').length,
-    failed: sources.filter(s => s.pipeline_stage === 'failed').length,
+    inDb:   sources.filter(s => s.pipeline_stage === 'gnpd_ready').length,
+    failed: sources.filter(s => s.gnpd_mapping_status === 'failed' || s.pipeline_stage === 'failed').length,
   }), [sources]);
 
   const visibleRows = useMemo(() => {
@@ -123,8 +129,9 @@ function UploadsTab() {
       const result = (res.data?.results || [])[0];
       if (result?.status === 'ok') {
         setParsing(prev => ({ ...prev, [sourceId]: { status: 'done', rows: result.rows_parsed, created: result.created } }));
-        toast.success(`Parsed ${result.created} products from ${result.rows_parsed} rows`);
+        toast.success(`${result.created} new product(s) created${result.skipped ? `, ${result.skipped} already in database` : ''}`);
         queryClient.invalidateQueries({ queryKey });
+        queryClient.invalidateQueries({ queryKey: ['gnpdStats'] });
       } else {
         setParsing(prev => ({ ...prev, [sourceId]: { status: 'error', error: result?.error || 'Unknown error' } }));
         toast.error(result?.error || 'Parse failed');
@@ -208,7 +215,8 @@ function UploadsTab() {
               {visibleRows.length === 0 ? (
                 <tr><td colSpan={7} style={{ textAlign: "center", padding: "3rem", color: GREY, fontSize: 13 }}>No GNPD exports match the current filter.</td></tr>
               ) : visibleRows.map(s => {
-                const inDb    = s.pipeline_stage === 'extracted';
+                const productCount = productStats?.by_source?.[s.id] || 0;
+                const inDb    = s.pipeline_stage === 'gnpd_ready' || productCount > 0;
                 const pState  = parsing[s.id];
                 return (
                   <tr key={s.id} onClick={() => setOpenSourceId(s.id)} style={{
@@ -233,7 +241,9 @@ function UploadsTab() {
                     </td>
                     <td style={{ padding: "10px 14px" }} onClick={e => e.stopPropagation()}>
                       {inDb ? (
-                        <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: "#EDF4EA", color: GREEN, fontWeight: 700 }}>✓ In database</span>
+                        <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: "#EDF4EA", color: GREEN, fontWeight: 700 }}>
+                          ✓ {productCount > 0 ? `${productCount.toLocaleString()} products` : 'In database'}
+                        </span>
                       ) : pState?.status === 'parsing' ? (
                         <span style={{ fontSize: 12, color: GREY, display: "flex", alignItems: "center", gap: 5 }}>
                           <Loader2 size={12} className="animate-spin" /> Parsing…

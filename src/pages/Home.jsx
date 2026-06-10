@@ -27,7 +27,7 @@ export default function Home() {
   const filteredReports = reports.filter(r =>
     r.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     r.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    r.region_code?.toLowerCase().includes(searchQuery.toLowerCase())
+    r.region?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (

@@ -15,6 +15,7 @@ Deno.serve(async (req) => {
     let pending_review = 0;
     const by_category = {};
     const by_region = {};
+    const by_source = {};
 
     while (true) {
       const page = await base44.asServiceRole.entities.GNPDProduct.list('-created_date', PAGE, skip);
@@ -32,13 +33,15 @@ Deno.serve(async (req) => {
 
         const reg = p.region_code || 'Global';
         by_region[reg] = (by_region[reg] || 0) + 1;
+
+        if (p.source_id) by_source[p.source_id] = (by_source[p.source_id] || 0) + 1;
       }
 
       if (page.length < PAGE) break;
       skip += PAGE;
     }
 
-    return Response.json({ total, with_emulsifier, trend_linked, pending_review, by_category, by_region });
+    return Response.json({ total, with_emulsifier, trend_linked, pending_review, by_category, by_region, by_source });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

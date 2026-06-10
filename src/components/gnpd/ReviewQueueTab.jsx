@@ -105,7 +105,15 @@ export default function ReviewQueueTab() {
           }
           return link;
         });
-        await Entity.update(productId, { trend_links: updatedLinks });
+        // Propagate: keep linked_trend_ids + processing_status in sync with link decisions
+        const appliedIds = [...new Set(updatedLinks
+          .filter(x => x.review_status === 'auto_applied' || x.review_status === 'approved')
+          .map(x => x.trend_id))];
+        const update = { trend_links: updatedLinks, linked_trend_ids: appliedIds };
+        if (entityType !== 'expert_example') {
+          update.processing_status = updatedLinks.some(x => x.review_status === 'pending') ? 'trend_linking_pending' : 'trend_linked';
+        }
+        await Entity.update(productId, update);
       } catch (e) {
         failed++;
       }
@@ -277,7 +285,15 @@ function ApproveRejectButtons({ link, onDone }) {
           ? { ...l, review_status: newStatus, reviewed_at: now, reviewed_by: me?.email || '' }
           : l
       );
-      await Entity.update(link.product_id, { trend_links: updatedLinks });
+      // Propagate: keep linked_trend_ids + processing_status in sync with link decisions
+      const appliedIds = [...new Set(updatedLinks
+        .filter(x => x.review_status === 'auto_applied' || x.review_status === 'approved')
+        .map(x => x.trend_id))];
+      const update = { trend_links: updatedLinks, linked_trend_ids: appliedIds };
+      if (link.entity_type !== 'expert_example') {
+        update.processing_status = updatedLinks.some(x => x.review_status === 'pending') ? 'trend_linking_pending' : 'trend_linked';
+      }
+      await Entity.update(link.product_id, update);
       toast.success(newStatus === 'approved' ? 'Approved' : 'Rejected');
       onDone();
     } catch (e) {

@@ -103,7 +103,7 @@ export default function DataReadinessCheck({ project, sources }) {
                   )}
                   <div className="flex-1">
                     <div className={hasMintel ? 'text-slate-900' : 'text-red-900'}>
-                      Mintel report ({project.category}, {project.region})
+                      Mintel report ({project.category}, {project.region_code})
                     </div>
                     <div className="text-xs text-slate-600">
                       {mintelSources.length} source{mintelSources.length !== 1 ? 's' : ''} • {totalExcerpts} excerpts
@@ -119,7 +119,7 @@ export default function DataReadinessCheck({ project, sources }) {
                   )}
                   <div className="flex-1">
                     <div className={hasGnpd ? 'text-slate-900' : 'text-red-900'}>
-                      GNPD exports ({project.category}, {project.region})
+                      GNPD exports ({project.category}, {project.region_code})
                     </div>
                     <div className="text-xs text-slate-600">
                       {totalGnpdProducts} products • {totalImages} with images

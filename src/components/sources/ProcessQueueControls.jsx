@@ -109,6 +109,14 @@ export default function ProcessQueueControls({
           delaySeconds: 45,
         });
         const data = res.data;
+        // No eligible sources — explain why instead of reporting a silent "0 succeeded"
+        if (rounds === 1 && data.processed === 0 && data.message) {
+          clearInterval(pollInterval);
+          onProcessingChange({ active: false });
+          toast.warning('No eligible sources — sources must be human-verified and approved (and not already extracted) before processing.');
+          onRefresh();
+          return;
+        }
         totals.succeeded += data.succeeded || 0;
         totals.failed += data.failed || 0;
         totals.skipped += data.skipped || 0;
