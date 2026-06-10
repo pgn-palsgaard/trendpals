@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -311,47 +311,84 @@ function MappingBadge({ status, elapsed }) {
 // ─────────────────────────────────────────────────────────────────────────────
 //  PRODUCTS TAB
 // ─────────────────────────────────────────────────────────────────────────────
+const PAGE_SIZE = 50;
+
 function ProductsTab() {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [filters, setFilters]   = useState({ category: "", region: "", has_emulsifier: "", search: "" });
-  const [selected, setSelected] = useState(null);
+  const [products, setProducts]     = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [skip, setSkip]             = useState(0);
+  const [hasMore, setHasMore]       = useState(false);
+  const [filters, setFilters]       = useState({ category: "", region: "", has_emulsifier: "", search: "" });
+  const [searchInput, setSearchInput] = useState("");
+  const [selected, setSelected]     = useState(null);
+  const [stats, setStats]           = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [allCategories, setAllCategories] = useState([]);
+  const searchTimeoutRef = React.useRef(null);
 
-  useEffect(() => { loadProducts(); }, [filters]);
+  // Load stats once on mount
+  useEffect(() => { loadStats(); }, []);
 
-  async function loadProducts() {
-    setLoading(true);
+  async function loadStats() {
+    setStatsLoading(true);
+    try {
+      const res = await base44.functions.invoke('getGNPDStats', {});
+      setStats(res.data);
+      // Derive sorted category list from stats
+      if (res.data?.by_category) {
+        setAllCategories(Object.keys(res.data.by_category).sort());
+      }
+    } catch (e) { console.error(e); }
+    setStatsLoading(false);
+  }
+
+  // Reload from scratch when filters change
+  useEffect(() => {
+    setSkip(0);
+    setProducts([]);
+    fetchProducts(0, true);
+  }, [filters]);
+
+  async function fetchProducts(currentSkip, replace = false) {
+    replace ? setLoading(true) : setLoadingMore(true);
     try {
       const query = {};
       if (filters.category) query.category = filters.category;
       if (filters.region)   query.region_code = filters.region;
       if (filters.has_emulsifier === "yes") query.has_emulsifier = true;
       if (filters.has_emulsifier === "no")  query.has_emulsifier = false;
-
-      let results = await base44.entities.GNPDProduct.filter(query, "-launch_date", 500);
-
       if (filters.search) {
-        const s = filters.search.toLowerCase();
-        results = results.filter(p =>
-          (p.product_name  || "").toLowerCase().includes(s) ||
-          (p.brand         || "").toLowerCase().includes(s) ||
-          (p.company       || "").toLowerCase().includes(s) ||
-          (p.ingredients   || "").toLowerCase().includes(s)
-        );
+        query.$or = [
+          { product_name: { $regex: filters.search, $options: "i" } },
+          { brand:        { $regex: filters.search, $options: "i" } },
+          { ingredients:  { $regex: filters.search, $options: "i" } },
+        ];
       }
-      setProducts(results);
+
+      const page = await base44.entities.GNPDProduct.filter(query, "-launch_date", PAGE_SIZE, currentSkip);
+      if (replace) {
+        setProducts(page);
+      } else {
+        setProducts(prev => [...prev, ...page]);
+      }
+      setHasMore(page.length === PAGE_SIZE);
+      setSkip(currentSkip + page.length);
     } catch (e) { console.error(e); }
-    setLoading(false);
+    replace ? setLoading(false) : setLoadingMore(false);
   }
 
-  const stats = useMemo(() => ({
-    total:          products.length,
-    with_emulsifier: products.filter(p => p.has_emulsifier).length,
-    with_trends:    products.filter(p => (p.linked_trend_ids || []).length > 0).length,
-    pending_review: products.filter(p => p.processing_status === "trend_linking_pending").length,
-  }), [products]);
+  function handleLoadMore() {
+    fetchProducts(skip, false);
+  }
 
-  const categories = useMemo(() => [...new Set(products.map(p => p.category).filter(Boolean))].sort(), [products]);
+  function handleSearchChange(val) {
+    setSearchInput(val);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      setFilters(f => ({ ...f, search: val }));
+    }, 400);
+  }
 
   return (
     <div style={{ display: "flex", height: "calc(100vh - 120px)", fontFamily: "Calibri, Arial, sans-serif", color: DARK_BLUE }}>
@@ -362,31 +399,39 @@ function ProductsTab() {
         {/* Stats 2×2 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, borderBottom: "1px solid #d8d3c8", background: "#d8d3c8" }}>
           {[
-            ["Products",      stats.total],
-            ["With emulsifier", stats.with_emulsifier],
-            ["Trend-linked",  stats.with_trends],
-            ["Pending review", stats.pending_review],
+            ["Products",        stats?.total],
+            ["With emulsifier", stats?.with_emulsifier],
+            ["Trend-linked",    stats?.trend_linked],
+            ["Pending review",  stats?.pending_review],
           ].map(([label, val]) => (
             <div key={label} style={{ padding: "12px 14px", background: "white", textAlign: "center" }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: BLUE }}>{val}</div>
+              <div style={{ fontSize: 20, fontWeight: 700, color: BLUE }}>
+                {statsLoading ? <Loader2 size={16} className="animate-spin" style={{ color: GREY, margin: "2px auto" }} /> : (val ?? "—")}
+              </div>
               <div style={{ fontSize: 11, color: GREY }}>{label}</div>
             </div>
           ))}
+        </div>
+        <div style={{ padding: "3px 8px", borderBottom: "1px solid #d8d3c8", background: "white", display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={loadStats} disabled={statsLoading} title="Refresh stats"
+            style={{ background: "none", border: "none", cursor: "pointer", color: GREY, padding: "2px 4px", fontSize: 11, display: "flex", alignItems: "center", gap: 3 }}>
+            <Loader2 size={11} className={statsLoading ? "animate-spin" : ""} /> Refresh stats
+          </button>
         </div>
 
         {/* Filters */}
         <div style={{ padding: "12px 12px 10px", borderBottom: "1px solid #d8d3c8", background: "white" }}>
           <input
             placeholder="Search product, brand, ingredients..."
-            value={filters.search}
-            onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+            value={searchInput}
+            onChange={e => handleSearchChange(e.target.value)}
             style={{ width: "100%", fontSize: 13, padding: "7px 10px", borderRadius: 5, border: "1px solid #d8d3c8", fontFamily: "inherit", boxSizing: "border-box", marginBottom: 8 }}
           />
           <div style={{ display: "flex", gap: 6 }}>
             <select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))}
               style={{ flex: 1, fontSize: 12, padding: "5px 7px", borderRadius: 5, border: "1px solid #d8d3c8", fontFamily: "inherit", background: "white" }}>
               <option value="">All categories</option>
-              {categories.map(c => <option key={c}>{c}</option>)}
+              {allCategories.map(c => <option key={c}>{c}</option>)}
             </select>
             <select value={filters.region} onChange={e => setFilters(f => ({ ...f, region: e.target.value }))}
               style={{ flex: 1, fontSize: 12, padding: "5px 7px", borderRadius: 5, border: "1px solid #d8d3c8", fontFamily: "inherit", background: "white" }}>
@@ -410,32 +455,51 @@ function ProductsTab() {
             </div>
           ) : products.length === 0 ? (
             <p style={{ padding: "1rem 14px", color: GREY, fontSize: 13 }}>No products found.</p>
-          ) : products.slice(0, 200).map(p => (
-            <div key={p.id} onClick={() => setSelected(p)} style={{
-              padding: "10px 14px", cursor: "pointer",
-              borderBottom: "1px solid #e8e4de",
-              background: selected?.id === p.id ? "#E8EEF6" : "transparent",
-              borderLeft: selected?.id === p.id ? `3px solid ${BLUE}` : "3px solid transparent"
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "flex-start" }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: DARK_BLUE, lineHeight: 1.3 }}>{p.product_name}</span>
-                <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
-                  {p.has_emulsifier && (
-                    <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#E8EEF6", color: BLUE, fontWeight: 700 }}>E</span>
-                  )}
-                  {(p.linked_trend_ids || []).length > 0 && (
-                    <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#EDF4EA", color: GREEN, fontWeight: 700 }}>T</span>
-                  )}
-                  {p.processing_status === "trend_linking_pending" && (
-                    <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#FEF6EC", color: ORANGE, fontWeight: 700 }}>!</span>
-                  )}
+          ) : (
+            <>
+              {products.map(p => (
+                <div key={p.id} onClick={() => setSelected(p)} style={{
+                  padding: "10px 14px", cursor: "pointer",
+                  borderBottom: "1px solid #e8e4de",
+                  background: selected?.id === p.id ? "#E8EEF6" : "transparent",
+                  borderLeft: selected?.id === p.id ? `3px solid ${BLUE}` : "3px solid transparent"
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "flex-start" }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: DARK_BLUE, lineHeight: 1.3 }}>{p.product_name}</span>
+                    <div style={{ display: "flex", gap: 3, flexShrink: 0 }}>
+                      {p.has_emulsifier && (
+                        <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#E8EEF6", color: BLUE, fontWeight: 700 }}>E</span>
+                      )}
+                      {(p.linked_trend_ids || []).length > 0 && (
+                        <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#EDF4EA", color: GREEN, fontWeight: 700 }}>T</span>
+                      )}
+                      {p.processing_status === "trend_linking_pending" && (
+                        <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#FEF6EC", color: ORANGE, fontWeight: 700 }}>!</span>
+                      )}
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 12, color: GREY, margin: "2px 0 0" }}>
+                    {p.brand || "—"} · {p.country || "—"} · {p.launch_date || "—"}
+                  </p>
                 </div>
+              ))}
+              <div style={{ padding: "10px 14px", background: "white", borderTop: "1px solid #e8e4de" }}>
+                <p style={{ fontSize: 12, color: GREY, margin: "0 0 6px", textAlign: "center" }}>
+                  Showing {products.length}
+                  {stats && !filters.search && !filters.category && !filters.region && !filters.has_emulsifier
+                    ? ` of ${stats.total.toLocaleString()}` : ""}
+                </p>
+                {hasMore && (
+                  <button onClick={handleLoadMore} disabled={loadingMore}
+                    style={{ width: "100%", fontSize: 13, padding: "7px", borderRadius: 5, border: `1px solid ${BLUE}`, color: BLUE, background: "white", cursor: "pointer", fontFamily: "inherit", fontWeight: 600 }}>
+                    {loadingMore
+                      ? <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5 }}><Loader2 size={12} className="animate-spin" /> Loading…</span>
+                      : "Load more"}
+                  </button>
+                )}
               </div>
-              <p style={{ fontSize: 12, color: GREY, margin: "2px 0 0" }}>
-                {p.brand || "—"} · {p.country || "—"} · {p.launch_date || "—"}
-              </p>
-            </div>
-          ))}
+            </>
+          )}
         </div>
       </div>
 
