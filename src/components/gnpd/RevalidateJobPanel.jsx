@@ -1,54 +1,32 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Loader2, CheckCircle2, Clock, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 
-const BLUE   = '#1D428A';
-const ORANGE = '#C15338';
-const GREEN  = '#6F8263';
-const GREY   = '#969696';
+const BLUE = '#1D428A';
+
+async function fetchActiveJob() {
+  const jobs = await base44.entities.ProcessingJob.filter(
+    { job_type: 'revalidate_trend_links' }, '-created_date', 1
+  );
+  return jobs[0] || null;
+}
 
 export default function RevalidateJobPanel({ onCompleted }) {
-  const [job, setJob]         = useState(null);         // latest job record
-  const [loading, setLoading] = useState(true);          // initial load
-  const [invoking, setInvoking] = useState(false);       // button press in flight
+  const [job, setJob]         = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [invoking, setInvoking] = useState(false);
+  const pollRef = useRef(null);
 
-  // ── Fetch latest job ──────────────────────────────────────────────────────
-  const fetchJob = useCallback(async () => {
-    try {
-      const jobs = await base44.entities.ProcessingJob.filter(
-        { job_type: 'revalidate_trend_links' }, '-created_date', 1
-      );
-      setJob(jobs[0] || null);
-    } catch (e) {
-      console.error('RevalidateJobPanel fetch error', e);
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    fetchJob();
-  }, [fetchJob]);
-
-  // ── Poll while active ─────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!job) return;
-    if (job.status !== 'running' && job.status !== 'paused_timeout') return;
-
-    // Poll every 5 seconds while running
-    const isRunning = job.status === 'running';
-    if (!isRunning) return;
-
-    const interval = setInterval(async () => {
-      const jobs = await base44.entities.ProcessingJob.filter(
-        { job_type: 'revalidate_trend_links' }, '-created_date', 1
-      ).catch(() => []);
-      const latest = jobs[0];
+  function startPolling() {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(async () => {
+      const latest = await fetchActiveJob().catch(() => null);
       if (latest) {
         setJob(latest);
         if (latest.status === 'completed') {
-          clearInterval(interval);
+          stopPolling();
           toast.success(
             `Sweep complete — ${latest.summary?.links_rejected ?? 0} rejected, ${latest.summary?.links_upgraded_to_auto_applied ?? 0} upgraded`
           );
@@ -56,17 +34,55 @@ export default function RevalidateJobPanel({ onCompleted }) {
         }
       }
     }, 5000);
+  }
 
-    return () => clearInterval(interval);
-  }, [job?.id, job?.status, onCompleted]);
+  function stopPolling() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
 
-  // ── Invoke the function ───────────────────────────────────────────────────
+  // Initial load
+  useEffect(() => {
+    fetchActiveJob().then(j => {
+      setJob(j);
+      setLoading(false);
+      if (j?.status === 'running' || j?.status === 'paused_timeout') {
+        startPolling();
+      }
+    }).catch(() => setLoading(false));
+    return stopPolling;
+  }, []);
+
+  // Start/stop polling when job status changes
+  useEffect(() => {
+    if (!job) return;
+    if (job.status === 'running' || job.status === 'paused_timeout') {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+  }, [job?.status]);
+
   async function handleInvoke() {
     setInvoking(true);
     try {
-      await base44.functions.invoke('revalidatePendingTrendLinks', {});
-      // Re-fetch job after invocation (it may have paused_timeout already)
-      await fetchJob();
+      // Fire the function (don't await completion — it's long-running)
+      base44.functions.invoke('revalidatePendingTrendLinks', {}).catch(() => {});
+      // Poll until the job record appears (up to ~10s)
+      let found = null;
+      for (let i = 0; i < 5; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        found = await fetchActiveJob().catch(() => null);
+        if (found && (found.status === 'running' || found.status === 'paused_timeout')) break;
+      }
+      if (found) {
+        setJob(found);
+        startPolling();
+      } else {
+        toast.error('Job did not start — check logs');
+      }
     } catch (e) {
       toast.error(e.message || 'Failed to start sweep');
     }
@@ -75,11 +91,9 @@ export default function RevalidateJobPanel({ onCompleted }) {
 
   if (loading) return null;
 
-  const isActive = job?.status === 'running' || job?.status === 'paused_timeout';
+  const isActive   = job?.status === 'running' || job?.status === 'paused_timeout';
   const isComplete = job?.status === 'completed';
-  const pct = job?.total_items > 0
-    ? Math.round((job.processed_items / job.total_items) * 100)
-    : 0;
+  const pct        = job?.total_items > 0 ? Math.round((job.processed_items / job.total_items) * 100) : 0;
   const lastUpdate = job?.last_progress_at
     ? formatDistanceToNow(new Date(job.last_progress_at), { addSuffix: true })
     : null;
@@ -87,7 +101,6 @@ export default function RevalidateJobPanel({ onCompleted }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
 
-      {/* Active job: progress bar */}
       {isActive && (
         <div style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, padding: '8px 14px', minWidth: 280 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
@@ -102,7 +115,6 @@ export default function RevalidateJobPanel({ onCompleted }) {
               {job.processed_items ?? 0} / {job.total_items ?? '?'}
             </span>
           </div>
-          {/* Progress bar */}
           <div style={{ height: 5, background: 'rgba(255,255,255,0.15)', borderRadius: 10, overflow: 'hidden', marginBottom: 6 }}>
             <div style={{ height: '100%', width: `${pct}%`, background: 'white', borderRadius: 10, transition: 'width 0.4s' }} />
           </div>
@@ -124,7 +136,6 @@ export default function RevalidateJobPanel({ onCompleted }) {
         </div>
       )}
 
-      {/* No active job: start button + last result */}
       {!isActive && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
           <button
@@ -135,7 +146,6 @@ export default function RevalidateJobPanel({ onCompleted }) {
             {invoking ? <Loader2 size={12} className="animate-spin" /> : null}
             {invoking ? 'Starting…' : 'Re-validate pending trend links'}
           </button>
-
           {isComplete && job?.summary && (
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.65)' }}>
               Last sweep: {job.summary.links_rejected ?? 0} rejected · {job.summary.links_upgraded_to_auto_applied ?? 0} upgraded

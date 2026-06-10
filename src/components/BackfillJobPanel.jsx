@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Loader2, RefreshCw, BookOpen } from 'lucide-react';
 import { toast } from 'sonner';
@@ -7,47 +7,76 @@ import { formatDistanceToNow } from 'date-fns';
 const BLUE  = '#1D428A';
 const GREEN = '#6F8263';
 
+async function fetchActiveJob() {
+  const jobs = await base44.entities.ProcessingJob.filter(
+    { job_type: 'backfill_expert_examples' }, '-created_date', 1
+  );
+  return jobs[0] || null;
+}
+
 export default function BackfillJobPanel() {
-  const [job, setJob]         = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [job, setJob]           = useState(null);
+  const [loading, setLoading]   = useState(true);
   const [invoking, setInvoking] = useState(false);
+  const pollRef = useRef(null);
 
-  const fetchJob = useCallback(async () => {
-    try {
-      const jobs = await base44.entities.ProcessingJob.filter(
-        { job_type: 'backfill_expert_examples' }, '-created_date', 1
-      );
-      setJob(jobs[0] || null);
-    } catch (e) { /* ignore */ }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { fetchJob(); }, [fetchJob]);
-
-  // Poll while running
-  useEffect(() => {
-    if (job?.status !== 'running') return;
-    const interval = setInterval(async () => {
-      const jobs = await base44.entities.ProcessingJob.filter(
-        { job_type: 'backfill_expert_examples' }, '-created_date', 1
-      ).catch(() => []);
-      const latest = jobs[0];
+  function startPolling() {
+    if (pollRef.current) return;
+    pollRef.current = setInterval(async () => {
+      const latest = await fetchActiveJob().catch(() => null);
       if (latest) {
         setJob(latest);
         if (latest.status === 'completed') {
-          clearInterval(interval);
+          stopPolling();
           toast.success(`Backfill complete — ${latest.summary?.examples_created ?? 0} expert examples created`);
         }
       }
     }, 5000);
-    return () => clearInterval(interval);
-  }, [job?.id, job?.status]);
+  }
+
+  function stopPolling() {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }
+
+  useEffect(() => {
+    fetchActiveJob().then(j => {
+      setJob(j);
+      setLoading(false);
+      if (j?.status === 'running' || j?.status === 'paused_timeout') {
+        startPolling();
+      }
+    }).catch(() => setLoading(false));
+    return stopPolling;
+  }, []);
+
+  useEffect(() => {
+    if (!job) return;
+    if (job.status === 'running' || job.status === 'paused_timeout') {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+  }, [job?.status]);
 
   async function handleInvoke() {
     setInvoking(true);
     try {
-      await base44.functions.invoke('backfillExpertExamples', {});
-      await fetchJob();
+      base44.functions.invoke('backfillExpertExamples', {}).catch(() => {});
+      let found = null;
+      for (let i = 0; i < 5; i++) {
+        await new Promise(r => setTimeout(r, 2000));
+        found = await fetchActiveJob().catch(() => null);
+        if (found && (found.status === 'running' || found.status === 'paused_timeout')) break;
+      }
+      if (found) {
+        setJob(found);
+        startPolling();
+      } else {
+        toast.error('Job did not start — check logs');
+      }
     } catch (e) {
       toast.error(e.message || 'Backfill failed to start');
     }
