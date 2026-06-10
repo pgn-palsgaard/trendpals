@@ -8,6 +8,8 @@ import { Upload, Search, Database, CheckCircle2, AlertCircle, Loader2, FileText,
 import { format } from 'date-fns';
 import GnpdDetailPanel from '../components/sources/GnpdDetailPanel';
 import GNPDUploadModal from '../components/gnpd/GNPDUploadModal';
+import TrendLinkReviewCard from '../components/gnpd/TrendLinkReviewCard';
+import ReviewQueueTab from '../components/gnpd/ReviewQueueTab';
 
 // ── Brand colours ────────────────────────────────────────────────────────────
 const BLUE      = "#1D428A";
@@ -313,7 +315,7 @@ function MappingBadge({ status, elapsed }) {
 // ─────────────────────────────────────────────────────────────────────────────
 const PAGE_SIZE = 50;
 
-function ProductsTab() {
+function ProductsTab({ onNavigateToReviewQueue }) {
   const [products, setProducts]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -399,16 +401,21 @@ function ProductsTab() {
         {/* Stats 2×2 */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 1, borderBottom: "1px solid #d8d3c8", background: "#d8d3c8" }}>
           {[
-            ["Products",        stats?.total],
-            ["With emulsifier", stats?.with_emulsifier],
-            ["Trend-linked",    stats?.trend_linked],
-            ["Pending review",  stats?.pending_review],
-          ].map(([label, val]) => (
-            <div key={label} style={{ padding: "12px 14px", background: "white", textAlign: "center" }}>
-              <div style={{ fontSize: 20, fontWeight: 700, color: BLUE }}>
+            ["Products",        stats?.total,          null],
+            ["With emulsifier", stats?.with_emulsifier, null],
+            ["Trend-linked",    stats?.trend_linked,    null],
+            ["Pending review",  stats?.pending_review,  onNavigateToReviewQueue],
+          ].map(([label, val, onClick]) => (
+            <div key={label}
+              onClick={onClick || undefined}
+              style={{ padding: "12px 14px", background: "white", textAlign: "center", cursor: onClick ? "pointer" : "default" }}
+              title={onClick ? "Click to open review queue" : undefined}
+            >
+              <div style={{ fontSize: 20, fontWeight: 700, color: onClick ? ORANGE : BLUE }}>
                 {statsLoading ? <Loader2 size={16} className="animate-spin" style={{ color: GREY, margin: "2px auto" }} /> : (val ?? "—")}
               </div>
               <div style={{ fontSize: 11, color: GREY }}>{label}</div>
+              {onClick && <div style={{ fontSize: 10, color: ORANGE, marginTop: 2 }}>→ Review queue</div>}
             </div>
           ))}
         </div>
@@ -515,14 +522,14 @@ function ProductsTab() {
             </p>
           </div>
         ) : (
-          <ProductDetail product={selected} />
+          <ProductDetail product={selected} onProductUpdated={p => setSelected(p)} />
         )}
       </div>
     </div>
   );
 }
 
-function ProductDetail({ product: p }) {
+function ProductDetail({ product: p, onProductUpdated }) {
   return (
     <>
       {/* Header */}
@@ -565,29 +572,20 @@ function ProductDetail({ product: p }) {
         </div>
       )}
 
-      {/* Trend links */}
+      {/* Trend links with review actions */}
       {(p.trend_links || []).length > 0 && (
         <div style={{ background: "white", border: "1px solid #d8d3c8", borderRadius: 8, padding: "1.25rem", marginBottom: "1rem" }}>
-          <p style={{ fontSize: 11, color: GREY, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 1rem", fontWeight: 600 }}>Trend links</p>
+          <p style={{ fontSize: 11, color: GREY, textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 1rem", fontWeight: 600 }}>
+            Trend links ({p.trend_links.length})
+          </p>
           {p.trend_links.map((link, i) => (
-            <div key={i} style={{
-              padding: "10px 12px", marginBottom: 8, borderRadius: 6,
-              background: link.review_status === "auto_applied" ? "#EDF4EA" : "#FEF6EC",
-              border: `1px solid ${link.review_status === "auto_applied" ? "#9DC98D" : "#F5C4A0"}`
-            }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: DARK_BLUE }}>{link.trend_name}</span>
-                <span style={{
-                  fontSize: 10, padding: "2px 8px", borderRadius: 20, flexShrink: 0, fontWeight: 700,
-                  background: link.review_status === "auto_applied" ? GREEN : ORANGE, color: "white"
-                }}>
-                  {link.review_status === "auto_applied" ? "Auto-linked" : "Pending review"}
-                </span>
-              </div>
-              <p style={{ fontSize: 12, color: GREY, margin: "4px 0 0" }}>
-                {link.confidence} confidence · score {link.confidence_score} · {(link.matched_keywords || []).join(", ")}
-              </p>
-            </div>
+            <TrendLinkReviewCard
+              key={i}
+              link={link}
+              linkIndex={i}
+              product={p}
+              onProductUpdated={onProductUpdated}
+            />
           ))}
         </div>
       )}
@@ -622,7 +620,7 @@ export default function GNPD() {
 
       {/* Tabs */}
       <div style={{ background: "white", borderBottom: "1px solid #d8d3c8", padding: "0 28px", display: "flex", gap: 0 }}>
-        {[["uploads", "Uploads"], ["products", "Products"]].map(([key, label]) => (
+        {[["uploads", "Uploads"], ["products", "Products"], ["review", "Review queue"]].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} style={{
             background: "none", border: "none", cursor: "pointer",
             padding: "12px 20px", fontSize: 14, fontWeight: 600,
@@ -640,7 +638,8 @@ export default function GNPD() {
       {/* Tab content */}
       <div>
         {tab === "uploads"  && <UploadsTab />}
-        {tab === "products" && <ProductsTab />}
+        {tab === "products" && <ProductsTab onNavigateToReviewQueue={() => setTab("review")} />}
+        {tab === "review"   && <ReviewQueueTab />}
       </div>
     </div>
   );
