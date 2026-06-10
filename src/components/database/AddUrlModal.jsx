@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,50 +8,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { X, Link as LinkIcon, Loader2, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { getAllRegionCodes } from '@/components/RegionsTaxonomy';
-import DuplicateDetectedModal from './DuplicateDetectedModal';
+import { intakeUrl } from '../intake/sourceIntake';
 
 export default function AddUrlModal({ onClose, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
   const [url, setUrl] = useState('');
   const [snapshotPolicy, setSnapshotPolicy] = useState('snapshot');
-  const [duplicate, setDuplicate] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
     region_code: '',
     category: '',
     date: '',
-    trust_tier: 'medium',
     usage_permission: 'evidence'
   });
   const [adding, setAdding] = useState(false);
 
   const regions = [...getAllRegionCodes(), 'Global'];
   const categories = ['Ice Cream', 'Bakery', 'Confectionery', 'Dairy', 'Chocolate', 'Beverages', 'Snacks', 'Other'];
-
-  const addUrlMutation = useMutation({
-    mutationFn: async (data) => {
-      const response = await base44.functions.invoke('processSource', data);
-      return response.data;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
-      if (projectId) {
-        queryClient.invalidateQueries({ queryKey: ['projectSources', projectId] });
-      }
-      toast.success('URL source added ✓');
-      onClose();
-    },
-    onError: (error) => {
-      // Check if it's a duplicate error
-      if (error.response?.data?.error === 'DUPLICATE_DETECTED') {
-        setDuplicate(error.response.data.duplicate);
-        setAdding(false);
-      } else {
-        toast.error(error.message || 'Failed to add URL');
-        setAdding(false);
-      }
-    }
-  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -63,38 +36,30 @@ export default function AddUrlModal({ onClose, projectId, onLinkSource }) {
 
     setAdding(true);
     try {
-      await addUrlMutation.mutateAsync({
-        source_type: 'url',
+      await intakeUrl({
         url,
         title: formData.title,
-        region_code: formData.region_code,
-        category: formData.category,
-        date: formData.date,
-        trust_tier: formData.trust_tier,
-        usage_permission: formData.usage_permission,
-        snapshot_url: snapshotPolicy === 'snapshot' ? url : null,
-        project_id: projectId || null
+        projectId: projectId || null,
+        extraFields: {
+          region_code: formData.region_code,
+          category: formData.category,
+          date: formData.date,
+          usage_permission: formData.usage_permission,
+          snapshot_url: snapshotPolicy === 'snapshot' ? url : null,
+        },
       });
+      queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ['projectSources', projectId] });
+      }
+      toast.success('URL added — pending verification & approval');
+      onClose();
     } catch (error) {
-      // Error handled by mutation
+      toast.error(error.message || 'Failed to add URL');
     } finally {
       setAdding(false);
     }
   };
-
-  if (duplicate) {
-    return (
-      <DuplicateDetectedModal
-        duplicate={duplicate}
-        projectId={projectId}
-        onLinkToProject={onLinkSource}
-        onClose={() => {
-          setDuplicate(null);
-          onClose();
-        }}
-      />
-    );
-  }
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -170,17 +135,14 @@ export default function AddUrlModal({ onClose, projectId, onLinkSource }) {
             <div className="space-y-2">
               <Label>Region *</Label>
               <Select
-                value={formData.region}
-                onValueChange={(value) => setFormData({ ...formData, region: value })}
+                value={formData.region_code}
+                onValueChange={(value) => setFormData({ ...formData, region_code: value })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EMEA">EMEA</SelectItem>
-                  <SelectItem value="APAC">APAC</SelectItem>
-                  <SelectItem value="Americas">Americas</SelectItem>
-                  <SelectItem value="Global">Global</SelectItem>
+                  {[...new Set(regions)].map(r => <SelectItem key={r} value={r}>{r}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -206,23 +168,6 @@ export default function AddUrlModal({ onClose, projectId, onLinkSource }) {
 
           {/* Optional */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label>Trust Tier</Label>
-              <Select
-                value={formData.trust_tier}
-                onValueChange={(value) => setFormData({ ...formData, trust_tier: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="space-y-2">
               <Label>Usage Permission</Label>
               <Select

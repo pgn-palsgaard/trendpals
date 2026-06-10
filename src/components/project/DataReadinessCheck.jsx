@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { base44 } from '@/api/base44Client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronUp, AlertCircle, CheckCircle2, Info } from 'lucide-react';
@@ -7,12 +9,21 @@ import { Badge } from '@/components/ui/badge';
 export default function DataReadinessCheck({ project, sources }) {
   const [expanded, setExpanded] = useState(false);
 
+  // GNPD coverage from canonical GNPDProduct records (matching project category + region)
+  const { data: gnpdStats } = useQuery({
+    queryKey: ['gnpdStats', project.category, project.region_code],
+    queryFn: async () => (await base44.functions.invoke('getGNPDStats', {
+      category: project.category,
+      region_code: project.region_code,
+    })).data,
+  });
+
   // Calculate coverage breakdown
   const mintelSources = sources.filter(s => s.source_type === 'mintel');
-  const gnpdSources = sources.filter(s => s.source_type === 'gnpd');
   const totalExcerpts = sources.reduce((sum, s) => sum + (s.excerpts?.length || 0), 0);
-  const totalGnpdProducts = sources.reduce((sum, s) => sum + (s.gnpd_data?.length || 0), 0);
-  const totalImages = sources.reduce((sum, s) => sum + (s.gnpd_data?.filter(p => p.has_image).length || 0), 0);
+  const totalGnpdProducts = gnpdStats?.total || 0;
+  const emulsifierProducts = gnpdStats?.with_emulsifier || 0;
+  const totalImages = gnpdStats?.with_image || 0;
 
   // Compute score locally from actual sources (don't rely on stored project.data_sufficiency_score)
   const mintelScore = Math.min(30, mintelSources.length * 15);
@@ -122,7 +133,7 @@ export default function DataReadinessCheck({ project, sources }) {
                       GNPD exports ({project.category}, {project.region_code})
                     </div>
                     <div className="text-xs text-slate-600">
-                      {totalGnpdProducts} products • {totalImages} with images
+                      {totalGnpdProducts.toLocaleString()} products • {emulsifierProducts.toLocaleString()} emulsifier-flagged • {totalImages} with images
                     </div>
                   </div>
                 </div>

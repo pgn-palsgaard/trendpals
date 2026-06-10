@@ -8,33 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Upload, FileText, AlertCircle, CheckCircle2, Loader2, ExternalLink, Trash2, History } from 'lucide-react';
 import { toast } from 'sonner';
-import * as XLSX from 'xlsx';
-
-async function buildGnpdTitleFromFile(file) {
-  try {
-    const buffer = await file.arrayBuffer();
-    const wb = XLSX.read(buffer, { type: 'array' });
-    const sheetName = wb.SheetNames[1];
-    if (!sheetName) return null;
-    const sheet = wb.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-    const lines = rows.flat().map(v => String(v).trim()).filter(v => v.length > 0);
-    const market = lines.find(l => l.toLowerCase().startsWith('where market matches'))?.replace(/where market matches/i, '').trim();
-    const subCat = lines.find(l => l.toLowerCase().includes('sub-category matches'));
-    const dateWin = lines.find(l => l.toLowerCase().includes('date published matches'))?.replace(/and date published matches/i, '').trim();
-    const parts = ['GNPD'];
-    if (market) parts.push(market);
-    if (subCat) {
-      const cats = subCat.replace(/and sub-category matches one or more of/i, '').trim();
-      const firstCat = cats.split(';')[0].trim();
-      if (firstCat) parts.push(firstCat);
-    }
-    if (dateWin) parts.push(dateWin);
-    return parts.join(' - ');
-  } catch (e) {
-    return null;
-  }
-}
+import { intakeFile, intakeUrl } from '../intake/sourceIntake';
 import SourceLibrary from './SourceLibrary';
 import DataReadinessCheck from './DataReadinessCheck';
 import LinkedSourcesPanel from './LinkedSourcesPanel';
@@ -81,31 +55,6 @@ export default function ProjectSources({ project, sources, imageExtractions = []
     }
   });
 
-  const uploadSourceMutation = useMutation({
-    mutationFn: async (data) => {
-      const response = await base44.functions.invoke('processSource', data);
-      return response.data;
-    },
-    onSuccess: (data, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
-      queryClient.invalidateQueries({ queryKey: ['project', project.id] });
-      queryClient.invalidateQueries({ queryKey: ['sourcesLibrary'] });
-      
-      // If project_id was provided, also link the source to the project
-      if (variables.project_id && data.source_id) {
-        const updatedIds = [...(project.selected_source_ids || []), data.source_id];
-        base44.entities.Project.update(project.id, {
-          selected_source_ids: updatedIds
-        });
-      }
-      
-      toast.success('Source processed successfully');
-    },
-    onError: (error) => {
-      toast.error(error.message || 'Failed to process source');
-    }
-  });
-
   const deleteSourceMutation = useMutation({
     mutationFn: async (sourceId) => {
       await base44.entities.Source.delete(sourceId);
@@ -126,31 +75,18 @@ export default function ProjectSources({ project, sources, imageExtractions = []
 
     setUploading(true);
     setFailedUpload(null);
-    
-    try {
-      // Upload all files
-      for (const file of files) {
-        // For GNPD Excel files, auto-generate title from Search details sheet
-        let title = file.name;
-        const nameLower = file.name.toLowerCase();
-        if ((nameLower.includes('gnpd') || sourceType === 'gnpd') && (nameLower.endsWith('.xlsx') || nameLower.endsWith('.xls'))) {
-          const smartTitle = await buildGnpdTitleFromFile(file);
-          if (smartTitle) title = smartTitle;
-        }
 
-        const { file_url } = await base44.integrations.Core.UploadFile({ file });
-        
-        await uploadSourceMutation.mutateAsync({
-          project_id: project.id,
-          source_type: sourceType,
-          file_url,
-          title
-        });
+    try {
+      for (const file of files) {
+        await intakeFile({ file, sourceType, projectId: project.id });
       }
-      toast.success(`${files.length} file(s) uploaded successfully`);
-      e.target.value = ''; // Reset input
+      queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
+      queryClient.invalidateQueries({ queryKey: ['project', project.id] });
+      queryClient.invalidateQueries({ queryKey: ['sourcesLibrary'] });
+      toast.success(`${files.length} file(s) uploaded — pending verification & approval in the library`);
+      e.target.value = '';
     } catch (error) {
-      toast.error('Upload failed');
+      toast.error(error.message || 'Upload failed');
     } finally {
       setUploading(false);
     }
@@ -161,14 +97,8 @@ export default function ProjectSources({ project, sources, imageExtractions = []
 
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file: failedUpload.file });
-      
-      await uploadSourceMutation.mutateAsync({
-        project_id: project.id,
-        source_type: failedUpload.sourceType,
-        file_url,
-        title: failedUpload.fileName
-      });
+      await intakeFile({ file: failedUpload.file, sourceType: failedUpload.sourceType, projectId: project.id, title: failedUpload.fileName });
+      queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
       setFailedUpload(null);
     } catch (error) {
       toast.error('Retry failed');
@@ -187,12 +117,10 @@ export default function ProjectSources({ project, sources, imageExtractions = []
       return;
     }
     
-    await uploadSourceMutation.mutateAsync({
-      project_id: project.id,
-      source_type: 'url',
-      url,
-      title: url
-    });
+    await intakeUrl({ url, title: url, projectId: project.id });
+    queryClient.invalidateQueries({ queryKey: ['sources', project.id] });
+    queryClient.invalidateQueries({ queryKey: ['sourcesLibrary'] });
+    toast.success('URL added — pending verification & approval');
     setUrl('');
   };
 
@@ -260,6 +188,7 @@ export default function ProjectSources({ project, sources, imageExtractions = []
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="mintel">Mintel Report</SelectItem>
+                <SelectItem value="gnpd">GNPD Export (.xls/.xlsx)</SelectItem>
                 <SelectItem value="report">Other Report</SelectItem>
                 <SelectItem value="url">URL</SelectItem>
               </SelectContent>
@@ -305,7 +234,7 @@ export default function ProjectSources({ project, sources, imageExtractions = []
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                 />
-                <Button onClick={handleUrlSubmit} disabled={!url || uploadSourceMutation.isPending}>
+                <Button onClick={handleUrlSubmit} disabled={!url || uploading}>
                   Add
                 </Button>
               </div>

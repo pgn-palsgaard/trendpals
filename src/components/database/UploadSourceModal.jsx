@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,8 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { X, Upload, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
-import DuplicateDetectedModal from './DuplicateDetectedModal';
 import UploadStatusCard from './UploadStatusCard';
+import { intakeFile } from '../intake/sourceIntake';
 
 async function buildGnpdTitleFromFile(file) {
   try {
@@ -45,36 +45,10 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
   const queryClient = useQueryClient();
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [duplicate, setDuplicate] = useState(null);
   const [sourceId, setSourceId] = useState(null);
   const [uploadComplete, setUploadComplete] = useState(false);
   const [sourceType, setSourceType] = useState('mintel');
   const [autoTitle, setAutoTitle] = useState(null);
-
-  const uploadSourceMutation = useMutation({
-    mutationFn: async (data) => {
-      const response = await base44.functions.invoke('processSource', data);
-      return response.data;
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
-      if (projectId) {
-        queryClient.invalidateQueries({ queryKey: ['projectSources', projectId] });
-      }
-      setSourceId(data.source_id);
-      setUploadComplete(true);
-      toast.success('Upload complete — AI is filling in the metadata');
-    },
-    onError: (error) => {
-      if (error.response?.data?.error === 'DUPLICATE_DETECTED') {
-        setDuplicate(error.response.data.duplicate);
-        setUploading(false);
-      } else {
-        toast.error(error.message || 'Failed to process source');
-        setUploading(false);
-      }
-    }
-  });
 
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files?.[0];
@@ -102,34 +76,22 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
 
     setUploading(true);
     try {
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-
-      await uploadSourceMutation.mutateAsync({
-        source_type: sourceType,
-        file_url,
-        title: autoTitle || file.name,
-        project_id: projectId || null
-      });
+      const result = await intakeFile({ file, sourceType, projectId: projectId || null, title: autoTitle || file.name });
+      queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ['projectSources', projectId] });
+      }
+      setSourceId(result.sourceId);
+      setUploadComplete(true);
+      toast.success(result.gnpd
+        ? `${result.rows?.toLocaleString() || ''} products detected — auto-parse started`
+        : 'Upload complete — AI is filling in the metadata');
     } catch (error) {
-      toast.error('Upload failed');
+      toast.error(error.message || 'Upload failed');
     } finally {
       setUploading(false);
     }
   };
-
-  if (duplicate) {
-    return (
-      <DuplicateDetectedModal
-        duplicate={duplicate}
-        projectId={projectId}
-        onLinkToProject={onLinkSource}
-        onClose={() => {
-          setDuplicate(null);
-          onClose();
-        }}
-      />
-    );
-  }
 
   if (uploadComplete && sourceId) {
     return (
