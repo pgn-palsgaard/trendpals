@@ -85,13 +85,13 @@ Deno.serve(async (req) => {
         console.log(`[backfill] Processing source: ${source.id} — ${source.title}`);
 
         try {
-          const result = await base44.functions.invoke('extractExpertExamples', {
-            source_id: source.id,
-          });
-          const created = result?.examples_created ?? 0;
-          examplesCreated += created;
+          // Fire the "Extract Expert Examples on Mintel extraction" entity automation
+          // by flipping pipeline_stage. Direct function-to-function invoke is blocked
+          // on the platform domain, so the automation handles the actual extraction.
+          await base44.asServiceRole.entities.Source.update(source.id, { pipeline_stage: 'extracting' });
+          await base44.asServiceRole.entities.Source.update(source.id, { pipeline_stage: 'extracted' });
           sourcesProcessed++;
-          console.log(`[backfill] Source ${source.id}: ${created} examples created`);
+          console.log(`[backfill] Source ${source.id}: extraction triggered via automation`);
         } catch (e) {
           errors++;
           const detail = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : '';
