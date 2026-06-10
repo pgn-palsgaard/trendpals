@@ -405,12 +405,15 @@ Deno.serve(async (req) => {
         lastCursor = product.id;
         processedItems++;
 
-        await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
-          processed_items: processedItems,
-          current_cursor: lastCursor,
-          last_progress_at: new Date().toISOString(),
-          summary: summarySnapshot(),
-        });
+        // Persist progress every 5 products to stay under API rate limits
+        if (processedItems % 5 === 0) {
+          await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+            processed_items: processedItems,
+            current_cursor: lastCursor,
+            last_progress_at: new Date().toISOString(),
+            summary: summarySnapshot(),
+          });
+        }
       }
     } finally {
       const finalStatus = timedOut ? 'paused_timeout' : 'completed';
