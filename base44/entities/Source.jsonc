@@ -139,6 +139,44 @@
     "coverage_period": {
       "type": "string"
     },
+    "pipeline_stage": {
+      "type": "string",
+      "enum": [
+        "uploaded",
+        "extracting",
+        "extracted",
+        "gnpd_ready",
+        "skipped",
+        "failed"
+      ],
+      "description": "Processing pipeline stage \u2014 first status axis. 'extracted' triggers expert example extraction for Mintel sources; 'gnpd_ready' marks a fully ingested GNPD file"
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "description": "Human review state \u2014 second status axis. Extraction only runs on approved sources"
+    },
+    "failure_reason": {
+      "type": "string",
+      "description": "Machine-readable failure reason when pipeline_stage=failed (rate_limit, timeout, parse_error, unknown) or fetch error message"
+    },
+    "skip_reason": {
+      "type": "string",
+      "description": "Why the source was skipped when pipeline_stage=skipped"
+    },
+    "retry_count": {
+      "type": "number",
+      "description": "Number of processing retries"
+    },
+    "last_retry_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Last time the source was reset for retry"
+    },
     "excerpts": {
       "type": "array",
       "items": {
@@ -273,10 +311,12 @@
         "ready",
         "failed"
       ],
-      "default": "queued"
+      "default": "queued",
+      "description": "DEPRECATED \u2014 replaced by pipeline_stage + review_status. Nothing reads or writes this anymore"
     },
     "status_message": {
-      "type": "string"
+      "type": "string",
+      "description": "DEPRECATED \u2014 nothing reads or writes this anymore"
     },
     "processing_error": {
       "type": "string"
@@ -356,7 +396,8 @@
         "draft",
         "external_reference"
       ],
-      "default": "medium"
+      "default": "medium",
+      "description": "DEPRECATED \u2014 replaced by review_status. Nothing reads or writes this anymore"
     },
     "usage_permission": {
       "type": "string",
@@ -405,7 +446,8 @@
     },
     "rag_processed": {
       "type": "boolean",
-      "default": false
+      "default": false,
+      "description": "DEPRECATED \u2014 replaced by pipeline_stage. Nothing reads or writes this anymore"
     },
     "rag_excerpt_count": {
       "type": "number"

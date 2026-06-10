@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
       sources = await base44.entities.Source.filter({ project_id });
     }
 
-    // Fetch trends
+    // Fetch trends — TrendCandidate is a thin selection layer pointing at GlobalTrends
     const trendCandidates = await base44.entities.TrendCandidate.filter({ project_id });
     const selectedTrends = trendCandidates.filter(t => t.is_selected);
 
@@ -115,11 +115,27 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
 
+    // Resolve the selected candidates to active GlobalTrends
+    const resolvedTrends = [];
+    const unmappedCandidates = [];
+    for (const tc of selectedTrends) {
+      if (!tc.global_trend_id) { unmappedCandidates.push(tc.trend_name); continue; }
+      try {
+        const gt = await base44.entities.GlobalTrend.get(tc.global_trend_id);
+        if (gt && gt.is_active !== false) resolvedTrends.push({ gt, candidate: tc });
+        else unmappedCandidates.push(tc.trend_name);
+      } catch (_) { unmappedCandidates.push(tc.trend_name); }
+    }
+    if (resolvedTrends.length < 3) {
+      return Response.json({
+        error: `Selected trends must link to active Trend Library trends (3 minimum). Unlinked: ${unmappedCandidates.join(', ') || 'none resolved'}. Re-select trends from the Trend Library.`
+      }, { status: 400 });
+    }
+
+    const warnings = [];
     const hasSources = sources.some(s => s.excerpts?.length > 0 || s.gnpd_data?.length > 0);
     if (!hasSources) {
-      return Response.json({
-        error: 'No processed sources available. Please upload and process sources first.'
-      }, { status: 400 });
+      warnings.push({ type: 'weak_evidence', severity: 'medium', message: 'No processed project sources attached — report relies on Trend Library evidence only', created_at: new Date().toISOString() });
     }
 
     // ── Step 1: build knowledge context ───────────────────────────────────
@@ -142,31 +158,33 @@ Deno.serve(async (req) => {
       }
     });
 
-    // GNPD products (top 8 matched)
+    // GNPD launch evidence: products linked to the selected GlobalTrends (HIGH-confidence links), images first
     const gnpdProducts = [];
-    sources.forEach(source => {
-      if (source.gnpd_data && source.gnpd_data.length > 0) {
-        source.gnpd_data.slice(0, 8).forEach(p => {
-          gnpdProducts.push({
-            product_name: p.product_name || p['Product Name'] || '',
-            brand: p.brand || p['Brand'] || '',
-            country: p.market || p['Market'] || '',
-            launch_date: p.date_published || p['Date Published'] || '',
-            claims: (p.claims || p['Claims'] || '').substring(0, 150)
-          });
+    for (const { gt } of resolvedTrends) {
+      const linked = await base44.entities.GNPDProduct.filter({ linked_trend_ids: gt.id }, '-launch_date', 12);
+      linked.sort((a, b) => (b.image_url ? 1 : 0) - (a.image_url ? 1 : 0));
+      for (const p of linked.slice(0, 6)) {
+        gnpdProducts.push({
+          product_name: p.product_name || '',
+          brand: p.brand || '',
+          country: p.country || '',
+          launch_date: p.launch_date || '',
+          claims: (p.claims || []).join(', ').substring(0, 150),
+          trend_name: gt.trend_name,
+          has_image: !!p.image_url
         });
       }
-    });
+      if (linked.length === 0) {
+        warnings.push({ type: 'weak_evidence', severity: 'medium', message: `No linked GNPD launch evidence for trend "${gt.trend_name}"`, created_at: new Date().toISOString() });
+      }
+    }
 
-    // Expert examples (ExpertExample entity — filter by selected trend IDs, auto_applied or approved)
-    const selectedTrendIds = new Set(selectedTrends.map(t => t.id).filter(Boolean));
+    // Expert examples — matched on GlobalTrend IDs end-to-end (library-wide)
+    const selectedTrendIds = new Set(resolvedTrends.map(r => r.gt.id));
     let expertExamples = [];
     try {
-      // Fetch all expert examples from the source IDs attached to this project
-      const sourceIds = new Set(sources.map(s => s.id));
       const allExpertExamples = await base44.entities.ExpertExample.list('-extracted_at', 200);
       expertExamples = allExpertExamples.filter(ex => {
-        if (!sourceIds.has(ex.source_id)) return false;
         return (ex.trend_links || []).some(l =>
           (l.review_status === 'auto_applied' || l.review_status === 'approved') &&
           selectedTrendIds.has(l.trend_id)
@@ -176,20 +194,32 @@ Deno.serve(async (req) => {
       console.warn('Could not load expert examples:', e.message);
     }
 
-    const trendsBlock = selectedTrends.map((t, i) => `
-${i + 1}. ${t.trend_name}
-Market Signal: ${t.market_signal || ''}
-What's Changing: ${(t.whats_changing || []).join('; ')}
-Why Now: ${(t.why_now || []).join('; ')}
-${t.customer_pains?.length > 0 ? `Customer Pains: ${t.customer_pains.map(p => p.pain).join('; ')}` : ''}
-`).join('\n');
+    const trendsBlock = resolvedTrends.map(({ gt, candidate }, i) => {
+      const manifestation = (gt.regional_manifestations || []).find(m => m.region === region) ||
+        (region === 'Global' ? (gt.regional_manifestations || [])[0] : null);
+      return `
+${i + 1}. ${gt.trend_name}
+Market Signal: ${gt.market_signal || ''}
+What's Changing: ${(gt.whats_changing || []).join('; ')}
+Why Now: ${gt.why_now || ''}
+${manifestation ? `Regional manifestation (${manifestation.region}): ${manifestation.signal || ''} [intensity: ${manifestation.intensity || 'n/a'}]` : ''}
+${candidate.project_notes ? `Project notes: ${candidate.project_notes}` : ''}`;
+    }).join('\n');
+
+    // Approved source findings already linked to these trends in the Trend Library
+    const trendSourcesBlock = resolvedTrends.map(({ gt }) => {
+      const approved = (gt.sources || []).filter(s => ['auto_applied', 'approved', 'manual_curated'].includes(s.review_status));
+      return approved.slice(0, 4).map(s =>
+        `- [${gt.trend_name}] ${s.key_finding || s.title || ''}${s.quote ? ` | Quote: "${s.quote}"` : ''} (${s.publisher || ''})`
+      ).join('\n');
+    }).filter(Boolean).join('\n');
 
     const knowledgeBlock = relevantExcerpts.length > 0
       ? relevantExcerpts.map(ex => `- [${ex.capability_area || 'general'}] Market Signal: ${ex.market_signal || ''} | Pain: ${ex.customer_pain || ''} | Angle: ${ex.palsgaard_angle || ''} | Quote: "${ex.source_quote || ''}" (${ex._source_title})`).join('\n')
       : '(No relevant knowledge excerpts found — use general emulsification and stabilisation expertise)';
 
     const gnpdBlock = gnpdProducts.length > 0
-      ? gnpdProducts.map(p => `- ${p.product_name} | ${p.brand} | ${p.country} | ${p.launch_date} | ${p.claims}`).join('\n')
+      ? gnpdProducts.map(p => `- [${p.trend_name}] ${p.product_name} | ${p.brand} | ${p.country} | ${p.launch_date} | ${p.claims}${p.has_image ? ' | (image available)' : ''}`).join('\n')
       : '(No GNPD product data available)';
 
     const expertExamplesBlock = expertExamples.length > 0
@@ -232,17 +262,20 @@ ${trendsBlock}
 PALSGAARD KNOWLEDGE BASE (use these to inform palsgaard_angle — do not copy verbatim):
 ${knowledgeBlock}
 
+TREND LIBRARY SOURCE FINDINGS (approved evidence already linked to the selected trends):
+${trendSourcesBlock || '(none)'}
+
 GNPD PRODUCT EXAMPLES (use real product names only):
 ${gnpdBlock}
 ${expertExamplesBlock ? `\nINDUSTRY-RECOGNIZED EXAMPLES (Mintel analyst-curated — use these in "Industry-recognized examples" sub-section within relevant trend slides, labelled as analyst-curated proof points):\n${expertExamplesBlock}\n` : ''}
 MINTEL SOURCE QUOTES (use ONLY these for supporting_data — never invent statistics):
 ${mintelStatsBlock}
 
-Generate ${selectedTrends.length + 2} slides. Return a JSON object with "slides", "evidence_pack", and "product_shortlist" arrays.
+Generate ${resolvedTrends.length + 2} slides. Return a JSON object with "slides", "evidence_pack", and "product_shortlist" arrays.
 
 Slide structure:
 - Slide 1: Category landscape overview (no trend name required)
-- Slides 2 to ${selectedTrends.length + 1}: One per selected trend (use the trend's market signal and customer pains from the SELECTED TRENDS block above as your starting point, then deepen them)
+- Slides 2 to ${resolvedTrends.length + 1}: One per selected trend (use the trend's market signal and customer pains from the SELECTED TRENDS block above as your starting point, then deepen them)
 - Last slide: "What This Means" synthesis
 
 IMPORTANT for trend slides: customer_pains must be concrete and technical — not generic. Explain the physics or chemistry or commercial mechanics of WHY the trend creates a problem. Then follow each pain immediately with the capability angle inside the same object.
@@ -386,8 +419,8 @@ product_shortlist items: { "product_name": "string", "brand": "string", "market"
       evidence_pack: parsed.evidence_pack || [],
       product_shortlist: parsed.product_shortlist || [],
       image_map: {},
-      selected_trends: selectedTrends.map(t => t.trend_name),
-      warnings: [],
+      selected_trends: resolvedTrends.map(r => r.gt.trend_name),
+      warnings,
       freshness,
       status: 'draft',
       version: nextVersion

@@ -52,7 +52,7 @@ export default function ReviewQueueTab() {
   // Reset selection when filter changes
   useEffect(() => { setSelected(new Set()); }, [filters]);
 
-  function rowKey(l) { return `${l.product_id}:${l.link_index}`; }
+  function rowKey(l) { return `${l.entity_type || 'gnpd_product'}:${l.product_id}:${l.link_index}`; }
 
   function toggleRow(l) {
     const k = rowKey(l);
@@ -76,12 +76,13 @@ export default function ReviewQueueTab() {
     const newStatus = bulkAction;
     setSaving(true);
 
-    // Group selected rows by product_id to minimise update calls
+    // Group selected rows by entity+record to minimise update calls
     const byProduct = {};
     for (const k of selected) {
-      const [productId, linkIndexStr] = k.split(':');
-      if (!byProduct[productId]) byProduct[productId] = [];
-      byProduct[productId].push(parseInt(linkIndexStr));
+      const [entityType, productId, linkIndexStr] = k.split(':');
+      const gk = `${entityType}:${productId}`;
+      if (!byProduct[gk]) byProduct[gk] = [];
+      byProduct[gk].push(parseInt(linkIndexStr));
     }
 
     // For each product, fetch full product, mutate all selected link indices, then update once
@@ -89,9 +90,11 @@ export default function ReviewQueueTab() {
     const now = new Date().toISOString();
     let approved = 0, rejected = 0, failed = 0;
 
-    for (const [productId, idxList] of Object.entries(byProduct)) {
+    for (const [gk, idxList] of Object.entries(byProduct)) {
+      const [entityType, productId] = gk.split(':');
+      const Entity = entityType === 'expert_example' ? base44.entities.ExpertExample : base44.entities.GNPDProduct;
       try {
-        const product = await base44.entities.GNPDProduct.filter({ id: productId }, null, 1);
+        const product = await Entity.filter({ id: productId }, null, 1);
         const p = product[0];
         if (!p) { failed++; continue; }
         const updatedLinks = (p.trend_links || []).map((link, i) => {
@@ -102,7 +105,7 @@ export default function ReviewQueueTab() {
           }
           return link;
         });
-        await base44.entities.GNPDProduct.update(productId, { trend_links: updatedLinks });
+        await Entity.update(productId, { trend_links: updatedLinks });
       } catch (e) {
         failed++;
       }
@@ -214,7 +217,12 @@ export default function ReviewQueueTab() {
                     <td style={{ padding: "8px 12px" }}>
                       <input type="checkbox" checked={isSelected} onChange={() => toggleRow(l)} style={{ cursor: "pointer" }} />
                     </td>
-                    <td style={{ padding: "8px 10px", maxWidth: 180, fontWeight: 600, color: DARK_BLUE }}>{l.product_name}</td>
+                    <td style={{ padding: "8px 10px", maxWidth: 180, fontWeight: 600, color: DARK_BLUE }}>
+                      {l.product_name}
+                      {l.entity_type === 'expert_example' && (
+                        <span style={{ marginLeft: 6, fontSize: 9, padding: "1px 6px", borderRadius: 20, background: "#FDF3E7", color: ORANGE, border: `1px solid ${ORANGE}`, fontWeight: 700 }}>EXPERT</span>
+                      )}
+                    </td>
                     <td style={{ padding: "8px 10px", color: GREY }}>{l.brand || '—'}</td>
                     <td style={{ padding: "8px 10px", color: GREY }}>{l.country || '—'}</td>
                     <td style={{ padding: "8px 10px", color: GREY }}>{l.category || '—'}</td>
@@ -260,7 +268,8 @@ function ApproveRejectButtons({ link, onDone }) {
     try {
       const me = await base44.auth.me();
       const now = new Date().toISOString();
-      const products = await base44.entities.GNPDProduct.filter({ id: link.product_id }, null, 1);
+      const Entity = link.entity_type === 'expert_example' ? base44.entities.ExpertExample : base44.entities.GNPDProduct;
+      const products = await Entity.filter({ id: link.product_id }, null, 1);
       const p = products[0];
       if (!p) throw new Error('Product not found');
       const updatedLinks = (p.trend_links || []).map((l, i) =>
@@ -268,7 +277,7 @@ function ApproveRejectButtons({ link, onDone }) {
           ? { ...l, review_status: newStatus, reviewed_at: now, reviewed_by: me?.email || '' }
           : l
       );
-      await base44.entities.GNPDProduct.update(link.product_id, { trend_links: updatedLinks });
+      await Entity.update(link.product_id, { trend_links: updatedLinks });
       toast.success(newStatus === 'approved' ? 'Approved' : 'Rejected');
       onDone();
     } catch (e) {
