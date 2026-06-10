@@ -90,14 +90,15 @@ export default function RagSourceTable({
   const { data: sources = [], isLoading, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
+      const FETCH_LIMIT = 2000;
       if (Array.isArray(sourceTypeFilter)) {
         const results = await Promise.all(
-          sourceTypeFilter.map(t => base44.entities.Source.filter({ source_type: t }, '-created_date', 500))
+          sourceTypeFilter.map(t => base44.entities.Source.filter({ source_type: t }, '-created_date', FETCH_LIMIT))
         );
         return results.flat();
       }
       const q = sourceTypeFilter ? { source_type: sourceTypeFilter } : {};
-      return await base44.entities.Source.filter(q, '-created_date', 500);
+      return await base44.entities.Source.filter(q, '-created_date', FETCH_LIMIT);
     },
     refetchInterval: processing.active ? 15000 : false,
   });
