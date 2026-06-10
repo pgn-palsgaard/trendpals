@@ -18,12 +18,12 @@
       "type": "string",
       "enum": [
         "ASPAC",
-        "EMEA",
-        "Americas",
-        "LATAM",
+        "AMERICAS",
+        "EMEC",
+        "IMEA",
         "Global"
       ],
-      "description": "Region"
+      "description": "Canonical region code (aligned with Palsgaard sales regions)"
     },
     "deadline": {
       "type": "string",

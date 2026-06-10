@@ -71,7 +71,7 @@ Is this product genuine evidence of this trend? Respond with JSON only.`;
 
 function isLegacyReasoning(reasoning) {
   if (!reasoning) return true;
-  return /^Matched \d+ keyword/i.test(reasoning);
+  return /^(Backfill: )?Matched \d+ keyword/i.test(reasoning);
 }
 
 const BATCH_SIZE = 5;
@@ -93,6 +93,93 @@ Deno.serve(async (req) => {
     const globalTrends = await base44.asServiceRole.entities.GlobalTrend.filter({ is_active: true });
     const trendMap = {};
     globalTrends.forEach(t => { trendMap[t.id] = t; });
+
+    const body = await req.json().catch(() => ({}));
+
+    // ── Audit mode: re-validate existing keyword-only AUTO_APPLIED links ──────
+    // Pass → keep auto_applied (with LLM reasoning). Fail → demote to pending review.
+    if (body.mode === 'audit_auto_applied') {
+      const auditStart = Date.now();
+      let skip = Number(body.cursor) || 0;
+      let validated = 0, kept = 0, demoted = 0, auditErrors = 0;
+      let auditTimedOut = false;
+
+      auditLoop:
+      while (true) {
+        if (Date.now() - auditStart > TIME_BUDGET_MS) { auditTimedOut = true; break; }
+        const batch = await base44.asServiceRole.entities.GNPDProduct.filter({}, 'created_date', 100, skip);
+        if (batch.length === 0) break;
+
+        for (const p of batch) {
+          if (Date.now() - auditStart > TIME_BUDGET_MS) { auditTimedOut = true; break auditLoop; }
+          const targets = (p.trend_links || []).filter(
+            l => l.review_status === 'auto_applied' && isLegacyReasoning(l.reasoning)
+          );
+          if (targets.length === 0) continue;
+
+          const updatedLinks = [...p.trend_links];
+          let changed = false;
+
+          for (const link of targets) {
+            const trend = trendMap[link.trend_id];
+            if (!trend) continue;
+            const result = await runValidation(anthropic, p, {
+              trend_id: trend.id,
+              trend_name: trend.trend_name,
+              market_signal: trend.market_signal || '',
+              description: trend.description || '',
+              category: trend.category || ''
+            }, link.matched_keywords || []);
+            validated++;
+
+            const idx = updatedLinks.findIndex(l => l.trend_id === link.trend_id && l.review_status === 'auto_applied');
+            if (idx === -1) continue;
+
+            if (result.verdict === 'ERROR') {
+              auditErrors++; // leave unchanged — retried on next run
+            } else if (result.verdict === 'SUPPORTS' && result.confidence_score >= 70) {
+              updatedLinks[idx] = { ...updatedLinks[idx], confidence: 'high', confidence_score: result.confidence_score, reasoning: result.reasoning };
+              kept++; changed = true;
+            } else {
+              updatedLinks[idx] = {
+                ...updatedLinks[idx],
+                review_status: 'pending',
+                confidence: result.verdict === 'PARTIAL' ? 'medium' : 'low',
+                confidence_score: result.confidence_score,
+                reasoning: result.reasoning
+              };
+              demoted++; changed = true;
+            }
+          }
+
+          if (changed) {
+            const linkedTrendIds = updatedLinks.filter(l => l.review_status === 'auto_applied').map(l => l.trend_id);
+            const hasPending = updatedLinks.some(l => l.review_status === 'pending');
+            const supportLabel = updatedLinks.length === 0 ? 'NOT_SUPPORT'
+              : updatedLinks.some(l => l.confidence === 'high') ? 'SUPPORTS' : 'PARTIAL';
+            await base44.asServiceRole.entities.GNPDProduct.update(p.id, {
+              trend_links: updatedLinks,
+              linked_trend_ids: linkedTrendIds,
+              processing_status: hasPending ? 'trend_linking_pending' : 'trend_linked',
+              support_label: supportLabel
+            });
+          }
+        }
+
+        skip += batch.length;
+        if (batch.length < 100) break;
+      }
+
+      return Response.json({
+        mode: 'audit_auto_applied',
+        links_validated: validated,
+        kept_auto_applied: kept,
+        demoted_to_pending: demoted,
+        errors: auditErrors,
+        next_cursor: auditTimedOut ? skip : null,
+        done: !auditTimedOut
+      });
+    }
 
     // ── Find or create ProcessingJob ─────────────────────────────────────────
     const existingJobs = await base44.asServiceRole.entities.ProcessingJob.filter(

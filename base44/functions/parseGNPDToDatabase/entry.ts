@@ -1,14 +1,16 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import * as XLSX from 'npm:xlsx@0.18.5';
 
+// CANONICAL EMULSIFIER_TERMS — keep identical to the copy in backfillGNPDIngredients.js
+// (backend functions deploy independently, so the list is duplicated by necessity)
 const EMULSIFIER_TERMS = [
   'lecithin', 'mono and diglycerides', 'monoglycerides', 'diglycerides',
-  'e471', 'e472', 'e473', 'e474', 'e475', 'e476', 'e477', 'e481', 'e482',
+  'mono- and di-glycerides', 'e471', 'e472', 'e473', 'e474', 'e475', 'e476', 'e477', 'e481', 'e482',
   'pgpr', 'ammonium phosphatide', 'sorbitan', 'polysorbate', 'ssl',
   'csl', 'datem', 'acetylated', 'diacetyl', 'propylene glycol',
   'carrageenan', 'locust bean', 'guar gum', 'xanthan', 'gelatin',
   'pectin', 'agar', 'carob', 'tara gum', 'konjac', 'cellulose',
-  'maltodextrin', 'modified starch', 'hydroxypropyl'
+  'maltodextrin', 'modified starch', 'hydroxypropyl', 'emulsifier', 'stabiliser', 'stabilizer'
 ];
 
 const COUNTRY_REGION = {
@@ -43,10 +45,13 @@ function linkToTrends(trendIndex, megaTrendMap, ingredients, claims, productName
     if (matchedKeywords.length === 0) continue;
 
     const score = Math.min(100, matchedKeywords.length * 25);
-    let confidence, reviewStatus;
-    if (score >= 70) { confidence = 'high'; reviewStatus = 'auto_applied'; }
-    else if (score >= 40) { confidence = 'medium'; reviewStatus = 'pending'; }
-    else { confidence = 'low'; reviewStatus = 'pending'; }
+    // All keyword matches start as 'pending' — auto_applied status is only granted
+    // after LLM validation (revalidatePendingTrendLinks / validateTrendLink gate)
+    let confidence;
+    const reviewStatus = 'pending';
+    if (score >= 70) { confidence = 'high'; }
+    else if (score >= 40) { confidence = 'medium'; }
+    else { confidence = 'low'; }
 
     if (confidence === 'low' && matchedKeywords.length < 2) continue;
 

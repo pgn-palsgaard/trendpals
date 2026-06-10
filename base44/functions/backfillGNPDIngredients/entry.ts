@@ -1,6 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import * as XLSX from 'npm:xlsx@0.18.5';
 
+// CANONICAL EMULSIFIER_TERMS — keep identical to the copy in parseGNPDToDatabase.js
+// (backend functions deploy independently, so the list is duplicated by necessity)
 const EMULSIFIER_TERMS = [
   'lecithin', 'mono and diglycerides', 'monoglycerides', 'diglycerides',
   'mono- and di-glycerides', 'e471', 'e472', 'e473', 'e474', 'e475', 'e476', 'e477', 'e481', 'e482',
@@ -128,10 +130,12 @@ Deno.serve(async (req) => {
             const matched = t.keywords.filter(kw => kw.length > 3 && text.includes(kw));
             if (matched.length === 0) continue;
             const score = Math.min(100, matched.length * 25);
-            let confidence, reviewStatus;
-            if (score >= 70) { confidence = 'high'; reviewStatus = 'auto_applied'; }
-            else if (score >= 40) { confidence = 'medium'; reviewStatus = 'pending'; }
-            else { confidence = 'low'; reviewStatus = 'pending'; }
+            // All keyword matches start as 'pending' — auto_applied only after LLM validation
+            let confidence;
+            const reviewStatus = 'pending';
+            if (score >= 70) { confidence = 'high'; }
+            else if (score >= 40) { confidence = 'medium'; }
+            else { confidence = 'low'; }
             if (confidence === 'low' && matched.length < 2) continue;
             newLinks.push({
               trend_id: t.id,

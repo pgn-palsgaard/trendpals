@@ -115,7 +115,7 @@ Deno.serve(async (req) => {
       sources = await base44.entities.Source.filter({ project_id });
     }
     
-    const pdfCuratedProducts = await base44.entities.PDFCuratedProduct.filter({ project_id });
+    const pdfCuratedProducts = []; // PDFCuratedProduct entity removed — PDF curation flow retired
 
     // Check GNPD sources and column mappings
     const gnpdSources = sources.filter(s => s.source_type === 'gnpd');
