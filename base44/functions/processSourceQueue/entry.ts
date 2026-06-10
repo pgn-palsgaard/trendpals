@@ -18,34 +18,47 @@ function detectFailureReason(err) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
-
     const body = await req.json().catch(() => ({}));
-    const { sourceIds, batchSize = 5, delaySeconds = 45 } = body;
+    let { sourceIds, batchSize = 5, delaySeconds = 45 } = body;
+
+    // Entity automation payload (Source update: verified + approved + uploaded)
+    let isAutomation = false;
+    if ((!sourceIds || sourceIds.length === 0) && body.event && body.data?.id) {
+      sourceIds = [body.data.id];
+      isAutomation = true;
+    }
+
+    let user = null;
+    try { user = await base44.auth.me(); } catch (_) { /* automation context */ }
+    if (!user && !isAutomation) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const db = user ? base44 : base44.asServiceRole;
 
     // Resolve which sources to process
     let sourcesToProcess;
     if (Array.isArray(sourceIds) && sourceIds.length > 0) {
       // Fetch requested sources directly by ID — no list cap
       const fetched = await Promise.all(sourceIds.map(async (id) => {
-        try { return await base44.entities.Source.get(id); } catch { return null; }
+        try { return await db.entities.Source.get(id); } catch { return null; }
       }));
       // When specific IDs are passed, skip GNPD type and enforce the human verification gate
+      // Idempotency: only 'uploaded' sources without existing excerpts are eligible
       sourcesToProcess = fetched.filter(s =>
         s && !SKIP_TYPES.has(s.source_type) &&
         s.metadata_extraction?.verified === true &&
-        s.review_status === 'approved'
+        s.review_status === 'approved' &&
+        s.pipeline_stage === 'uploaded' &&
+        !(s.excerpts?.length > 0)
       );
       console.log(`[processSourceQueue] Requested ${sourceIds.length} IDs, found ${sourcesToProcess.length} eligible sources`);
     } else {
       // Find all uploaded sources (excluding GNPD)
-      const uploaded = await base44.entities.Source.filter({ pipeline_stage: 'uploaded' }, '-created_date', 500);
+      const uploaded = await db.entities.Source.filter({ pipeline_stage: 'uploaded' }, '-created_date', 500);
       // Verification gate: only human-verified + approved sources may be extracted
       sourcesToProcess = uploaded.filter(s =>
         !SKIP_TYPES.has(s.source_type) &&
         s.metadata_extraction?.verified === true &&
-        s.review_status === 'approved'
+        s.review_status === 'approved' &&
+        !(s.excerpts?.length > 0)
       );
     }
 
@@ -89,58 +102,37 @@ Deno.serve(async (req) => {
         }
 
         // Mark as extracting + open a ProcessingRun audit record
-        await base44.entities.Source.update(source.id, { pipeline_stage: 'extracting' });
+        await db.entities.Source.update(source.id, { pipeline_stage: 'extracting' });
         const runStartedAt = new Date();
         const run = await base44.asServiceRole.entities.ProcessingRun.create({
           source_id: source.id,
           source_title: source.title || '',
           source_publisher: source.publisher || null,
           source_type_snapshot: source.source_type || null,
-          triggered_by: 'manual_button',
-          triggered_by_user: user.email,
+          triggered_by: isAutomation ? 'auto_upload' : 'manual_button',
+          triggered_by_user: user?.email || 'automation',
           status: 'running',
           started_at: runStartedAt.toISOString(),
           agent_model: 'claude-sonnet-4-5',
         });
 
         try {
-          // Read the source content
+          // Read the source content via the shared extractor (PDF/PPTX/DOCX/HTML/TXT/MD)
           let fileContent = '';
           if (source.file_url || source.url) {
-            try {
-              // Get a signed URL for private files to avoid 403
-              let fetchUrl = source.file_url || source.url;
-              try {
-                const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
-                  file_uri: fetchUrl,
-                  expires_in: 300,
-                });
-                if (signed?.signed_url) fetchUrl = signed.signed_url;
-              } catch (_) {
-                // Not a private file or signing not needed — use original URL
-              }
-
-              const { getDocument } = await import('npm:pdfjs-dist@4.4.168/legacy/build/pdf.mjs');
-              const res = await fetch(fetchUrl);
-              if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-              const arrayBuffer = await res.arrayBuffer();
-              const pdf = await getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
-              const parts = [];
-              for (let i = 1; i <= pdf.numPages; i++) {
-                const page = await pdf.getPage(i);
-                const content = await page.getTextContent();
-                parts.push(content.items.map(item => item.str).join(' '));
-              }
-              fileContent = parts.join('\n');
-              console.log(`[processSourceQueue] Got ${fileContent.length} chars for ${source.id}`);
-            } catch (readErr) {
-              console.warn(`[processSourceQueue] Could not read content for ${source.id}: ${readErr.message}`);
+            const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
+            const readData = readRes?.data ?? readRes;
+            if (readData?.ok) {
+              fileContent = readData.content || '';
+              console.log(`[processSourceQueue] Got ${fileContent.length} chars (${readData.mime_type}) for ${source.id}`);
+            } else {
+              console.warn(`[processSourceQueue] Could not read content for ${source.id}: ${readData?.error || 'unknown'}`);
             }
           }
 
           if (!fileContent || fileContent.trim().length < 50) {
             console.log(`[processSourceQueue] Skipping ${source.id} — no readable content`);
-            await base44.entities.Source.update(source.id, {
+            await db.entities.Source.update(source.id, {
               pipeline_stage: 'skipped',
               skip_reason: 'image_only',
             });
@@ -224,7 +216,7 @@ Return ONLY a JSON object with this structure:
             throw new Error('LLM returned 0 excerpts — likely a rate limit or empty response');
           }
 
-          await base44.entities.Source.update(source.id, {
+          await db.entities.Source.update(source.id, {
             pipeline_stage: 'extracted',
             excerpts,
             rag_excerpt_count: excerpts.length,
@@ -258,7 +250,7 @@ Return ONLY a JSON object with this structure:
         } catch (err) {
           const reason = detectFailureReason(err);
           console.error(`[processSourceQueue] ✗ ${source.id} (${reason}): ${err.message}`);
-          await base44.entities.Source.update(source.id, {
+          await db.entities.Source.update(source.id, {
             pipeline_stage: 'failed',
             failure_reason: reason,
             processing_error: err.message?.slice(0, 500) || 'Unknown error',

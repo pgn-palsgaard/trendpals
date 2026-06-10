@@ -111,6 +111,38 @@ Deno.serve(async (req) => {
       skip += 200;
     }
 
+    if (mode === 'backfill_legacy') {
+      // No-stage legacy sources: excerpts → extracted/approved (grandfathered); else → uploaded/pending
+      const grandfathered = [], queued = [];
+      for (const s of sources) {
+        if (s.pipeline_stage || s.source_type === 'gnpd') continue;
+        if (hasExcerpts(s)) {
+          await base44.asServiceRole.entities.Source.update(s.id, { pipeline_stage: 'extracted', review_status: 'approved' });
+          grandfathered.push({ id: s.id, title: s.title, source_type: s.source_type });
+        } else {
+          await base44.asServiceRole.entities.Source.update(s.id, { pipeline_stage: 'uploaded', review_status: 'pending' });
+          queued.push({ id: s.id, title: s.title, source_type: s.source_type });
+        }
+      }
+      return Response.json({ mode, grandfathered_count: grandfathered.length, queued_count: queued.length, grandfathered, queued });
+    }
+
+    if (mode === 'fix_gnpd_stuck') {
+      // GNPD sources not at gnpd_ready: if products already ingested → gnpd_ready; else flag for parse
+      const results = [];
+      for (const s of sources) {
+        if (s.source_type !== 'gnpd' || s.pipeline_stage === 'gnpd_ready') continue;
+        const products = await base44.asServiceRole.entities.GNPDProduct.filter({ source_id: s.id }, null, 1);
+        if (products.length > 0) {
+          await base44.asServiceRole.entities.Source.update(s.id, { pipeline_stage: 'gnpd_ready', review_status: 'approved' });
+          results.push({ id: s.id, title: s.title, action: 'set_gnpd_ready', had_products: true });
+        } else {
+          results.push({ id: s.id, title: s.title, action: 'needs_parse', had_products: false });
+        }
+      }
+      return Response.json({ mode, results });
+    }
+
     // Optional: return a single section to avoid response truncation
     if (body.section) {
       const sections = {

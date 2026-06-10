@@ -275,8 +275,13 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
   const mappingRecords = await base44.asServiceRole.entities.GNPDColumnMapping.filter({ source_id: sourceId });
   const colMap = mappingRecords.length > 0 ? (mappingRecords[0].mappings || {}) : (source.gnpd_column_mapping || {});
 
-  // Fetch and parse file (XLSX or HTML)
-  const fileResponse = await fetch(source.file_url);
+  // Fetch and parse file (XLSX or HTML) — sign private URLs
+  let fetchUrl = source.file_url;
+  try {
+    const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: source.file_url, expires_in: 300 });
+    if (signed?.signed_url) fetchUrl = signed.signed_url;
+  } catch (_) { /* public file — use original URL */ }
+  const fileResponse = await fetch(fetchUrl);
   if (!fileResponse.ok) throw new Error(`Failed to fetch file: ${fileResponse.status}`);
   const fileBuffer = await fileResponse.arrayBuffer();
   const { rows, isHtml } = await parseRows(fileBuffer, source.file_url);
@@ -454,7 +459,8 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
     created += Math.min(batchSize, toCreate.length - i);
   }
 
-  await base44.asServiceRole.entities.Source.update(sourceId, { pipeline_stage: 'extracted' });
+  // Fully ingested — mark gnpd_ready (template validation was the gate on this path)
+  await base44.asServiceRole.entities.Source.update(sourceId, { pipeline_stage: 'gnpd_ready', review_status: 'approved' });
 
   return {
     source_id: sourceId, source_title: source.title,
@@ -469,10 +475,20 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
-    const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const body = await req.json();
+    let { sourceIds, batchSize = 50 } = body;
 
-    const { sourceIds, batchSize = 50 } = await req.json();
+    // Entity automation payload (Source update: gnpd_mapping_status → complete)
+    let isAutomation = false;
+    if ((!sourceIds || sourceIds.length === 0) && body.event && body.data?.id) {
+      sourceIds = [body.data.id];
+      isAutomation = true;
+    }
+
+    let user = null;
+    try { user = await base44.auth.me(); } catch (_) { /* automation context */ }
+    if (!user && !isAutomation) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+
     if (!Array.isArray(sourceIds) || sourceIds.length === 0) {
       return Response.json({ error: 'sourceIds must be a non-empty array' }, { status: 400 });
     }
