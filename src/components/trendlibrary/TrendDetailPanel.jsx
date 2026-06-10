@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, CheckCircle, XCircle, Pencil, Trash2 } from 'lucide-react';
+import ExpertExamplesSection from './ExpertExamplesSection';
 
 const CAPABILITY_LABELS = {
   sustainability: 'Sustainability',
@@ -150,6 +151,9 @@ export default function TrendDetailPanel({ trend, onClose, onActivate, onDeactiv
               </div>
             </Section>
           )}
+
+          {/* Mintel Expert Examples */}
+          <ExpertExamplesSection trendId={trend.id} />
 
           {/* Sources */}
           {(() => {

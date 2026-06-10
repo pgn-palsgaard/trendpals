@@ -1,0 +1,218 @@
+{
+  "name": "ExpertExample",
+  "type": "object",
+  "required": [
+    "source_id",
+    "product_name",
+    "analyst_framing"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "description": "Source entity ID this example was extracted from"
+    },
+    "report_title": {
+      "type": "string",
+      "description": "Title of the Mintel report"
+    },
+    "product_name": {
+      "type": "string",
+      "description": "Product name"
+    },
+    "brand": {
+      "type": "string"
+    },
+    "company": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "region_code": {
+      "type": "string",
+      "enum": [
+        "ASPAC",
+        "AMERICAS",
+        "EMEC",
+        "IMEA",
+        "Global"
+      ]
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "Bakery",
+        "Confectionery",
+        "Dairy",
+        "Ice Cream",
+        "Spreads",
+        "Dressings",
+        "Other"
+      ]
+    },
+    "sub_category": {
+      "type": "string"
+    },
+    "analyst_framing": {
+      "type": "string",
+      "description": "The headline/description the Mintel analyst gave this example"
+    },
+    "analyst_quote": {
+      "type": "string",
+      "description": "Verbatim 1-2 sentence description from the report. Maximum 2 sentences."
+    },
+    "page_ref": {
+      "type": "string",
+      "description": "Page number in the source report"
+    },
+    "claims": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Claims mentioned in the report description"
+    },
+    "flavours": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "format_notes": {
+      "type": "string",
+      "description": "Packaging or format details mentioned"
+    },
+    "mintel_section_heading": {
+      "type": "string",
+      "description": "The section of the report this example sits under"
+    },
+    "mintel_trend_label": {
+      "type": "string",
+      "description": "The trend label the Mintel analyst attached to this example, in their own words"
+    },
+    "extraction_confidence": {
+      "type": "string",
+      "enum": [
+        "high",
+        "medium",
+        "low"
+      ],
+      "description": "How confident the LLM was that this is a clean product example"
+    },
+    "linked_trend_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "GlobalTrend IDs this example supports"
+    },
+    "trend_links": {
+      "type": "array",
+      "description": "Per-link record with trend_id, trend_name, confidence, confidence_score, reasoning, matched_keywords, review_status, linked_at",
+      "items": {
+        "type": "object",
+        "properties": {
+          "trend_id": {
+            "type": "string"
+          },
+          "trend_name": {
+            "type": "string"
+          },
+          "trend_type": {
+            "type": "string",
+            "enum": [
+              "global",
+              "mega"
+            ]
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "confidence_score": {
+            "type": "number"
+          },
+          "reasoning": {
+            "type": "string"
+          },
+          "matched_keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "auto_applied",
+              "pending",
+              "approved",
+              "rejected"
+            ]
+          },
+          "linked_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reviewed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reviewed_by": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rejected_link_candidates": {
+      "type": "array",
+      "description": "Audit trail of trend link candidates rejected by LLM validation",
+      "items": {
+        "type": "object",
+        "properties": {
+          "trend_id": {
+            "type": "string"
+          },
+          "trend_name": {
+            "type": "string"
+          },
+          "matched_keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "llm_verdict": {
+            "type": "string"
+          },
+          "llm_reasoning": {
+            "type": "string"
+          },
+          "llm_score": {
+            "type": "number"
+          },
+          "rejected_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "image_url": {
+      "type": "string",
+      "description": "Only if reliably extractable from the PDF; otherwise null"
+    },
+    "extracted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "extracted_via_run_id": {
+      "type": "string",
+      "description": "ProcessingRun ID for audit"
+    }
+  }
+}

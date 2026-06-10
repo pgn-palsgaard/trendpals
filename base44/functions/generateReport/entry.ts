@@ -69,6 +69,7 @@ STRICT RULES:
 - Never use "Palsgaard" as a subject anywhere in the output.
 - Never invent statistics. supporting_data must come exclusively from the provided MINTEL SOURCE QUOTES.
 - gnpd_examples: use only real product names from the provided GNPD data. Never invent products.
+- When INDUSTRY-RECOGNIZED EXAMPLES are provided, include them in a separate evidence_footer or as the last entry in gnpd_examples, prefixed with "[Expert pick]" to distinguish them from bulk GNPD data.
 - If a customer pain can be addressed without emulsification expertise, still include it — showing broad industry knowledge builds credibility.`;
 
 Deno.serve(async (req) => {
@@ -157,6 +158,24 @@ Deno.serve(async (req) => {
       }
     });
 
+    // Expert examples (ExpertExample entity — filter by selected trend IDs, auto_applied or approved)
+    const selectedTrendIds = new Set(selectedTrends.map(t => t.id).filter(Boolean));
+    let expertExamples = [];
+    try {
+      // Fetch all expert examples from the source IDs attached to this project
+      const sourceIds = new Set(sources.map(s => s.id));
+      const allExpertExamples = await base44.entities.ExpertExample.list('-extracted_at', 200);
+      expertExamples = allExpertExamples.filter(ex => {
+        if (!sourceIds.has(ex.source_id)) return false;
+        return (ex.trend_links || []).some(l =>
+          (l.review_status === 'auto_applied' || l.review_status === 'approved') &&
+          selectedTrendIds.has(l.trend_id)
+        );
+      }).slice(0, 20);
+    } catch (e) {
+      console.warn('Could not load expert examples:', e.message);
+    }
+
     const trendsBlock = selectedTrends.map((t, i) => `
 ${i + 1}. ${t.trend_name}
 Market Signal: ${t.market_signal || ''}
@@ -172,6 +191,14 @@ ${t.customer_pains?.length > 0 ? `Customer Pains: ${t.customer_pains.map(p => p.
     const gnpdBlock = gnpdProducts.length > 0
       ? gnpdProducts.map(p => `- ${p.product_name} | ${p.brand} | ${p.country} | ${p.launch_date} | ${p.claims}`).join('\n')
       : '(No GNPD product data available)';
+
+    const expertExamplesBlock = expertExamples.length > 0
+      ? expertExamples.map(ex => {
+          const trendLinks = (ex.trend_links || []).filter(l => l.review_status === 'auto_applied' || l.review_status === 'approved');
+          const trendNames = trendLinks.map(l => l.trend_name).join(', ');
+          return `- ${ex.product_name}${ex.brand ? ` (${ex.brand})` : ''} | ${ex.country || 'Unknown country'} | Analyst framing: "${ex.analyst_framing}" | Quote: "${ex.analyst_quote || ''}" | Report: ${ex.report_title || ''} | Supports: ${trendNames}`;
+        }).join('\n')
+      : '';
 
     // Mintel source quotes for grounding statistics — include from all source types that have source_quote
     const allSourceQuotes = [];
@@ -207,7 +234,7 @@ ${knowledgeBlock}
 
 GNPD PRODUCT EXAMPLES (use real product names only):
 ${gnpdBlock}
-
+${expertExamplesBlock ? `\nINDUSTRY-RECOGNIZED EXAMPLES (Mintel analyst-curated — use these in "Industry-recognized examples" sub-section within relevant trend slides, labelled as analyst-curated proof points):\n${expertExamplesBlock}\n` : ''}
 MINTEL SOURCE QUOTES (use ONLY these for supporting_data — never invent statistics):
 ${mintelStatsBlock}
 
