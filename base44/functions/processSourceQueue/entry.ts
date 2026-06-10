@@ -55,12 +55,25 @@ Deno.serve(async (req) => {
     let succeeded = 0;
     let failed = 0;
     let skipped = 0;
+    let processedCount = 0;
+    let timedOut = false;
 
+    // Stay under the ~3 min function limit; remaining sources are handled by a follow-up call
+    const TIME_BUDGET_MS = 140000;
+    const startTime = Date.now();
+
+    outer:
     for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
       const batch = batches[batchIdx];
       console.log(`[processSourceQueue] Starting batch ${batchIdx + 1}/${batches.length} (${batch.length} sources)`);
 
       for (const source of batch) {
+        if (Date.now() - startTime > TIME_BUDGET_MS) {
+          console.log('[processSourceQueue] Time budget reached — stopping, remaining sources left in queue');
+          timedOut = true;
+          break outer;
+        }
+        processedCount++;
         // Warn about large files
         if (source.file_size && source.file_size > 5 * 1024 * 1024) {
           console.warn(`[processSourceQueue] LARGE FILE WARNING: ${source.title} (${Math.round(source.file_size / 1024 / 1024)}MB) — may cause rate limiting`);
@@ -223,19 +236,26 @@ Return ONLY a JSON object with this structure:
         }
       }
 
-      // Delay between batches (skip after last batch)
-      if (batchIdx < batches.length - 1) {
+      // Delay between batches (skip after last batch or when out of budget)
+      if (batchIdx < batches.length - 1 && Date.now() - startTime + delaySeconds * 1000 < TIME_BUDGET_MS) {
         console.log(`[processSourceQueue] Batch ${batchIdx + 1} done. Waiting ${delaySeconds}s before next batch...`);
         await sleep(delaySeconds * 1000);
+      } else if (batchIdx < batches.length - 1) {
+        console.log('[processSourceQueue] Not enough budget for another batch — stopping');
+        timedOut = true;
+        break;
       }
     }
 
+    const remainingSources = sourcesToProcess.slice(processedCount);
     const summary = {
-      processed: sourcesToProcess.length,
+      processed: processedCount,
       succeeded,
       failed,
       skipped,
-      batches: batches.length,
+      remaining: remainingSources.length,
+      remaining_ids: remainingSources.map(s => s.id),
+      timed_out: timedOut,
     };
     console.log('[processSourceQueue] Done:', summary);
     return Response.json(summary);

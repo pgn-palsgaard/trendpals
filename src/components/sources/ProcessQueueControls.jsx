@@ -97,16 +97,30 @@ export default function ProcessQueueControls({
     }, 15000);
 
     try {
-      const res = await base44.functions.invoke('processSourceQueue', {
-        ...(ids ? { sourceIds: ids } : {}),
-        batchSize: 5,
-        delaySeconds: 45,
-      });
+      // The function is time-bounded server-side; keep calling until the queue is empty
+      let totals = { succeeded: 0, failed: 0, skipped: 0 };
+      let nextIds = ids;
+      let rounds = 0;
+      while (rounds < 20) {
+        rounds++;
+        const res = await base44.functions.invoke('processSourceQueue', {
+          ...(nextIds ? { sourceIds: nextIds } : {}),
+          batchSize: 5,
+          delaySeconds: 45,
+        });
+        const data = res.data;
+        totals.succeeded += data.succeeded || 0;
+        totals.failed += data.failed || 0;
+        totals.skipped += data.skipped || 0;
+        onRefresh();
+        if (!data.remaining || data.remaining === 0) break;
+        nextIds = ids ? data.remaining_ids : null;
+        toast.info(`${data.remaining} sources remaining — continuing…`);
+      }
       clearInterval(pollInterval);
-      const data = res.data;
       onProcessingChange({ active: false, batchDone: batches, batchTotal: batches });
       toast.success(
-        `Processing complete — ${data.succeeded} succeeded, ${data.failed} failed${data.skipped ? `, ${data.skipped} skipped` : ''}`
+        `Processing complete — ${totals.succeeded} succeeded, ${totals.failed} failed${totals.skipped ? `, ${totals.skipped} skipped` : ''}`
       );
       onRefresh();
     } catch (err) {
