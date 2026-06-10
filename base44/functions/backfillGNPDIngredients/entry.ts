@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    const TIME_BUDGET_MS = 100000;
+    const TIME_BUDGET_MS = 80000;
     const start = Date.now();
     const outOfBudget = () => Date.now() - start > TIME_BUDGET_MS;
 
