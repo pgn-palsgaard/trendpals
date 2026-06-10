@@ -152,7 +152,13 @@ export default function RagSourceTable({
     const ids = [...selectedIds];
     try {
       if (bulkAction === 'approve') {
-        await Promise.all(ids.map(id => base44.entities.Source.update(id, { review_status: 'approved', reviewed_at: new Date().toISOString() })));
+        // Approval is the human verification gate — it also marks metadata as verified
+        const selectedRows = sources.filter(s => ids.includes(s.id));
+        await Promise.all(selectedRows.map(s => base44.entities.Source.update(s.id, {
+          review_status: 'approved',
+          reviewed_at: new Date().toISOString(),
+          metadata_extraction: { ...(s.metadata_extraction || {}), verified: true },
+        })));
         toast.success(`${ids.length} source(s) approved`);
       } else if (bulkAction === 'reject') {
         await Promise.all(ids.map(id => base44.entities.Source.update(id, { review_status: 'rejected', reviewed_at: new Date().toISOString() })));

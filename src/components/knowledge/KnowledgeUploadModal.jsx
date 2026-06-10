@@ -121,7 +121,7 @@ export default function KnowledgeUploadModal({ onClose, defaultSourceType = 'kno
         ? extractTagsFromPath(fileItem.relative_path)
         : [];
 
-      await base44.entities.Source.create({
+      const createdSource = await base44.entities.Source.create({
         source_type: sourceType,
         ...(sourceType === 'knowledge' && { knowledge_subtype: options.default_knowledge_subtype }),
         title: fileItem.filename,
@@ -129,22 +129,21 @@ export default function KnowledgeUploadModal({ onClose, defaultSourceType = 'kno
         relative_path: fileItem.relative_path,
         folder_path: fileItem.folder_path,
         file_size: fileItem.file_size,
-        trust_tier: options.default_trust_tier,
         visibility: 'org_shared',
         allowed_use: 'capability_proof_only',
         tags,
         upload_batch_id: batchId,
-        status: 'uploaded',
         pipeline_stage: 'uploaded',
         review_status: 'pending',
         date: new Date().toISOString().split('T')[0]
       });
 
-      // Update batch progress
+      // Update batch progress (with source_id for traceability)
       await base44.functions.invoke('updateBatchProgress', {
         batch_id: batchId,
         file_index: index,
-        status: 'completed'
+        status: 'completed',
+        source_id: createdSource.id
       });
     } catch (error) {
       console.error('File upload failed:', fileItem.filename, error);
@@ -198,23 +197,6 @@ export default function KnowledgeUploadModal({ onClose, defaultSourceType = 'kno
 
           {/* Upload Options */}
           <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Default Trust Tier</Label>
-              <Select
-                value={options.default_trust_tier}
-                onValueChange={(value) => setOptions({ ...options, default_trust_tier: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">Draft</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="external_reference">External Reference</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div>
               <Label>Default Subtype</Label>
               <Select

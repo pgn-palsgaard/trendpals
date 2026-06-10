@@ -10,6 +10,7 @@
       "type": "string",
       "enum": [
         "mintel",
+        "market_intel",
         "gnpd",
         "report",
         "url",

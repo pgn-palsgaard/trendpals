@@ -10,6 +10,7 @@ import { Sparkles, TrendingUp, CheckCircle2, XCircle, AlertCircle, Loader2, Brai
 import { toast } from 'sonner';
 import PackshotManager from './ProductImageManager';
 import ProductProofPanel from './ProductProofPanel';
+import TrendLibraryPicker from './TrendLibraryPicker';
 
 export default function ProjectTrends({ project, trendCandidates, sources, imageExtractions = [] }) {
   const queryClient = useQueryClient();
@@ -163,66 +164,8 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
 
   return (
     <div className="space-y-6">
-      {/* Generate Section */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Trend Generation</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {trendCandidates.length === 0 ? (
-            <div className="text-center py-8">
-              <div className="text-5xl mb-4">✨</div>
-              <p className="text-slate-900 font-medium mb-2">Generate trends from sources</p>
-              <p className="text-slate-600 text-sm mb-4">
-                AI will analyze your uploaded sources to identify 5-7 key trend candidates
-              </p>
-              <Button
-                onClick={() => generateTrendsMutation.mutate()}
-                disabled={!canGenerate}
-                className="bg-purple-600 hover:bg-purple-700"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    Generate Trend Candidates
-                  </>
-                )}
-              </Button>
-              {sources.length === 0 && (
-                <p className="text-sm text-slate-500 mt-4">
-                  💡 Upload sources in the Sources tab first
-                </p>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-600">
-                  {selectedCount} of {trendCandidates.length} trends selected (select 3-5 for final report)
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => generateTrendsMutation.mutate()}
-                  disabled={generating}
-                  size="sm"
-                >
-                  Regenerate
-                </Button>
-              </div>
-              {selectedCount < 3 && (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-800">
-                  ℹ️ Select at least 3 trends to proceed to report generation
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Trend selection from the Trend Library */}
+      <TrendLibraryPicker project={project} trendCandidates={trendCandidates} />
 
       {/* Packshot Manager - New Workflow */}
       {selectedCount >= 3 && (
@@ -471,9 +414,16 @@ export default function ProjectTrends({ project, trendCandidates, sources, image
                   <div className="flex-1">
                     <div className="flex items-start justify-between mb-3">
                       <h3 className="text-xl font-semibold text-slate-900">{trend.trend_name}</h3>
-                      <Badge className={`${confidenceColors[trend.confidence]} border`}>
-                        {trend.confidence} confidence
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {!trend.global_trend_id && (
+                          <Badge className="bg-red-100 text-red-700 border-red-200 border">Not linked to Trend Library</Badge>
+                        )}
+                        {trend.confidence && (
+                          <Badge className={`${confidenceColors[trend.confidence]} border`}>
+                            {trend.confidence} confidence
+                          </Badge>
+                        )}
+                      </div>
                     </div>
 
                     {trend.whats_changing && trend.whats_changing.length > 0 && (

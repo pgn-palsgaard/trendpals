@@ -11,6 +11,24 @@ const EMULSIFIER_TERMS = [
   'maltodextrin', 'modified starch', 'hydroxypropyl', 'emulsifier', 'stabiliser', 'stabilizer'
 ];
 
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function updateWithRetry(base44, id, updates) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      await base44.asServiceRole.entities.GNPDProduct.update(id, updates);
+      return true;
+    } catch (e) {
+      if (String(e.message || '').toLowerCase().includes('rate limit')) {
+        await sleep(2000 * (attempt + 1));
+        continue;
+      }
+      throw e;
+    }
+  }
+  return false;
+}
+
 function buildIngredients(row) {
   let ing = String(row['Ingredients (On pack)'] || '').trim();
   if (!ing) {
@@ -34,7 +52,7 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Forbidden: Admin access required' }, { status: 403 });
     }
 
-    const TIME_BUDGET_MS = 200000;
+    const TIME_BUDGET_MS = 100000;
     const start = Date.now();
     const outOfBudget = () => Date.now() - start > TIME_BUDGET_MS;
 
@@ -60,9 +78,11 @@ Deno.serve(async (req) => {
       try {
         let fetchUrl = source.file_url;
         try {
-          const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: source.file_url, expires_in: 300 });
+          // CreateFileSignedUrl expects a storage path, not a full URL
+          const uriPath = source.file_url.includes('/files/') ? source.file_url.split('/files/')[1] : source.file_url;
+          const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: uriPath, expires_in: 300 });
           if (signed?.signed_url) fetchUrl = signed.signed_url;
-        } catch (_) { /* public file */ }
+        } catch (_) { /* fall back to direct fetch of the original URL */ }
         const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60_000) });
         if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
         const buf = await res.arrayBuffer();
@@ -145,9 +165,9 @@ Deno.serve(async (req) => {
             linksAdded += newLinks.length;
           }
 
-          await base44.asServiceRole.entities.GNPDProduct.update(p.id, updates);
-          productsUpdated++;
-          sourceUpdated++;
+          const ok = await updateWithRetry(base44, p.id, updates);
+          if (ok) { productsUpdated++; sourceUpdated++; }
+          await sleep(150); // rate-limit-aware pacing
         }
 
         if (products.length < 200 || timedOut) break;
