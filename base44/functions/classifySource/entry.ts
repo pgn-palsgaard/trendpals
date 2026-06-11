@@ -38,10 +38,12 @@ Deno.serve(async (req) => {
     const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id });
     const readData = readRes.data;
     if (!readData?.ok || !readData.content?.trim()) {
+      // No silent defaults: surface for human classification instead of failing with a guessed type
       await base44.asServiceRole.entities.Source.update(source_id, {
-        pipeline_stage: 'failed',
+        pipeline_stage: 'needs_classification',
+        review_status: 'pending',
         failure_reason: `classification: could not read content — ${readData?.error || 'empty content'}`,
-        classification: { ...(source.classification || {}), status: 'failed', classified_at: new Date().toISOString() },
+        classification: { ...(source.classification || {}), status: 'failed', confidence: null, classified_at: new Date().toISOString() },
       });
       return Response.json({ ok: false, error: `Could not read content: ${readData?.error || 'empty'}` });
     }
@@ -120,10 +122,12 @@ classification_reasoning: ONE sentence explaining the decision.`,
   } catch (error) {
     if (base44 && sourceId) {
       try {
+        // No silent defaults: an error must never leave a plausible-looking type — human decides
         await base44.asServiceRole.entities.Source.update(sourceId, {
-          pipeline_stage: 'failed',
+          pipeline_stage: 'needs_classification',
+          review_status: 'pending',
           failure_reason: `classification: ${error.message}`,
-          classification: { status: 'failed', classified_at: new Date().toISOString(), reasoning: error.message },
+          classification: { status: 'failed', confidence: null, classified_at: new Date().toISOString(), reasoning: error.message },
         });
       } catch (_) { /* best effort */ }
     }
