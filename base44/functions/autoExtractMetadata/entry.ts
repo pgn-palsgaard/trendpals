@@ -78,8 +78,7 @@ Deno.serve(async (req) => {
       return Response.json({ skipped: true, reason: 'Not a narrative document' });
     }
 
-    const isKnowledge = source.source_type === 'knowledge';
-    console.log(`[autoExtractMetadata] Processing source: ${source_id} (${source.title})${isKnowledge ? ' [knowledge variant]' : ''}`);
+    console.log(`[autoExtractMetadata] Processing source: ${source_id} (${source.title})`);
 
     // Mark as processing
     await base44.asServiceRole.entities.Source.update(source_id, {
@@ -94,46 +93,7 @@ Deno.serve(async (req) => {
     let documentText = '';
     let extractionMethod = 'none';
 
-    // Knowledge sources are often pptx/docx — extract text inline (same logic as readSourceContent)
-    if (isKnowledge && source.file_url && /\.(pptx|docx)(\?|$)/.test(lowerUrl)) {
-      try {
-        let fetchUrl = source.file_url;
-        if (!fetchUrl.startsWith('http')) {
-          const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: fetchUrl, expires_in: 300 });
-          fetchUrl = signed.signed_url;
-        }
-        const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60_000) });
-        if (res.ok) {
-          const arrayBuffer = await res.arrayBuffer();
-          if (/\.docx(\?|$)/.test(lowerUrl)) {
-            const mammoth = await import('npm:mammoth@1.8.0');
-            const result = await mammoth.extractRawText({ arrayBuffer });
-            documentText = result.value || '';
-          } else {
-            const JSZip = (await import('npm:jszip@3.10.1')).default;
-            const zip = await JSZip.loadAsync(arrayBuffer);
-            const slideFiles = Object.keys(zip.files).filter(f => /ppt\/slides\/slide[0-9]+\.xml/.test(f)).sort();
-            const parts = [];
-            for (const slideFile of slideFiles) {
-              const xml = await zip.files[slideFile].async('string');
-              const text = xml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-              if (text) parts.push(text);
-            }
-            documentText = parts.join('\n');
-          }
-          if (documentText.length >= 100) {
-            extractionMethod = 'office_inline';
-            console.log(`[autoExtractMetadata] Inline office extraction: ${documentText.length} chars`);
-          } else {
-            documentText = '';
-          }
-        }
-      } catch (e) {
-        console.warn('[autoExtractMetadata] Inline office extraction failed:', e.message);
-      }
-    }
-
-    if (!documentText && source.file_url) {
+    if (source.file_url) {
       try {
         const extractResult = await base44.asServiceRole.integrations.Core.ExtractDataFromUploadedFile({
           file_url: source.file_url,
@@ -220,49 +180,7 @@ Deno.serve(async (req) => {
     const fileName = source.title || '';
 
     // ── STEP 2: Deep LLM analysis ────────────────────────────────────────────
-    // Knowledge variant: internal Palsgaard material gets its own field set
-    const knowledgePrompt = `You are a metadata extraction specialist for Palsgaard, a B2B food ingredient company.
-The following is an INTERNAL Palsgaard knowledge document (sales material, recipe concept, technical guide, etc.).
-
-DOCUMENT TEXT:
-${textForLLM}
-
-FILENAME: ${fileName}
-
-TASK: Extract metadata. Use ONLY these values for enum fields:
-- document_type: "sales_presentation" | "recipe_concept" | "white_paper" | "troubleshooting_guide" | "consumer_insight" | "technical_guide" | "other"
-- application_categories: array from ["Ice Cream", "Bakery", "Confectionery", "Dairy", "Dressings", "Spreads"]
-- audience_scope: "internal" | "external" | "distributor_only" | "regional_restricted"
-  Detect from title/content markers like "FOR DISTRIBUTOR USE ONLY", "AGENTS AND DISTRIBUTORS" (→ distributor_only), "EU ONLY", "ASPAC" or other region restrictions (→ regional_restricted), "EXTERNAL" (→ external). Default to "internal" when unmarked.
-- region_restriction: ONLY when audience_scope="regional_restricted" — the restricted region (e.g. "EU", "ASPAC")
-- product_references: Palsgaard product names mentioned, exactly as written (e.g. "Emulpals 117", "PGPR 4190", "CreamWhip 431")
-- capability_areas: array from ["sustainability", "texture_quality", "cost_efficiency", "compliance_regulatory", "new_product_development", "food_safety", "supply_chain", "plant_based", "general"]
-
-ALSO extract:
-- title: clean human-readable document title (not the raw filename)
-- ai_summary: 2-3 sentence summary of what the document covers
-- notes: 1-2 sentence internal note on its relevance/use
-- tags: short keyword tags
-
-IMPORTANT: Only return fields you are confident about. Do not guess.`;
-
-    const knowledgeSchema = {
-      type: 'object',
-      properties: {
-        title: { type: 'string' },
-        document_type: { type: 'string' },
-        application_categories: { type: 'array', items: { type: 'string' } },
-        audience_scope: { type: 'string' },
-        region_restriction: { type: 'string' },
-        product_references: { type: 'array', items: { type: 'string' } },
-        capability_areas: { type: 'array', items: { type: 'string' } },
-        ai_summary: { type: 'string' },
-        notes: { type: 'string' },
-        tags: { type: 'array', items: { type: 'string' } }
-      }
-    };
-
-    const llmPrompt = isKnowledge ? knowledgePrompt : `You are a metadata extraction specialist for a B2B food ingredient company (Palsgaard). 
+    const llmPrompt = `You are a metadata extraction specialist for a B2B food ingredient company (Palsgaard). 
 Analyze the following document content and extract ALL available metadata with high accuracy.
 
 DOCUMENT TEXT:
@@ -302,7 +220,7 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
       llmResult = await base44.asServiceRole.integrations.Core.InvokeLLM({
         prompt: llmPrompt,
         model: 'claude_sonnet_4_6',
-        response_json_schema: isKnowledge ? knowledgeSchema : {
+        response_json_schema: {
           type: 'object',
           properties: {
             title: { type: 'string' },
@@ -347,28 +265,15 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
       metadata_extraction: {
         status: 'extracted',
         last_attempted: new Date().toISOString(),
-        // Knowledge sources are internal Palsgaard material — auto-verified, no manual gate
-        verified: isKnowledge,
-        variant: isKnowledge ? 'knowledge' : 'market_intel',
+        verified: false,
         extraction_method: extractionMethod,
         extracted_data: llmResult
       }
     };
 
-    if (isKnowledge) {
-      // Auto-approve so knowledge sources flow straight to excerpt processing
-      updateData.review_status = 'approved';
-      updateData.reviewed_at = new Date().toISOString();
-    }
-
     // Apply extracted fields to top-level Source fields
     // Only overwrite if currently empty/missing
-    const fieldMapping = isKnowledge ? {
-      title: 'title',
-      ai_summary: 'ai_summary',
-      notes: 'notes',
-      tags: 'tags'
-    } : {
+    const fieldMapping = {
       title: 'title',
       subtitle: 'subtitle',
       author: 'author',
@@ -418,13 +323,8 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
       }
     }
 
-    // Knowledge: map first application category to Source.category if empty
-    if (isKnowledge && Array.isArray(llmResult.application_categories) && llmResult.application_categories.length > 0 && !source.category) {
-      updateData.category = llmResult.application_categories[0];
-    }
-
     // Missing fields tracking
-    const requiredFields = isKnowledge ? ['title'] : ['title', 'date_published', 'category', 'region_code'];
+    const requiredFields = ['title', 'date_published', 'category', 'region_code'];
     const missingFields = requiredFields.filter(f => !llmResult[f] && !source[f]);
     updateData.metadata_extraction.missing_fields = missingFields;
     if (missingFields.length > 0) {
