@@ -206,12 +206,13 @@
         "uploaded",
         "needs_classification",
         "extracting",
+        "metadata_extracted",
         "extracted",
         "gnpd_ready",
         "skipped",
         "failed"
       ],
-      "description": "Processing pipeline stage \u2014 first status axis. 'needs_classification' = LLM classification below confidence threshold, awaiting human decision. 'extracted' triggers expert example extraction for Mintel sources; 'gnpd_ready' marks a fully ingested GNPD file"
+      "description": "Processing pipeline stage \u2014 first status axis. 'needs_classification' = LLM classification below confidence threshold, awaiting human decision. 'extracting' = machine working (metadata or excerpt extraction). 'metadata_extracted' = metadata done, awaiting human verification/approval. 'extracted' = excerpts extracted (triggers expert example extraction for Mintel sources); 'gnpd_ready' marks a fully ingested GNPD file"
     },
     "review_status": {
       "type": "string",

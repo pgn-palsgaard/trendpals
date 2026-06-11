@@ -23,12 +23,17 @@ import KnowledgeUploadModal from '../knowledge/KnowledgeUploadModal';
 import ProcessQueueControls, { RetryRowButton } from './ProcessQueueControls';
 import ProcessingStatusBar from './ProcessingStatusBar';
 import NeedsClassificationSection from './NeedsClassificationSection';
+import { getSourceAttentionState, STATE_TO_TAB, attentionNote, checkTabInvariant } from './sourceAttentionState';
+
+// Back-compat: some panels import this from here
+export { attentionNote as queueBlockedReason };
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 export const PIPELINE_BADGE = {
   uploaded:   { label: 'Uploaded',   cls: 'bg-slate-100 text-slate-600' },
   needs_classification: { label: 'Needs Classification', cls: 'bg-purple-100 text-purple-700' },
   extracting: { label: 'Extracting', cls: 'bg-blue-100 text-blue-700' },
+  metadata_extracted: { label: 'Metadata Ready', cls: 'bg-teal-100 text-teal-700' },
   extracted:  { label: 'Extracted',  cls: 'bg-green-100 text-green-700' },
   gnpd_ready: { label: 'GNPD Ready', cls: 'bg-blue-100 text-blue-700' },
   skipped:    { label: 'Skipped',    cls: 'bg-slate-100 text-slate-400' },
@@ -51,32 +56,11 @@ export function RBadge({ status }) {
   return <span className={`inline-flex text-xs font-medium px-2 py-0.5 rounded-full ${cfg.cls}`}>{cfg.label}</span>;
 }
 
-// A source is "ready for review" when excerpts are extracted OR metadata extraction
-// finished — regardless of how it entered the system.
-function isReadyForReview(s) {
-  return s.pipeline_stage === 'extracted' ||
-    ['extracted', 'partial'].includes(s.metadata_extraction?.status);
-}
-
-// Why a queued source can't be processed yet (null = not blocked)
-export function queueBlockedReason(s) {
-  if (!s.metadata_extraction) return 'Metadata extraction missing';
-  if (!s.metadata_extraction.verified) return 'Awaiting metadata verification';
-  if (s.review_status !== 'approved') return 'Awaiting approval';
-  return null;
-}
-
+// Tabs are derived from ONE shared attention state — mutually exclusive by construction.
 function tabFilter(tab, s) {
-  switch (tab) {
-    case 'awaiting_review': return (s.review_status === 'pending' && isReadyForReview(s)) || s.pipeline_stage === 'needs_classification';
-    case 'approved':        return s.review_status === 'approved';
-    case 'rejected':        return s.review_status === 'rejected';
-    case 'failed':          return s.pipeline_stage === 'failed';
-    case 'uploaded':        return s.pipeline_stage === 'uploaded' || s.pipeline_stage === 'extracting';
-    case 'skipped':         return s.pipeline_stage === 'skipped';
-    case 'deletion_pending':return Array.isArray(s.tags) && s.tags.includes('deletion_pending');
-    default:                return true;
-  }
+  if (tab === 'all') return true;
+  if (tab === 'deletion_pending') return Array.isArray(s.tags) && s.tags.includes('deletion_pending');
+  return STATE_TO_TAB[getSourceAttentionState(s)] === tab;
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────
@@ -90,8 +74,6 @@ export default function RagSourceTable({
   ExtraFilterBar,
   // optional: array of { key, header, render(s) } added after Review Status column
   extraColumns = [],
-  // default source_type pre-selected in the upload modal
-  uploadDefaultSourceType = 'knowledge',
 }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState('awaiting_review');
@@ -138,6 +120,9 @@ export default function RagSourceTable({
     deletion_pending: sources.filter(s => tabFilter('deletion_pending', s)).length,
     all:              sources.length,
   }), [sources]);
+
+  // Invariant: tabs are disjoint — sum must always equal All
+  useEffect(() => { checkTabInvariant(sources, counts); }, [sources, counts]);
 
   const visibleRows = useMemo(() => {
     let rows = sources.filter(s => tabFilter(activeTab, s));
@@ -441,10 +426,10 @@ export default function RagSourceTable({
                           </td>
                         ))}
                         <td className="px-4 py-3 max-w-[200px]">
-                          {activeTab === 'uploaded' && queueBlockedReason(s) && (
+                          {['uploaded', 'awaiting_review', 'all'].includes(activeTab) && attentionNote(s) && (
                             <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 font-medium mb-1">
                               <AlertCircle className="w-3 h-3" />
-                              {queueBlockedReason(s)}
+                              {attentionNote(s)}
                             </span>
                           )}
                           {s.failure_reason && <p className="text-xs text-red-600 font-medium">{s.failure_reason}</p>}
@@ -476,7 +461,7 @@ export default function RagSourceTable({
         sources={selectedSources}
       />
 
-      {showUploadModal && <KnowledgeUploadModal onClose={() => setShowUploadModal(false)} defaultSourceType={uploadDefaultSourceType} />}
+      {showUploadModal && <KnowledgeUploadModal onClose={() => setShowUploadModal(false)} />}
 
       <SourceDetailPanel
         sourceId={openSourceId}

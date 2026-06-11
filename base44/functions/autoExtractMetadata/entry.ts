@@ -34,6 +34,23 @@ Deno.serve(async (req) => {
       return Response.json({ skipped: true, reason: 'Already verified' });
     }
 
+    // Classification gate: classifySource invokes this function AFTER classification is
+    // decided. Don't race the create-automation against an in-flight classification.
+    if (source.classification?.status === 'classifying' || source.pipeline_stage === 'needs_classification') {
+      return Response.json({ skipped: true, reason: 'Classification in progress — will be invoked after classification decision' });
+    }
+
+    // Intake invariant: a classified source must never have a null confidence
+    if (source.classification &&
+        ['auto_applied', 'pending', 'confirmed', 'corrected'].includes(source.classification.status) &&
+        (source.classification.confidence === null || source.classification.confidence === undefined)) {
+      await base44.asServiceRole.entities.Source.update(source_id, {
+        pipeline_stage: 'failed',
+        failure_reason: 'intake_invariant: classification_confidence is null post-intake',
+      });
+      return Response.json({ error: 'Invariant violation: classification_confidence null' }, { status: 422 });
+    }
+
     // ── Smart skip rules (DEL 4) ──────────────────────────────────────────────
     // GNPD: has its own column-mapping pipeline
     if (source.source_type === 'gnpd') {
@@ -80,8 +97,10 @@ Deno.serve(async (req) => {
 
     console.log(`[autoExtractMetadata] Processing source: ${source_id} (${source.title})`);
 
-    // Mark as processing
+    // Mark as processing — pipeline_stage reflects reality during extraction
+    const wasPreExtraction = !source.pipeline_stage || ['uploaded', 'extracting'].includes(source.pipeline_stage);
     await base44.asServiceRole.entities.Source.update(source_id, {
+      ...(wasPreExtraction && { pipeline_stage: 'extracting' }),
       metadata_extraction: {
         ...(source.metadata_extraction || {}),
         status: 'pending',
@@ -329,6 +348,12 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
     updateData.metadata_extraction.missing_fields = missingFields;
     if (missingFields.length > 0) {
       updateData.metadata_extraction.status = 'partial';
+    }
+
+    // Metadata done → past 'uploaded' (invariant). Don't regress sources already
+    // further along (extracted/gnpd_ready — e.g. legacy backfills).
+    if (wasPreExtraction) {
+      updateData.pipeline_stage = 'metadata_extracted';
     }
 
     await base44.asServiceRole.entities.Source.update(source_id, updateData);

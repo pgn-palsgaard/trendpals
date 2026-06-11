@@ -46,13 +46,17 @@ Deno.serve(async (req) => {
         s && !SKIP_TYPES.has(s.source_type) &&
         s.metadata_extraction?.verified === true &&
         s.review_status === 'approved' &&
-        s.pipeline_stage === 'uploaded' &&
+        ['uploaded', 'metadata_extracted'].includes(s.pipeline_stage) &&
         !(s.excerpts?.length > 0)
       );
       console.log(`[processSourceQueue] Requested ${sourceIds.length} IDs, found ${sourcesToProcess.length} eligible sources`);
     } else {
-      // Find all uploaded sources (excluding GNPD)
-      const uploaded = await db.entities.Source.filter({ pipeline_stage: 'uploaded' }, '-created_date', 500);
+      // Find all queued sources (excluding GNPD)
+      const [up, metaDone] = await Promise.all([
+        db.entities.Source.filter({ pipeline_stage: 'uploaded' }, '-created_date', 500),
+        db.entities.Source.filter({ pipeline_stage: 'metadata_extracted' }, '-created_date', 500),
+      ]);
+      const uploaded = [...up, ...metaDone];
       // Verification gate: only human-verified + approved sources may be extracted
       sourcesToProcess = uploaded.filter(s =>
         !SKIP_TYPES.has(s.source_type) &&
