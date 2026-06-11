@@ -125,14 +125,22 @@ Deno.serve(async (req) => {
           let fileContent = '';
           if (source.file_url || source.url) {
             // Service-role function invoke intermittently 403s — fall back to user-scoped invoke
-            let readRes;
+            let readData;
             try {
-              readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
+              const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
+              readData = readRes?.data ?? readRes;
             } catch (invokeErr) {
-              console.warn(`[processSourceQueue] asServiceRole invoke failed (${invokeErr.message}) — retrying with user token`);
-              readRes = await base44.functions.invoke('readSourceContent', { source_id: source.id });
+              console.warn(`[processSourceQueue] asServiceRole invoke failed (${invokeErr.message}) — retrying via direct HTTP with caller auth`);
+              const fnUrl = `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/readSourceContent`;
+              const headers = { 'Content-Type': 'application/json' };
+              for (const h of ['authorization', 'api_key', 'x-api-key', 'cookie']) {
+                const v = req.headers.get(h);
+                if (v) headers[h] = v;
+              }
+              const httpRes = await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ source_id: source.id }) });
+              if (!httpRes.ok) throw new Error(`readSourceContent HTTP ${httpRes.status}: ${(await httpRes.text()).slice(0, 200)}`);
+              readData = await httpRes.json();
             }
-            const readData = readRes?.data ?? readRes;
             if (readData?.ok) {
               fileContent = readData.content || '';
               console.log(`[processSourceQueue] Got ${fileContent.length} chars (${readData.mime_type}) for ${source.id}`);
