@@ -124,7 +124,14 @@ Deno.serve(async (req) => {
           // Read the source content via the shared extractor (PDF/PPTX/DOCX/HTML/TXT/MD)
           let fileContent = '';
           if (source.file_url || source.url) {
-            const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
+            // Service-role function invoke intermittently 403s — fall back to user-scoped invoke
+            let readRes;
+            try {
+              readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
+            } catch (invokeErr) {
+              console.warn(`[processSourceQueue] asServiceRole invoke failed (${invokeErr.message}) — retrying with user token`);
+              readRes = await base44.functions.invoke('readSourceContent', { source_id: source.id });
+            }
             const readData = readRes?.data ?? readRes;
             if (readData?.ok) {
               fileContent = readData.content || '';
