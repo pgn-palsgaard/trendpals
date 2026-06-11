@@ -22,10 +22,12 @@ import SourceDetailPanel from './SourceDetailPanel';
 import KnowledgeUploadModal from '../knowledge/KnowledgeUploadModal';
 import ProcessQueueControls, { RetryRowButton } from './ProcessQueueControls';
 import ProcessingStatusBar from './ProcessingStatusBar';
+import NeedsClassificationSection from './NeedsClassificationSection';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 export const PIPELINE_BADGE = {
   uploaded:   { label: 'Uploaded',   cls: 'bg-slate-100 text-slate-600' },
+  needs_classification: { label: 'Needs Classification', cls: 'bg-purple-100 text-purple-700' },
   extracting: { label: 'Extracting', cls: 'bg-blue-100 text-blue-700' },
   extracted:  { label: 'Extracted',  cls: 'bg-green-100 text-green-700' },
   gnpd_ready: { label: 'GNPD Ready', cls: 'bg-blue-100 text-blue-700' },
@@ -66,7 +68,7 @@ export function queueBlockedReason(s) {
 
 function tabFilter(tab, s) {
   switch (tab) {
-    case 'awaiting_review': return s.review_status === 'pending' && isReadyForReview(s);
+    case 'awaiting_review': return (s.review_status === 'pending' && isReadyForReview(s)) || s.pipeline_stage === 'needs_classification';
     case 'approved':        return s.review_status === 'approved';
     case 'rejected':        return s.review_status === 'rejected';
     case 'failed':          return s.pipeline_stage === 'failed';
@@ -299,6 +301,14 @@ export default function RagSourceTable({
             <TabsTrigger value="all">All ({counts.all})</TabsTrigger>
           </TabsList>
         </Tabs>
+
+        {/* Needs classification — human-in-the-loop on low-confidence auto-classification */}
+        {activeTab === 'awaiting_review' && (
+          <NeedsClassificationSection
+            sources={visibleRows.filter(s => s.pipeline_stage === 'needs_classification')}
+            onRefresh={handleRefresh}
+          />
+        )}
 
         {/* Extra filters */}
         {ExtraFilterBar}

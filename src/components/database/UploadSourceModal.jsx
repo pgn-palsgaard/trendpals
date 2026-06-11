@@ -4,12 +4,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X, Upload, Loader2, Sparkles } from 'lucide-react';
+import { X, Upload, Loader2, Sparkles, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import UploadStatusCard from './UploadStatusCard';
-import { intakeFile } from '../intake/sourceIntake';
+import { intakeFile, DuplicateSourceError } from '../intake/sourceIntake';
 
 async function buildGnpdTitleFromFile(file) {
   try {
@@ -47,28 +46,25 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
   const [uploading, setUploading] = useState(false);
   const [sourceId, setSourceId] = useState(null);
   const [uploadComplete, setUploadComplete] = useState(false);
-  const [sourceType, setSourceType] = useState('mintel');
   const [autoTitle, setAutoTitle] = useState(null);
+  const [duplicateOf, setDuplicateOf] = useState(null);
 
   const handleFileChange = async (e) => {
     const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
-      // Auto-detect source type from filename
-      const name = selectedFile.name.toLowerCase();
-      if (name.includes('gnpd') || name.startsWith('gnpd')) {
-        setSourceType('gnpd');
-        // Try to build a smart title from the Search details sheet
+      setDuplicateOf(null);
+      const ext = selectedFile.name.toLowerCase().split('.').pop();
+      if (ext === 'xls' || ext === 'xlsx') {
+        // Try to build a smart title from the Search details sheet (GNPD exports)
         const smartTitle = await buildGnpdTitleFromFile(selectedFile);
         if (smartTitle) setAutoTitle(smartTitle);
-      } else if (name.includes('mintel')) {
-        setSourceType('mintel');
       }
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e, allowDuplicate = false) => {
+    e?.preventDefault();
     if (!file) {
       toast.error('Please select a file');
       return;
@@ -76,7 +72,7 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
 
     setUploading(true);
     try {
-      const result = await intakeFile({ file, sourceType, projectId: projectId || null, title: autoTitle || file.name });
+      const result = await intakeFile({ file, projectId: projectId || null, title: autoTitle || file.name, allowDuplicate });
       queryClient.invalidateQueries({ queryKey: ['sourcesDatabase'] });
       if (projectId) {
         queryClient.invalidateQueries({ queryKey: ['projectSources', projectId] });
@@ -87,7 +83,11 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
         ? `${result.rows?.toLocaleString() || ''} products detected — auto-parse started`
         : 'Upload complete — AI is filling in the metadata');
     } catch (error) {
-      toast.error(error.message || 'Upload failed');
+      if (error instanceof DuplicateSourceError) {
+        setDuplicateOf(error.duplicates[0]);
+      } else {
+        toast.error(error.message || 'Upload failed');
+      }
     } finally {
       setUploading(false);
     }
@@ -146,22 +146,31 @@ export default function UploadSourceModal({ onClose, projectId, onLinkSource }) 
             <p className="text-xs text-slate-500">Accepts: PDF, CSV, XLSX, XLS, HTML (max 50MB)</p>
           </div>
 
-          {/* Source Type — the one thing AI can't reliably infer */}
-          <div className="space-y-2">
-            <Label>Source Type *</Label>
-            <Select value={sourceType} onValueChange={setSourceType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="mintel">Mintel Report</SelectItem>
-                <SelectItem value="gnpd">GNPD Export</SelectItem>
-                <SelectItem value="report">Other Report</SelectItem>
-                <SelectItem value="knowledge">Knowledge / Internal Doc</SelectItem>
-                <SelectItem value="other">Other</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Auto-classification — no manual source type */}
+          <div className="bg-purple-50 border border-purple-200 rounded-lg px-4 py-3 text-xs text-purple-800 flex items-start gap-2">
+            <Sparkles className="w-4 h-4 shrink-0 mt-0.5 text-purple-600" />
+            <span>Source type is detected automatically (Mintel / Market Intel / Knowledge). GNPD spreadsheets are validated against the Mintel template. Low-confidence files go to "Needs Classification" for review.</span>
           </div>
+
+          {/* Duplicate blocked */}
+          {duplicateOf && (
+            <div className="bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 text-sm space-y-2">
+              <div className="flex items-start gap-2 text-amber-800">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold">Duplicate detected</p>
+                  <p className="text-xs mt-0.5">
+                    "{duplicateOf.title}" already exists — {duplicateOf.pipeline_stage || 'uploaded'} / {duplicateOf.review_status || 'pending'}
+                  </p>
+                </div>
+              </div>
+              <Button type="button" size="sm" variant="outline" className="border-amber-400 text-amber-800"
+                disabled={uploading}
+                onClick={(e) => handleSubmit(e, true)}>
+                Upload anyway as new version
+              </Button>
+            </div>
+          )}
 
           {file && (
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800 space-y-1">

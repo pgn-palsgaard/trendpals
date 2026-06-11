@@ -5,23 +5,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Upload, FolderOpen, File, X, Loader2 } from 'lucide-react';
+import { Upload, FolderOpen, File, X, Loader2, Sparkles } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
+import { intakeFile, DuplicateSourceError } from '../intake/sourceIntake';
 
-export default function KnowledgeUploadModal({ onClose, defaultSourceType = 'knowledge' }) {
+export default function KnowledgeUploadModal({ onClose }) {
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
   const [files, setFiles] = useState([]);
   const [batchName, setBatchName] = useState('');
-  const [sourceType, setSourceType] = useState(defaultSourceType);
-  const [options, setOptions] = useState({
-    default_trust_tier: 'draft',
-    default_knowledge_subtype: 'other',
-    auto_tag_from_folders: true,
-    skip_duplicates: true
-  });
+  const [allowDuplicate, setAllowDuplicate] = useState(false);
+  const [options] = useState({ auto_tag_from_folders: true });
 
   const handleFileSelect = (e) => {
     const selectedFiles = Array.from(e.target.files);
@@ -111,42 +107,37 @@ export default function KnowledgeUploadModal({ onClose, defaultSourceType = 'kno
 
   const uploadSingleFile = async (fileItem, batchId, index) => {
     try {
-      // Upload file
-      const { file_url } = await base44.integrations.Core.UploadFile({
-        file: fileItem.file
+      // Unified intake: dedup check + auto-classification (no manual source_type)
+      const { sourceId } = await intakeFile({
+        file: fileItem.file,
+        title: fileItem.filename,
+        allowDuplicate,
       });
 
-      // Create knowledge source
+      // Enrich with batch/folder metadata
       const tags = options.auto_tag_from_folders && fileItem.folder_path
         ? extractTagsFromPath(fileItem.relative_path)
         : [];
-
-      const createdSource = await base44.entities.Source.create({
-        source_type: sourceType,
-        ...(sourceType === 'knowledge' && { knowledge_subtype: options.default_knowledge_subtype }),
-        title: fileItem.filename,
-        file_url,
+      await base44.entities.Source.update(sourceId, {
         relative_path: fileItem.relative_path,
         folder_path: fileItem.folder_path,
-        file_size: fileItem.file_size,
-        visibility: 'org_shared',
-        allowed_use: 'capability_proof_only',
-        tags,
         upload_batch_id: batchId,
-        pipeline_stage: 'uploaded',
-        review_status: 'pending',
-        date: new Date().toISOString().split('T')[0]
+        ...(tags.length > 0 && { tags }),
       });
 
-      // Update batch progress (with source_id for traceability)
       await base44.functions.invoke('updateBatchProgress', {
         batch_id: batchId,
         file_index: index,
         status: 'completed',
-        source_id: createdSource.id
+        source_id: sourceId
       });
     } catch (error) {
-      console.error('File upload failed:', fileItem.filename, error);
+      if (error instanceof DuplicateSourceError) {
+        const dup = error.duplicates[0];
+        toast.error(`"${fileItem.filename}" blocked — duplicate of "${dup.title}" (${dup.review_status || 'pending'}). Tick "Upload anyway as new version" to override.`, { duration: 8000 });
+      } else {
+        console.error('File upload failed:', fileItem.filename, error);
+      }
       await base44.functions.invoke('updateBatchProgress', {
         batch_id: batchId,
         file_index: index,
@@ -180,44 +171,20 @@ export default function KnowledgeUploadModal({ onClose, defaultSourceType = 'kno
             />
           </div>
 
-          {/* Source type */}
-          <div>
-            <Label>Source Type</Label>
-            <Select value={sourceType} onValueChange={setSourceType}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="mintel">Mintel Report</SelectItem>
-                <SelectItem value="report">Other Report / Trade Press</SelectItem>
-                <SelectItem value="knowledge">Knowledge / Internal Doc</SelectItem>
-              </SelectContent>
-            </Select>
+          {/* Auto-classification notice */}
+          <div className="flex items-start gap-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+            <Sparkles className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+            <p className="text-xs text-purple-800">
+              Source type is detected automatically (Knowledge / Mintel / Market Intel — GNPD spreadsheets are validated against the Mintel template).
+              If the AI isn't confident, the file lands in <span className="font-semibold">Needs Classification</span> for your one-click confirmation.
+            </p>
           </div>
 
-          {/* Upload Options */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Default Subtype</Label>
-              <Select
-                value={options.default_knowledge_subtype}
-                onValueChange={(value) => setOptions({ ...options, default_knowledge_subtype: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="product_sheet">Product Sheet</SelectItem>
-                  <SelectItem value="technical_doc">Technical Doc</SelectItem>
-                  <SelectItem value="capability_overview">Capability Overview</SelectItem>
-                  <SelectItem value="certification">Certification</SelectItem>
-                  <SelectItem value="sustainability">Sustainability</SelectItem>
-                  <SelectItem value="application_note">Application Note</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+          {/* Duplicate override */}
+          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+            <Checkbox checked={allowDuplicate} onCheckedChange={v => setAllowDuplicate(!!v)} />
+            Upload anyway as new version (override duplicate detection)
+          </label>
 
           {/* Upload Buttons */}
           <div className="flex gap-3">

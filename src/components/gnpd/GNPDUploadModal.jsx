@@ -3,6 +3,7 @@ import { base44 } from '@/api/base44Client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Loader2, Upload, X, CheckCircle2, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
+import { intakeFile, DuplicateSourceError } from '../intake/sourceIntake';
 
 const BLUE   = '#1D428A';
 const ORANGE = '#C15338';
@@ -38,46 +39,28 @@ export default function GNPDUploadModal({ onClose, onUploaded }) {
     setErrors([]);
 
     try {
-      // 1. Upload the raw file
-      const { file_url } = await base44.integrations.Core.UploadFile({ file });
-
-      // 2. Create the Source record (minimal — validateAndIngestGNPD fills the rest)
-      const source = await base44.entities.Source.create({
-        source_type: 'gnpd',
-        title: file.name,
-        file_url,
-        file_size: file.size,
-        status: 'uploaded',
-        gnpd_mapping_status: 'detecting',
-        visibility: 'org_shared'
-      });
-
       setStage('validating');
-
-      // 3. Run validation + ingestion
-      const res = await base44.functions.invoke('validateAndIngestGNPD', { source_id: source.id });
-      const data = res.data;
-
-      if (!data.success) {
-        // Validation failed — show errors
-        setErrors(data.errors || ['Validation failed. Please check the file and try again.']);
-        setStage('error');
-        return;
-      }
+      // Unified intake: dedup check + locked GNPD template validation + ingestion
+      const result = await intakeFile({ file, title: file.name });
 
       setResult({
-        title: data.auto_metadata?.title,
-        region_code: data.auto_metadata?.region_code,
-        category: data.auto_metadata?.category,
-        dateRange: data.auto_metadata?.dateRange,
-        rows: data.rows,
+        title: result.auto_metadata?.title,
+        region_code: result.auto_metadata?.region_code,
+        category: result.auto_metadata?.category,
+        dateRange: result.auto_metadata?.dateRange,
+        rows: result.rows,
       });
       setStage('done');
-      toast.success(`Uploaded: ${data.rows?.toLocaleString()} products detected`);
+      toast.success(`Uploaded: ${result.rows?.toLocaleString()} products detected`);
       onUploaded?.();
 
     } catch (err) {
-      setErrors([err.message || 'Upload failed. Please try again.']);
+      if (err instanceof DuplicateSourceError) {
+        const dup = err.duplicates[0];
+        setErrors([`Duplicate detected: "${dup.title}" already exists (${dup.pipeline_stage || 'uploaded'} / ${dup.review_status || 'pending'}). Delete the existing source first if you want to re-upload.`]);
+      } else {
+        setErrors([err.message || 'Upload failed. Please try again.']);
+      }
       setStage('error');
     }
   };

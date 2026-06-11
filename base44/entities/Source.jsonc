@@ -19,6 +19,66 @@
       ],
       "description": "Type of source"
     },
+    "classification": {
+      "type": "object",
+      "description": "LLM auto-classification record set at intake. Every non-GNPD source created via the unified intake must have one.",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "classifying",
+            "auto_applied",
+            "pending",
+            "confirmed",
+            "corrected",
+            "failed"
+          ],
+          "description": "classifying=in progress, auto_applied=high confidence applied, pending=needs human review, confirmed/corrected=human decided, failed=classification error"
+        },
+        "proposed_source_type": {
+          "type": "string",
+          "enum": [
+            "knowledge",
+            "mintel",
+            "market_intel",
+            "url"
+          ]
+        },
+        "document_type": {
+          "type": "string",
+          "description": "Proposed document type (per knowledge-variant enum where relevant)"
+        },
+        "category_relevance": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "region_signal": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number",
+          "description": "0-100 classification confidence"
+        },
+        "reasoning": {
+          "type": "string",
+          "description": "One-sentence classification reasoning shown in UI"
+        },
+        "classified_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "decided_by": {
+          "type": "string",
+          "description": "Email of human who confirmed/corrected"
+        },
+        "decided_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
     "knowledge_subtype": {
       "type": "string",
       "enum": [
@@ -144,13 +204,14 @@
       "type": "string",
       "enum": [
         "uploaded",
+        "needs_classification",
         "extracting",
         "extracted",
         "gnpd_ready",
         "skipped",
         "failed"
       ],
-      "description": "Processing pipeline stage \u2014 first status axis. 'extracted' triggers expert example extraction for Mintel sources; 'gnpd_ready' marks a fully ingested GNPD file"
+      "description": "Processing pipeline stage \u2014 first status axis. 'needs_classification' = LLM classification below confidence threshold, awaiting human decision. 'extracted' triggers expert example extraction for Mintel sources; 'gnpd_ready' marks a fully ingested GNPD file"
     },
     "review_status": {
       "type": "string",
