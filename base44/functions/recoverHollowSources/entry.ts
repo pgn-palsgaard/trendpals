@@ -51,8 +51,13 @@ Deno.serve(async (req) => {
         if (Date.now() - start > TIME_BUDGET_MS) {
           return Response.json({ mode, partial: true, results, remaining: targets.length - results.length });
         }
-        await svc.update(s.id, { excerpts: [], pipeline_stage: 'metadata_extracted', rag_excerpt_count: 0 });
-        results.push({ id: s.id, title: (s.title || '').slice(0, 70), before_hollow: s.excerpts.length, review_status: s.review_status });
+        const metadataExisted = s.metadata_extraction?.status === 'extracted' || !!s.metadata_extraction?.extracted_fields || !!s.metadata_extraction?.extracted_at;
+        const stage = metadataExisted ? 'metadata_extracted' : 'uploaded';
+        const update = { excerpts: [], pipeline_stage: stage, rag_excerpt_count: 0 };
+        // Surface in Awaiting Review: approved-but-unverified must re-enter the human gate
+        if (s.review_status === 'approved') update.review_status = 'pending';
+        await svc.update(s.id, update);
+        results.push({ id: s.id, title: (s.title || '').slice(0, 70), before_hollow: s.excerpts.length, review_status: s.review_status, metadata_existed: metadataExisted, new_stage: stage });
       }
       return Response.json({ mode, reset_count: results.length, results });
     }
