@@ -10,6 +10,7 @@ import {
   FileText, RefreshCw
 } from 'lucide-react';
 import { format, isValid } from 'date-fns';
+import MetadataEditSection from './MetadataEditSection';
 
 // Safely format a date string — returns null for missing/invalid dates instead of throwing
 function safeFormat(value, fmt) {
@@ -366,6 +367,14 @@ export default function SourceDetailPanel({ sourceId, onClose, onRefresh }) {
                   <SkipForward className="w-4 h-4 shrink-0" />
                   <span>Skipped: <strong>{source.skip_reason || 'unknown reason'}</strong></span>
                 </div>
+              )}
+
+              {/* Inline metadata editing — awaiting verification or approved (admin correction) */}
+              {!isGnpd && (
+                (source.pipeline_stage === 'metadata_extracted' && source.review_status === 'pending') ||
+                source.review_status === 'approved'
+              ) && (
+                <MetadataEditSection source={source} onSourceChange={setSource} />
               )}
 
               {/* AI summary */}
