@@ -69,7 +69,8 @@ DOCUMENT TEXT (truncated):
 ${sample}
 
 Return your classification. document_type must be one of: product_sheet, recipe_suggestion, technical_doc, capability_overview, case_study, certification, sustainability, application_note, consumer_insight, market_report, trend_report, trade_press_article, whitepaper, presentation, webinar, other.
-category_relevance values from: Bakery, Confectionery, Dairy, Feed, Fine Food, Ice Cream, Lipid, Meat, Other Food Applications, PCI, Polymer, Tech.
+category_relevance values from canonical Palsgaard solution keys: bakery, condiments, chocolate_confectionery, dairy, ice_cream, meat, oils_fats, plant_based, rutf_rusf, out_of_scope, needs_human_review.
+Use multiple keys when the document covers several solution areas. For cross-category sources, populate category_relevance with all relevant keys — do NOT default to needs_human_review when the document legitimately spans multiple categories.
 region_signal from: ASPAC, AMERICAS, EMEC, IMEA, Global (or empty if unclear).
 classification_confidence: 0-100 — how certain you are about proposed_source_type. Be conservative: only score >=85 when markers are unambiguous.
 classification_reasoning: ONE sentence explaining the decision.`,

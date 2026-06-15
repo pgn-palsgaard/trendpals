@@ -5,7 +5,18 @@ import RagSourceTable from './RagSourceTable';
 import BackfillJobPanel from '../BackfillJobPanel';
 
 const REGIONS = ['Global', 'IMEA', 'EMEC', 'ASPAC', 'AMERICAS'];
-const CATEGORIES = ['Bakery', 'Confectionery', 'Dairy', 'Feed', 'Fine Food', 'Ice Cream', 'Lipid', 'Meat', 'Other Food Applications', 'PCI', 'Polymer', 'Tech'];
+const CATEGORIES = [
+  { value: 'bakery',                  label: 'Bakery' },
+  { value: 'condiments',              label: 'Condiments' },
+  { value: 'chocolate_confectionery', label: 'Chocolate & Confectionery' },
+  { value: 'dairy',                   label: 'Dairy' },
+  { value: 'ice_cream',               label: 'Ice Cream' },
+  { value: 'meat',                    label: 'Processed meat' },
+  { value: 'oils_fats',               label: 'Oils & Fats' },
+  { value: 'plant_based',             label: 'Plant-based products' },
+  { value: 'rutf_rusf',               label: 'RUTF and RUSF' },
+  { value: 'needs_human_review',      label: 'Needs review' },
+];
 
 const SOURCE_TYPE_LABELS = {
   mintel:      'Mintel',
@@ -68,7 +79,7 @@ export default function MarketIntelLibrary() {
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="all">All categories</SelectItem>
-          {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
         </SelectContent>
       </Select>
     </div>

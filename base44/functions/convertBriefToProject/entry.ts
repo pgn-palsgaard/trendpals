@@ -110,11 +110,24 @@ Deno.serve(async (req) => {
       });
     }
 
+    const rawCategory = Array.isArray(brief.categories) ? brief.categories[0] : (brief.categories?.split(",")[0].trim() || "");
+    const BRIEF_NORM = {
+      'confectionery': 'chocolate_confectionery', 'chocolate': 'chocolate_confectionery',
+      'chocolate confectionery': 'chocolate_confectionery', 'chocolate & confectionery': 'chocolate_confectionery',
+      'bakery': 'bakery', 'cake': 'bakery', 'cake gels': 'bakery', 'baking': 'bakery',
+      'dairy': 'dairy', 'ice cream': 'ice_cream', 'ice-cream': 'ice_cream',
+      'meat': 'meat', 'processed meat': 'meat',
+      'oils': 'oils_fats', 'oils & fats': 'oils_fats', 'fats': 'oils_fats',
+      'plant based': 'plant_based', 'plant-based': 'plant_based', 'plant based products': 'plant_based',
+      'rutf': 'rutf_rusf', 'rusf': 'rutf_rusf', 'rutf and rusf': 'rutf_rusf',
+      'condiments': 'condiments',
+    };
+    const canonicalCategory = BRIEF_NORM[rawCategory.trim().toLowerCase()] || 'needs_human_review';
     const projectName = `${brief.account} — ${Array.isArray(brief.categories) ? brief.categories[0] : (brief.categories?.split(",")[0].trim() || "General")}`;
 
     const project = await base44.asServiceRole.entities.Project.create({
       name: projectName,
-      category: Array.isArray(brief.categories) ? brief.categories[0] : (brief.categories?.split(",")[0].trim() || "Other Food Applications"),
+      category: canonicalCategory,
       region_code: mapRegion(brief.region),
       customer_name: brief.account,
       objective: brief.purpose,

@@ -43,17 +43,16 @@ const formSchema = z.object({
   customer_priorities: z.array(z.string()).optional(),
 });
 
-const categories = [
-  "Cake premixes & Long shelf-life cakes",
-  "Cake gels",
-  "Condiments",
-  "Chocolate & Confectionery",
-  "Dairy",
-  "Ice Cream",
-  "Processed meat",
-  "Oils & Fats",
-  "Plant-based products",
-  "RUTF and RUSF",
+const SOLUTION_OPTIONS = [
+  { value: 'bakery',                  label: 'Bakery' },
+  { value: 'condiments',              label: 'Condiments' },
+  { value: 'chocolate_confectionery', label: 'Chocolate & Confectionery' },
+  { value: 'dairy',                   label: 'Dairy' },
+  { value: 'ice_cream',               label: 'Ice Cream' },
+  { value: 'meat',                    label: 'Processed meat' },
+  { value: 'oils_fats',               label: 'Oils & Fats' },
+  { value: 'plant_based',             label: 'Plant-based products' },
+  { value: 'rutf_rusf',               label: 'RUTF and RUSF' },
 ];
 const regions = ["Global", "IMEA", "EMEC", "ASPAC", "AMERICAS"];
 const trendTimeWindows = ["last 6 months", "last 12 months", "last 24 months", "last 36 months"];
@@ -172,20 +171,18 @@ export default function NewProject() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Category *</FormLabel>
-                      <FormControl>
-                        <>
-                          <Input
-                            list="category-options"
-                            placeholder="Select or type a category"
-                            {...field}
-                          />
-                          <datalist id="category-options">
-                            {categories.map((cat) => (
-                              <option key={cat} value={cat} />
-                            ))}
-                          </datalist>
-                        </>
-                      </FormControl>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a category" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {SOLUTION_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       <FormMessage />
                     </FormItem>
                   )}

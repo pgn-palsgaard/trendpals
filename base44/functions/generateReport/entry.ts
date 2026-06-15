@@ -1,5 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+const DISPLAY_LABELS = {
+  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Chocolate & Confectionery',
+  dairy: 'Dairy', ice_cream: 'Ice Cream', meat: 'Processed meat', oils_fats: 'Oils & Fats',
+  plant_based: 'Plant-based products', rutf_rusf: 'RUTF and RUSF',
+  out_of_scope: 'Out of scope', needs_human_review: 'Needs review',
+};
+
 // ── Step 1: fetch & filter relevant knowledge excerpts ─────────────────────
 async function getExcerptsForProject(base44, project) {
   const allKnowledge = await base44.entities.Source.filter({
@@ -414,7 +421,7 @@ product_shortlist items: { "product_name": "string", "brand": "string", "market"
 
     const report = await base44.entities.Report.create({
       project_id,
-      title: `${project.category} Trends — ${region}`,
+      title: `${DISPLAY_LABELS[project.category] || project.category} Trends — ${region}`,
       category: project.category,
       region,
       slides: parsed.slides || [],

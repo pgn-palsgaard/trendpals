@@ -193,7 +193,7 @@ For each excerpt, identify:
 5. capability_area: One of: sustainability, texture_quality, cost_efficiency, compliance_regulatory, new_product_development, food_safety, supply_chain, plant_based, general
 6. confidence: high/medium/low based on how clearly the source supports this excerpt
 7. source_quote: A verbatim quote from the document (max 200 chars)
-8. category_relevance: Array of relevant food categories (e.g. ["Ice Cream", "Bakery"])
+8. category_relevance: Array of canonical Palsgaard solution keys (e.g. ["ice_cream", "bakery"]). Valid values: bakery, condiments, chocolate_confectionery, dairy, ice_cream, meat, oils_fats, plant_based, rutf_rusf, out_of_scope, needs_human_review. For cross-category sources, populate all relevant keys — do NOT use needs_human_review when the source legitimately spans multiple categories; instead return multiple canonical keys.
 9. trend_keywords: Array of 3-5 keyword phrases from this excerpt
 
 Return ONLY a JSON object with this structure:

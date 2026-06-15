@@ -21,7 +21,8 @@ For each meaningful insight in the document, return a JSON object with this exac
   "palsgaard_angle": "How deep food industry expertise and technical capability can address this challenge. Write in third person as industry knowledge — e.g. 'Deep expertise in emulsification enables...' or 'Technical know-how in stabiliser systems allows manufacturers to...'. NEVER use 'Palsgaard' as the subject. No product names, no dosages. Max 2 sentences.",
   "has_direct_role": true,
   "capability_area": "sustainability | texture_quality | cost_efficiency | compliance_regulatory | new_product_development | food_safety | supply_chain | plant_based | general",
-  "category_relevance": ["Ice Cream", "Dairy", "Confectionery", "Bakery", "Spreads", "Dressings"],
+  "category_relevance": ["ice_cream", "dairy", "chocolate_confectionery", "bakery", "condiments", "plant_based", "meat", "oils_fats", "rutf_rusf"],
+  // Use canonical Palsgaard solution keys only. Populate ALL relevant keys for cross-category sources.
   "confidence": "high | medium | low",
   "source_quote": "A short grounding quote or data point from the source that supports this insight. Max 1-2 sentences. No product names.",
   "trend_keywords": ["clean label", "resource scarcity", "sustainability"],
@@ -51,7 +52,8 @@ For each chapter or major section return:
   ],
   "trend_signals": ["clean label", "premiumisation"],
   "key_insights": ["One-sentence insight from this chapter", "Another insight"],
-  "category_tags": ["Ice Cream", "Dairy"]
+  "category_tags": ["ice_cream", "dairy"]
+  // Use canonical Palsgaard solution keys: bakery, condiments, chocolate_confectionery, dairy, ice_cream, meat, oils_fats, plant_based, rutf_rusf
 }
 
 Never extract a number without its context. A statistic without explanation of what it measures and for whom is worthless.

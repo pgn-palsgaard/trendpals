@@ -10,7 +10,18 @@ import TrendEditModal from '@/components/trendlibrary/TrendEditModal';
 import MegaTrendsSection from '@/components/trendlibrary/MegaTrendsSection';
 import MegaTrendDetailPanel from '@/components/trendlibrary/MegaTrendDetailPanel';
 
-const CATEGORIES = ['Ice Cream', 'Dairy', 'Confectionery', 'Bakery', 'Spreads', 'Dressings', 'Other'];
+const CATEGORIES = [
+  { value: 'bakery',                  label: 'Bakery' },
+  { value: 'condiments',              label: 'Condiments' },
+  { value: 'chocolate_confectionery', label: 'Chocolate & Confectionery' },
+  { value: 'dairy',                   label: 'Dairy' },
+  { value: 'ice_cream',               label: 'Ice Cream' },
+  { value: 'meat',                    label: 'Processed meat' },
+  { value: 'oils_fats',               label: 'Oils & Fats' },
+  { value: 'plant_based',             label: 'Plant-based products' },
+  { value: 'rutf_rusf',               label: 'RUTF and RUSF' },
+  { value: 'needs_human_review',      label: 'Needs review' },
+];
 const TABS = [
   { key: 'pending', label: 'Pending review' },
   { key: 'active', label: 'Active' },
@@ -97,7 +108,8 @@ export default function TrendLibrary() {
     return map;
   }, [filtered]);
 
-  const categoryOrder = CATEGORIES.filter(c => grouped[c]);
+  const CATEGORY_LABELS = Object.fromEntries(CATEGORIES.map(c => [c.value, c.label]));
+  const categoryOrder = CATEGORIES.map(c => c.value).filter(v => grouped[v]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -142,7 +154,7 @@ export default function TrendLibrary() {
             className="border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All categories</option>
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
 
           {/* Search */}
@@ -187,7 +199,7 @@ export default function TrendLibrary() {
             {categoryOrder.map(cat => (
               <div key={cat}>
                 <div className="flex items-center gap-3 mb-3">
-                  <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{cat}</h2>
+                  <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">{CATEGORY_LABELS[cat] || cat}</h2>
                   <div className="flex-1 h-px bg-slate-200" />
                   <span className="text-xs text-slate-400">{grouped[cat].length}</span>
                 </div>

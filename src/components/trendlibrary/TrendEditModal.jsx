@@ -1,11 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { X } from 'lucide-react';
 import TrendSourcesEditor from './TrendSourcesEditor';
 
-const CATEGORIES = ['Ice Cream', 'Dairy', 'Confectionery', 'Bakery', 'Spreads', 'Dressings', 'Other'];
-const MEGA_TRENDS = ['GLP-1', 'Cost reformulation', 'Sustainability', 'Plant-based parity', 'Functional & gut health', 'Premium indulgence', 'Protein-as-default'];
+import { base44 } from '@/api/base44Client';
+
+const CATEGORIES = [
+  { value: 'bakery',                  label: 'Bakery' },
+  { value: 'condiments',              label: 'Condiments' },
+  { value: 'chocolate_confectionery', label: 'Chocolate & Confectionery' },
+  { value: 'dairy',                   label: 'Dairy' },
+  { value: 'ice_cream',               label: 'Ice Cream' },
+  { value: 'meat',                    label: 'Processed meat' },
+  { value: 'oils_fats',               label: 'Oils & Fats' },
+  { value: 'plant_based',             label: 'Plant-based products' },
+  { value: 'rutf_rusf',               label: 'RUTF and RUSF' },
+  { value: 'needs_human_review',      label: 'Needs review' },
+];
 const CAPABILITY_AREAS = [
   'sustainability', 'texture_quality', 'cost_efficiency', 'compliance_regulatory',
   'new_product_development', 'food_safety', 'supply_chain', 'plant_based', 'general',
@@ -18,6 +30,13 @@ const CAPABILITY_LABELS = {
 };
 
 export default function TrendEditModal({ trend, onSave, onClose, saving }) {
+  const [megaTrendOptions, setMegaTrendOptions] = useState([]);
+  useEffect(() => {
+    base44.entities.MegaTrend.filter({ is_active: true }).then(mts => {
+      setMegaTrendOptions(mts.map(mt => mt.mega_trend_name).sort());
+    }).catch(() => {});
+  }, []);
+
   const [form, setForm] = useState({
     trend_name: trend.trend_name || '',
     market_signal: trend.market_signal || '',
@@ -80,7 +99,7 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
               <label className="text-xs font-medium text-slate-600 mb-1 block">Category</label>
               <select className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={form.category} onChange={e => set('category', e.target.value)}>
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
             </div>
             <div>
@@ -120,7 +139,7 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
             <select className="w-full border border-slate-200 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               value={form.mega_trend} onChange={e => set('mega_trend', e.target.value)}>
               <option value="">None</option>
-              {MEGA_TRENDS.map(m => <option key={m} value={m}>{m}</option>)}
+              {megaTrendOptions.map(m => <option key={m} value={m}>{m}</option>)}
             </select>
           </div>
 

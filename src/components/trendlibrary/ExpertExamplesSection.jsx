@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Star, CheckCircle, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Star, CheckCircle, XCircle, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
+
+const CATEGORY_LABELS = {
+  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Chocolate & Confectionery',
+  dairy: 'Dairy', ice_cream: 'Ice Cream', meat: 'Processed meat', oils_fats: 'Oils & Fats',
+  plant_based: 'Plant-based', rutf_rusf: 'RUTF/RUSF',
+};
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -58,6 +64,15 @@ function ExpertExampleCard({ example, onStatusChange }) {
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1.5 mb-1">
             <ExpertBadge />
+            {example.category === 'needs_human_review' ? (
+              <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 font-medium">
+                <AlertTriangle className="w-3 h-3" /> Needs review
+              </span>
+            ) : example.category ? (
+              <span className="text-xs px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-600">
+                {CATEGORY_LABELS[example.category] || example.category}
+              </span>
+            ) : null}
             {example.country && (
               <span className="text-xs text-slate-500">{example.country}</span>
             )}

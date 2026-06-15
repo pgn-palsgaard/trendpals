@@ -211,7 +211,8 @@ TASK: Extract all metadata fields you can find. Be thorough — read the entire 
 
 CONTROLLED VOCABULARIES (use ONLY these values for enum fields):
 - document_type: "REPORT" | "INDUSTRY TREND" | "WEBINAR" | "PRESENTATION" | "WHITEPAPER" | "OTHER"
-- category: "Bakery" | "Confectionery" | "Dairy" | "Feed" | "Fine Food" | "Ice Cream" | "Lipid" | "Meat" | "Other Food Applications" | "PCI" | "Polymer" | "Tech"
+- category: "bakery" | "condiments" | "chocolate_confectionery" | "dairy" | "ice_cream" | "meat" | "oils_fats" | "plant_based" | "rutf_rusf" | "out_of_scope" | "needs_human_review"
+  - If the document clearly covers multiple Palsgaard solution areas, return null for category (cross-category source)
 - main_group: "Food" (for food categories) | "BSA" (for PCI, Polymer, Tech)
 - region_code: "ASPAC" | "AMERICAS" | "EMEC" | "IMEA" | "Global"
   - ASPAC = Asia Pacific / APAC
