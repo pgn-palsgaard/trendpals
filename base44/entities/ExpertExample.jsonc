@@ -55,7 +55,11 @@
     },
     "category_ai_proposed": {
       "type": "string",
-      "description": "Pre-migration category value preserved for audit. Set during Phase 3 data migration."
+      "description": "Pre-migration category value preserved for audit. Set during Phase 3 data migration. Never overwritten after initial set."
+    },
+    "categorization_notes": {
+      "type": "string",
+      "description": "Structured notes from the last automated or human categorization action. For LLM re-categorization runs: includes proposed category, confidence score, reasoning, and run timestamp. For human overrides: includes reviewer notes."
     },
     "sub_category": {
       "type": "string"

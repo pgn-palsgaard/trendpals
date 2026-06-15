@@ -2,8 +2,15 @@
  * ExpertExample LLM Re-categorization
  *
  * Can target a specific source_id or all needs_human_review records.
- * Auto-applies when LLM confidence ≥ 85. Below threshold: leaves category
+ * Auto-applies when LLM confidence >= 85. Below threshold: leaves category
  * as needs_human_review and writes LLM reasoning to categorization_notes.
+ *
+ * BUG FIXES (2026-06-15):
+ *   - category_ai_proposed is NEVER overwritten. It preserves whatever value
+ *     the record already has (migration audit trail). Only written if empty.
+ *   - categorization_notes was being silently stripped because the field was
+ *     not declared in the ExpertExample schema. Schema updated to add it.
+ *     Writes are now a structured JSON string.
  *
  * Admin-only.
  */
@@ -35,7 +42,6 @@ Deno.serve(async (req) => {
 
     const svc = base44.asServiceRole;
 
-    // Build filter — optionally scope to a single source
     const filter = source_id
       ? { category: 'needs_human_review', source_id }
       : { category: 'needs_human_review' };
@@ -48,6 +54,7 @@ Deno.serve(async (req) => {
 
     const results = [];
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY');
+    const runTimestamp = new Date().toISOString();
 
     for (const ex of records) {
       const prompt = `You are a product categorization specialist for Palsgaard (emulsifiers & stabilisers for food manufacturers).
@@ -71,10 +78,10 @@ Valid categories (return the KEY):
 - meat (processed meat, sausages, cold cuts, poultry)
 - oils_fats (margarine, spreads, shortening, cooking oils)
 - plant_based (plant-based dairy alternatives, vegan products, oat/soy/almond based)
-- condiments (sauces, dressings, mayonnaise, dips, hummus, savoury spreads, pâtés)
+- condiments (sauces, dressings, mayonnaise, dips, hummus, savoury spreads, pates)
 - rutf_rusf (therapeutic food, nutritional supplements for malnutrition)
-- out_of_scope (snacks/crisps, breakfast cereals, beverages, coffee, pet food, non-food products, GLP-1 drugs, sweeteners, campaigns, tech products — not a Palsgaard application)
-- needs_human_review (genuinely ambiguous — requires human decision)
+- out_of_scope (snacks/crisps, breakfast cereals, beverages, coffee, pet food, non-food products, GLP-1 drugs, sweeteners, campaigns, tech products)
+- needs_human_review (genuinely ambiguous)
 
 Confidence guide: 95+ = unambiguous, 85-94 = clear but minor overlap possible, 70-84 = plausible but uncertain, <70 = very ambiguous.
 
@@ -96,7 +103,6 @@ Return ONLY valid JSON: {"category": "key", "confidence": 90, "reasoning": "one 
         });
         const data = await response.json();
         const raw = (data.content?.[0]?.text || '').trim();
-        // Strip markdown fences if present
         const jsonText = raw.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
         const parsed = JSON.parse(jsonText);
         const key = (parsed.category || '').trim().toLowerCase().replace(/[^a-z_]/g, '');
@@ -110,11 +116,22 @@ Return ONLY valid JSON: {"category": "key", "confidence": 90, "reasoning": "one 
       const autoApply = !dry_run && proposed !== 'needs_human_review' && confidence >= AUTO_APPLY_THRESHOLD;
       const keepAtReview = !dry_run && (proposed === 'needs_human_review' || confidence < AUTO_APPLY_THRESHOLD);
 
+      // Build categorization_notes as a structured string (schema field is type: string)
+      const notePayload = JSON.stringify({
+        llm_proposed_category: proposed,
+        confidence,
+        reasoning,
+        run_timestamp: runTimestamp,
+        auto_applied: autoApply,
+        threshold: AUTO_APPLY_THRESHOLD,
+      });
+
       results.push({
         id: ex.id,
         product_name: ex.product_name,
         analyst_framing: ex.analyst_framing,
         report_title: ex.report_title,
+        existing_category_ai_proposed: ex.category_ai_proposed,
         proposed_category: proposed,
         proposed_label: DISPLAY_LABELS[proposed],
         confidence,
@@ -126,13 +143,15 @@ Return ONLY valid JSON: {"category": "key", "confidence": 90, "reasoning": "one 
         if (autoApply) {
           await svc.entities.ExpertExample.update(ex.id, {
             category: proposed,
-            category_ai_proposed: proposed,
-            categorization_notes: `Auto-applied at ${confidence}% confidence. ${reasoning}`,
+            // NEVER overwrite category_ai_proposed if it already has a value.
+            // Only set it if the field is somehow empty (records without migration history).
+            ...(ex.category_ai_proposed ? {} : { category_ai_proposed: proposed }),
+            categorization_notes: notePayload,
           });
-        } else if (keepAtReview && reasoning) {
-          // Write LLM reasoning as a note but leave category unchanged
+        } else if (keepAtReview) {
+          // Write reasoning as a note but leave category and category_ai_proposed unchanged
           await svc.entities.ExpertExample.update(ex.id, {
-            categorization_notes: `LLM proposed "${proposed}" at ${confidence}% confidence (below ${AUTO_APPLY_THRESHOLD}% threshold — needs human review). ${reasoning}`,
+            categorization_notes: notePayload,
           });
         }
       }
