@@ -134,10 +134,11 @@ export default function KnowledgeUploadModal({ onClose }) {
     } catch (error) {
       if (error instanceof DuplicateSourceError) {
         const dup = error.duplicates[0];
-        toast.error(`"${fileItem.filename}" blocked — duplicate of "${dup.title}" (${dup.review_status || 'pending'}). Tick "Upload anyway as new version" to override.`, { duration: 8000 });
-      } else {
-        console.error('File upload failed:', fileItem.filename, error);
+        toast.warning(`"${fileItem.filename}" already exists (${dup.review_status || 'pending'}). Tick "Upload anyway as new version" to override.`, { duration: 8000 });
+        // Do not re-throw — duplicate skips are expected, not fatal upload failures
+        return;
       }
+      console.error('File upload failed:', fileItem.filename, error);
       await base44.functions.invoke('updateBatchProgress', {
         batch_id: batchId,
         file_index: index,
