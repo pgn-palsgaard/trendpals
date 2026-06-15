@@ -13,7 +13,21 @@ import GnpdDetailPanel from './GnpdDetailPanel';
 import KnowledgeUploadModal from '../knowledge/KnowledgeUploadModal';
 
 const REGIONS = ['ASPAC', 'AMERICAS', 'EMEC', 'IMEA', 'Global'];
-const CATEGORIES = ['Bakery', 'Confectionery', 'Dairy', 'Feed', 'Fine Food', 'Ice Cream', 'Lipid', 'Meat', 'Other Food Applications', 'PCI', 'Polymer', 'Tech'];
+// Source.category now uses canonical Palsgaard keys (post Phase-3 migration).
+// GNPD source uploads are classified by autoExtractMetadata using canonical keys.
+// Filter values must match what is stored in Source.category.
+const CATEGORIES = [
+  { value: 'bakery',                  label: 'Bakery' },
+  { value: 'condiments',              label: 'Condiments' },
+  { value: 'chocolate_confectionery', label: 'Chocolate & Confectionery' },
+  { value: 'dairy',                   label: 'Dairy' },
+  { value: 'ice_cream',               label: 'Ice Cream' },
+  { value: 'meat',                    label: 'Processed meat' },
+  { value: 'oils_fats',               label: 'Oils & Fats' },
+  { value: 'plant_based',             label: 'Plant-based products' },
+  { value: 'rutf_rusf',               label: 'RUTF and RUSF' },
+  { value: 'needs_human_review',      label: 'Needs review' },
+];
 
 const GNPD_STATUS_CFG = {
   pending:    { label: 'Pending',    cls: 'bg-amber-100 text-amber-700' },
@@ -136,7 +150,7 @@ export default function GnpdTable() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All categories</SelectItem>
-              {CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {CATEGORIES.map(c => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>

@@ -260,7 +260,7 @@ ${candidate.project_notes ? `Project notes: ${candidate.project_notes}` : ''}`;
       : '(No source quotes available — leave supporting_data empty, do not invent statistics)';
 
     const userPrompt = `PROJECT:
-Category: ${project.category}
+Category: ${DISPLAY_LABELS[project.category] || project.category}
 Region: ${region}
 Objective: ${project.objective}
 Audience: ${project.audience || 'Industrial food manufacturers'}
