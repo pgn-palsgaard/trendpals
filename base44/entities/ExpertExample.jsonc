@@ -49,9 +49,10 @@
         "oils_fats",
         "plant_based",
         "rutf_rusf",
+        "out_of_scope",
         "needs_human_review"
       ],
-      "description": "Canonical Palsgaard solution key for this product example"
+      "description": "Canonical Palsgaard solution key for this product example. out_of_scope = confirmed not a Palsgaard application."
     },
     "category_ai_proposed": {
       "type": "string",
@@ -59,7 +60,7 @@
     },
     "categorization_notes": {
       "type": "string",
-      "description": "Structured notes from the last automated or human categorization action. For LLM re-categorization runs: includes proposed category, confidence score, reasoning, and run timestamp. For human overrides: includes reviewer notes."
+      "description": "Structured notes from the last automated or human categorization action. For LLM re-categorization runs: JSON string containing llm_proposed_category, confidence, reasoning, run_timestamp. For human overrides: reviewer notes."
     },
     "sub_category": {
       "type": "string"
