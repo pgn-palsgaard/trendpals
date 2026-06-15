@@ -1,5 +1,61 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import JSZip from 'npm:jszip@3.10.1';
+
+// ── Canonical category validator (inline — no shared imports between functions) ──
+const CANONICAL_KEYS = [
+  'bakery', 'condiments', 'chocolate_confectionery', 'dairy', 'ice_cream',
+  'meat', 'oils_fats', 'plant_based', 'rutf_rusf',
+];
+const VALID_CATEGORY_VALUES = [...CANONICAL_KEYS, 'out_of_scope', 'needs_human_review'];
+
+function normalizeCategory(raw) {
+  if (!raw) return null;
+  const s = raw.trim().toLowerCase().replace(/[^a-z_&\s]/g, '');
+  // Direct match
+  if (VALID_CATEGORY_VALUES.includes(raw.trim())) return raw.trim();
+  // Common aliases
+  const aliases = {
+    'confectionery': 'chocolate_confectionery',
+    'chocolate': 'chocolate_confectionery',
+    'chocolate confectionery': 'chocolate_confectionery',
+    'chocolate & confectionery': 'chocolate_confectionery',
+    'ice cream': 'ice_cream',
+    'oils & fats': 'oils_fats',
+    'oils and fats': 'oils_fats',
+    'plant based': 'plant_based',
+    'plant-based': 'plant_based',
+    'processed meat': 'meat',
+    'sauces & seasonings': 'condiments',
+    'spreads': 'condiments',
+    'savoury spreads': 'condiments',
+    'dips': 'condiments',
+  };
+  if (aliases[s]) return aliases[s];
+  return null; // non-canonical — caller logs deviation
+}
+
+function validateCategoryRelevance(arr, source_id, svc, functionName) {
+  if (!Array.isArray(arr)) return [];
+  const validated = [];
+  for (const raw of arr) {
+    const norm = normalizeCategory(raw);
+    if (norm) {
+      validated.push(norm);
+    } else {
+      // Log deviation
+      svc.entities.LLMCategoryDeviation.create({
+        source_id,
+        function_name: functionName,
+        field_name: 'category_relevance',
+        raw_llm_value: raw,
+        normalized_to: null,
+        normalization_succeeded: false,
+        detected_at: new Date().toISOString(),
+      }).catch(() => {});
+    }
+  }
+  return validated;
+}
 
 const BASE_SYSTEM_PROMPT = `You are a food industry expert working for Palsgaard, a producer of plant-based emulsifiers and stabilisers founded in 1917.
 
@@ -294,7 +350,10 @@ Deno.serve(async (req) => {
     await base44.entities.Source.update(source_id, { excerpts: [] });
 
     if (isMintel) {
-      insights = parsed.insights || [];
+      insights = (parsed.insights || []).map(e => ({
+        ...e,
+        category_relevance: validateCategoryRelevance(e.category_relevance, source_id, base44.asServiceRole, 'processKnowledgeSource'),
+      }));
       console.log('PARSED INSIGHTS SAMPLE (mintel):', JSON.stringify(insights[0]));
       const chunks = parsed.chunks || [];
       const excerptCount = insights.length;
@@ -310,7 +369,11 @@ Deno.serve(async (req) => {
         processing_completed_at: new Date().toISOString()
       };
     } else {
-      insights = Array.isArray(parsed) ? parsed : (parsed.excerpts || []);
+      const rawInsights = Array.isArray(parsed) ? parsed : (parsed.excerpts || []);
+      insights = rawInsights.map(e => ({
+        ...e,
+        category_relevance: validateCategoryRelevance(e.category_relevance, source_id, base44.asServiceRole, 'processKnowledgeSource'),
+      }));
       console.log('PARSED INSIGHTS SAMPLE:', JSON.stringify(insights[0]));
       const excerptCount = insights.length;
       updatePayload = {

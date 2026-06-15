@@ -157,7 +157,9 @@ const MAPPING = {
   },
 
   // ── Savoury Spreads ───────────────────────────────────────────────────
-  'savoury spreads': { '*': 'out_of_scope' },
+  // Decision (Peter, 2026-06-15): dips, hummus, pâtés, sandwich spreads are
+  // emulsifier/stabiliser applications within Palsgaard's "Condiments" solution.
+  'savoury spreads': { '*': 'condiments' },
 
   // ── Side Dishes ───────────────────────────────────────────────────────
   'side dishes': { '*': 'out_of_scope' },
@@ -230,7 +232,7 @@ export const LEGACY_TO_CANONICAL = {
   'Other Food Applications':  null,  // null = cross-category; set category=null, populate category_relevance
 
   // GlobalTrend.category / ExpertExample.category (7-value legacy)
-  'Spreads':                  'needs_human_review',
+  'Spreads':                  'condiments',   // Updated 2026-06-15: Savoury Spreads → condiments decision
   'Dressings':                'condiments',
   'Other':                    'needs_human_review',
 };
@@ -287,6 +289,9 @@ export const BRIEF_CATEGORY_NORMALIZATION = {
   'rusf':                       'rutf_rusf',
   'rutf and rusf':              'rutf_rusf',
   'condiments':                 'condiments',
+  'savoury spreads':            'condiments',
+  'dips':                       'condiments',
+  'spreads':                    'condiments',
 };
 
 /**
