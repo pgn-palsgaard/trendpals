@@ -8,7 +8,23 @@
     },
     "category": {
       "type": "string",
-      "description": "Product category (e.g., Ice Cream, Bakery, Confectionery)"
+      "enum": [
+        "bakery",
+        "condiments",
+        "chocolate_confectionery",
+        "dairy",
+        "ice_cream",
+        "meat",
+        "oils_fats",
+        "plant_based",
+        "rutf_rusf",
+        "needs_human_review"
+      ],
+      "description": "Canonical Palsgaard solution key for this project's focus area"
+    },
+    "category_ai_proposed": {
+      "type": "string",
+      "description": "Pre-migration category value preserved for audit. Set during Phase 3 data migration."
     },
     "region_code": {
       "type": "string",
@@ -22,25 +38,20 @@
       "description": "Canonical region code"
     },
     "customer_name": {
-      "type": "string",
-      "description": "Name of the customer or company this deck is being prepared for"
+      "type": "string"
     },
     "audience": {
       "type": "string",
-      "default": "Industrial manufacturers",
-      "description": "Target audience"
+      "default": "Industrial manufacturers"
     },
     "objective": {
-      "type": "string",
-      "description": "Purpose or decision this deck should enable"
+      "type": "string"
     },
     "specific_focus": {
-      "type": "string",
-      "description": "Specific angles, sub-categories, or product types to focus on (e.g., 'premium single-origin chocolate', 'low-sugar ice cream', 'high-protein bakery')"
+      "type": "string"
     },
     "topics_to_avoid": {
-      "type": "string",
-      "description": "Topics, trends, or areas to deliberately exclude or avoid in this deck"
+      "type": "string"
     },
     "trend_time_window": {
       "type": "string",
@@ -50,8 +61,7 @@
         "last 24 months",
         "last 36 months"
       ],
-      "default": "last 24 months",
-      "description": "Time window for trend data to consider"
+      "default": "last 24 months"
     },
     "meeting_context": {
       "type": "string",
@@ -60,15 +70,13 @@
         "innovation_day",
         "technical_workshop",
         "other"
-      ],
-      "description": "Meeting context"
+      ]
     },
     "customer_priorities": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "Customer priorities (cost, clean label, sustainability, texture, indulgence, etc.)"
+      }
     },
     "state": {
       "type": "string",
@@ -79,42 +87,35 @@
         "published",
         "aged"
       ],
-      "default": "draft",
-      "description": "Current project state"
+      "default": "draft"
     },
     "selected_trend_ids": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "IDs of selected trends (3-5)"
+      }
     },
     "selected_source_ids": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "IDs of selected sources from the central library"
+      }
     },
     "data_sufficiency_score": {
-      "type": "number",
-      "description": "Score indicating data coverage quality (0-100)"
+      "type": "number"
     },
     "warnings": {
       "type": "array",
       "items": {
         "type": "object"
-      },
-      "description": "Active warnings or no-go conditions"
+      }
     },
     "trend_analysis": {
-      "type": "object",
-      "description": "Stored trend analysis to be included in final report"
+      "type": "object"
     },
     "include_trend_analysis_in_report": {
       "type": "boolean",
-      "default": false,
-      "description": "Whether to include AI trend analysis in the generated report"
+      "default": false
     }
   },
   "required": [

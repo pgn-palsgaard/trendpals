@@ -13,34 +13,33 @@
     "category": {
       "type": "string",
       "enum": [
-        "Ice Cream",
-        "Dairy",
-        "Confectionery",
-        "Bakery",
-        "Spreads",
-        "Dressings",
-        "Other"
-      ]
+        "bakery",
+        "condiments",
+        "chocolate_confectionery",
+        "dairy",
+        "ice_cream",
+        "meat",
+        "oils_fats",
+        "plant_based",
+        "rutf_rusf",
+        "needs_human_review"
+      ],
+      "description": "Canonical Palsgaard solution key for this trend"
+    },
+    "category_ai_proposed": {
+      "type": "string",
+      "description": "Pre-migration category value preserved for audit. Set during Phase 3 data migration."
     },
     "mega_trend": {
       "type": "string",
-      "enum": [
-        "Value",
-        "Wellbeing",
-        "Surroundings",
-        "Experiences",
-        "Rights",
-        "Identity"
-      ],
       "description": "Display label of the driver this trend belongs to. Matches MegaTrend.mega_trend_name."
     },
     "driver_key": {
       "type": "string",
-      "description": "Stable join key to MegaTrend.key (e.g. 'value', 'wellbeing'). Use this for all programmatic links \u2014 renaming a driver's display label never changes this key."
+      "description": "Stable join key to MegaTrend.key"
     },
     "overlap_flags": {
       "type": "array",
-      "description": "Auto-detected same-category keyword overlap candidates. Human-resolved \u2014 never auto-merged.",
       "items": {
         "type": "object",
         "properties": {
@@ -74,7 +73,7 @@
     },
     "description": {
       "type": "string",
-      "description": "Long-form narrative description of the trend \u2014 3-5 paragraphs covering context, drivers, evidence, market dynamics, and what it means for ingredient suppliers. The 'read-up' view shown when opening the trend detail page."
+      "description": "Long-form narrative description of the trend"
     },
     "market_signal": {
       "type": "string",
@@ -84,12 +83,10 @@
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "3-4 bullets on what is shifting globally"
+      }
     },
     "why_now": {
-      "type": "string",
-      "description": "Why this trend is relevant right now"
+      "type": "string"
     },
     "capability_area": {
       "type": "string",
@@ -120,8 +117,7 @@
             "type": "string"
           },
           "signal": {
-            "type": "string",
-            "description": "How this global trend shows up in this region"
+            "type": "string"
           },
           "intensity": {
             "type": "string",
@@ -154,17 +150,14 @@
     },
     "sources": {
       "type": "array",
-      "description": "Structured source citations backing this trend. Entries may be manually curated or added by the Source Processor agent \u2014 see review_status to distinguish.",
       "items": {
         "type": "object",
         "properties": {
           "title": {
-            "type": "string",
-            "description": "Title or headline of the source"
+            "type": "string"
           },
           "publisher": {
-            "type": "string",
-            "description": "e.g. Mintel, FoodNavigator, Innova Market Insights, Datassential, IDFA, Future Market Insights, Dairy Reporter"
+            "type": "string"
           },
           "source_type": {
             "type": "string",
@@ -181,33 +174,26 @@
             ]
           },
           "url": {
-            "type": "string",
-            "description": "Link to the source if available"
+            "type": "string"
           },
           "date": {
             "type": "string",
-            "format": "date",
-            "description": "Publication date"
+            "format": "date"
           },
           "source_id": {
-            "type": "string",
-            "description": "Reference to a Base44 Source entity ID when the source lives in the Source library"
+            "type": "string"
           },
           "key_finding": {
-            "type": "string",
-            "description": "What this source contributes to the trend \u2014 1-2 sentences"
+            "type": "string"
           },
           "quote": {
-            "type": "string",
-            "description": "Optional short verbatim quote or data point from the source"
+            "type": "string"
           },
           "auto_linked": {
-            "type": "boolean",
-            "description": "True if added by the Source Processor agent (auto-applied or auto-proposed). False or absent for manually curated entries."
+            "type": "boolean"
           },
           "linked_via_run_id": {
-            "type": "string",
-            "description": "Reference to the ProcessingRun.id that created this entry (audit trail)"
+            "type": "string"
           },
           "review_status": {
             "type": "string",
@@ -218,8 +204,7 @@
               "rejected",
               "reverted",
               "manual_curated"
-            ],
-            "description": "Governance state."
+            ]
           },
           "link_confidence": {
             "type": "string",

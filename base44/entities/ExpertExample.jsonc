@@ -16,8 +16,7 @@
       "description": "Title of the Mintel report"
     },
     "product_name": {
-      "type": "string",
-      "description": "Product name"
+      "type": "string"
     },
     "brand": {
       "type": "string"
@@ -41,14 +40,22 @@
     "category": {
       "type": "string",
       "enum": [
-        "Bakery",
-        "Confectionery",
-        "Dairy",
-        "Ice Cream",
-        "Spreads",
-        "Dressings",
-        "Other"
-      ]
+        "bakery",
+        "condiments",
+        "chocolate_confectionery",
+        "dairy",
+        "ice_cream",
+        "meat",
+        "oils_fats",
+        "plant_based",
+        "rutf_rusf",
+        "needs_human_review"
+      ],
+      "description": "Canonical Palsgaard solution key for this product example"
+    },
+    "category_ai_proposed": {
+      "type": "string",
+      "description": "Pre-migration category value preserved for audit. Set during Phase 3 data migration."
     },
     "sub_category": {
       "type": "string"
@@ -62,15 +69,13 @@
       "description": "Verbatim 1-2 sentence description from the report. Maximum 2 sentences."
     },
     "page_ref": {
-      "type": "string",
-      "description": "Page number in the source report"
+      "type": "string"
     },
     "claims": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "Claims mentioned in the report description"
+      }
     },
     "flavours": {
       "type": "array",
@@ -79,16 +84,13 @@
       }
     },
     "format_notes": {
-      "type": "string",
-      "description": "Packaging or format details mentioned"
+      "type": "string"
     },
     "mintel_section_heading": {
-      "type": "string",
-      "description": "The section of the report this example sits under"
+      "type": "string"
     },
     "mintel_trend_label": {
-      "type": "string",
-      "description": "The trend label the Mintel analyst attached to this example, in their own words"
+      "type": "string"
     },
     "extraction_confidence": {
       "type": "string",
@@ -96,19 +98,16 @@
         "high",
         "medium",
         "low"
-      ],
-      "description": "How confident the LLM was that this is a clean product example"
+      ]
     },
     "linked_trend_ids": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "GlobalTrend IDs this example supports"
+      }
     },
     "trend_links": {
       "type": "array",
-      "description": "Per-link record with trend_id, trend_name, confidence, confidence_score, reasoning, matched_keywords, review_status, linked_at",
       "items": {
         "type": "object",
         "properties": {
@@ -170,7 +169,6 @@
     },
     "rejected_link_candidates": {
       "type": "array",
-      "description": "Audit trail of trend link candidates rejected by LLM validation",
       "items": {
         "type": "object",
         "properties": {
@@ -203,16 +201,14 @@
       }
     },
     "image_url": {
-      "type": "string",
-      "description": "Only if reliably extractable from the PDF; otherwise null"
+      "type": "string"
     },
     "extracted_at": {
       "type": "string",
       "format": "date-time"
     },
     "extracted_via_run_id": {
-      "type": "string",
-      "description": "ProcessingRun ID for audit"
+      "type": "string"
     }
   }
 }

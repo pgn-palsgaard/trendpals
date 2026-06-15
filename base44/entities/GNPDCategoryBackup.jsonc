@@ -1,0 +1,27 @@
+{
+  "name": "GNPDCategoryBackup",
+  "type": "object",
+  "properties": {
+    "gnpd_product_id": {
+      "type": "string",
+      "description": "Original GNPDProduct entity ID"
+    },
+    "product_name": {
+      "type": "string"
+    },
+    "category_original": {
+      "type": "string",
+      "description": "Raw Mintel category at time of Phase 3 backup"
+    },
+    "sub_category_original": {
+      "type": "string"
+    },
+    "backed_up_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "gnpd_product_id"
+  ]
+}

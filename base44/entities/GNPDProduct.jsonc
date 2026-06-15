@@ -12,12 +12,10 @@
       "description": "Mintel GNPD record ID \u2014 primary dedup key"
     },
     "source_id": {
-      "type": "string",
-      "description": "Source entity ID this product was parsed from"
+      "type": "string"
     },
     "product_name": {
-      "type": "string",
-      "description": "Full product name"
+      "type": "string"
     },
     "brand": {
       "type": "string"
@@ -26,8 +24,7 @@
       "type": "string"
     },
     "ultimate_company": {
-      "type": "string",
-      "description": "Parent company / ultimate owner"
+      "type": "string"
     },
     "country": {
       "type": "string"
@@ -40,23 +37,39 @@
         "EMEC",
         "IMEA",
         "Global"
-      ],
-      "description": "Mapped canonical region"
+      ]
     },
     "launch_date": {
       "type": "string",
       "format": "date"
     },
     "launch_type": {
-      "type": "string",
-      "description": "e.g. New, Relaunch, New Variety, Limited Edition"
+      "type": "string"
     },
     "category": {
       "type": "string",
-      "description": "Primary Mintel category e.g. Ice Cream, Confectionery"
+      "description": "Raw Mintel top-level category string (preserved as-is from GNPD export)"
     },
     "sub_category": {
-      "type": "string"
+      "type": "string",
+      "description": "Raw Mintel sub-category string (preserved as-is from GNPD export)"
+    },
+    "palsgaard_category": {
+      "type": "string",
+      "enum": [
+        "bakery",
+        "condiments",
+        "chocolate_confectionery",
+        "dairy",
+        "ice_cream",
+        "meat",
+        "oils_fats",
+        "plant_based",
+        "rutf_rusf",
+        "out_of_scope",
+        "needs_human_review"
+      ],
+      "description": "Resolved Palsgaard canonical solution key, derived from the two-level Mintel mapping resolver. Set at import time and by backfill."
     },
     "product_description": {
       "type": "string"
@@ -65,12 +78,10 @@
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "All Mintel claims on the product"
+      }
     },
     "ingredients": {
-      "type": "string",
-      "description": "Full ingredients list as string"
+      "type": "string"
     },
     "flavours": {
       "type": "array",
@@ -92,42 +103,35 @@
     },
     "has_emulsifier": {
       "type": "boolean",
-      "default": false,
-      "description": "True if ingredients contain emulsifier-related terms"
+      "default": false
     },
     "emulsifier_keywords": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "Detected emulsifier/stabiliser terms from ingredients"
+      }
     },
     "has_palsgaard_relevance": {
       "type": "boolean",
-      "default": false,
-      "description": "True if product is likely relevant to Palsgaard capability areas"
+      "default": false
     },
     "palsgaard_relevance_reason": {
-      "type": "string",
-      "description": "Short explanation of why this product is relevant"
+      "type": "string"
     },
     "linked_trend_ids": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "GlobalTrend IDs this product supports"
+      }
     },
     "linked_mega_trend_ids": {
       "type": "array",
       "items": {
         "type": "string"
-      },
-      "description": "MegaTrend IDs this product supports"
+      }
     },
     "trend_links": {
       "type": "array",
-      "description": "Detailed trend link records with confidence and reasoning",
       "items": {
         "type": "object",
         "properties": {
@@ -179,8 +183,7 @@
           },
           "llm_validated_at": {
             "type": "string",
-            "format": "date-time",
-            "description": "Set when the grounded LLM triage has evaluated this link \u2014 links without it are queued for triage"
+            "format": "date-time"
           },
           "reviewed_at": {
             "type": "string",
@@ -194,7 +197,6 @@
     },
     "rejected_link_candidates": {
       "type": "array",
-      "description": "Audit trail of trend link candidates rejected by LLM validation",
       "items": {
         "type": "object",
         "properties": {
@@ -232,15 +234,13 @@
         "SUPPORTS",
         "PARTIAL",
         "NOT_SUPPORT"
-      ],
-      "description": "Overall assessment of how well this product evidences trends"
+      ]
     },
     "image_url": {
       "type": "string"
     },
     "mintel_record_url": {
-      "type": "string",
-      "description": "Direct URL to Mintel GNPD product page"
+      "type": "string"
     },
     "processing_status": {
       "type": "string",
@@ -250,8 +250,7 @@
         "trend_linked",
         "skipped"
       ],
-      "default": "parsed",
-      "description": "Pipeline stage for trend-linking agent"
+      "default": "parsed"
     },
     "processing_error": {
       "type": "string"

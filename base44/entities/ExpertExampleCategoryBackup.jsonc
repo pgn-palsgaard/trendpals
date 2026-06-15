@@ -1,0 +1,24 @@
+{
+  "name": "ExpertExampleCategoryBackup",
+  "type": "object",
+  "properties": {
+    "expert_example_id": {
+      "type": "string",
+      "description": "Original ExpertExample entity ID"
+    },
+    "product_name": {
+      "type": "string"
+    },
+    "category_original": {
+      "type": "string",
+      "description": "Category value at time of Phase 3 backup"
+    },
+    "backed_up_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "expert_example_id"
+  ]
+}

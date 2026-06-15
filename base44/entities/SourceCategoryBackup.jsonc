@@ -1,0 +1,24 @@
+{
+  "name": "SourceCategoryBackup",
+  "type": "object",
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "description": "Original Source entity ID"
+    },
+    "title": {
+      "type": "string"
+    },
+    "category_original": {
+      "type": "string",
+      "description": "Category value at time of Phase 3 backup"
+    },
+    "backed_up_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "required": [
+    "source_id"
+  ]
+}

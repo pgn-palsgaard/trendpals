@@ -212,7 +212,7 @@
         "skipped",
         "failed"
       ],
-      "description": "Processing pipeline stage \u2014 first status axis. 'needs_classification' = LLM classification below confidence threshold, awaiting human decision. 'extracting' = machine working (metadata or excerpt extraction). 'metadata_extracted' = metadata done, awaiting human verification/approval. 'extracted' = excerpts extracted (triggers expert example extraction for Mintel sources); 'gnpd_ready' marks a fully ingested GNPD file"
+      "description": "Processing pipeline stage \u2014 first status axis."
     },
     "review_status": {
       "type": "string",
@@ -224,21 +224,17 @@
       "description": "Human review state \u2014 second status axis. Extraction only runs on approved sources"
     },
     "failure_reason": {
-      "type": "string",
-      "description": "Machine-readable failure reason when pipeline_stage=failed (rate_limit, timeout, parse_error, unknown) or fetch error message"
+      "type": "string"
     },
     "skip_reason": {
-      "type": "string",
-      "description": "Why the source was skipped when pipeline_stage=skipped"
+      "type": "string"
     },
     "retry_count": {
-      "type": "number",
-      "description": "Number of processing retries"
+      "type": "number"
     },
     "last_retry_at": {
       "type": "string",
-      "format": "date-time",
-      "description": "Last time the source was reset for retry"
+      "format": "date-time"
     },
     "excerpts": {
       "type": "array",
@@ -249,20 +245,16 @@
             "type": "string"
           },
           "market_signal": {
-            "type": "string",
-            "description": "What is happening in the market or industry \u2014 trend, pressure, regulation, consumer shift"
+            "type": "string"
           },
           "customer_pain": {
-            "type": "string",
-            "description": "The challenge or problem this creates for food manufacturers"
+            "type": "string"
           },
           "palsgaard_angle": {
-            "type": "string",
-            "description": "How Palsgaard expertise or capability can address this \u2014 NO product names or dosage figures"
+            "type": "string"
           },
           "has_direct_role": {
-            "type": "boolean",
-            "description": "True if Palsgaard can play a direct technical role; false if the insight is expert framing only"
+            "type": "boolean"
           },
           "capability_area": {
             "type": "string",
@@ -276,8 +268,7 @@
               "supply_chain",
               "plant_based",
               "general"
-            ],
-            "description": "Primary capability area this insight maps to"
+            ]
           },
           "confidence": {
             "type": "string",
@@ -285,19 +276,17 @@
               "high",
               "medium",
               "low"
-            ],
-            "description": "Confidence that this insight is well-supported by the source"
+            ]
           },
           "source_quote": {
-            "type": "string",
-            "description": "Short grounding quote or data point from the source (max 2 sentences, no product names)"
+            "type": "string"
           },
           "category_relevance": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Which food categories this insight applies to, e.g. ['Ice Cream', 'Dairy', 'Confectionery']"
+            "description": "Canonical Palsgaard solution keys this excerpt applies to"
           },
           "page_ref": {
             "type": "string"
@@ -309,8 +298,7 @@
             }
           }
         }
-      },
-      "description": "Structured insights: market signal \u2192 customer pain \u2192 Palsgaard angle"
+      }
     },
     "gnpd_data": {
       "type": "array",
@@ -375,11 +363,11 @@
         "failed"
       ],
       "default": "queued",
-      "description": "DEPRECATED \u2014 replaced by pipeline_stage + review_status. Nothing reads or writes this anymore"
+      "description": "DEPRECATED \u2014 replaced by pipeline_stage + review_status"
     },
     "status_message": {
       "type": "string",
-      "description": "DEPRECATED \u2014 nothing reads or writes this anymore"
+      "description": "DEPRECATED"
     },
     "processing_error": {
       "type": "string"
@@ -406,19 +394,30 @@
     "category": {
       "type": "string",
       "enum": [
-        "Bakery",
-        "Confectionery",
-        "Dairy",
-        "Feed",
-        "Fine Food",
-        "Ice Cream",
-        "Lipid",
-        "Meat",
-        "Other Food Applications",
-        "PCI",
-        "Polymer",
-        "Tech"
-      ]
+        "bakery",
+        "condiments",
+        "chocolate_confectionery",
+        "dairy",
+        "ice_cream",
+        "meat",
+        "oils_fats",
+        "plant_based",
+        "rutf_rusf",
+        "out_of_scope",
+        "needs_human_review"
+      ],
+      "description": "Canonical Palsgaard solution key. Null for genuinely cross-category sources \u2014 use category_relevance[] instead."
+    },
+    "category_ai_proposed": {
+      "type": "string",
+      "description": "Original AI-proposed category value before human correction. Preserves the pre-migration value for audit purposes."
+    },
+    "category_relevance": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Canonical Palsgaard solution keys this source is relevant to. Used for cross-category sources where category is null, and for all sources to enable multi-solution matching."
     },
     "main_group": {
       "type": "string",
@@ -460,7 +459,7 @@
         "external_reference"
       ],
       "default": "medium",
-      "description": "DEPRECATED \u2014 replaced by review_status. Nothing reads or writes this anymore"
+      "description": "DEPRECATED \u2014 replaced by review_status"
     },
     "usage_permission": {
       "type": "string",
@@ -504,13 +503,12 @@
       "type": "string"
     },
     "ai_summary": {
-      "type": "string",
-      "description": "AI-generated summary of the source content and key insights"
+      "type": "string"
     },
     "rag_processed": {
       "type": "boolean",
       "default": false,
-      "description": "DEPRECATED \u2014 replaced by pipeline_stage. Nothing reads or writes this anymore"
+      "description": "DEPRECATED \u2014 replaced by pipeline_stage"
     },
     "rag_excerpt_count": {
       "type": "number"
@@ -524,15 +522,13 @@
             "type": "string"
           },
           "chapter_title": {
-            "type": "string",
-            "description": "Chapter or section heading from the Mintel report"
+            "type": "string"
           },
           "chapter_index": {
             "type": "number"
           },
           "text": {
-            "type": "string",
-            "description": "Full text of the chapter chunk"
+            "type": "string"
           },
           "statistics": {
             "type": "array",
@@ -552,8 +548,7 @@
                   "type": "string"
                 }
               }
-            },
-            "description": "Quantitative statistics extracted from this chapter with their context preserved"
+            }
           },
           "key_insights": {
             "type": "array",
@@ -574,8 +569,7 @@
             }
           }
         }
-      },
-      "description": "Mintel reports only: chapter-level chunks with statistics preserved in context"
+      }
     },
     "mintel_chunking_status": {
       "type": "string",
@@ -585,8 +579,7 @@
         "ready",
         "failed"
       ],
-      "default": "not_applicable",
-      "description": "Chunking status for Mintel sources"
+      "default": "not_applicable"
     }
   },
   "required": [
