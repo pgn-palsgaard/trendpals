@@ -407,6 +407,7 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
       main_group: 'main_group',
       region_code: 'region_code',
       source_type: 'source_type',
+      source_type_ai_proposed: 'source_type_ai_proposed',
       ai_summary: 'ai_summary',
       notes: 'notes',
       tags: 'tags'
@@ -437,9 +438,7 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
         const isEmpty = currentValue === null || currentValue === undefined || currentValue === '' ||
           currentValue === 'the-future-of-yogurt-and-chilled-desserts-2026 (1).pdf' || // overwrite raw filenames
           (Array.isArray(currentValue) && currentValue.length === 0) ||
-          (typeof currentValue === 'string' && currentValue.endsWith('.pdf')) || // overwrite raw filenames
-          (typeof currentValue === 'string' && currentValue.endsWith('.xlsx')) ||
-          (typeof currentValue === 'string' && currentValue.endsWith('.html'));
+          (typeof currentValue === 'string' && /\.(pdf|pptx?|docx?|xlsx?|html?)$/i.test(currentValue)); // overwrite raw filenames
         if (isEmpty) {
           updateData[sourceField] = value;
         }

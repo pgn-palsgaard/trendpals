@@ -24,10 +24,18 @@ function validateCategoryArray(arr, sourceId, svc) {
 }
 
 const SKIP_TYPES = new Set(['gnpd']);
-const SKIP_STAGES = new Set(['extracting', 'extracted', 'gnpd_ready']);
+const SKIP_STAGES = new Set(['extracted', 'gnpd_ready']);
+const EXTRACTING_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes — after this, treat extracting as stuck
+const MAX_RETRIES = 3;
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isStuckExtracting(s) {
+  if (s.pipeline_stage !== 'extracting') return false;
+  const lastUpdate = new Date(s.updated_date).getTime();
+  return (Date.now() - lastUpdate) > EXTRACTING_TIMEOUT_MS;
 }
 
 function detectFailureReason(err) {
@@ -63,29 +71,39 @@ Deno.serve(async (req) => {
       const fetched = await Promise.all(sourceIds.map(async (id) => {
         try { return await db.entities.Source.get(id); } catch { return null; }
       }));
-      // When specific IDs are passed, skip GNPD type and enforce the human verification gate
-      // Idempotency: only 'uploaded' sources without existing excerpts are eligible
+      // When specific IDs are passed, skip GNPD type and enforce the human verification gate.
+      // Also recover stuck-extracting records (pipeline_stage='extracting' for >30min).
+      // Idempotency: only sources without existing excerpts are eligible.
       sourcesToProcess = fetched.filter(s =>
         s && !SKIP_TYPES.has(s.source_type) &&
         s.metadata_extraction?.verified === true &&
         s.review_status === 'approved' &&
-        ['uploaded', 'metadata_extracted'].includes(s.pipeline_stage) &&
-        !(s.excerpts?.length > 0)
+        !(s.excerpts?.length > 0) &&
+        (
+          ['uploaded', 'metadata_extracted'].includes(s.pipeline_stage) ||
+          isStuckExtracting(s)
+        )
       );
       console.log(`[processSourceQueue] Requested ${sourceIds.length} IDs, found ${sourcesToProcess.length} eligible sources`);
     } else {
       // Find all queued sources (excluding GNPD)
-      const [up, metaDone] = await Promise.all([
+      const [up, metaDone, extracting] = await Promise.all([
         db.entities.Source.filter({ pipeline_stage: 'uploaded' }, '-created_date', 500),
         db.entities.Source.filter({ pipeline_stage: 'metadata_extracted' }, '-created_date', 500),
+        db.entities.Source.filter({ pipeline_stage: 'extracting' }, '-created_date', 100),
       ]);
-      const uploaded = [...up, ...metaDone];
-      // Verification gate: only human-verified + approved sources may be extracted
+      const uploaded = [...up, ...metaDone, ...extracting];
+      // Verification gate: only human-verified + approved sources may be extracted.
+      // Also recover stuck-extracting records (pipeline_stage='extracting' for >30min).
       sourcesToProcess = uploaded.filter(s =>
         !SKIP_TYPES.has(s.source_type) &&
         s.metadata_extraction?.verified === true &&
         s.review_status === 'approved' &&
-        !(s.excerpts?.length > 0)
+        !(s.excerpts?.length > 0) &&
+        (
+          ['uploaded', 'metadata_extracted'].includes(s.pipeline_stage) ||
+          isStuckExtracting(s)
+        )
       );
     }
 
@@ -293,17 +311,21 @@ Return ONLY a JSON object with this structure:
 
         } catch (err) {
           const reason = detectFailureReason(err);
-          console.error(`[processSourceQueue] ✗ ${source.id} (${reason}): ${err.message}`);
+          const newRetryCount = (source.retry_count || 0) + 1;
+          console.error(`[processSourceQueue] ✗ ${source.id} (${reason}, attempt ${newRetryCount}): ${err.message}`);
+          const failureReason = newRetryCount > MAX_RETRIES
+            ? `extraction_retry_limit: failed ${newRetryCount} times (last: ${reason})`
+            : reason;
           await db.entities.Source.update(source.id, {
             pipeline_stage: 'failed',
-            failure_reason: reason,
+            failure_reason: failureReason,
             processing_error: err.message?.slice(0, 500) || 'Unknown error',
-            retry_count: (source.retry_count || 0) + 1,
+            retry_count: newRetryCount,
             last_retry_at: new Date().toISOString(),
           });
           await base44.asServiceRole.entities.ProcessingRun.update(run.id, {
             status: 'failed',
-            fatal_error: err.message?.slice(0, 500) || 'Unknown error',
+            fatal_error: failureReason,
             completed_at: new Date().toISOString(),
             duration_seconds: Math.round((Date.now() - runStartedAt.getTime()) / 1000),
           });
