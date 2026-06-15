@@ -1,5 +1,38 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
 
+// ── Inline category validator (inlined from lib/palsgaardCategoryMapping.js — no shared imports allowed) ──
+const VALID_CATEGORY_VALUES = ['bakery','condiments','chocolate_confectionery','dairy','ice_cream','meat','oils_fats','plant_based','rutf_rusf','out_of_scope','needs_human_review'];
+const BRIEF_NORM = {'confectionery':'chocolate_confectionery','chocolate':'chocolate_confectionery','chocolate confectionery':'chocolate_confectionery','chocolate & confectionery':'chocolate_confectionery','bakery':'bakery','cake':'bakery','cake gels':'bakery','baking':'bakery','dairy':'dairy','ice cream':'ice_cream','ice-cream':'ice_cream','soft serve ice cream':'ice_cream','soft serve':'ice_cream','meat':'meat','processed meat':'meat','oils':'oils_fats','oils & fats':'oils_fats','fats':'oils_fats','margarine':'oils_fats','plant based':'plant_based','plant-based':'plant_based','plant based products':'plant_based','plant based dairy alternatives':'plant_based','plant-based dairy alternatives':'plant_based','plant based beverages and dairy alternatives':'plant_based','rutf':'rutf_rusf','rusf':'rutf_rusf','rutf and rusf':'rutf_rusf','condiments':'condiments','condiments & sauces':'condiments','sauces':'condiments','dressings':'condiments','spreads':'condiments','sweet spreads':'condiments','coffee creamer':'dairy','creamer':'dairy','creamers':'dairy'};
+
+/**
+ * Validates a single LLM-proposed category string against the canonical enum.
+ * Returns { canonical: string|null, raw: string, deviated: boolean }
+ * - canonical = valid canonical key, or null if unresolvable (cross-category / too generic)
+ * - deviated = true if the raw value was non-canonical (triggers deviation log)
+ */
+function validateLLMCategory(raw) {
+  if (raw === null || raw === undefined || raw === '') return { canonical: null, raw: raw ?? null, deviated: false };
+  if (VALID_CATEGORY_VALUES.includes(raw)) return { canonical: raw, raw, deviated: false };
+  // Attempt normalization
+  const normalized = BRIEF_NORM[raw.trim().toLowerCase()];
+  if (normalized) return { canonical: normalized, raw, deviated: true };
+  // Cannot normalize — set to null, record deviation
+  return { canonical: null, raw, deviated: true };
+}
+
+/** Validates an array of category_relevance keys. Drops unknowns, logs deviations. */
+function validateLLMCategoryArray(arr) {
+  if (!Array.isArray(arr)) return { canonical: [], deviations: [] };
+  const canonical = [];
+  const deviations = [];
+  for (const raw of arr) {
+    const result = validateLLMCategory(raw);
+    if (result.canonical) canonical.push(result.canonical);
+    if (result.deviated) deviations.push(raw);
+  }
+  return { canonical, deviations };
+}
+
 /**
  * Auto-triggered function: runs when a Source record is created.
  * Deep-reads the uploaded file (PDF/report) and fills in all metadata fields
@@ -310,6 +343,21 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
       tags: 'tags'
     };
 
+    // ── EN-1: Validate category before writing ────────────────────────────
+    let categoryDeviation = null;
+    if (llmResult.category !== null && llmResult.category !== undefined && llmResult.category !== '') {
+      const catResult = validateLLMCategory(llmResult.category);
+      if (catResult.deviated) {
+        categoryDeviation = catResult.raw;
+        console.warn(`[autoExtractMetadata] Non-canonical category from LLM: "${catResult.raw}" → ${catResult.canonical ?? 'null (cross-category)'}`);
+      }
+      // Replace raw LLM value with canonical (or null) before field mapping
+      llmResult.category = catResult.canonical;
+      if (catResult.deviated && catResult.raw) {
+        llmResult.category_ai_proposed = catResult.raw;
+      }
+    }
+
     for (const [llmField, sourceField] of Object.entries(fieldMapping)) {
       const value = llmResult[llmField];
       const hasValue = value !== null && value !== undefined && value !== '' &&
@@ -327,6 +375,25 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
           updateData[sourceField] = value;
         }
       }
+    }
+
+    // Write category_ai_proposed if a deviation was detected and the field isn't already set
+    if (categoryDeviation && !source.category_ai_proposed) {
+      updateData.category_ai_proposed = categoryDeviation;
+    }
+
+    // Log deviation to LLMCategoryDeviation entity (fire-and-forget)
+    if (categoryDeviation) {
+      const catResult = validateLLMCategory(categoryDeviation);
+      base44.asServiceRole.entities.LLMCategoryDeviation.create({
+        source_id: source_id,
+        function_name: 'autoExtractMetadata',
+        field_name: 'category',
+        raw_llm_value: categoryDeviation,
+        normalized_to: catResult.canonical ?? null,
+        normalization_succeeded: catResult.canonical !== null,
+        detected_at: new Date().toISOString(),
+      }).catch(e => console.warn('[autoExtractMetadata] deviation log failed:', e.message));
     }
 
     // Compute freshness from date_published

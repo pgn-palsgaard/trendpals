@@ -1,5 +1,28 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
+// ── Inline category validator ──────────────────────────────────────────────
+const VALID_CATEGORY_VALUES = ['bakery','condiments','chocolate_confectionery','dairy','ice_cream','meat','oils_fats','plant_based','rutf_rusf','out_of_scope','needs_human_review'];
+const BRIEF_NORM = {'confectionery':'chocolate_confectionery','chocolate':'chocolate_confectionery','chocolate confectionery':'chocolate_confectionery','chocolate & confectionery':'chocolate_confectionery','bakery':'bakery','cake':'bakery','cake gels':'bakery','baking':'bakery','dairy':'dairy','ice cream':'ice_cream','ice-cream':'ice_cream','soft serve ice cream':'ice_cream','soft serve':'ice_cream','meat':'meat','processed meat':'meat','oils':'oils_fats','oils & fats':'oils_fats','fats':'oils_fats','margarine':'oils_fats','plant based':'plant_based','plant-based':'plant_based','plant based products':'plant_based','plant based dairy alternatives':'plant_based','plant-based dairy alternatives':'plant_based','plant based beverages and dairy alternatives':'plant_based','rutf':'rutf_rusf','rusf':'rutf_rusf','rutf and rusf':'rutf_rusf','condiments':'condiments','condiments & sauces':'condiments','sauces':'condiments','dressings':'condiments','spreads':'condiments','sweet spreads':'condiments','coffee creamer':'dairy','creamer':'dairy','creamers':'dairy'};
+
+function validateCategoryArray(arr, sourceId, svc) {
+  if (!Array.isArray(arr)) return [];
+  const canonical = [];
+  for (const raw of arr) {
+    if (!raw) continue;
+    if (VALID_CATEGORY_VALUES.includes(raw)) { canonical.push(raw); continue; }
+    const normalized = BRIEF_NORM[raw.trim().toLowerCase()];
+    if (normalized) {
+      canonical.push(normalized);
+      console.warn(`[processSourceQueue] Non-canonical category_relevance: "${raw}" → ${normalized}`);
+      if (svc && sourceId) svc.entities.LLMCategoryDeviation.create({ source_id: sourceId, function_name: 'processSourceQueue', field_name: 'category_relevance', raw_llm_value: raw, normalized_to: normalized, normalization_succeeded: true, detected_at: new Date().toISOString() }).catch(() => {});
+    } else {
+      console.warn(`[processSourceQueue] Dropping unknown category_relevance: "${raw}"`);
+      if (svc && sourceId) svc.entities.LLMCategoryDeviation.create({ source_id: sourceId, function_name: 'processSourceQueue', field_name: 'category_relevance', raw_llm_value: raw, normalized_to: null, normalization_succeeded: false, detected_at: new Date().toISOString() }).catch(() => {});
+    }
+  }
+  return [...new Set(canonical)];
+}
+
 const SKIP_TYPES = new Set(['gnpd']);
 const SKIP_STAGES = new Set(['extracting', 'extracted', 'gnpd_ready']);
 
@@ -229,6 +252,8 @@ Return ONLY a JSON object with this structure:
           const excerpts = (result?.excerpts || []).map((e, i) => ({
             ...e,
             id: `${source.id}_exc_${Date.now()}_${i}`,
+            // EN-1: validate category_relevance — never store non-canonical strings
+            category_relevance: validateCategoryArray(e.category_relevance, source.id, base44.asServiceRole),
           }));
 
           if (excerpts.length === 0) {
