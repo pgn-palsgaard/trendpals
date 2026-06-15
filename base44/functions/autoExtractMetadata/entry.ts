@@ -168,14 +168,19 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Fallback for PDFs that ExtractDataFromUploadedFile rejects (e.g. >10MB): pdfjs text extraction
+    // Helper: get a fetchable URL (handles private files via signed URL)
+    async function getSignedOrDirectUrl(url) {
+      try {
+        const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: url, expires_in: 300 });
+        if (signed?.signed_url) return signed.signed_url;
+      } catch (_) { /* not a private file */ }
+      return url;
+    }
+
+    // Fallback 1 (PDF): pdfjs — for PDFs that ExtractDataFromUploadedFile rejects (e.g. >10MB)
     if (!documentText && source.file_url && (/\.pdf(\?|$)/.test(lowerUrl) || !lowerUrl.includes('.'))) {
       try {
-        let fetchUrl = source.file_url;
-        try {
-          const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: fetchUrl, expires_in: 300 });
-          if (signed?.signed_url) fetchUrl = signed.signed_url;
-        } catch (_) { /* not a private file */ }
+        const fetchUrl = await getSignedOrDirectUrl(source.file_url);
         const { getDocument } = await import('npm:pdfjs-dist@4.4.168/legacy/build/pdf.mjs');
         const res = await fetch(fetchUrl);
         if (res.ok) {
@@ -197,6 +202,62 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Fallback 2 (PPTX): JSZip slide text extraction — for PPTX files ExtractDataFromUploadedFile cannot handle
+    // Uses <a:t> text-run node extraction (same pattern as processKnowledgeSource)
+    if (!documentText && source.file_url && /\.pptx?(\?|$)/.test(lowerUrl)) {
+      try {
+        const fetchUrl = await getSignedOrDirectUrl(source.file_url);
+        const res = await fetch(fetchUrl);
+        if (res.ok) {
+          const arrayBuffer = await res.arrayBuffer();
+          const JSZip = (await import('npm:jszip@3.10.1')).default;
+          const zip = await JSZip.loadAsync(arrayBuffer);
+          const slideFiles = Object.keys(zip.files)
+            .filter(name => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+            .sort((a, b) => {
+              const numA = parseInt(a.match(/\d+/)[0]);
+              const numB = parseInt(b.match(/\d+/)[0]);
+              return numA - numB;
+            });
+          let fullText = '';
+          for (let i = 0; i < slideFiles.length; i++) {
+            const slideXml = await zip.files[slideFiles[i]].async('text');
+            const textMatches = slideXml.match(/<a:t[^>]*>([^<]+)<\/a:t>/g) || [];
+            const slideText = textMatches
+              .map(match => match.replace(/<[^>]+>/g, '').trim())
+              .filter(t => t.length > 0)
+              .join(' ');
+            if (slideText.trim()) {
+              fullText += `\n[Slide ${i + 1}]\n${slideText}\n`;
+            }
+          }
+          documentText = fullText.trim();
+          extractionMethod = 'jszip_pptx_fallback';
+          console.log(`[autoExtractMetadata] JSZip PPTX fallback extracted ${documentText.length} chars from ${slideFiles.length} slides`);
+        }
+      } catch (e) {
+        console.warn('[autoExtractMetadata] JSZip PPTX fallback failed:', e.message);
+      }
+    }
+
+    // Fallback 3 (DOCX): mammoth — for DOCX files ExtractDataFromUploadedFile cannot handle
+    if (!documentText && source.file_url && /\.docx?(\?|$)/.test(lowerUrl)) {
+      try {
+        const fetchUrl = await getSignedOrDirectUrl(source.file_url);
+        const res = await fetch(fetchUrl);
+        if (res.ok) {
+          const arrayBuffer = await res.arrayBuffer();
+          const mammoth = await import('npm:mammoth@1.8.0');
+          const result = await mammoth.extractRawText({ arrayBuffer });
+          documentText = result.value || '';
+          extractionMethod = 'mammoth_docx_fallback';
+          console.log(`[autoExtractMetadata] mammoth DOCX fallback extracted ${documentText.length} chars`);
+        }
+      } catch (e) {
+        console.warn('[autoExtractMetadata] mammoth DOCX fallback failed:', e.message);
+      }
+    }
+
     // For URL sources, fetch the content
     if (!documentText && source.url) {
       try {
@@ -211,16 +272,24 @@ Deno.serve(async (req) => {
     }
 
     if (!documentText || documentText.length < 100) {
+      // Build explicit failure_reason naming every method tried
+      const triedMethods = [];
+      if (source.file_url) triedMethods.push('ExtractDataFromUploadedFile');
+      if (/\.pdf(\?|$)/.test(lowerUrl) || !lowerUrl.includes('.')) triedMethods.push('pdfjs');
+      if (/\.pptx?(\?|$)/.test(lowerUrl)) triedMethods.push('jszip_pptx');
+      if (/\.docx?(\?|$)/.test(lowerUrl)) triedMethods.push('mammoth_docx');
+      if (source.url) triedMethods.push('url_fetch');
+      const failureReason = `Text extraction failed: tried [${triedMethods.join(', ') || 'none'}] — file may be image-only, password-protected, or unsupported format`;
       await base44.asServiceRole.entities.Source.update(source_id, {
         pipeline_stage: 'failed',
-        failure_reason: 'Metadata extraction failed: could not extract text from document',
+        failure_reason: failureReason,
         metadata_extraction: {
           status: 'failed',
           last_attempted: new Date().toISOString(),
           missing_fields: ['title', 'date_published', 'category', 'region_code', 'document_type', 'publisher']
         }
       });
-      return Response.json({ error: 'Could not extract text from document' }, { status: 422 });
+      return Response.json({ error: failureReason }, { status: 422 });
     }
 
     // Limit text to ~12,000 chars (first ~6 pages worth) — enough for metadata, avoids token overload
@@ -380,6 +449,27 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
     // Write category_ai_proposed if a deviation was detected and the field isn't already set
     if (categoryDeviation && !source.category_ai_proposed) {
       updateData.category_ai_proposed = categoryDeviation;
+    }
+
+    // ── EN-2: Validate source_type before writing ─────────────────────────────
+    // The LLM returns source_type as free-text — never write a non-enum value to the entity.
+    const VALID_SOURCE_TYPES = ['mintel', 'market_intel', 'gnpd', 'report', 'url', 'knowledge', 'other'];
+    if (llmResult.source_type && !VALID_SOURCE_TYPES.includes(llmResult.source_type)) {
+      const rawSourceType = llmResult.source_type;
+      console.warn(`[autoExtractMetadata] Non-canonical source_type from LLM: "${rawSourceType}" — storing in source_type_ai_proposed, not writing to source_type`);
+      // Log to LLMCategoryDeviation (field_name='source_type') — fire-and-forget
+      base44.asServiceRole.entities.LLMCategoryDeviation.create({
+        source_id: source_id,
+        function_name: 'autoExtractMetadata',
+        field_name: 'source_type',
+        raw_llm_value: rawSourceType,
+        normalized_to: null,
+        normalization_succeeded: false,
+        detected_at: new Date().toISOString(),
+      }).catch(e => console.warn('[autoExtractMetadata] LLMCategoryDeviation create failed (source_type):', e.message));
+      // Preserve proposal in source_type_ai_proposed; nullify to prevent invalid enum write
+      llmResult.source_type_ai_proposed = rawSourceType;
+      llmResult.source_type = null;
     }
 
     // Log deviation to LLMCategoryDeviation entity (fire-and-forget)

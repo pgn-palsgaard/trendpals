@@ -7,6 +7,7 @@ import { Progress } from '@/components/ui/progress';
 import { Upload, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import DuplicateDetectedModal from './DuplicateDetectedModal';
+import { intakeFile, DuplicateSourceError } from '../intake/sourceIntake';
 
 export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSource }) {
   const queryClient = useQueryClient();
@@ -87,18 +88,13 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
       status: 'pending', // pending, uploading, success, error
       progress: 0,
       error: null,
-      sourceType: guessSourceType(file.name)
+      sourceId: null,
     }));
 
     setUploadQueue(prev => [...prev, ...newItems]);
   };
 
-  const guessSourceType = (filename) => {
-    const lower = filename.toLowerCase();
-    if (lower.includes('mintel')) return 'mintel';
-    if (lower.includes('gnpd') || lower.includes('launch')) return 'gnpd';
-    return 'report';
-  };
+
 
   const removeFromQueue = (id) => {
     setUploadQueue(prev => prev.filter(item => item.id !== id));
@@ -115,35 +111,22 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
           i.id === item.id ? { ...i, status: 'uploading', progress: 0 } : i
         ));
 
-        // Upload file
-        const { file_url } = await base44.integrations.Core.UploadFile({ file: item.file });
+        // Use canonical intake: dedup check + auto-classification (source_type set by LLM)
+        const result = await intakeFile({ file: item.file, title: item.name });
 
         setUploadQueue(prev => prev.map(i => 
-          i.id === item.id ? { ...i, progress: 50 } : i
-        ));
-
-        // Process source
-        const response = await base44.functions.invoke('processSource', {
-          source_type: item.sourceType,
-          file_url,
-          title: item.name,
-          project_id: null // Library upload
-        });
-
-        setUploadQueue(prev => prev.map(i => 
-          i.id === item.id ? { ...i, status: 'success', progress: 100, sourceId: response.data.source_id } : i
+          i.id === item.id ? { ...i, status: 'success', progress: 100, sourceId: result.sourceId } : i
         ));
       } catch (error) {
-        // Handle duplicate detection
-        if (error.response?.data?.error === 'DUPLICATE_DETECTED') {
-          const duplicate = error.response.data.duplicate;
+        if (error instanceof DuplicateSourceError) {
+          const duplicate = error.duplicates?.[0];
           setUploadQueue(prev => prev.map(i => 
             i.id === item.id ? { 
               ...i, 
               status: 'duplicate', 
               progress: 0, 
               duplicate,
-              error: error.response.data.message 
+              error: error.message,
             } : i
           ));
         } else {
@@ -291,7 +274,7 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
                     )}
                     
                     {item.status === 'pending' && (
-                      <p className="text-xs text-slate-500">Type: {item.sourceType}</p>
+                      <p className="text-xs text-slate-500">Classification pending</p>
                     )}
                   </div>
 

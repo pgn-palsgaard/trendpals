@@ -111,7 +111,27 @@ classification_reasoning: ONE sentence explaining the decision.`,
       },
     });
 
-    const confidence = Math.max(0, Math.min(100, Number(result.classification_confidence) || 0));
+    const rawConfidence = Number(result.classification_confidence);
+    const confidence = (!isNaN(rawConfidence) && rawConfidence >= 0) ? Math.min(100, rawConfidence) : null;
+
+    if (confidence === null) {
+      await base44.asServiceRole.entities.Source.update(source_id, {
+        pipeline_stage: 'needs_classification',
+        review_status: 'pending',
+        failure_reason: 'classification: LLM did not return a numeric confidence',
+        classification: {
+          proposed_source_type: result.proposed_source_type || null,
+          document_type: result.document_type || '',
+          category_relevance: [],
+          region_signal: result.region_signal || '',
+          confidence: null,
+          reasoning: result.classification_reasoning || 'No confidence value returned',
+          status: 'failed',
+          classified_at: new Date().toISOString(),
+        },
+      });
+      return Response.json({ ok: false, error: 'LLM returned null/NaN confidence — routed to needs_classification' });
+    }
     // EN-1: validate category_relevance before storing
     const rawCategoryRelevance = result.category_relevance || [];
     const validatedCategoryRelevance = validateLLMCategoryArray(rawCategoryRelevance, source_id, base44.asServiceRole, 'classifySource');

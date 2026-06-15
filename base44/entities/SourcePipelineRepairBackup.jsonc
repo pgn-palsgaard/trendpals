@@ -1,0 +1,46 @@
+{
+  "name": "SourcePipelineRepairBackup",
+  "type": "object",
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "description": "Original Source entity ID"
+    },
+    "title": {
+      "type": "string",
+      "description": "Snapshot of Source.title at backup time"
+    },
+    "pipeline_stage_original": {
+      "type": "string",
+      "description": "pipeline_stage value at backup time"
+    },
+    "review_status_original": {
+      "type": "string",
+      "description": "review_status value at backup time"
+    },
+    "skip_reason_original": {
+      "type": "string",
+      "description": "skip_reason value at backup time"
+    },
+    "excerpts_count_original": {
+      "type": "number",
+      "description": "Count of excerpts at backup time"
+    },
+    "metadata_extraction_status_original": {
+      "type": "string",
+      "description": "metadata_extraction.status at backup time"
+    },
+    "backed_up_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of this backup record"
+    },
+    "repair_action": {
+      "type": "string",
+      "description": "What was done: e.g. set_pipeline_stage_extracted, set_pipeline_stage_metadata_extracted, set_pipeline_stage_uploaded_mitigation"
+    }
+  },
+  "required": [
+    "source_id"
+  ]
+}
