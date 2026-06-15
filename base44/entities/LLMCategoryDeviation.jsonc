@@ -1,0 +1,39 @@
+{
+  "name": "LLMCategoryDeviation",
+  "type": "object",
+  "required": [
+    "source_id",
+    "function_name",
+    "raw_llm_value"
+  ],
+  "properties": {
+    "source_id": {
+      "type": "string",
+      "description": "Source entity ID the deviation was detected on"
+    },
+    "function_name": {
+      "type": "string",
+      "description": "Backend function that produced the non-canonical value (autoExtractMetadata, classifySource, processSourceQueue, processKnowledgeSource)"
+    },
+    "raw_llm_value": {
+      "type": "string",
+      "description": "The raw non-canonical string the LLM emitted"
+    },
+    "field_name": {
+      "type": "string",
+      "description": "Which field the value was intended for (category, category_relevance)"
+    },
+    "normalized_to": {
+      "type": "string",
+      "description": "The canonical key it was normalized to, or null if normalization failed"
+    },
+    "normalization_succeeded": {
+      "type": "boolean",
+      "description": "true = normalized to a canonical key; false = field set to null"
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  }
+}
