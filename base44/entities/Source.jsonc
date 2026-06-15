@@ -32,8 +32,7 @@
             "confirmed",
             "corrected",
             "failed"
-          ],
-          "description": "classifying=in progress, auto_applied=high confidence applied, pending=needs human review, confirmed/corrected=human decided, failed=classification error"
+          ]
         },
         "proposed_source_type": {
           "type": "string",
@@ -45,8 +44,7 @@
           ]
         },
         "document_type": {
-          "type": "string",
-          "description": "Proposed document type (per knowledge-variant enum where relevant)"
+          "type": "string"
         },
         "category_relevance": {
           "type": "array",
@@ -58,26 +56,33 @@
           "type": "string"
         },
         "confidence": {
-          "type": "number",
-          "description": "0-100 classification confidence"
+          "type": "number"
         },
         "reasoning": {
-          "type": "string",
-          "description": "One-sentence classification reasoning shown in UI"
+          "type": "string"
         },
         "classified_at": {
           "type": "string",
           "format": "date-time"
         },
         "decided_by": {
-          "type": "string",
-          "description": "Email of human who confirmed/corrected"
+          "type": "string"
         },
         "decided_at": {
           "type": "string",
           "format": "date-time"
         }
       }
+    },
+    "extraction_quality_flag": {
+      "type": "string",
+      "enum": [
+        "non_food_contamination",
+        "low_relevance",
+        "duplicate_content",
+        "needs_re_extraction"
+      ],
+      "description": "Quality flag set when the source has known extraction issues. non_food_contamination = source generated non-food ExpertExamples (extractor was too greedy on cross-domain content). Prevents further auto-extraction until reviewed."
     },
     "knowledge_subtype": {
       "type": "string",
@@ -92,13 +97,11 @@
         "webpage_snapshot",
         "pws",
         "other"
-      ],
-      "description": "Subtype for knowledge sources only"
+      ]
     },
     "owner_org": {
       "type": "string",
-      "default": "Palsgaard",
-      "description": "Organization that owns this knowledge source"
+      "default": "Palsgaard"
     },
     "visibility": {
       "type": "string",
@@ -149,8 +152,7 @@
       ]
     },
     "title": {
-      "type": "string",
-      "description": "Source title or filename"
+      "type": "string"
     },
     "subtitle": {
       "type": "string"
@@ -162,8 +164,7 @@
       "type": "string"
     },
     "file_url": {
-      "type": "string",
-      "description": "URL to uploaded file"
+      "type": "string"
     },
     "url": {
       "type": "string"
@@ -211,8 +212,7 @@
         "gnpd_ready",
         "skipped",
         "failed"
-      ],
-      "description": "Processing pipeline stage \u2014 first status axis."
+      ]
     },
     "review_status": {
       "type": "string",
@@ -220,8 +220,7 @@
         "pending",
         "approved",
         "rejected"
-      ],
-      "description": "Human review state \u2014 second status axis. Extraction only runs on approved sources"
+      ]
     },
     "failure_reason": {
       "type": "string"
@@ -410,14 +409,14 @@
     },
     "category_ai_proposed": {
       "type": "string",
-      "description": "Original AI-proposed category value before human correction. Preserves the pre-migration value for audit purposes."
+      "description": "Original AI-proposed category value before human correction."
     },
     "category_relevance": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "description": "Canonical Palsgaard solution keys this source is relevant to. Used for cross-category sources where category is null, and for all sources to enable multi-solution matching."
+      "description": "Canonical Palsgaard solution keys this source is relevant to."
     },
     "main_group": {
       "type": "string",
