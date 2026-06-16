@@ -24,18 +24,38 @@ function validateCategoryArray(arr, sourceId, svc) {
 }
 
 const SKIP_TYPES = new Set(['gnpd']);
-const SKIP_STAGES = new Set(['extracted', 'gnpd_ready']);
-const EXTRACTING_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes — after this, treat extracting as stuck
+const EXTRACTING_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_RETRIES = 3;
+// CL-18: separate cap for stuck-extracting recovery — never mixes semantics with retry_count
+const MAX_STUCK_RECOVERIES = 2;
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// CL-18 FIX: use metadata_extraction.last_attempted (not updated_date) for staleness.
+// updated_date is reset by any incidental write and would cause false negatives.
 function isStuckExtracting(s) {
   if (s.pipeline_stage !== 'extracting') return false;
-  const lastUpdate = new Date(s.updated_date).getTime();
-  return (Date.now() - lastUpdate) > EXTRACTING_TIMEOUT_MS;
+  const lastAttempted = s.metadata_extraction?.last_attempted;
+  if (!lastAttempted) {
+    // No last_attempted timestamp at all — fall back to updated_date as a conservative estimate
+    const lastUpdate = new Date(s.updated_date).getTime();
+    return (Date.now() - lastUpdate) > EXTRACTING_TIMEOUT_MS;
+  }
+  return (Date.now() - new Date(lastAttempted).getTime()) > EXTRACTING_TIMEOUT_MS;
+}
+
+// CL-18: recovery branch — only requires NOT gnpd, NOT already excerpted.
+// Deliberately does NOT require verified===true or review_status==='approved' because
+// a stuck-extracting record was placed in 'extracting' by autoExtractMetadata before
+// human approval happens (verified is set during metadata extraction, not before it).
+function isEligibleForStuckRecovery(s) {
+  if (!isStuckExtracting(s)) return false;
+  if (SKIP_TYPES.has(s.source_type)) return false;
+  if (s.excerpts?.length > 0) return false; // already has content — not truly stuck
+  if ((s.stuck_recovery_count || 0) >= MAX_STUCK_RECOVERIES) return false; // cap exhausted
+  return true;
 }
 
 function detectFailureReason(err) {
@@ -67,51 +87,44 @@ Deno.serve(async (req) => {
     // Resolve which sources to process
     let sourcesToProcess;
     if (Array.isArray(sourceIds) && sourceIds.length > 0) {
-      // Fetch requested sources directly by ID — no list cap
       const fetched = await Promise.all(sourceIds.map(async (id) => {
         try { return await db.entities.Source.get(id); } catch { return null; }
       }));
-      // When specific IDs are passed, skip GNPD type and enforce the human verification gate.
-      // Also recover stuck-extracting records (pipeline_stage='extracting' for >30min).
-      // Idempotency: only sources without existing excerpts are eligible.
-      sourcesToProcess = fetched.filter(s =>
-        s && !SKIP_TYPES.has(s.source_type) &&
-        s.metadata_extraction?.verified === true &&
-        s.review_status === 'approved' &&
-        !(s.excerpts?.length > 0) &&
-        (
-          ['uploaded', 'metadata_extracted'].includes(s.pipeline_stage) ||
-          isStuckExtracting(s)
-        )
-      );
+      // CL-18: two distinct eligibility branches — never conflated
+      sourcesToProcess = fetched.filter(s => {
+        if (!s || SKIP_TYPES.has(s.source_type)) return false;
+        if (s.excerpts?.length > 0) return false;
+        // Branch A: normal approved+verified path
+        const normalPath = s.metadata_extraction?.verified === true &&
+          s.review_status === 'approved' &&
+          ['uploaded', 'metadata_extracted'].includes(s.pipeline_stage);
+        // Branch B: stuck-extracting recovery (no verification requirement)
+        const recoveryPath = isEligibleForStuckRecovery(s);
+        return normalPath || recoveryPath;
+      });
       console.log(`[processSourceQueue] Requested ${sourceIds.length} IDs, found ${sourcesToProcess.length} eligible sources`);
     } else {
-      // Find all queued sources (excluding GNPD)
       const [up, metaDone, extracting] = await Promise.all([
         db.entities.Source.filter({ pipeline_stage: 'uploaded' }, '-created_date', 500),
         db.entities.Source.filter({ pipeline_stage: 'metadata_extracted' }, '-created_date', 500),
         db.entities.Source.filter({ pipeline_stage: 'extracting' }, '-created_date', 100),
       ]);
-      const uploaded = [...up, ...metaDone, ...extracting];
-      // Verification gate: only human-verified + approved sources may be extracted.
-      // Also recover stuck-extracting records (pipeline_stage='extracting' for >30min).
-      sourcesToProcess = uploaded.filter(s =>
-        !SKIP_TYPES.has(s.source_type) &&
-        s.metadata_extraction?.verified === true &&
-        s.review_status === 'approved' &&
-        !(s.excerpts?.length > 0) &&
-        (
-          ['uploaded', 'metadata_extracted'].includes(s.pipeline_stage) ||
-          isStuckExtracting(s)
-        )
-      );
+      const all = [...up, ...metaDone, ...extracting];
+      sourcesToProcess = all.filter(s => {
+        if (!s || SKIP_TYPES.has(s.source_type)) return false;
+        if (s.excerpts?.length > 0) return false;
+        const normalPath = s.metadata_extraction?.verified === true &&
+          s.review_status === 'approved' &&
+          ['uploaded', 'metadata_extracted'].includes(s.pipeline_stage);
+        const recoveryPath = isEligibleForStuckRecovery(s);
+        return normalPath || recoveryPath;
+      });
     }
 
     if (sourcesToProcess.length === 0) {
       return Response.json({ processed: 0, succeeded: 0, failed: 0, skipped: 0, batches: 0, message: 'No eligible sources found' });
     }
 
-    // Split into batches
     const batches = [];
     for (let i = 0; i < sourcesToProcess.length; i += batchSize) {
       batches.push(sourcesToProcess.slice(i, i + batchSize));
@@ -125,7 +138,6 @@ Deno.serve(async (req) => {
     let processedCount = 0;
     let timedOut = false;
 
-    // Stay under the ~3 min function limit; remaining sources are handled by a follow-up call
     const TIME_BUDGET_MS = 140000;
     const startTime = Date.now();
 
@@ -136,17 +148,27 @@ Deno.serve(async (req) => {
 
       for (const source of batch) {
         if (Date.now() - startTime > TIME_BUDGET_MS) {
-          console.log('[processSourceQueue] Time budget reached — stopping, remaining sources left in queue');
+          console.log('[processSourceQueue] Time budget reached — stopping');
           timedOut = true;
           break outer;
         }
         processedCount++;
-        // Warn about large files
-        if (source.file_size && source.file_size > 5 * 1024 * 1024) {
-          console.warn(`[processSourceQueue] LARGE FILE WARNING: ${source.title} (${Math.round(source.file_size / 1024 / 1024)}MB) — may cause rate limiting`);
+
+        const isRecovery = isStuckExtracting(source);
+        if (isRecovery) {
+          const newCount = (source.stuck_recovery_count || 0) + 1;
+          console.warn(`[processSourceQueue] STUCK RECOVERY: ${source.id} (attempt ${newCount}/${MAX_STUCK_RECOVERIES})`);
+          // CL-18: increment stuck_recovery_count + last_stuck_recovery_at before attempting
+          await db.entities.Source.update(source.id, {
+            stuck_recovery_count: newCount,
+            last_stuck_recovery_at: new Date().toISOString(),
+          });
         }
 
-        // Mark as extracting + open a ProcessingRun audit record
+        if (source.file_size && source.file_size > 5 * 1024 * 1024) {
+          console.warn(`[processSourceQueue] LARGE FILE WARNING: ${source.title} (${Math.round(source.file_size / 1024 / 1024)}MB)`);
+        }
+
         await db.entities.Source.update(source.id, { pipeline_stage: 'extracting' });
         const runStartedAt = new Date();
         const run = await base44.asServiceRole.entities.ProcessingRun.create({
@@ -162,16 +184,14 @@ Deno.serve(async (req) => {
         });
 
         try {
-          // Read the source content via the shared extractor (PDF/PPTX/DOCX/HTML/TXT/MD)
           let fileContent = '';
           if (source.file_url || source.url) {
-            // Service-role function invoke intermittently 403s — fall back to user-scoped invoke
             let readData;
             try {
               const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
               readData = readRes?.data ?? readRes;
             } catch (invokeErr) {
-              console.warn(`[processSourceQueue] asServiceRole invoke failed (${invokeErr.message}) — retrying via direct HTTP with caller auth`);
+              console.warn(`[processSourceQueue] asServiceRole invoke failed (${invokeErr.message}) — retrying via direct HTTP`);
               const fnUrl = `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/readSourceContent`;
               const headers = { 'Content-Type': 'application/json' };
               for (const h of ['authorization', 'api_key', 'x-api-key', 'cookie']) {
@@ -192,10 +212,7 @@ Deno.serve(async (req) => {
 
           if (!fileContent || fileContent.trim().length < 50) {
             console.log(`[processSourceQueue] Skipping ${source.id} — no readable content`);
-            await db.entities.Source.update(source.id, {
-              pipeline_stage: 'skipped',
-              skip_reason: 'image_only',
-            });
+            await db.entities.Source.update(source.id, { pipeline_stage: 'skipped', skip_reason: 'image_only' });
             await base44.asServiceRole.entities.ProcessingRun.update(run.id, {
               status: 'skipped',
               skip_reason: 'no readable content',
@@ -207,10 +224,10 @@ Deno.serve(async (req) => {
             continue;
           }
 
-          // Truncate to stay under 30k input tokens/min rate limit (~4 chars per token, target ~20k tokens)
           const MAX_CHARS = 25000;
-          const truncated = fileContent.length > MAX_CHARS;
-          const contentForLLM = truncated ? fileContent.slice(0, MAX_CHARS) + '\n\n[Content truncated for token limits]' : fileContent;
+          const contentForLLM = fileContent.length > MAX_CHARS
+            ? fileContent.slice(0, MAX_CHARS) + '\n\n[Content truncated for token limits]'
+            : fileContent;
 
           const prompt = `You are a market intelligence processor for an emulsifier and stabilizer supplier. Extract structured market intelligence excerpts from the following document.
 
@@ -262,7 +279,6 @@ Return ONLY a JSON object with this structure:
           }
           const anthropicData = await anthropicRes.json();
           const rawText = anthropicData.content?.[0]?.text || '';
-          // Extract JSON from response
           const jsonMatch = rawText.match(/\{[\s\S]*\}/);
           if (!jsonMatch) throw new Error('No JSON found in Anthropic response');
           const result = JSON.parse(jsonMatch[0]);
@@ -270,7 +286,6 @@ Return ONLY a JSON object with this structure:
           const excerpts = (result?.excerpts || []).map((e, i) => ({
             ...e,
             id: `${source.id}_exc_${Date.now()}_${i}`,
-            // EN-1: validate category_relevance — never store non-canonical strings
             category_relevance: validateCategoryArray(e.category_relevance, source.id, base44.asServiceRole),
           }));
 
@@ -305,27 +320,37 @@ Return ONLY a JSON object with this structure:
           console.log(`[processSourceQueue] ✓ ${source.id} — ${excerpts.length} excerpts`);
           succeeded++;
 
-          // Expert example extraction for Mintel reports is handled automatically
-          // by the "Extract Expert Examples on Mintel extraction" entity automation
-          // (fires when pipeline_stage changes to 'extracted').
-
         } catch (err) {
           const reason = detectFailureReason(err);
           const newRetryCount = (source.retry_count || 0) + 1;
           console.error(`[processSourceQueue] ✗ ${source.id} (${reason}, attempt ${newRetryCount}): ${err.message}`);
-          const failureReason = newRetryCount > MAX_RETRIES
-            ? `extraction_retry_limit: failed ${newRetryCount} times (last: ${reason})`
-            : reason;
-          await db.entities.Source.update(source.id, {
-            pipeline_stage: 'failed',
-            failure_reason: failureReason,
-            processing_error: err.message?.slice(0, 500) || 'Unknown error',
-            retry_count: newRetryCount,
-            last_retry_at: new Date().toISOString(),
-          });
+
+          if (isRecovery) {
+            // CL-18: stuck recovery failure path — separate field, separate failure_reason
+            const recoveryCount = (source.stuck_recovery_count || 0) + 1; // already incremented above
+            const exhausted = recoveryCount >= MAX_STUCK_RECOVERIES;
+            await db.entities.Source.update(source.id, {
+              pipeline_stage: 'failed',
+              failure_reason: exhausted
+                ? `stuck_extracting_retry_exhausted: ${recoveryCount} recovery attempts, last: ${reason}`
+                : `stuck_extracting_attempt_${recoveryCount}_failed: ${reason}`,
+              processing_error: err.message?.slice(0, 500) || 'Unknown error',
+            });
+          } else {
+            const failureReason = newRetryCount > MAX_RETRIES
+              ? `extraction_retry_limit: failed ${newRetryCount} times (last: ${reason})`
+              : reason;
+            await db.entities.Source.update(source.id, {
+              pipeline_stage: 'failed',
+              failure_reason: failureReason,
+              processing_error: err.message?.slice(0, 500) || 'Unknown error',
+              retry_count: newRetryCount,
+              last_retry_at: new Date().toISOString(),
+            });
+          }
           await base44.asServiceRole.entities.ProcessingRun.update(run.id, {
             status: 'failed',
-            fatal_error: failureReason,
+            fatal_error: err.message?.slice(0, 500) || 'Unknown error',
             completed_at: new Date().toISOString(),
             duration_seconds: Math.round((Date.now() - runStartedAt.getTime()) / 1000),
           });
@@ -333,9 +358,8 @@ Return ONLY a JSON object with this structure:
         }
       }
 
-      // Delay between batches (skip after last batch or when out of budget)
       if (batchIdx < batches.length - 1 && Date.now() - startTime + delaySeconds * 1000 < TIME_BUDGET_MS) {
-        console.log(`[processSourceQueue] Batch ${batchIdx + 1} done. Waiting ${delaySeconds}s before next batch...`);
+        console.log(`[processSourceQueue] Batch ${batchIdx + 1} done. Waiting ${delaySeconds}s...`);
         await sleep(delaySeconds * 1000);
       } else if (batchIdx < batches.length - 1) {
         console.log('[processSourceQueue] Not enough budget for another batch — stopping');
