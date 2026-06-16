@@ -57,9 +57,23 @@ Deno.serve(async (req) => {
       return Response.json({ ok: false, error: 'GNPD sources are not classified — they use the locked template pipeline' });
     }
 
-    // 1. Extract text
-    const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id });
-    const readData = readRes.data;
+    // 1. Extract text — with HTTP fallback for asServiceRole 403 (same pattern as processSourceQueue)
+    let readData = null;
+    try {
+      const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id });
+      readData = readRes?.data ?? readRes;
+    } catch (invokeErr) {
+      console.warn(`[classifySource] asServiceRole invoke failed (${invokeErr.message}) — retrying via direct HTTP`);
+      const fnUrl = `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/readSourceContent`;
+      const headers = { 'Content-Type': 'application/json' };
+      for (const h of ['authorization', 'api_key', 'x-api-key', 'cookie']) {
+        const v = req.headers.get(h);
+        if (v) headers[h] = v;
+      }
+      const httpRes = await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ source_id }) });
+      if (!httpRes.ok) throw new Error(`readSourceContent HTTP ${httpRes.status}: ${(await httpRes.text()).slice(0, 200)}`);
+      readData = await httpRes.json();
+    }
     if (!readData?.ok || !readData.content?.trim()) {
       // No silent defaults: surface for human classification instead of failing with a guessed type
       await base44.asServiceRole.entities.Source.update(source_id, {
@@ -155,7 +169,20 @@ classification_reasoning: ONE sentence explaining the decision.`,
         classification: { ...classification, status: 'auto_applied' },
       });
       // autoExtractMetadata handles routing: knowledge → auto-verify/approve; mintel/market_intel → verified=false
-      await base44.asServiceRole.functions.invoke('autoExtractMetadata', { source_id });
+      // Use HTTP fallback in case asServiceRole.functions.invoke returns 403
+      try {
+        await base44.asServiceRole.functions.invoke('autoExtractMetadata', { source_id });
+      } catch (invokeErr2) {
+        console.warn(`[classifySource] asServiceRole invoke autoExtractMetadata failed (${invokeErr2.message}) — retrying via direct HTTP`);
+        const fnUrl2 = `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/autoExtractMetadata`;
+        const headers2 = { 'Content-Type': 'application/json' };
+        for (const h of ['authorization', 'api_key', 'x-api-key', 'cookie']) {
+          const v = req.headers.get(h);
+          if (v) headers2[h] = v;
+        }
+        const httpRes2 = await fetch(fnUrl2, { method: 'POST', headers: headers2, body: JSON.stringify({ source_id }) });
+        if (!httpRes2.ok) console.warn(`[classifySource] autoExtractMetadata HTTP fallback also failed: ${httpRes2.status}`);
+      }
       return Response.json({ ok: true, applied: true, classification });
     }
 

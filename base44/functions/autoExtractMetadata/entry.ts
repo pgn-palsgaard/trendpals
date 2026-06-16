@@ -453,22 +453,38 @@ IMPORTANT: Only return fields you are confident about. Do not guess.`;
     // ── EN-2: Validate source_type before writing ─────────────────────────────
     // The LLM returns source_type as free-text — never write a non-enum value to the entity.
     const VALID_SOURCE_TYPES = ['mintel', 'market_intel', 'gnpd', 'report', 'url', 'knowledge', 'other'];
-    if (llmResult.source_type && !VALID_SOURCE_TYPES.includes(llmResult.source_type)) {
-      const rawSourceType = llmResult.source_type;
-      console.warn(`[autoExtractMetadata] Non-canonical source_type from LLM: "${rawSourceType}" — storing in source_type_ai_proposed, not writing to source_type`);
-      // Log to LLMCategoryDeviation (field_name='source_type') — fire-and-forget
-      base44.asServiceRole.entities.LLMCategoryDeviation.create({
-        source_id: source_id,
-        function_name: 'autoExtractMetadata',
-        field_name: 'source_type',
-        raw_llm_value: rawSourceType,
-        normalized_to: null,
-        normalization_succeeded: false,
-        detected_at: new Date().toISOString(),
-      }).catch(e => console.warn('[autoExtractMetadata] LLMCategoryDeviation create failed (source_type):', e.message));
-      // Preserve proposal in source_type_ai_proposed; nullify to prevent invalid enum write
-      llmResult.source_type_ai_proposed = rawSourceType;
-      llmResult.source_type = null;
+    if (llmResult.source_type) {
+      if (!VALID_SOURCE_TYPES.includes(llmResult.source_type)) {
+        // Non-canonical: log deviation, store in _ai_proposed, null out
+        const rawSourceType = llmResult.source_type;
+        console.warn(`[autoExtractMetadata] Non-canonical source_type from LLM: "${rawSourceType}" — storing in source_type_ai_proposed, not writing to source_type`);
+        base44.asServiceRole.entities.LLMCategoryDeviation.create({
+          source_id: source_id,
+          function_name: 'autoExtractMetadata',
+          field_name: 'source_type',
+          raw_llm_value: rawSourceType,
+          normalized_to: null,
+          normalization_succeeded: false,
+          detected_at: new Date().toISOString(),
+        }).catch(e => console.warn('[autoExtractMetadata] LLMCategoryDeviation create failed (source_type):', e.message));
+        llmResult.source_type_ai_proposed = rawSourceType;
+        llmResult.source_type = null;
+      } else if (source.source_type && llmResult.source_type !== source.source_type) {
+        // EN-2 extension (CL-32): canonical but DIFFERS from current source_type.
+        // Write to source_type_ai_proposed for review — never overwrite source_type itself.
+        const proposedType = llmResult.source_type;
+        console.warn(`[autoExtractMetadata] LLM proposed valid-but-differing source_type: "${proposedType}" vs current "${source.source_type}" — storing in source_type_ai_proposed`);
+        // Flag for UI "AI-proposed" badge: store proposal, set decision_pending, null out the write
+        llmResult.source_type_ai_proposed = proposedType;
+        updateData.source_type_ai_proposed = proposedType;
+        updateData.metadata_extraction = {
+          ...(updateData.metadata_extraction || {}),
+          source_type_review_pending: true,
+          source_type_ai_proposed: proposedType,
+          source_type_current: source.source_type,
+        };
+        llmResult.source_type = null; // do NOT overwrite existing source_type
+      }
     }
 
     // Log deviation to LLMCategoryDeviation entity (fire-and-forget)
