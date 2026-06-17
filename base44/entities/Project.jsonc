@@ -89,12 +89,6 @@
       ],
       "default": "draft"
     },
-    "selected_trend_ids": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    },
     "selected_source_ids": {
       "type": "array",
       "items": {
@@ -116,6 +110,18 @@
     "include_trend_analysis_in_report": {
       "type": "boolean",
       "default": false
+    },
+    "source_brief_id": {
+      "type": "string",
+      "description": "ID of the ReportRequest (brief) that originated this project, if converted from a brief."
+    },
+    "requester_name": {
+      "type": "string",
+      "description": "Name of the person who submitted the originating brief."
+    },
+    "requester_email": {
+      "type": "string",
+      "description": "Email of the person who submitted the originating brief. Optional \u2014 not all briefs include this."
     }
   },
   "required": [

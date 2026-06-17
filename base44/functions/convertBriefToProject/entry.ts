@@ -125,24 +125,35 @@ Deno.serve(async (req) => {
     const canonicalCategory = BRIEF_NORM[rawCategory.trim().toLowerCase()] || 'needs_human_review';
     const projectName = `${brief.account} — ${Array.isArray(brief.categories) ? brief.categories[0] : (brief.categories?.split(",")[0].trim() || "General")}`;
 
-    const project = await base44.asServiceRole.entities.Project.create({
+    // Merge suggested_source_ids from brief (if any) into selected_source_ids
+    const suggestedSourceIds = Array.isArray(brief.suggested_source_ids) && brief.suggested_source_ids.length > 0
+      ? brief.suggested_source_ids
+      : [];
+
+    // Build project payload — explicitly exclude null/undefined string fields to avoid
+    // schema validation errors when brief fields are absent (e.g. requester_email=null)
+    const projectPayload = {
       name: projectName,
       category: canonicalCategory,
       region_code: mapRegion(brief.region),
       customer_name: brief.account,
-      objective: brief.purpose,
-      specific_focus: specificFocus,
-      topics_to_avoid: topicsToAvoid,
+      objective: brief.purpose || "",
       trend_time_window: mapTimeWindow(gnpdWindow),
       meeting_context: mapMeetingContext(brief.jtbd),
       customer_priorities: customerPriorities,
       audience: "Industrial manufacturers",
       state: "draft",
-      selected_trend_ids: [],
-      selected_source_ids: [],
+      selected_source_ids: suggestedSourceIds,
       warnings: warnings,
-      include_trend_analysis_in_report: false
-    });
+      include_trend_analysis_in_report: false,
+      source_brief_id: briefId,
+    };
+    if (specificFocus) projectPayload.specific_focus = specificFocus;
+    if (topicsToAvoid) projectPayload.topics_to_avoid = topicsToAvoid;
+    if (brief.requester_name) projectPayload.requester_name = brief.requester_name;
+    if (brief.requester_email) projectPayload.requester_email = brief.requester_email;
+
+    const project = await base44.asServiceRole.entities.Project.create(projectPayload);
 
     await base44.asServiceRole.entities.ReportRequest.update(briefId, {
       project_id: project.id,

@@ -579,6 +579,18 @@
         "failed"
       ],
       "default": "not_applicable"
+    },
+    "source_report_id": {
+      "type": "string",
+      "description": "ID of the Report record this source was uploaded from (set when a final report file is re-ingested as a knowledge source)."
+    },
+    "source_project_id": {
+      "type": "string",
+      "description": "ID of the Project this source was re-ingested from. Denormalized from source_report_id for easier filtering."
+    },
+    "source_type_ai_proposed": {
+      "type": "string",
+      "description": "AI-proposed source_type that differs from the current value. Awaiting human confirmation."
     }
   },
   "required": [

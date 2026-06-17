@@ -201,6 +201,42 @@
     },
     "final_uploaded_by": {
       "type": "string"
+    },
+    "final_uploads": {
+      "type": "array",
+      "description": "History of final report files uploaded (PPTX, PDF) with linked Source records for knowledge extraction.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Public file URL"
+          },
+          "file_type": {
+            "type": "string",
+            "enum": [
+              "pptx",
+              "pdf",
+              "other"
+            ]
+          },
+          "uploaded_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "uploaded_by": {
+            "type": "string",
+            "description": "Email of user who uploaded"
+          },
+          "source_id": {
+            "type": "string",
+            "description": "ID of the Source record created for knowledge extraction"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
     }
   },
   "required": [
