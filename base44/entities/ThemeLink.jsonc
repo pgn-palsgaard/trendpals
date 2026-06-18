@@ -1,0 +1,50 @@
+{
+  "name": "ThemeLink",
+  "properties": {
+    "decided_at": {
+      "description": "HUMAN ONLY. When the approve/reject decision was made.",
+      "format": "date-time",
+      "type": "string"
+    },
+    "decided_by": {
+      "description": "HUMAN ONLY. Who approved or rejected the link. No LLM or backend function may set this.",
+      "type": "string"
+    },
+    "global_trend_id": {
+      "description": "FK to the GlobalTrend this theme curates. v1 links to trends only.",
+      "type": "string"
+    },
+    "is_primary": {
+      "default": false,
+      "description": "True if this is a hero trend for the theme.",
+      "type": "boolean"
+    },
+    "link_status": {
+      "default": "proposed",
+      "description": "Curation state. System sets 'proposed'; only a human may set 'approved' or 'rejected'. The theme is a view that curates the evidence backbone, it does not own evidence.",
+      "enum": [
+        "proposed",
+        "approved",
+        "rejected"
+      ],
+      "type": "string"
+    },
+    "proposed_rationale": {
+      "description": "Why the system proposed linking this trend to this theme. LLM may populate.",
+      "type": "string"
+    },
+    "relevance_score": {
+      "description": "System confidence that the trend fits the theme (internal only).",
+      "type": "number"
+    },
+    "theme_id": {
+      "description": "FK to CommunicationTheme.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "theme_id",
+    "global_trend_id"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,51 @@
+{
+  "name": "CommunicationTheme",
+  "properties": {
+    "name": {
+      "description": "Theme name, e.g. 'Convenience by Default'",
+      "type": "string"
+    },
+    "tagline": {
+      "description": "Short descriptor, e.g. 'Ease and speed as standard'",
+      "type": "string"
+    },
+    "description": {
+      "description": "Longer narrative of what this theme is about",
+      "type": "string"
+    },
+    "year": {
+      "description": "The communication year this theme set belongs to, e.g. 2027. First-class so multiple years can coexist and a trend's movement between themes can be tracked over time.",
+      "type": "number"
+    },
+    "sub_points": {
+      "description": "The 'adopted needs' bullets shown under the theme on the slide, e.g. 'On-the-go lifestyles drive instant formats'.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "display_order": {
+      "description": "Sort order within the year (1-3).",
+      "type": "number"
+    },
+    "color_key": {
+      "description": "Brand colour for this theme card, matching the deck. sage = Convenience, chocolate = Innovating, blue = World of Opportunities.",
+      "enum": [
+        "sage",
+        "chocolate",
+        "blue"
+      ],
+      "type": "string"
+    },
+    "is_active": {
+      "default": true,
+      "description": "Whether this theme is live for its year.",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "name",
+    "year"
+  ],
+  "type": "object"
+}

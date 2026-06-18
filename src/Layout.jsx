@@ -131,6 +131,26 @@ export default function Layout({ children, currentPageName }) {
             >
               Trend Report
             </Link>
+            <Link 
+              to="/ThemeLibrary" 
+              className={`text-sm font-medium transition-colors ${
+                currentPageName === 'ThemeLibrary'
+                  ? 'text-blue-600' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Themes
+            </Link>
+            <Link 
+              to="/ThemeMatrix" 
+              className={`text-sm font-medium transition-colors ${
+                currentPageName === 'ThemeMatrix'
+                  ? 'text-blue-600' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Theme Matrix
+            </Link>
             <button
               onClick={() => base44.auth.logout()}
               className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"

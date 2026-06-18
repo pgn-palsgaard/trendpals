@@ -14,6 +14,8 @@ import AgentActivity from './pages/AgentActivity';
 import GNPD from './pages/GNPD';
 import ChallengeLibrary from './pages/ChallengeLibrary';
 import TrendReport from './pages/TrendReport';
+import ThemeLibrary from './pages/ThemeLibrary';
+import ThemeMatrix from './pages/ThemeMatrix';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -72,6 +74,8 @@ const AuthenticatedApp = () => {
       <Route path="/GNPD" element={<LayoutWrapper currentPageName="GNPD"><GNPD /></LayoutWrapper>} />
       <Route path="/ChallengeLibrary" element={<LayoutWrapper currentPageName="ChallengeLibrary"><ChallengeLibrary /></LayoutWrapper>} />
       <Route path="/TrendReport" element={<LayoutWrapper currentPageName="TrendReport"><TrendReport /></LayoutWrapper>} />
+      <Route path="/ThemeLibrary" element={<LayoutWrapper currentPageName="ThemeLibrary"><ThemeLibrary /></LayoutWrapper>} />
+      <Route path="/ThemeMatrix" element={<LayoutWrapper currentPageName="ThemeMatrix"><ThemeMatrix /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
