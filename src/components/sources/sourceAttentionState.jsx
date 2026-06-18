@@ -14,7 +14,8 @@ export function getSourceAttentionState(s) {
   if (s.pipeline_stage === 'skipped') return 'skipped';
   if (s.review_status === 'rejected') return 'rejected';
   if (s.review_status === 'approved') return 'approved';
-  if (s.pipeline_stage === 'needs_classification') return 'needs_classification';
+  // Only flag needs_classification if the human hasn't already approved/rejected
+  if (s.pipeline_stage === 'needs_classification' && !s.review_status) return 'needs_classification';
   // machine is working or about to (uploaded / extracting, metadata not yet extracted)
   if (!isMetadataExtracted(s)) return 'queue';
   // metadata extracted — waiting on human
