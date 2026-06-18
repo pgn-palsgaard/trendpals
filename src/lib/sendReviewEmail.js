@@ -15,101 +15,86 @@ export async function sendReviewNotificationEmail({ reviewerEmail, reviewerName,
   const count = challenges.length;
   const challengeWord = count === 1 ? 'challenge' : 'challenges';
   const subject = `${count} ${challengeWord} for your review`;
-
-  const firstName = reviewerName ? reviewerName.split(' ')[0] : null;
-  const greeting = firstName ? `Hi ${firstName},` : 'Hi,';
   const reviewUrl = `${appUrl}/SMEReviewQueue`;
 
-  // Per-challenge cards: name (bold), trend + category (muted sub-line), truncated description
-  const challengeCards = challenges.map((c, i) => {
+  // Build per-challenge rows for the {{#each challenges}} block
+  const challengeRows = challenges.map(c => {
     const catLabel = c.category ? c.category.replace(/_/g, ' ') : '';
-    const subLine = [c.trend_name, catLabel].filter(Boolean).join(' · ');
-    const desc = c.description
-      ? (c.description.length > 120 ? c.description.slice(0, 117).trimEnd() + '…' : c.description)
-      : '';
-    const isLast = i === challenges.length - 1;
+    const trendLine = [c.trend_name, catLabel].filter(Boolean).join(' · ');
+    const raw = c.description || '';
+    const descOneLine = raw.length > 120
+      ? raw.slice(0, raw.lastIndexOf(' ', 120) || 120).trimEnd() + '…'
+      : raw;
+
     return `
-      <tr>
-        <td style="padding:14px 16px;background:#FAFAF8;border-radius:8px;${isLast ? '' : 'margin-bottom:8px;'}vertical-align:top;">
-          <p style="margin:0 0 2px 0;font-size:14px;font-weight:600;color:#1D2B47;line-height:1.4;">${c.name}</p>
-          ${subLine ? `<p style="margin:0 0 ${desc ? '6px' : '0'} 0;font-size:12px;color:#8A8A8A;line-height:1.4;">${subLine}</p>` : ''}
-          ${desc ? `<p style="margin:0;font-size:13px;color:#4B5563;line-height:1.5;">${desc}</p>` : ''}
-        </td>
-      </tr>
-      ${!isLast ? '<tr><td style="height:8px;"></td></tr>' : ''}`;
+  <tr>
+    <td style="background-color:#FFFFFF; padding:0 28px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F4EE; border-radius:10px;">
+        <tr>
+          <td style="padding:16px 18px;">
+            <p style="margin:0 0 5px 0; font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:1.4; font-weight:bold; color:#1D2B47;">${c.name}</p>
+            <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:12px; line-height:1.4; color:#6F7B90;">${trendLine}</p>
+            <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.5; color:#3A4A66;">${descOneLine}</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr><td style="background-color:#FFFFFF; height:12px; line-height:12px; font-size:12px;">&nbsp;</td></tr>`;
   }).join('');
 
-  const body = `
-<!DOCTYPE html>
+  const body = `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Review notification</title>
 </head>
-<body style="margin:0;padding:0;background:#F7F4EE;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F7F4EE;padding:36px 16px;">
-    <tr>
-      <td align="center">
-        <table role="presentation" width="100%" style="max-width:580px;">
-
-          <!-- Slim header bar -->
-          <tr>
-            <td style="background:#1D428A;border-radius:10px 10px 0 0;padding:14px 28px;">
-              <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6987a5428ef229e6ee55cbb6/16cea8b8e_Palsgaardlogo_blue_250x250.png"
-                   alt="Palsgaard" width="96" style="display:block;filter:brightness(0) invert(1);" />
-            </td>
-          </tr>
-
-          <!-- White content card -->
-          <tr>
-            <td style="background:#FFFFFF;border-radius:0 0 10px 10px;padding:32px 36px 28px 36px;box-shadow:0 2px 10px rgba(29,43,71,0.09);">
-
-              <!-- Greeting + context -->
-              <p style="margin:0 0 6px 0;font-size:13px;font-weight:600;color:#1D2B47;letter-spacing:0.04em;text-transform:uppercase;">${count} ${challengeWord} for your review</p>
-              <p style="margin:0 0 20px 0;font-size:22px;font-weight:600;color:#1D2B47;line-height:1.25;">${greeting}</p>
-              <p style="margin:0 0 28px 0;font-size:15px;color:#374151;line-height:1.65;">
-                ${dispatchedBy} would value your expert view on ${count === 1 ? 'the industry challenge' : `these ${count} industry challenges`} below — your read tells us whether ${count === 1 ? 'it is' : 'each is'} a real, addressable opportunity.
-              </p>
-
-              <!-- Per-challenge cards -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:30px;">
-                <tbody>
-                  ${challengeCards}
-                </tbody>
-              </table>
-
-              <!-- CTA button -->
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-                <tr>
-                  <td style="border-radius:8px;background:#1D428A;">
-                    <a href="${reviewUrl}"
-                       style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:600;color:#FFFFFF;text-decoration:none;border-radius:8px;letter-spacing:-0.01em;">
-                      Open my review queue
-                    </a>
-                  </td>
-                </tr>
-              </table>
-
-              <p style="margin:0;font-size:13px;color:#9CA3AF;line-height:1.6;">
-                Questions? Reach out to ${dispatchedBy} directly.
-              </p>
-
-            </td>
-          </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="padding:18px 0 0 0;">
-              <p style="margin:0;font-size:11px;color:#B0A898;text-align:center;">
-                Palsgaard A/S &middot; TrendPals internal platform
-              </p>
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
+<body style="margin:0; padding:0; background-color:#F7F4EE;">
+<div style="display:none; max-height:0; overflow:hidden; opacity:0;">${reviewerName}, ${dispatchedBy} would value your expert view on ${count} ${challengeWord}.</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#F7F4EE;">
+<tr>
+<td align="center" style="padding:32px 16px;">
+<table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:560px; max-width:560px;">
+  <tr>
+    <td style="background-color:#1D428A; border-radius:14px 14px 0 0; padding:18px 28px;">
+      <span style="font-family:Georgia,'Times New Roman',serif; font-size:20px; font-weight:bold; color:#FFFFFF; letter-spacing:0.3px;">Palsgaard<span style="font-size:11px; vertical-align:super;">&reg;</span></span>
+      <span style="font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#C7D2E8; padding-left:10px;">TrendPals</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="background-color:#FFFFFF; padding:32px 28px 12px 28px;">
+      <h1 style="margin:0 0 16px 0; font-family:Georgia,'Times New Roman',serif; font-size:23px; line-height:1.3; font-weight:bold; color:#1D2B47;">${count} ${challengeWord} for your review</h1>
+      <p style="margin:0 0 8px 0; font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:1.6; color:#1D2B47;">Hi ${reviewerName || 'there'},</p>
+      <p style="margin:0 0 24px 0; font-family:Arial,Helvetica,sans-serif; font-size:15px; line-height:1.6; color:#3A4A66;">${dispatchedBy} would value your expert view on the ${challengeWord} below — your read tells us whether each one is a real, addressable opportunity.</p>
+    </td>
+  </tr>
+  ${challengeRows}
+  <tr>
+    <td style="background-color:#FFFFFF; padding:16px 28px 28px 28px;">
+      <table role="presentation" cellpadding="0" cellspacing="0">
+        <tr>
+          <td align="center" style="background-color:#1D428A; border-radius:8px;">
+            <a href="${reviewUrl}" style="display:inline-block; padding:13px 26px; font-family:Arial,Helvetica,sans-serif; font-size:15px; font-weight:bold; color:#FFFFFF; text-decoration:none;">Open my review queue &rarr;</a>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="background-color:#FFFFFF; border-radius:0 0 14px 14px; padding:4px 28px 28px 28px;">
+      <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:13px; line-height:1.6; color:#6F7B90;">Questions? Reach out to ${dispatchedBy} directly.</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:20px 28px 0 28px;" align="center">
+      <p style="margin:0; font-family:Arial,Helvetica,sans-serif; font-size:11px; line-height:1.5; color:#A8AEBB;">Palsgaard A/S &middot; TrendPals internal platform</p>
+    </td>
+  </tr>
+</table>
+</td>
+</tr>
+</table>
 </body>
 </html>`;
 
