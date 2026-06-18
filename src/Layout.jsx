@@ -111,6 +111,26 @@ export default function Layout({ children, currentPageName }) {
             >
               Agent Activity
             </Link>
+            <Link 
+              to="/ChallengeLibrary" 
+              className={`text-sm font-medium transition-colors ${
+                currentPageName === 'ChallengeLibrary'
+                  ? 'text-blue-600' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Challenges
+            </Link>
+            <Link 
+              to="/TrendReport" 
+              className={`text-sm font-medium transition-colors ${
+                currentPageName === 'TrendReport'
+                  ? 'text-blue-600' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Trend Report
+            </Link>
             <button
               onClick={() => base44.auth.logout()}
               className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"

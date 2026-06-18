@@ -1,0 +1,45 @@
+{
+  "name": "Recipe",
+  "properties": {
+    "name": {
+      "description": "Recipe / concept name",
+      "type": "string"
+    },
+    "recipe_match_status": {
+      "default": "unmapped",
+      "description": "existing = a Palsgaard recipe already exists; concept_needed = capability fit but no recipe yet (development priority); unmapped = not yet assessed.",
+      "enum": [
+        "existing",
+        "concept_needed",
+        "unmapped"
+      ],
+      "type": "string"
+    },
+    "challenge_ids": {
+      "description": "FK array to IndustryChallenge. Many-to-many: a recipe may serve several challenges, and a challenge may have zero recipes. May be empty.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "is_active": {
+      "default": false,
+      "description": "Approval gate, same pattern as other entities.",
+      "type": "boolean"
+    },
+    "review_status": {
+      "default": "pending",
+      "description": "Editorial approval state, set by a human.",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "type": "object"
+}

@@ -12,6 +12,8 @@ import SubmitBrief from './pages/SubmitBrief';
 import TrendLibrary from './pages/TrendLibrary';
 import AgentActivity from './pages/AgentActivity';
 import GNPD from './pages/GNPD';
+import ChallengeLibrary from './pages/ChallengeLibrary';
+import TrendReport from './pages/TrendReport';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -68,6 +70,8 @@ const AuthenticatedApp = () => {
       <Route path="/TrendLibrary" element={<LayoutWrapper currentPageName="TrendLibrary"><TrendLibrary /></LayoutWrapper>} />
       <Route path="/AgentActivity" element={<LayoutWrapper currentPageName="AgentActivity"><AgentActivity /></LayoutWrapper>} />
       <Route path="/GNPD" element={<LayoutWrapper currentPageName="GNPD"><GNPD /></LayoutWrapper>} />
+      <Route path="/ChallengeLibrary" element={<LayoutWrapper currentPageName="ChallengeLibrary"><ChallengeLibrary /></LayoutWrapper>} />
+      <Route path="/TrendReport" element={<LayoutWrapper currentPageName="TrendReport"><TrendReport /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

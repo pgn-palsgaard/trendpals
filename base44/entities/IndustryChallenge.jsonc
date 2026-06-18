@@ -1,0 +1,132 @@
+{
+  "name": "IndustryChallenge",
+  "type": "object",
+  "required": [
+    "name",
+    "global_trend_id"
+  ],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Short, concrete name of the formulation/application challenge"
+    },
+    "description": {
+      "type": "string",
+      "description": "The challenge stated as a formulation/application problem, not a restatement of the trend"
+    },
+    "global_trend_id": {
+      "type": "string",
+      "description": "FK to GlobalTrend this challenge is derived from. Required. One trend may have many challenges."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "bakery",
+        "condiments",
+        "chocolate_confectionery",
+        "dairy",
+        "ice_cream",
+        "meat",
+        "oils_fats",
+        "plant_based",
+        "rutf_rusf",
+        "needs_human_review"
+      ],
+      "description": "Canonical Palsgaard solution key. Inherits the parent trend's category convention."
+    },
+    "region_code": {
+      "type": "string",
+      "enum": [
+        "ASPAC",
+        "AMERICAS",
+        "EMEC",
+        "IMEA",
+        "Global"
+      ],
+      "description": "Canonical region code, optional. Use when the challenge is region-specific."
+    },
+    "supporting_note": {
+      "type": "string",
+      "description": "Free-text note. The challenge otherwise INHERITS the parent trend's evidence (excerpts, GNPD examples) \u2014 it does NOT carry its own evidence layer in v1."
+    },
+    "capability_observation": {
+      "type": "string",
+      "description": "Data-derived observation. An LLM MAY populate this. Describes what the evidence suggests, not a decision."
+    },
+    "capability_hypothesis": {
+      "type": "string",
+      "description": "Proposed Palsgaard capability angle. An LLM MAY populate this. ALWAYS treated as an unconfirmed hypothesis awaiting market validation. Content rule: never use 'Palsgaard' as the grammatical subject (write 'Deep expertise in X enables\u2026')."
+    },
+    "capability_area": {
+      "type": "string",
+      "enum": [
+        "sustainability",
+        "texture_quality",
+        "cost_efficiency",
+        "compliance_regulatory",
+        "new_product_development",
+        "food_safety",
+        "supply_chain",
+        "plant_based",
+        "general"
+      ],
+      "description": "Which kind of Palsgaard capability this challenge relates to. Same enum as GlobalTrend.capability_area and Source excerpts \u2014 keeps challenges, trends and evidence in one capability vocabulary."
+    },
+    "capability_fit": {
+      "type": "string",
+      "enum": [
+        "strong",
+        "possible",
+        "none",
+        "unknown"
+      ],
+      "default": "unknown",
+      "description": "Whether Palsgaard can address this challenge. Distinct from capability_area (which kind vs whether we can). LLM may propose; defaults to 'unknown' when uncertain, with defaulted_conservatively=true."
+    },
+    "validation_status": {
+      "type": "string",
+      "enum": [
+        "unvalidated",
+        "in_field",
+        "confirmed",
+        "rejected"
+      ],
+      "default": "unvalidated",
+      "description": "HUMAN ONLY. Market validation state, set by technical/sales staff in the field. No LLM or backend function may set this beyond the initial 'unvalidated' default. A rejected challenge is as informative as a confirmed one."
+    },
+    "validated_by": {
+      "type": "string",
+      "description": "HUMAN ONLY. Who confirmed or rejected the hypothesis in the field (technical or sales)."
+    },
+    "validated_date": {
+      "type": "string",
+      "format": "date-time",
+      "description": "HUMAN ONLY. When validation occurred."
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": false,
+      "description": "Approval gate. LLM-proposed challenges are always created with is_active=false."
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending",
+      "description": "Editorial approval state, set by a human in the Challenge Library. Distinct from validation_status (market validation)."
+    },
+    "defaulted_conservatively": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when a value (e.g. capability_fit) was set conservatively due to uncertainty rather than confidently inferred."
+    },
+    "decision_pending": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when this record needs a human decision before it can be relied on."
+    }
+  }
+}
