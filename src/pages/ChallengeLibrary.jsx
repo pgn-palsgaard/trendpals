@@ -118,7 +118,10 @@ export default function ChallengeLibrary() {
   };
 
   const toggleGroup = (trendId) => {
-    setCollapsedGroups(prev => ({ ...prev, [trendId]: !prev[trendId] }));
+    setCollapsedGroups(prev => {
+      const current = prev[trendId] === undefined ? true : prev[trendId];
+      return { ...prev, [trendId]: !current };
+    });
   };
 
   // All challenges grouped by trend (no tab/search filter — used for counts and sorting)
@@ -294,9 +297,8 @@ export default function ChallengeLibrary() {
               const trendId = trend.id;
               const allGroup = allChallengesByTrend[trendId] || [];
               const filteredGroup = filteredChallengesByTrend[trendId] || [];
-              const isCollapsed = collapsedGroups[trendId] !== false && collapsedGroups[trendId] !== undefined
-                ? collapsedGroups[trendId]
-                : true; // default collapsed
+              // undefined = not yet toggled = default collapsed (true)
+              const isCollapsed = collapsedGroups[trendId] === undefined ? true : collapsedGroups[trendId];
               const isProposing = proposingFor === trendId;
               const pendingCount = allGroup.filter(c => c.review_status === 'pending').length;
               const hasNoChallenges = allGroup.length === 0;
