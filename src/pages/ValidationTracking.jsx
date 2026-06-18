@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { CheckCircle, AlertCircle, XCircle, Clock, Users, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle, AlertCircle, XCircle, Clock, Users, ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import ResendReviewerButton from '@/components/challenges/ResendReviewerButton';
 
@@ -143,7 +143,7 @@ function ValidationRollupControl({ challenge, onSave }) {
   );
 }
 
-function ChallengeTrackingRow({ challenge, assignments, onSaveValidation, trendMap = {} }) {
+function ChallengeTrackingRow({ challenge, assignments, onSaveValidation, onDeleteAssignment, trendMap = {} }) {
   const [expanded, setExpanded] = useState(false);
   const total = assignments.length;
   const responded = assignments.filter(a => a.status === 'responded').length;
@@ -219,6 +219,16 @@ function ChallengeTrackingRow({ challenge, assignments, onSaveValidation, trendM
                         />
                       </>
                     )}
+                    <button
+                      onClick={() => onDeleteAssignment(a.id)}
+                      className="p-1 rounded hover:bg-red-50 transition-colors"
+                      title="Remove this reviewer"
+                      style={{ color: '#94a3b8' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#C15338'}
+                      onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
                 {a.suggested_capability_fit && (
@@ -268,6 +278,17 @@ export default function ValidationTracking() {
     mutationFn: ({ id, data }) => base44.entities.IndustryChallenge.update(id, data),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['industryChallengesTracking'] }),
   });
+
+  const deleteAssignmentMutation = useMutation({
+    mutationFn: (id) => base44.entities.ReviewAssignment.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['allAssignments'] }),
+  });
+
+  const handleDeleteAssignment = async (id) => {
+    if (!window.confirm('Remove this reviewer from the assignment list?')) return;
+    await deleteAssignmentMutation.mutateAsync(id);
+    toast.success('Reviewer removed');
+  };
 
   const handleSaveValidation = async (challengeId, payload) => {
     // IMMUTABLE RULE: only validation_status, validated_by, validated_date — never verdict/comment/responded_at
@@ -381,6 +402,7 @@ export default function ValidationTracking() {
                 challenge={c}
                 assignments={assignmentsByChallenge[c.id] || []}
                 onSaveValidation={handleSaveValidation}
+                onDeleteAssignment={handleDeleteAssignment}
                 trendMap={trendMap}
               />
             ))}
