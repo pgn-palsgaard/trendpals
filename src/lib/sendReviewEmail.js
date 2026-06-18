@@ -13,22 +13,30 @@ import { base44 } from '@/api/base44Client';
  */
 export async function sendReviewNotificationEmail({ reviewerEmail, reviewerName, dispatchedBy, challenges, appUrl }) {
   const count = challenges.length;
-  const subject = count === 1
-    ? `1 challenge for your review`
-    : `${count} challenges for your review`;
+  const challengeWord = count === 1 ? 'challenge' : 'challenges';
+  const subject = `${count} ${challengeWord} for your review`;
 
-  const greeting = reviewerName ? `Hi ${reviewerName.split(' ')[0]},` : 'Hi,';
+  const firstName = reviewerName ? reviewerName.split(' ')[0] : null;
+  const greeting = firstName ? `Hi ${firstName},` : 'Hi,';
   const reviewUrl = `${appUrl}/SMEReviewQueue`;
 
-  const challengeRows = challenges.map(c => {
+  // Per-challenge cards: name (bold), trend + category (muted sub-line), truncated description
+  const challengeCards = challenges.map((c, i) => {
     const catLabel = c.category ? c.category.replace(/_/g, ' ') : '';
-    const trendLine = c.trend_name ? `<span style="color:#6B7280;font-size:13px;"> — ${c.trend_name}${catLabel ? ` (${catLabel})` : ''}</span>` : (catLabel ? `<span style="color:#6B7280;font-size:13px;"> — ${catLabel}</span>` : '');
+    const subLine = [c.trend_name, catLabel].filter(Boolean).join(' · ');
+    const desc = c.description
+      ? (c.description.length > 120 ? c.description.slice(0, 117).trimEnd() + '…' : c.description)
+      : '';
+    const isLast = i === challenges.length - 1;
     return `
       <tr>
-        <td style="padding:8px 0;border-bottom:1px solid #EAE6DD;vertical-align:top;">
-          <span style="font-size:14px;color:#1D2B47;font-weight:500;">• ${c.name}</span>${trendLine}
+        <td style="padding:14px 16px;background:#FAFAF8;border-radius:8px;${isLast ? '' : 'margin-bottom:8px;'}vertical-align:top;">
+          <p style="margin:0 0 2px 0;font-size:14px;font-weight:600;color:#1D2B47;line-height:1.4;">${c.name}</p>
+          ${subLine ? `<p style="margin:0 0 ${desc ? '6px' : '0'} 0;font-size:12px;color:#8A8A8A;line-height:1.4;">${subLine}</p>` : ''}
+          ${desc ? `<p style="margin:0;font-size:13px;color:#4B5563;line-height:1.5;">${desc}</p>` : ''}
         </td>
-      </tr>`;
+      </tr>
+      ${!isLast ? '<tr><td style="height:8px;"></td></tr>' : ''}`;
   }).join('');
 
   const body = `
@@ -39,66 +47,61 @@ export async function sendReviewNotificationEmail({ reviewerEmail, reviewerName,
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
 </head>
 <body style="margin:0;padding:0;background:#F7F4EE;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F7F4EE;padding:40px 16px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F7F4EE;padding:36px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" style="max-width:600px;background:#FFFFFF;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(29,43,71,0.08);">
+        <table role="presentation" width="100%" style="max-width:580px;">
 
-          <!-- Header -->
+          <!-- Slim header bar -->
           <tr>
-            <td style="background:#1D428A;padding:28px 40px;">
+            <td style="background:#1D428A;border-radius:10px 10px 0 0;padding:14px 28px;">
               <img src="https://qtrypzzcjebvfcihiynt.supabase.co/storage/v1/object/public/base44-prod/public/6987a5428ef229e6ee55cbb6/16cea8b8e_Palsgaardlogo_blue_250x250.png"
-                   alt="Palsgaard" width="120" style="display:block;filter:brightness(0) invert(1);" />
+                   alt="Palsgaard" width="96" style="display:block;filter:brightness(0) invert(1);" />
             </td>
           </tr>
 
-          <!-- Body -->
+          <!-- White content card -->
           <tr>
-            <td style="padding:36px 40px 0 40px;">
-              <p style="margin:0 0 8px 0;font-size:22px;font-weight:600;color:#1D2B47;line-height:1.3;">${subject}</p>
-              <p style="margin:0 0 24px 0;font-size:15px;color:#1D2B47;">${greeting}</p>
-              <p style="margin:0 0 24px 0;font-size:15px;color:#374151;line-height:1.6;">
-                ${dispatchedBy} has asked for your expert input to help validate ${count === 1 ? 'an industry challenge' : 'a set of industry challenges'}.
-                Your review helps us assess whether these challenges represent real market opportunities for Palsgaard.
+            <td style="background:#FFFFFF;border-radius:0 0 10px 10px;padding:32px 36px 28px 36px;box-shadow:0 2px 10px rgba(29,43,71,0.09);">
+
+              <!-- Greeting + context -->
+              <p style="margin:0 0 6px 0;font-size:13px;font-weight:600;color:#1D2B47;letter-spacing:0.04em;text-transform:uppercase;">${count} ${challengeWord} for your review</p>
+              <p style="margin:0 0 20px 0;font-size:22px;font-weight:600;color:#1D2B47;line-height:1.25;">${greeting}</p>
+              <p style="margin:0 0 28px 0;font-size:15px;color:#374151;line-height:1.65;">
+                ${dispatchedBy} would value your expert view on ${count === 1 ? 'the industry challenge' : `these ${count} industry challenges`} below — your read tells us whether ${count === 1 ? 'it is' : 'each is'} a real, addressable opportunity.
               </p>
 
-              <!-- Challenge list -->
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
-                <thead>
-                  <tr>
-                    <th style="text-align:left;font-size:11px;font-weight:600;color:#6B7280;letter-spacing:0.08em;text-transform:uppercase;padding-bottom:8px;border-bottom:2px solid #EAE6DD;">
-                      ${count === 1 ? 'Challenge' : `${count} challenges`}
-                    </th>
-                  </tr>
-                </thead>
+              <!-- Per-challenge cards -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:30px;">
                 <tbody>
-                  ${challengeRows}
+                  ${challengeCards}
                 </tbody>
               </table>
 
               <!-- CTA button -->
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
                 <tr>
                   <td style="border-radius:8px;background:#1D428A;">
                     <a href="${reviewUrl}"
-                       style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:#FFFFFF;text-decoration:none;border-radius:8px;letter-spacing:-0.01em;">
-                      Go to my review queue →
+                       style="display:inline-block;padding:13px 26px;font-size:15px;font-weight:600;color:#FFFFFF;text-decoration:none;border-radius:8px;letter-spacing:-0.01em;">
+                      Open my review queue
                     </a>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 32px 0;font-size:14px;color:#6B7280;line-height:1.6;">
-                If you have any questions, please reply to this email or reach out to ${dispatchedBy} directly.
+              <p style="margin:0;font-size:13px;color:#9CA3AF;line-height:1.6;">
+                Questions? Reach out to ${dispatchedBy} directly.
               </p>
+
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="padding:20px 40px;border-top:1px solid #EAE6DD;">
-              <p style="margin:0;font-size:12px;color:#9CA3AF;">
-                Palsgaard A/S · TrendPals internal platform
+            <td style="padding:18px 0 0 0;">
+              <p style="margin:0;font-size:11px;color:#B0A898;text-align:center;">
+                Palsgaard A/S &middot; TrendPals internal platform
               </p>
             </td>
           </tr>
