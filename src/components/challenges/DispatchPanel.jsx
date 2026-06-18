@@ -1,21 +1,10 @@
 import React, { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
-import { Send, X, Plus, Users } from 'lucide-react';
+import { Send, X, Plus, Mail, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
-
-const CATEGORIES = [
-  { value: 'bakery', label: 'Bakery' },
-  { value: 'condiments', label: 'Condiments' },
-  { value: 'chocolate_confectionery', label: 'Chocolate & Confectionery' },
-  { value: 'dairy', label: 'Dairy' },
-  { value: 'ice_cream', label: 'Ice Cream' },
-  { value: 'meat', label: 'Processed Meat' },
-  { value: 'oils_fats', label: 'Oils & Fats' },
-  { value: 'plant_based', label: 'Plant-based' },
-  { value: 'rutf_rusf', label: 'RUTF/RUSF' },
-];
+import { sendReviewNotificationEmail } from '@/lib/sendReviewEmail';
 
 export default function DispatchPanel({ selectedChallenges, allChallenges, onClose }) {
   const { user } = useAuth();
@@ -23,11 +12,19 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
 
   const [reviewers, setReviewers] = useState([{ name: '', email: '' }]);
   const [dispatching, setDispatching] = useState(false);
+  const [emailErrors, setEmailErrors] = useState([]); // emails that failed to send
 
   const { data: existingAssignments = [] } = useQuery({
     queryKey: ['allAssignmentsForDispatch'],
     queryFn: () => base44.entities.ReviewAssignment.list(),
   });
+
+  // Fetch trends so we can include trend_name in email
+  const { data: trends = [] } = useQuery({
+    queryKey: ['globalTrends'],
+    queryFn: () => base44.entities.GlobalTrend.list(),
+  });
+  const trendMap = Object.fromEntries(trends.map(t => [t.id, t]));
 
   const addReviewer = () => setReviewers(r => [...r, { name: '', email: '' }]);
   const removeReviewer = (i) => setReviewers(r => r.filter((_, idx) => idx !== i));
@@ -41,34 +38,39 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
     if (selectedChallenges.length === 0) { toast.error('No challenges selected.'); return; }
 
     setDispatching(true);
+    setEmailErrors([]);
+
+    // Track which challenges were actually newly assigned per reviewer
+    // { reviewerEmail -> [challenge, ...] }
+    const newlyAssignedPerReviewer = {};
     let created = 0;
     let skipped = 0;
 
     for (const challenge of selectedChallenges) {
       for (const reviewer of validReviewers) {
+        const emailKey = reviewer.email.trim().toLowerCase();
+
         // Check for existing open assignment (same challenge + reviewer, not responded)
         const existing = existingAssignments.find(a =>
           a.challenge_id === challenge.id &&
-          a.reviewer_email === reviewer.email.trim().toLowerCase() &&
+          a.reviewer_email === emailKey &&
           a.status !== 'responded'
         );
         if (existing) { skipped++; continue; }
 
-        // IMMUTABLE RULE: assigned_by set by dispatcher (current admin user), NOT by LLM/automation
-        // SME-set fields (verdict, comment, suggested_capability_fit, responded_at) are intentionally omitted
+        // IMMUTABLE RULE: assigned_by set by dispatcher (current admin user)
+        // SME-set fields (verdict, comment, suggested_capability_fit, responded_at) intentionally omitted
         const payload = {
           challenge_id: challenge.id,
           challenge_name: challenge.name,
           global_trend_id: challenge.global_trend_id || undefined,
           category: challenge.category || undefined,
-          reviewer_email: reviewer.email.trim().toLowerCase(),
+          reviewer_email: emailKey,
           reviewer_name: reviewer.name.trim() || undefined,
           assigned_by: user?.full_name || user?.email || 'Admin',
           assigned_at: new Date().toISOString(),
           status: 'sent',
         };
-
-        // Remove undefined keys
         Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
 
         const created_rec = await base44.entities.ReviewAssignment.create(payload);
@@ -82,14 +84,56 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
         }
 
         created++;
+
+        // Track for consolidated email
+        if (!newlyAssignedPerReviewer[emailKey]) {
+          newlyAssignedPerReviewer[emailKey] = { reviewer, challenges: [] };
+        }
+        newlyAssignedPerReviewer[emailKey].challenges.push(challenge);
       }
     }
 
     queryClient.invalidateQueries({ queryKey: ['allAssignments'] });
     queryClient.invalidateQueries({ queryKey: ['allAssignmentsForDispatch'] });
 
-    if (created > 0) toast.success(`${created} assignment${created > 1 ? 's' : ''} dispatched${skipped > 0 ? `, ${skipped} skipped (already open)` : ''}.`);
-    else toast.warning(`No new assignments created. ${skipped} already open.`);
+    // --- Send ONE consolidated email per reviewer ---
+    const dispatchedBy = user?.full_name || user?.email || 'Palsgaard';
+    const failedEmails = [];
+
+    for (const [emailKey, { reviewer, challenges }] of Object.entries(newlyAssignedPerReviewer)) {
+      const enrichedChallenges = challenges.map(c => ({
+        name: c.name,
+        category: c.category,
+        trend_name: c.global_trend_id ? trendMap[c.global_trend_id]?.trend_name : undefined,
+      }));
+
+      try {
+        await sendReviewNotificationEmail({
+          reviewerEmail: emailKey,
+          reviewerName: reviewer.name.trim() || undefined,
+          dispatchedBy,
+          challenges: enrichedChallenges,
+          appUrl: window.location.origin,
+        });
+      } catch (err) {
+        failedEmails.push(emailKey);
+        console.error(`Failed to send email to ${emailKey}:`, err);
+      }
+    }
+
+    // Surface results
+    if (created > 0) {
+      toast.success(`${created} assignment${created > 1 ? 's' : ''} dispatched${skipped > 0 ? `, ${skipped} skipped (already open)` : ''}.`);
+    } else {
+      toast.warning(`No new assignments created. ${skipped} already open.`);
+    }
+
+    if (failedEmails.length > 0) {
+      setEmailErrors(failedEmails);
+      toast.error(`Email failed for: ${failedEmails.join(', ')}. Assignments were still created — resend from Validation Tracking.`);
+      setDispatching(false);
+      return; // Keep panel open so admin sees the error
+    }
 
     setDispatching(false);
     onClose();
@@ -101,15 +145,28 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
         <div className="p-6">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className="text-lg font-bold" style={{ color: '#1D2B47' }}>Dispatch for SME Review</h2>
+              <h2 className="text-lg font-bold" style={{ color: '#1D2B47' }}>Dispatch for SME review</h2>
               <p className="text-sm text-slate-500 mt-0.5">
-                {selectedChallenges.length} challenge{selectedChallenges.length !== 1 ? 's' : ''} selected
+                {selectedChallenges.length} challenge{selectedChallenges.length !== 1 ? 's' : ''} selected · a consolidated email will be sent to each reviewer
               </p>
             </div>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
               <X className="w-5 h-5" />
             </button>
           </div>
+
+          {/* Email error banner */}
+          {emailErrors.length > 0 && (
+            <div className="mb-4 rounded-lg p-3 flex items-start gap-2" style={{ background: '#FAE9E5', border: '1px solid #C1533840' }}>
+              <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: '#A33B24' }} />
+              <div>
+                <p className="text-sm font-semibold" style={{ color: '#A33B24' }}>Email delivery failed</p>
+                <p className="text-xs mt-0.5" style={{ color: '#7a3320' }}>
+                  Assignments were created successfully but email could not be sent to: {emailErrors.join(', ')}. You can resend from Validation Tracking.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Selected challenges preview */}
           <div className="mb-5 rounded-xl p-3 space-y-1.5" style={{ background: '#F7F4EE' }}>
@@ -159,8 +216,9 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
             </div>
           </div>
 
-          <p className="text-xs text-slate-400 mb-5">
-            Assignments will be created with <strong>status: sent</strong>. Duplicate open assignments (same challenge + reviewer) will be skipped automatically.
+          <p className="text-xs text-slate-400 mb-5 flex items-center gap-1.5">
+            <Mail className="w-3 h-3" />
+            One consolidated email per reviewer · duplicate open assignments are skipped automatically
           </p>
 
           <div className="flex gap-3">
@@ -181,7 +239,7 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
               ) : (
                 <Send className="w-4 h-4" />
               )}
-              Dispatch
+              {dispatching ? 'Dispatching…' : 'Dispatch & email'}
             </button>
           </div>
         </div>

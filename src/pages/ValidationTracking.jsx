@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { CheckCircle, AlertCircle, XCircle, Clock, Users, ChevronDown, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
+import ResendReviewerButton from '@/components/challenges/ResendReviewerButton';
 
 const VERDICT_STYLE = {
   confirmed: { bg: '#d4e8cc', color: '#3d5235', label: 'Confirmed' },
@@ -142,7 +143,7 @@ function ValidationRollupControl({ challenge, onSave }) {
   );
 }
 
-function ChallengeTrackingRow({ challenge, assignments, onSaveValidation }) {
+function ChallengeTrackingRow({ challenge, assignments, onSaveValidation, trendMap = {} }) {
   const [expanded, setExpanded] = useState(false);
   const total = assignments.length;
   const responded = assignments.filter(a => a.status === 'responded').length;
@@ -206,9 +207,17 @@ function ChallengeTrackingRow({ challenge, assignments, onSaveValidation }) {
                     {a.status === 'responded' ? (
                       <VerdictBadge verdict={a.verdict} />
                     ) : (
-                      <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#C15338' }}>
-                        <Clock className="w-3 h-3" /> Outstanding
-                      </span>
+                      <>
+                        <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#C15338' }}>
+                          <Clock className="w-3 h-3" /> Outstanding
+                        </span>
+                        <ResendReviewerButton
+                          reviewerEmail={a.reviewer_email}
+                          reviewerName={a.reviewer_name}
+                          outstandingAssignments={assignments.filter(x => x.reviewer_email === a.reviewer_email && x.status !== 'responded')}
+                          trendMap={trendMap}
+                        />
+                      </>
                     )}
                   </div>
                 </div>
@@ -248,6 +257,12 @@ export default function ValidationTracking() {
     queryKey: ['industryChallengesTracking'],
     queryFn: () => base44.entities.IndustryChallenge.list(),
   });
+
+  const { data: trends = [] } = useQuery({
+    queryKey: ['globalTrends'],
+    queryFn: () => base44.entities.GlobalTrend.list(),
+  });
+  const trendMap = useMemo(() => Object.fromEntries(trends.map(t => [t.id, t])), [trends]);
 
   const updateChallengeMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.IndustryChallenge.update(id, data),
@@ -366,6 +381,7 @@ export default function ValidationTracking() {
                 challenge={c}
                 assignments={assignmentsByChallenge[c.id] || []}
                 onSaveValidation={handleSaveValidation}
+                trendMap={trendMap}
               />
             ))}
           </div>
