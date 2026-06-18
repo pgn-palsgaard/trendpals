@@ -4,85 +4,187 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    /* Palsgaard CVI tokens — light gold canvas */
+    --background: 40 33% 96%;        /* #F7F4EE */
+    --foreground: 222 42% 20%;       /* #1D2B47 dark blue */
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 222 42% 20%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
-    --radius: 0.5rem;
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --popover-foreground: 222 42% 20%;
+    --primary: 220 66% 32%;          /* #1D428A Palsgaard Blue */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 40 33% 92%;         /* warm tinted secondary */
+    --secondary-foreground: 222 42% 20%;
+    --muted: 40 20% 93%;
+    --muted-foreground: 220 15% 50%;
+    --accent: 220 66% 32%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 14 57% 48%;       /* #C15338 */
+    --destructive-foreground: 0 0% 100%;
+    --border: 40 20% 88%;            /* warm hairline */
+    --input: 40 20% 88%;
+    --ring: 220 66% 32%;             /* Palsgaard Blue focus ring */
+    --radius: 0.625rem;              /* 10px — soft but not bubbly */
+
+    /* Charts — Palsgaard palette */
+    --chart-1: 220 66% 32%;         /* pal-blue */
+    --chart-2: 96 13% 39%;          /* pal-sage */
+    --chart-3: 176 14% 45%;         /* pal-teal */
+    --chart-4: 36 22% 59%;          /* pal-warm-gold */
+    --chart-5: 44 87% 66%;          /* pal-yellow */
+
+    --sidebar-background: 40 33% 96%;
+    --sidebar-foreground: 222 42% 20%;
+    --sidebar-primary: 220 66% 32%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 40 20% 90%;
+    --sidebar-accent-foreground: 222 42% 20%;
+    --sidebar-border: 40 20% 86%;
+    --sidebar-ring: 220 66% 32%;
   }
 
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
+    --background: 222 42% 10%;
+    --foreground: 40 33% 96%;
+    --card: 222 42% 13%;
+    --card-foreground: 40 33% 96%;
+    --popover: 222 42% 13%;
+    --popover-foreground: 40 33% 96%;
+    --primary: 220 66% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 222 42% 18%;
+    --secondary-foreground: 40 33% 90%;
+    --muted: 222 42% 18%;
+    --muted-foreground: 220 15% 65%;
+    --accent: 220 66% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 14 57% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 222 42% 22%;
+    --input: 222 42% 22%;
+    --ring: 220 66% 55%;
+    --chart-1: 220 66% 55%;
+    --chart-2: 96 20% 55%;
+    --chart-3: 176 20% 55%;
+    --chart-4: 36 30% 65%;
+    --chart-5: 44 87% 66%;
+    --sidebar-background: 222 42% 12%;
+    --sidebar-foreground: 40 33% 90%;
+    --sidebar-primary: 220 66% 55%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-accent: 222 42% 18%;
+    --sidebar-accent-foreground: 40 33% 90%;
+    --sidebar-border: 222 42% 20%;
+    --sidebar-ring: 220 66% 55%;
   }
 }
-
-
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
 
+  html {
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
   body {
     @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+    line-height: 1.6;
+    letter-spacing: -0.01em;
   }
+
+  /* Serif headings — the Palsgaard typographic signature */
+  h1, h2, .font-heading {
+    font-family: 'Lora', Georgia, serif;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+    font-weight: 600;
+  }
+
+  h3, h4 {
+    font-family: 'Inter', system-ui, sans-serif;
+    letter-spacing: -0.015em;
+    line-height: 1.35;
+    font-weight: 600;
+  }
+
+  /* Remove gradient backgrounds — use flat calm canvas */
+  .bg-gradient-to-br {
+    background: hsl(var(--background)) !important;
+  }
+}
+
+@layer utilities {
+  /* Palsgaard brand utility classes */
+  .text-pal-blue    { color: #1D428A; }
+  .text-pal-dark    { color: #1D2B47; }
+  .bg-pal-gold      { background-color: #F7F4EE; }
+  .bg-pal-blue      { background-color: #1D428A; }
+  .bg-pal-dark      { background-color: #1D2B47; }
+  .bg-pal-blue-10   { background-color: #EBF0F8; }
+  .bg-pal-sage-10   { background-color: #EEF1EC; }
+  .bg-pal-red-10    { background-color: #FAE9E5; }
+  .border-pal-blue  { border-color: #1D428A; }
+
+  /* Page scaffold — consistent max-width + padding across all pages */
+  .page-shell {
+    @apply min-h-screen bg-background;
+  }
+  .page-inner {
+    @apply max-w-7xl mx-auto px-6 py-8;
+  }
+  .page-header {
+    @apply mb-8;
+  }
+  .page-title {
+    font-family: 'Lora', Georgia, serif;
+    @apply text-3xl font-semibold text-foreground mb-1;
+    letter-spacing: -0.02em;
+  }
+  .page-subtitle {
+    @apply text-sm text-muted-foreground;
+  }
+
+  /* Cards */
+  .pal-card {
+    @apply bg-card rounded-[10px] border border-border;
+    box-shadow: 0 1px 4px 0 rgba(29,43,71,0.06), 0 0 0 1px rgba(29,43,71,0.04);
+  }
+  .pal-card-hover {
+    @apply transition-shadow duration-200 cursor-pointer;
+  }
+  .pal-card-hover:hover {
+    box-shadow: 0 4px 16px 0 rgba(29,43,71,0.10), 0 0 0 1px rgba(29,43,71,0.07);
+  }
+
+  /* Status badges — Palsgaard palette */
+  .badge-approved   { @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-pal-sage-10; color: #4A6040; }
+  .badge-pending    { @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50; color: #92600A; }
+  .badge-rejected   { @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-pal-red-10; color: #A33B24; }
+  .badge-draft      { @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-muted; color: hsl(var(--muted-foreground)); }
+  .badge-blue       { @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-pal-blue-10; color: #1D428A; }
+
+  /* Section label — uppercase muted pre-header */
+  .section-label {
+    @apply text-xs font-semibold tracking-widest uppercase;
+    color: hsl(var(--muted-foreground));
+  }
+
+  /* Airy table rows */
+  .table-row-airy {
+    @apply border-b border-border last:border-0 transition-colors duration-150;
+  }
+  .table-row-airy:hover {
+    background: hsl(var(--muted) / 0.5);
+  }
+
+  /* Scrollbar refinement */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
 }

@@ -343,7 +343,7 @@ export default function SMEReviewQueue() {
               className="h-8 mb-3"
               style={{ filter: 'brightness(0) invert(1)' }}
             />
-            <h1 className="text-xl font-bold text-white">SME Review Queue</h1>
+            <h1 className="font-heading text-xl font-semibold text-white">SME review queue</h1>
             <p className="text-sm mt-0.5" style={{ color: '#94afd4' }}>Your expert input shapes our capability intelligence</p>
           </div>
           <div className="text-right">

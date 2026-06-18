@@ -2,11 +2,24 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Plus, TrendingUp, FileText, Database, Search } from 'lucide-react';
+import { Plus, TrendingUp, FileText, Database, Search, ArrowRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
+
+const CATEGORY_LABELS = {
+  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Choc & Confectionery',
+  dairy: 'Dairy', ice_cream: 'Ice cream', meat: 'Processed meat',
+  oils_fats: 'Oils & fats', plant_based: 'Plant-based', rutf_rusf: 'RUTF/RUSF',
+};
+
+const STATE_STYLE = {
+  draft: { label: 'Draft', bg: '#F3F4F6', color: '#6B7280' },
+  evidence_sufficient: { label: 'Active', bg: '#EBF0F8', color: '#1D428A' },
+  publishable: { label: 'Ready to publish', bg: '#EEF1EC', color: '#4A6040' },
+  published: { label: 'Published', bg: '#EEF1EC', color: '#4A6040' },
+  aged: { label: 'Aged', bg: '#FAE9E5', color: '#A33B24' },
+};
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,7 +35,6 @@ export default function Home() {
   });
 
   const draftProjects = projects.filter(p => p.state === 'draft' || p.state === 'evidence_sufficient');
-  const publishableProjects = projects.filter(p => p.state === 'publishable');
 
   const filteredReports = reports.filter(r =>
     r.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -31,215 +43,150 @@ export default function Home() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="max-w-7xl mx-auto p-8">
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-4xl font-bold text-slate-900 mb-3">Trend Intelligence System</h1>
-          <p className="text-lg text-slate-600">Transform raw data into credible, evidence-backed regional trend reports</p>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-6 py-10">
+
+        {/* Page header */}
+        <div className="mb-10">
+          <h1 className="font-heading text-3xl font-semibold text-foreground mb-1">Trend intelligence</h1>
+          <p className="text-sm text-muted-foreground">Transform market data into evidence-backed regional trend reports.</p>
         </div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-12">
-          <Card className="border-2 border-slate-200 hover:border-blue-400 transition-all cursor-pointer group">
-            <Link to={createPageUrl('NewProject')}>
-              <CardHeader className="pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
-                    <Plus className="w-6 h-6 text-blue-600" />
-                  </div>
-                  <CardTitle className="text-xl">New Project</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-slate-600">Start a new trend report project with source data</p>
-              </CardContent>
+        {/* Quick-action cards */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          {[
+            { to: createPageUrl('NewProject'), icon: Plus, iconBg: '#EBF0F8', iconColor: '#1D428A', label: 'New project', sub: 'Start a trend brief' },
+            { to: createPageUrl('Projects'), icon: TrendingUp, iconBg: '#EEF1EC', iconColor: '#4A6040', label: 'Projects', sub: `${projects.length} total` },
+            { to: createPageUrl('SourcesDatabase'), icon: FileText, iconBg: '#F5EFE6', iconColor: '#AB9D80', label: 'Market intelligence', sub: 'Source library' },
+            { to: createPageUrl('ReportsLibrary'), icon: Database, iconBg: '#EBF0F8', iconColor: '#1D2B47', label: 'Reports', sub: `${reports.length} published` },
+          ].map(({ to, icon: Icon, iconBg, iconColor, label, sub }) => (
+            <Link key={to} to={to}
+              className="group bg-card rounded-[10px] border border-border p-5 flex flex-col gap-3 transition-all duration-150 hover:-translate-y-0.5"
+              style={{ boxShadow: '0 1px 4px 0 rgba(29,43,71,0.06)' }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px 0 rgba(29,43,71,0.10)'; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px 0 rgba(29,43,71,0.06)'; }}
+            >
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: iconBg }}>
+                <Icon className="w-4 h-4" style={{ color: iconColor }} />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">{label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>
+              </div>
             </Link>
-          </Card>
-
-          <Card className="border-2 border-slate-200 hover:border-emerald-400 transition-all cursor-pointer group">
-            <Link to={createPageUrl('Projects')}>
-              <CardHeader className="pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-emerald-100 rounded-lg group-hover:bg-emerald-200 transition-colors">
-                    <TrendingUp className="w-6 h-6 text-emerald-600" />
-                  </div>
-                  <CardTitle className="text-xl">My Projects</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-slate-600">{projects.length} active projects</p>
-              </CardContent>
-            </Link>
-          </Card>
-
-          <Card className="border-2 border-slate-200 hover:border-amber-400 transition-all cursor-pointer group">
-            <Link to={createPageUrl('SourcesDatabase')}>
-              <CardHeader className="pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-amber-100 rounded-lg group-hover:bg-amber-200 transition-colors">
-                    <FileText className="w-6 h-6 text-amber-600" />
-                  </div>
-                  <CardTitle className="text-xl">Source Library</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-slate-600">Manage your central database of market data</p>
-              </CardContent>
-            </Link>
-          </Card>
-
-          <Card className="border-2 border-slate-200 hover:border-purple-400 transition-all cursor-pointer group">
-            <Link to={createPageUrl('ReportsLibrary')}>
-              <CardHeader className="pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-3 bg-purple-100 rounded-lg group-hover:bg-purple-200 transition-colors">
-                    <Database className="w-6 h-6 text-purple-600" />
-                  </div>
-                  <CardTitle className="text-xl">Reports Library</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-slate-600">{reports.length} published reports</p>
-              </CardContent>
-            </Link>
-          </Card>
+          ))}
         </div>
 
-        {/* Dashboard Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Active Projects */}
-          <Card>
-            <CardHeader className="border-b">
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5" />
-                Active Projects
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
+        {/* Two-column dashboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Active projects */}
+          <div className="bg-card rounded-[10px] border border-border overflow-hidden" style={{ boxShadow: '0 1px 4px 0 rgba(29,43,71,0.06)' }}>
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+              <h2 className="font-heading text-base font-semibold text-foreground">Active projects</h2>
+              <Link to={createPageUrl('Projects')} className="text-xs font-medium flex items-center gap-1 transition-colors" style={{ color: '#1D428A' }}
+                onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
+                onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+              >
+                View all <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <div className="divide-y divide-border">
               {projectsLoading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="h-20 bg-slate-100 rounded-lg animate-pulse" />
-                  ))}
+                <div className="p-5 space-y-3">
+                  {[1,2,3].map(i => <div key={i} className="h-12 bg-muted rounded-lg animate-pulse" />)}
                 </div>
               ) : draftProjects.length === 0 ? (
-               <div className="text-center py-8">
-                 <div className="text-4xl mb-4">📋</div>
-                 <p className="text-slate-900 font-medium mb-2">No active projects</p>
-                 <p className="text-slate-600 text-sm mb-4">Start by creating a new trend report project</p>
-                 <Link to={createPageUrl('NewProject')}>
-                   <Button className="bg-blue-600 hover:bg-blue-700">
-                     <Plus className="w-4 h-4 mr-2" />
-                     Create Your First Project
-                   </Button>
-                 </Link>
-               </div>
-              ) : (
-                <div className="space-y-3">
-                  {draftProjects.slice(0, 5).map(project => (
-                    <Link key={project.id} to={createPageUrl(`ProjectDetail?id=${project.id}`)}>
-                      <Card className="hover:bg-slate-50 transition-colors cursor-pointer">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <h3 className="font-semibold text-slate-900">{project.name}</h3>
-                              <p className="text-sm text-slate-600 mt-1">
-                                {project.category} • {project.region_code}
-                              </p>
-                            </div>
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              project.state === 'draft' ? 'bg-slate-200 text-slate-700' :
-                              project.state === 'evidence_sufficient' ? 'bg-blue-100 text-blue-700' :
-                              'bg-emerald-100 text-emerald-700'
-                            }`}>
-                              {project.state.replace('_', ' ')}
-                            </span>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  ))}
+                <div className="py-12 px-5 text-center">
+                  <p className="text-sm font-medium text-foreground mb-1">No active projects</p>
+                  <p className="text-xs text-muted-foreground mb-4">Start by creating a new trend report project</p>
+                  <Link to={createPageUrl('NewProject')}>
+                    <Button size="sm"><Plus className="w-3.5 h-3.5" />New project</Button>
+                  </Link>
                 </div>
+              ) : (
+                draftProjects.slice(0, 6).map(project => {
+                  const s = STATE_STYLE[project.state] || STATE_STYLE.draft;
+                  return (
+                    <Link key={project.id} to={createPageUrl(`ProjectDetail?id=${project.id}`)}
+                      className="flex items-center justify-between px-5 py-3.5 transition-colors duration-150 hover:bg-muted/50 group"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate group-hover:text-[#1D428A] transition-colors">{project.name}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {CATEGORY_LABELS[project.category] || project.category} · {project.region_code}
+                        </p>
+                      </div>
+                      <span className="ml-3 shrink-0 text-xs px-2 py-0.5 rounded-[5px] font-medium"
+                        style={{ background: s.bg, color: s.color }}>
+                        {s.label}
+                      </span>
+                    </Link>
+                  );
+                })
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
 
-          {/* Recent Reports */}
-          <Card>
-            <CardHeader className="border-b">
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Database className="w-5 h-5" />
-                  Recent Reports
-                </CardTitle>
-                <Link to={createPageUrl('ReportsLibrary')}>
-                  <Button variant="ghost" size="sm">View All</Button>
+          {/* Recent reports */}
+          <div className="bg-card rounded-[10px] border border-border overflow-hidden" style={{ boxShadow: '0 1px 4px 0 rgba(29,43,71,0.06)' }}>
+            <div className="px-5 py-4 border-b border-border">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-heading text-base font-semibold text-foreground">Recent reports</h2>
+                <Link to={createPageUrl('ReportsLibrary')} className="text-xs font-medium flex items-center gap-1 transition-colors" style={{ color: '#1D428A' }}
+                  onMouseEnter={e => e.currentTarget.style.opacity = '0.7'}
+                  onMouseLeave={e => e.currentTarget.style.opacity = '1'}
+                >
+                  View all <ArrowRight className="w-3 h-3" />
                 </Link>
               </div>
-              <div className="mt-4">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    placeholder="Search reports..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search reports…"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-8 text-xs"
+                />
               </div>
-            </CardHeader>
-            <CardContent className="pt-6">
+            </div>
+            <div className="divide-y divide-border">
               {reportsLoading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="h-20 bg-slate-100 rounded-lg animate-pulse" />
-                  ))}
+                <div className="p-5 space-y-3">
+                  {[1,2,3].map(i => <div key={i} className="h-12 bg-muted rounded-lg animate-pulse" />)}
                 </div>
               ) : filteredReports.length === 0 ? (
-               <div className="text-center py-8">
-                 <div className="text-4xl mb-4">📚</div>
-                 <p className="text-slate-900 font-medium mb-2">No published reports</p>
-                 <p className="text-slate-600 text-sm">Create projects and generate reports to see them here</p>
-               </div>
-              ) : (
-                <div className="space-y-3">
-                  {filteredReports.slice(0, 5).map(report => (
-                    <Link key={report.id} to={createPageUrl(`ReportView?id=${report.id}`)}>
-                      <Card className="hover:bg-slate-50 transition-colors cursor-pointer">
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <h3 className="font-semibold text-slate-900">{report.title}</h3>
-                              <p className="text-sm text-slate-600 mt-1">
-                                {report.category} • {report.region}
-                              </p>
-                              {report.selected_trends && (
-                                <div className="flex flex-wrap gap-1 mt-2">
-                                  {report.selected_trends.slice(0, 3).map((trend, idx) => (
-                                    <span key={idx} className="text-xs px-2 py-0.5 bg-slate-100 rounded-full text-slate-700">
-                                      {trend}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                            <div className="text-right ml-4">
-                              <span className={`inline-block w-2 h-2 rounded-full ${
-                                report.freshness === 'fresh' ? 'bg-green-500' :
-                                report.freshness === 'use_with_caution' ? 'bg-yellow-500' :
-                                'bg-red-500'
-                              }`} />
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </Link>
-                  ))}
+                <div className="py-12 px-5 text-center">
+                  <p className="text-sm font-medium text-foreground mb-1">No published reports</p>
+                  <p className="text-xs text-muted-foreground">Create projects and generate reports to see them here</p>
                 </div>
+              ) : (
+                filteredReports.slice(0, 6).map(report => {
+                  const freshColor = report.freshness === 'fresh' ? '#4A6040' : report.freshness === 'use_with_caution' ? '#92600A' : '#A33B24';
+                  const freshBg = report.freshness === 'fresh' ? '#EEF1EC' : report.freshness === 'use_with_caution' ? 'rgba(254,243,199,0.8)' : '#FAE9E5';
+                  return (
+                    <Link key={report.id} to={createPageUrl(`ReportView?id=${report.id}`)}
+                      className="flex items-center justify-between px-5 py-3.5 transition-colors duration-150 hover:bg-muted/50 group"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-foreground truncate group-hover:text-[#1D428A] transition-colors">{report.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {CATEGORY_LABELS[report.category] || report.category} · {report.region}
+                        </p>
+                      </div>
+                      {report.freshness && (
+                        <span className="ml-3 shrink-0 text-xs px-2 py-0.5 rounded-[5px] font-medium capitalize"
+                          style={{ background: freshBg, color: freshColor }}>
+                          {report.freshness === 'use_with_caution' ? 'Caution' : report.freshness}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </div>
+
         </div>
       </div>
     </div>

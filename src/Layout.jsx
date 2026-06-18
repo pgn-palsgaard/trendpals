@@ -100,14 +100,14 @@ function Sidebar({ collapsed, onToggle, currentPageName, navGroups, newBriefCoun
       className="flex flex-col h-full"
       style={{
         width: collapsed && !isMobile ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_WIDTH,
-        background: '#F7F4EE',
-        borderRight: '1px solid #E8E3D8',
+        background: 'hsl(var(--background))',
+        borderRight: '1px solid hsl(var(--border))',
         transition: 'width 0.2s ease',
         overflow: 'hidden',
       }}
     >
       {/* Logo + collapse toggle */}
-      <div className="flex items-center justify-between px-3 py-4 shrink-0" style={{ borderBottom: '1px solid #E8E3D8', minHeight: 64 }}>
+      <div className="flex items-center justify-between px-3 py-4 shrink-0"       style={{ borderBottom: '1px solid hsl(var(--border))', minHeight: 64 }}>
         {(!collapsed || isMobile) && (
           <Link to={createPageUrl('Home')} className="inline-block">
             <img
@@ -150,11 +150,11 @@ function Sidebar({ collapsed, onToggle, currentPageName, navGroups, newBriefCoun
         {navGroups.map(group => (
           <div key={group.section}>
             {!collapsed || isMobile ? (
-              <p className="px-3 mb-1 text-xs font-semibold tracking-widest" style={{ color: '#9CA3AF' }}>
+              <p className="px-3 mb-1 text-xs font-semibold tracking-widest uppercase" style={{ color: 'hsl(var(--muted-foreground))' }}>
                 {group.section}
               </p>
             ) : (
-              <div className="mx-3 mb-1 border-t" style={{ borderColor: '#E8E3D8' }} />
+              <div className="mx-3 mb-1 border-t" style={{ borderColor: 'hsl(var(--border))' }} />
             )}
             <div className="space-y-0.5">
               {group.items.map(item => (
@@ -172,7 +172,7 @@ function Sidebar({ collapsed, onToggle, currentPageName, navGroups, newBriefCoun
       </nav>
 
       {/* Bottom: user info + logout */}
-      <div className="shrink-0 px-2 pb-4 pt-3" style={{ borderTop: '1px solid #E8E3D8' }}>
+      <div className="shrink-0 px-2 pb-4 pt-3"       style={{ borderTop: '1px solid hsl(var(--border))' }}>
         {(!collapsed || isMobile) && user && (
           <div className="px-3 pb-3">
             <p className="text-xs font-semibold truncate" style={{ color: '#1D2B47' }}>{user.full_name}</p>
@@ -255,7 +255,7 @@ export default function Layout({ children, currentPageName }) {
   const navGroups = isReviewer ? REVIEWER_NAV : ADMIN_NAV;
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-background">
       {/* Mobile hamburger */}
       {isMobile && (
         <button

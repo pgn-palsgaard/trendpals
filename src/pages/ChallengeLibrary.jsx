@@ -127,18 +127,18 @@ export default function ChallengeLibrary() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-8">
         {/* Header */}
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold" style={{ color: '#1D2B47' }}>Challenge Library</h1>
+            <h1 className="font-heading text-2xl font-semibold text-foreground">Challenge library</h1>
             <p className="text-sm text-slate-500 mt-1">Review AI-proposed industry challenges derived from GlobalTrends. Approve or reject each, then separately set market-validation status.</p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <Link
               to="/ValidationTracking"
-              className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-[8px] border border-border bg-card text-foreground hover:bg-muted transition-colors duration-150"
             >
               Validation Tracking
             </Link>
@@ -157,15 +157,13 @@ export default function ChallengeLibrary() {
 
         {/* Filters */}
         <div className="flex flex-col md:flex-row md:items-center gap-3 mb-6">
-          <div className="flex items-center bg-white border border-slate-200 rounded-lg p-1 gap-1 shrink-0">
+          <div className="flex items-center bg-card border border-border rounded-[8px] p-1 gap-0.5 shrink-0">
             {TABS.map(t => (
               <button
                 key={t.key}
                 onClick={() => setTab(t.key)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  tab === t.key ? 'text-white' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                }`}
-                style={tab === t.key ? { backgroundColor: '#1D428A' } : {}}
+                className="px-3 py-1.5 rounded-[6px] text-xs font-medium transition-colors duration-150 cursor-pointer"
+                style={{ background: tab === t.key ? '#1D428A' : 'transparent', color: tab === t.key ? '#fff' : 'hsl(var(--muted-foreground))' }}
               >
                 {t.label}
               </button>
@@ -175,8 +173,7 @@ export default function ChallengeLibrary() {
           <select
             value={categoryFilter}
             onChange={e => setCategoryFilter(e.target.value)}
-            className="border border-slate-200 bg-white rounded-lg px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2"
-            style={{ focusRingColor: '#1D428A' }}
+            className="border border-border bg-card rounded-[8px] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-[#1D428A]/40"
           >
             <option value="">All categories</option>
             {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
@@ -216,17 +213,17 @@ export default function ChallengeLibrary() {
               const isProposing = proposingFor === trendId;
 
               return (
-                <div key={trendId} className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                <div key={trendId} className="bg-card border border-border rounded-[10px] overflow-hidden" style={{ boxShadow: '0 1px 4px 0 rgba(29,43,71,0.06)' }}>
                   {/* Group header */}
                   <div
-                    className="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-slate-50 transition-colors"
-                    style={{ borderBottom: '1px solid #e2e8f0' }}
+                    className="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-muted/50 transition-colors duration-150"
+                    style={{ borderBottom: '1px solid hsl(var(--border))' }}
                     onClick={() => toggleGroup(trendId)}
                   >
                     <div className="flex items-center gap-3">
                       {isCollapsed ? <ChevronRight className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                       <div>
-                        <span className="font-semibold text-sm" style={{ color: '#1D2B47' }}>
+                        <span className="font-semibold text-sm text-foreground">
                           {trend?.trend_name || 'Unlinked trend'}
                         </span>
                         {trend?.category && (

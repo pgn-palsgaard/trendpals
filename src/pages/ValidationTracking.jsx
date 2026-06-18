@@ -150,7 +150,7 @@ function ChallengeTrackingRow({ challenge, assignments, onSaveValidation }) {
   const allDone = responded === total && total > 0;
 
   return (
-    <div className="bg-white rounded-xl overflow-hidden border border-slate-200">
+    <div className="bg-card rounded-[10px] overflow-hidden border border-border" style={{ boxShadow: '0 1px 4px 0 rgba(29,43,71,0.06)' }}>
       <button
         className="w-full text-left px-5 py-4 flex items-start gap-3"
         onClick={() => setExpanded(e => !e)}
@@ -192,7 +192,7 @@ function ChallengeTrackingRow({ challenge, assignments, onSaveValidation }) {
       </button>
 
       {expanded && (
-        <div className="px-5 pb-5 space-y-4 border-t border-slate-100 pt-4">
+        <div className="px-5 pb-5 space-y-4 border-t border-border pt-4">
           {/* SME responses */}
           <div className="space-y-3">
             {assignments.map(a => (
@@ -304,11 +304,12 @@ export default function ValidationTracking() {
   const isLoading = loadingAssignments || loadingChallenges;
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
+
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold" style={{ color: '#1D2B47' }}>Validation Tracking</h1>
-          <p className="text-sm text-slate-500 mt-1">SME field validation rollup — review responses and set final validation decisions.</p>
+          <h1 className="font-heading text-2xl font-semibold text-foreground">Validation tracking</h1>
+          <p className="text-sm text-muted-foreground mt-1">SME field validation rollup — review responses and set final validation decisions.</p>
         </div>
 
         {/* Stats */}
