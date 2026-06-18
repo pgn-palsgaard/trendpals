@@ -16,6 +16,9 @@ import ChallengeLibrary from './pages/ChallengeLibrary';
 import TrendReport from './pages/TrendReport';
 import ThemeLibrary from './pages/ThemeLibrary';
 import ThemeMatrix from './pages/ThemeMatrix';
+import SMEReviewQueue from './pages/SMEReviewQueue';
+import ValidationTracking from './pages/ValidationTracking';
+import { Navigate } from 'react-router-dom';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -26,7 +29,7 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   : <>{children}</>;
 
 const AuthenticatedApp = () => {
-  const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const { user, isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
@@ -46,6 +49,18 @@ const AuthenticatedApp = () => {
       navigateToLogin();
       return null;
     }
+  }
+
+  // Reviewer role: gate all routes, only allow SMEReviewQueue
+  const isReviewer = user?.role === 'reviewer';
+
+  if (isReviewer) {
+    return (
+      <Routes>
+        <Route path="/SMEReviewQueue" element={<LayoutWrapper currentPageName="SMEReviewQueue"><SMEReviewQueue /></LayoutWrapper>} />
+        <Route path="*" element={<Navigate to="/SMEReviewQueue" replace />} />
+      </Routes>
+    );
   }
 
   // Render the main app
@@ -76,6 +91,8 @@ const AuthenticatedApp = () => {
       <Route path="/TrendReport" element={<LayoutWrapper currentPageName="TrendReport"><TrendReport /></LayoutWrapper>} />
       <Route path="/ThemeLibrary" element={<LayoutWrapper currentPageName="ThemeLibrary"><ThemeLibrary /></LayoutWrapper>} />
       <Route path="/ThemeMatrix" element={<LayoutWrapper currentPageName="ThemeMatrix"><ThemeMatrix /></LayoutWrapper>} />
+      <Route path="/SMEReviewQueue" element={<LayoutWrapper currentPageName="SMEReviewQueue"><SMEReviewQueue /></LayoutWrapper>} />
+      <Route path="/ValidationTracking" element={<LayoutWrapper currentPageName="ValidationTracking"><ValidationTracking /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

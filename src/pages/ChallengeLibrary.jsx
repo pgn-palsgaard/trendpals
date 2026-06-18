@@ -2,10 +2,12 @@ import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
-import { Search, Zap, CheckCircle, XCircle, Clock, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Search, Zap, CheckCircle, XCircle, Clock, AlertTriangle, ChevronDown, ChevronRight, Send } from 'lucide-react';
 import { toast } from 'sonner';
+import { Link } from 'react-router-dom';
 import ChallengeCard from '@/components/challenges/ChallengeCard';
 import ChallengeDetailPanel from '@/components/challenges/ChallengeDetailPanel';
+import DispatchPanel from '@/components/challenges/DispatchPanel';
 
 const CATEGORIES = [
   { value: 'bakery', label: 'Bakery' },
@@ -35,6 +37,8 @@ export default function ChallengeLibrary() {
   const [selectedChallenge, setSelectedChallenge] = useState(null);
   const [proposingFor, setProposingFor] = useState(null);
   const [collapsedGroups, setCollapsedGroups] = useState({});
+  const [selectedForDispatch, setSelectedForDispatch] = useState([]);
+  const [showDispatchPanel, setShowDispatchPanel] = useState(false);
 
   const { data: challenges = [], isLoading: loadingChallenges } = useQuery({
     queryKey: ['industryChallenges'],
@@ -126,9 +130,29 @@ export default function ChallengeLibrary() {
     <div className="min-h-screen bg-slate-50">
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-8">
         {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold" style={{ color: '#1D2B47' }}>Challenge Library</h1>
-          <p className="text-sm text-slate-500 mt-1">Review AI-proposed industry challenges derived from GlobalTrends. Approve or reject each, then separately set market-validation status.</p>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold" style={{ color: '#1D2B47' }}>Challenge Library</h1>
+            <p className="text-sm text-slate-500 mt-1">Review AI-proposed industry challenges derived from GlobalTrends. Approve or reject each, then separately set market-validation status.</p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              to="/ValidationTracking"
+              className="flex items-center gap-1.5 text-sm font-medium px-3 py-2 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Validation Tracking
+            </Link>
+            {selectedForDispatch.length > 0 && (
+              <button
+                onClick={() => setShowDispatchPanel(true)}
+                className="flex items-center gap-1.5 text-sm font-semibold px-4 py-2 rounded-lg text-white transition-all"
+                style={{ background: '#1D428A' }}
+              >
+                <Send className="w-4 h-4" />
+                Dispatch {selectedForDispatch.length} for review
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Filters */}
@@ -235,13 +259,32 @@ export default function ChallengeLibrary() {
                   {!isCollapsed && (
                     <div className="divide-y divide-slate-100">
                       {group.map(challenge => (
-                        <ChallengeCard
-                          key={challenge.id}
-                          challenge={challenge}
-                          onApprove={handleApprove}
-                          onReject={handleReject}
-                          onViewDetails={setSelectedChallenge}
-                        />
+                        <div key={challenge.id} className="flex items-start">
+                          {challenge.review_status === 'approved' && (
+                            <label className="pl-4 pt-4 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="rounded"
+                                checked={selectedForDispatch.some(c => c.id === challenge.id)}
+                                onChange={e => {
+                                  setSelectedForDispatch(prev =>
+                                    e.target.checked
+                                      ? [...prev, challenge]
+                                      : prev.filter(c => c.id !== challenge.id)
+                                  );
+                                }}
+                              />
+                            </label>
+                          )}
+                          <div className="flex-1">
+                            <ChallengeCard
+                              challenge={challenge}
+                              onApprove={handleApprove}
+                              onReject={handleReject}
+                              onViewDetails={setSelectedChallenge}
+                            />
+                          </div>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -259,6 +302,14 @@ export default function ChallengeLibrary() {
           onApprove={handleApprove}
           onReject={handleReject}
           onSaveValidation={handleSaveValidation}
+        />
+      )}
+
+      {showDispatchPanel && (
+        <DispatchPanel
+          selectedChallenges={selectedForDispatch}
+          allChallenges={challenges}
+          onClose={() => { setShowDispatchPanel(false); setSelectedForDispatch([]); }}
         />
       )}
     </div>

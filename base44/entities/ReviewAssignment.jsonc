@@ -1,0 +1,93 @@
+{
+  "name": "ReviewAssignment",
+  "properties": {
+    "assigned_at": {
+      "description": "HUMAN-SET (dispatcher). When the assignment was sent.",
+      "format": "date-time",
+      "type": "string"
+    },
+    "assigned_by": {
+      "description": "HUMAN-SET (dispatcher, e.g. Peter). Who sent this challenge out for review. Never set by LLM/automation.",
+      "type": "string"
+    },
+    "category": {
+      "description": "Industry/category of the challenge, copied from the challenge for SME filtering.",
+      "enum": [
+        "bakery",
+        "condiments",
+        "chocolate_confectionery",
+        "dairy",
+        "ice_cream",
+        "meat",
+        "oils_fats",
+        "plant_based",
+        "rutf_rusf",
+        "needs_human_review"
+      ],
+      "type": "string"
+    },
+    "challenge_id": {
+      "description": "FK to IndustryChallenge being reviewed.",
+      "type": "string"
+    },
+    "challenge_name": {
+      "description": "Snapshot of the challenge name at dispatch time, for display/audit even if the challenge changes later.",
+      "type": "string"
+    },
+    "comment": {
+      "description": "SME-SET. The reviewer's expert comment / refinement / reasoning. The most valuable field. Set only by the reviewer in the UI.",
+      "type": "string"
+    },
+    "global_trend_id": {
+      "description": "Denormalized FK to the parent GlobalTrend, for context and filtering.",
+      "type": "string"
+    },
+    "responded_at": {
+      "description": "SME-SET. When the reviewer submitted their verdict.",
+      "format": "date-time",
+      "type": "string"
+    },
+    "reviewer_email": {
+      "description": "The SME's email. Used for row-level access (they see only their own assignments) and for attribution. Required.",
+      "type": "string"
+    },
+    "reviewer_name": {
+      "description": "The SME's display name.",
+      "type": "string"
+    },
+    "status": {
+      "default": "sent",
+      "description": "Lifecycle of this assignment. sent = dispatched; opened = reviewer viewed it; responded = reviewer submitted a verdict.",
+      "enum": [
+        "sent",
+        "opened",
+        "responded"
+      ],
+      "type": "string"
+    },
+    "suggested_capability_fit": {
+      "description": "SME-SET, optional. The reviewer's own view on whether Palsgaard can address this challenge. Distinct from the LLM's proposed capability_fit on the challenge.",
+      "enum": [
+        "strong",
+        "possible",
+        "none",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "verdict": {
+      "description": "SME-SET. The reviewer's call. Null until they respond. Set only by the reviewer in the UI.",
+      "enum": [
+        "confirmed",
+        "needs_refinement",
+        "rejected"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "challenge_id",
+    "reviewer_email"
+  ],
+  "type": "object"
+}

@@ -3,15 +3,20 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from './utils';
 import { base44 } from '@/api/base44Client';
 import { LogOut } from 'lucide-react';
+import { useAuth } from '@/lib/AuthContext';
 
 export default function Layout({ children, currentPageName }) {
+  const { user } = useAuth();
   const [newBriefCount, setNewBriefCount] = useState(0);
 
+  const isReviewer = user?.role === 'reviewer';
+
   useEffect(() => {
+    if (isReviewer) return;
     base44.entities.ReportRequest.filter({ status: 'new' }).then(results => {
       setNewBriefCount(results.length);
     }).catch(() => {});
-  }, []);
+  }, [isReviewer]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -26,6 +31,25 @@ export default function Layout({ children, currentPageName }) {
             />
           </Link>
           <nav className="flex items-center gap-6">
+            {isReviewer ? (
+              // Reviewer-role: ONLY SME Review Queue
+              <>
+                <Link
+                  to="/SMEReviewQueue"
+                  className={`text-sm font-medium transition-colors ${currentPageName === 'SMEReviewQueue' ? 'text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
+                >
+                  Review Queue
+                </Link>
+                <button
+                  onClick={() => base44.auth.logout()}
+                  className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Logout
+                </button>
+              </>
+            ) : (
+            <>
             <Link 
               to={createPageUrl('Projects')} 
               className={`text-sm font-medium transition-colors ${
@@ -151,6 +175,16 @@ export default function Layout({ children, currentPageName }) {
             >
               Theme Matrix
             </Link>
+            <Link 
+              to="/ValidationTracking" 
+              className={`text-sm font-medium transition-colors ${
+                currentPageName === 'ValidationTracking'
+                  ? 'text-blue-600' 
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Validation
+            </Link>
             <button
               onClick={() => base44.auth.logout()}
               className="flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
@@ -158,6 +192,8 @@ export default function Layout({ children, currentPageName }) {
               <LogOut className="w-4 h-4" />
               Logout
             </button>
+            </>
+            )}
           </nav>
         </div>
       </header>
