@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import TrendCard from '@/components/trendlibrary/TrendCard';
 import TrendDetailPanel from '@/components/trendlibrary/TrendDetailPanel';
 import TrendEditModal from '@/components/trendlibrary/TrendEditModal';
-import MegaTrendsSection from '@/components/trendlibrary/MegaTrendsSection';
+import DriverFilterPills from '@/components/trendlibrary/DriverFilterPills';
 import MegaTrendDetailPanel from '@/components/trendlibrary/MegaTrendDetailPanel';
 
 const CATEGORIES = [
@@ -116,12 +116,12 @@ export default function TrendLibrary() {
       <div className="max-w-6xl mx-auto px-4 md:px-6 py-8">
         {/* Page header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-slate-900">Trend Library</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Library</h1>
           <p className="text-sm text-slate-500 mt-1">Review and manage the GlobalTrend taxonomy used across TrendPals</p>
         </div>
 
-        {/* Mega-trends section */}
-        <MegaTrendsSection
+        {/* Driver filter pills */}
+        <DriverFilterPills
           trends={trends}
           activeMegaTrend={megaTrendFilter}
           onSelect={setMegaTrendFilter}

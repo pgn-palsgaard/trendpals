@@ -23,7 +23,7 @@ const ADMIN_NAV = [
   {
     section: 'TRENDS',
     items: [
-      { label: 'Trend Library', to: '/TrendLibrary', icon: TrendingUp, pages: ['TrendLibrary'] },
+      { label: 'Library', to: '/TrendLibrary', icon: TrendingUp, pages: ['TrendLibrary'] },
       { label: 'Challenges', to: '/ChallengeLibrary', icon: Zap, pages: ['ChallengeLibrary'] },
       { label: 'Trend Report', to: '/TrendReport', icon: BookOpen, pages: ['TrendReport'] },
       { label: 'Validation', to: '/ValidationTracking', icon: CheckSquare, pages: ['ValidationTracking'] },

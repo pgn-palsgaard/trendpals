@@ -1,3 +1,5 @@
+// DEPRECATED — replaced by DriverFilterPills.jsx (Build A, 2026-06-22)
+// Safe to delete after Hub ships (Build E)
 import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
