@@ -15,7 +15,7 @@ export async function sendReviewNotificationEmail({ reviewerEmail, reviewerName,
   const count = challenges.length;
   const challengeWord = count === 1 ? 'challenge' : 'challenges';
   const subject = `${count} ${challengeWord} for your review`;
-  const reviewUrl = `${appUrl}/SMEReviewQueue`;
+  const reviewUrl = `${appUrl}/review`;
 
   // Build per-challenge rows for the {{#each challenges}} block
   const challengeRows = challenges.map(c => {

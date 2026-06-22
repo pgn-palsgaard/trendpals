@@ -18,6 +18,8 @@ import SMEReviewQueue from './pages/SMEReviewQueue';
 import TrendHub from './pages/TrendHub';
 import ReviewQueue from './pages/ReviewQueue';
 import Reports from './pages/Reports';
+import ReviewerLayout from './components/layout/ReviewerLayout';
+import SMEReviewPortal from './pages/SMEReviewPortal';
 import { Navigate } from 'react-router-dom';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -51,14 +53,15 @@ const AuthenticatedApp = () => {
     }
   }
 
-  // Reviewer role: gate all routes, only allow SMEReviewQueue
+  // SCENARIO A — role field exists on the user object.
+  // Reviewer role: gated to the SME portal only. All other paths redirect to /review.
   const isReviewer = user?.role === 'reviewer';
 
   if (isReviewer) {
     return (
       <Routes>
-        <Route path="/SMEReviewQueue" element={<LayoutWrapper currentPageName="SMEReviewQueue"><SMEReviewQueue /></LayoutWrapper>} />
-        <Route path="*" element={<Navigate to="/SMEReviewQueue" replace />} />
+        <Route path="/review" element={<ReviewerLayout><SMEReviewPortal /></ReviewerLayout>} />
+        <Route path="*" element={<Navigate to="/review" replace />} />
       </Routes>
     );
   }
@@ -66,6 +69,8 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
+      {/* SME portal — accessible to admins for preview; uses ReviewerLayout, not LayoutWrapper */}
+      <Route path="/review" element={<ReviewerLayout><SMEReviewPortal /></ReviewerLayout>} />
       <Route path="/" element={
         <LayoutWrapper currentPageName={mainPageKey}>
           <MainPage />

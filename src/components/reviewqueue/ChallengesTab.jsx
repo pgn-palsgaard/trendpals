@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
+import { Send } from 'lucide-react';
 import ChallengeCard from '@/components/challenges/ChallengeCard';
 import ChallengeDetailPanel from '@/components/challenges/ChallengeDetailPanel';
+import DispatchPanel from '@/components/challenges/DispatchPanel';
 
 const CATEGORIES = [
   { value: 'bakery', label: 'Bakery' },
@@ -30,6 +32,8 @@ export default function ChallengesTab({ challenges, trends }) {
   const [statusFilter, setStatusFilter] = useState('pending');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [selectedChallenge, setSelectedChallenge] = useState(null);
+  const [selectedChallengeIds, setSelectedChallengeIds] = useState([]);
+  const [showDispatch, setShowDispatch] = useState(false);
 
   const trendMap = useMemo(() => Object.fromEntries(trends.map(t => [t.id, t])), [trends]);
 
@@ -60,6 +64,10 @@ export default function ChallengesTab({ challenges, trends }) {
     toast.success('Market validation updated');
   };
 
+  const toggleSelect = (id) => {
+    setSelectedChallengeIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
   const filtered = useMemo(() => {
     return challenges.filter(c => {
       if (statusFilter !== 'all' && c.review_status !== statusFilter) return false;
@@ -67,6 +75,19 @@ export default function ChallengesTab({ challenges, trends }) {
       return true;
     });
   }, [challenges, statusFilter, categoryFilter]);
+
+  // Approved challenges visible under the current filter — selectable set
+  const visibleApproved = useMemo(() => filtered.filter(c => c.review_status === 'approved'), [filtered]);
+  const allApprovedSelected = visibleApproved.length > 0 && visibleApproved.every(c => selectedChallengeIds.includes(c.id));
+
+  const toggleSelectAll = () => {
+    if (allApprovedSelected) {
+      const visibleIds = new Set(visibleApproved.map(c => c.id));
+      setSelectedChallengeIds(prev => prev.filter(id => !visibleIds.has(id)));
+    } else {
+      setSelectedChallengeIds(prev => Array.from(new Set([...prev, ...visibleApproved.map(c => c.id)])));
+    }
+  };
 
   // Group by trend
   const grouped = useMemo(() => {
@@ -82,7 +103,7 @@ export default function ChallengesTab({ challenges, trends }) {
   const trendIds = Object.keys(grouped);
 
   return (
-    <div>
+    <div style={{ paddingBottom: selectedChallengeIds.length > 0 ? 72 : 0 }}>
       {/* Filter bar */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', background: '#e8e3d8', borderRadius: 10, padding: 4, gap: 2 }}>
@@ -112,6 +133,14 @@ export default function ChallengesTab({ challenges, trends }) {
           <option value="">All categories</option>
           {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
+
+        {/* Select all approved — only when viewing Approved */}
+        {statusFilter === 'approved' && visibleApproved.length > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 7, marginLeft: 'auto', fontSize: 13, color: '#1D2B47', cursor: 'pointer' }}>
+            <input type="checkbox" checked={allApprovedSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
+            Select all approved
+          </label>
+        )}
       </div>
 
       {/* Groups */}
@@ -167,21 +196,73 @@ export default function ChallengesTab({ challenges, trends }) {
                   </span>
                 </div>
                 {/* Challenge cards */}
-                <div style={{ divideY: '1px solid hsl(var(--border))' }}>
-                  {group.map((challenge, i) => (
-                    <div key={challenge.id} style={{ borderTop: i > 0 ? '1px solid hsl(var(--border))' : 'none' }}>
-                      <ChallengeCard
-                        challenge={challenge}
-                        onApprove={handleApprove}
-                        onReject={handleReject}
-                        onViewDetails={setSelectedChallenge}
-                      />
-                    </div>
-                  ))}
+                <div>
+                  {group.map((challenge, i) => {
+                    const selectable = challenge.review_status === 'approved';
+                    const isSelected = selectedChallengeIds.includes(challenge.id);
+                    return (
+                      <div
+                        key={challenge.id}
+                        style={{
+                          borderTop: i > 0 ? '1px solid hsl(var(--border))' : 'none',
+                          display: 'flex', alignItems: 'flex-start',
+                          borderLeft: isSelected ? '3px solid #1D428A' : '3px solid transparent',
+                          background: isSelected ? '#F4F7FC' : 'transparent',
+                        }}
+                      >
+                        {selectable && (
+                          <label style={{ paddingLeft: 16, paddingTop: 18, cursor: 'pointer' }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleSelect(challenge.id)}
+                              style={{ cursor: 'pointer' }}
+                            />
+                          </label>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <ChallengeCard
+                            challenge={challenge}
+                            onApprove={handleApprove}
+                            onReject={handleReject}
+                            onViewDetails={setSelectedChallenge}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Bulk action bar */}
+      {selectedChallengeIds.length > 0 && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 30,
+          background: '#fff', borderTop: '1px solid hsl(var(--border))',
+          boxShadow: '0 -2px 12px rgba(29,43,71,0.10)',
+          padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: '#1D2B47' }}>
+            {selectedChallengeIds.length} challenge{selectedChallengeIds.length !== 1 ? 's' : ''} selected
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              onClick={() => setSelectedChallengeIds([])}
+              style={{ fontSize: 13, fontWeight: 500, color: '#6F7B90', background: 'transparent', border: 'none', cursor: 'pointer' }}
+            >
+              Clear selection
+            </button>
+            <button
+              onClick={() => setShowDispatch(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 600, color: '#fff', background: '#1D428A', border: 'none', borderRadius: 8, padding: '9px 18px', cursor: 'pointer' }}
+            >
+              <Send className="w-4 h-4" /> Assign for review
+            </button>
+          </div>
         </div>
       )}
 
@@ -192,6 +273,14 @@ export default function ChallengesTab({ challenges, trends }) {
           onApprove={handleApprove}
           onReject={handleReject}
           onSaveValidation={handleSaveValidation}
+        />
+      )}
+
+      {showDispatch && (
+        <DispatchPanel
+          selectedChallenges={challenges.filter(c => selectedChallengeIds.includes(c.id))}
+          allChallenges={challenges}
+          onClose={() => { setShowDispatch(false); setSelectedChallengeIds([]); }}
         />
       )}
     </div>
