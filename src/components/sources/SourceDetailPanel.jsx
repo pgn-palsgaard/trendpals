@@ -240,15 +240,26 @@ export default function SourceDetailPanel({ sourceId, onClose, onRefresh }) {
   };
 
   const handleRetry = async () => {
-    // TODO: wire up to triggerSourceProcessor backend function when ready
     await base44.entities.Source.update(sourceId, {
       pipeline_stage: 'uploaded',
       failure_reason: null,
+      processing_error: null,
       retry_count: (source?.retry_count || 0) + 1,
       last_retry_at: new Date().toISOString(),
     });
     toast.success('Source reset to queue for retry');
     onClose();
+    onRefresh?.();
+  };
+
+  const handleResetPipeline = async (stage) => {
+    await base44.entities.Source.update(sourceId, {
+      pipeline_stage: stage,
+      failure_reason: null,
+      processing_error: null,
+    });
+    setSource(prev => ({ ...prev, pipeline_stage: stage, failure_reason: null, processing_error: null }));
+    toast.success(`Pipeline stage set to "${stage}"`);
     onRefresh?.();
   };
 
@@ -340,6 +351,40 @@ export default function SourceDetailPanel({ sourceId, onClose, onRefresh }) {
                   This source has not been processed yet — no excerpts available for review.
                 </div>
               ) : null}
+
+              {/* error notice — shown even when pipeline_stage is not 'failed' */}
+              {source.pipeline_stage !== 'failed' && (source.failure_reason || source.processing_error) && (
+                <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg space-y-2">
+                  <div className="flex items-center gap-2 text-amber-700 font-semibold text-sm">
+                    <AlertTriangle className="w-4 h-4" />
+                    Processing issue detected
+                  </div>
+                  {source.failure_reason && (
+                    <p className="text-sm text-amber-700">Reason: <strong>{source.failure_reason}</strong></p>
+                  )}
+                  {source.processing_error && (
+                    <p className="text-xs text-amber-600 font-mono break-all">{source.processing_error}</p>
+                  )}
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button size="sm" variant="outline" onClick={handleRetry}>
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                      Retry from scratch
+                    </Button>
+                    <select
+                      className="text-xs border border-amber-200 rounded-md px-2 py-1.5 bg-white text-amber-800 focus:outline-none"
+                      defaultValue=""
+                      onChange={e => { if (e.target.value) handleResetPipeline(e.target.value); e.target.value = ''; }}
+                    >
+                      <option value="" disabled>Set pipeline stage…</option>
+                      <option value="uploaded">uploaded</option>
+                      <option value="metadata_extracted">metadata_extracted</option>
+                      <option value="extracted">extracted</option>
+                      <option value="skipped">skipped</option>
+                      <option value="failed">failed</option>
+                    </select>
+                  </div>
+                </div>
+              )}
 
               {/* failed notice */}
               {source.pipeline_stage === 'failed' && (
@@ -455,7 +500,15 @@ export default function SourceDetailPanel({ sourceId, onClose, onRefresh }) {
                   className="text-sm resize-none h-16"
                 />
                 <div className="flex justify-between items-center gap-2">
-                  <p className="text-xs text-slate-400">Shortcuts: A = approve · R = reject · Esc = close</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-slate-400">Shortcuts: A = approve · R = reject · Esc = close</p>
+                    {(source.failure_reason || source.processing_error) && (
+                      <Button variant="outline" size="sm" onClick={handleRetry} className="text-amber-700 border-amber-300 hover:bg-amber-50">
+                        <RefreshCw className="w-3.5 h-3.5 mr-1" />
+                        Retry
+                      </Button>
+                    )}
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       variant="destructive"
