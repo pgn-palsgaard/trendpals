@@ -1,3 +1,6 @@
+// DEPRECATED — replaced by TrendHub Generate CTA + Reports archive page
+// Build D+E, 2026-06-22. Redirect route in App.jsx: /TrendReport → /Reports
+// Safe to delete after confirming no imports reference this file.
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';

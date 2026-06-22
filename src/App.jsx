@@ -12,14 +12,12 @@ import SubmitBrief from './pages/SubmitBrief';
 import TrendLibrary from './pages/TrendLibrary';
 import AgentActivity from './pages/AgentActivity';
 import GNPD from './pages/GNPD';
-import ChallengeLibrary from './pages/ChallengeLibrary';
-import TrendReport from './pages/TrendReport';
 import ThemeLibrary from './pages/ThemeLibrary';
 import ThemeMatrix from './pages/ThemeMatrix';
 import SMEReviewQueue from './pages/SMEReviewQueue';
-import ValidationTracking from './pages/ValidationTracking';
 import TrendHub from './pages/TrendHub';
 import ReviewQueue from './pages/ReviewQueue';
+import Reports from './pages/Reports';
 import { Navigate } from 'react-router-dom';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -89,14 +87,16 @@ const AuthenticatedApp = () => {
       <Route path="/TrendLibrary" element={<LayoutWrapper currentPageName="TrendLibrary"><TrendLibrary /></LayoutWrapper>} />
       <Route path="/AgentActivity" element={<LayoutWrapper currentPageName="AgentActivity"><AgentActivity /></LayoutWrapper>} />
       <Route path="/GNPD" element={<LayoutWrapper currentPageName="GNPD"><GNPD /></LayoutWrapper>} />
-      <Route path="/ChallengeLibrary" element={<LayoutWrapper currentPageName="ChallengeLibrary"><ChallengeLibrary /></LayoutWrapper>} />
-      <Route path="/TrendReport" element={<LayoutWrapper currentPageName="TrendReport"><TrendReport /></LayoutWrapper>} />
       <Route path="/ThemeLibrary" element={<LayoutWrapper currentPageName="ThemeLibrary"><ThemeLibrary /></LayoutWrapper>} />
       <Route path="/ThemeMatrix" element={<LayoutWrapper currentPageName="ThemeMatrix"><ThemeMatrix /></LayoutWrapper>} />
       <Route path="/SMEReviewQueue" element={<LayoutWrapper currentPageName="SMEReviewQueue"><SMEReviewQueue /></LayoutWrapper>} />
-      <Route path="/ValidationTracking" element={<LayoutWrapper currentPageName="ValidationTracking"><ValidationTracking /></LayoutWrapper>} />
       <Route path="/TrendHub/:trendId" element={<LayoutWrapper currentPageName="TrendHub"><TrendHub /></LayoutWrapper>} />
       <Route path="/ReviewQueue" element={<LayoutWrapper currentPageName="ReviewQueue"><ReviewQueue /></LayoutWrapper>} />
+      <Route path="/Reports" element={<LayoutWrapper currentPageName="Reports"><Reports /></LayoutWrapper>} />
+      {/* Redirects for deprecated routes */}
+      <Route path="/ChallengeLibrary" element={<Navigate to="/ReviewQueue" replace />} />
+      <Route path="/TrendReport" element={<Navigate to="/Reports" replace />} />
+      <Route path="/ValidationTracking" element={<Navigate to="/ReviewQueue" replace />} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

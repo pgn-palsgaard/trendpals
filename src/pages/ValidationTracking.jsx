@@ -1,3 +1,6 @@
+// DEPRECATED — replaced by TrendHub Validation section + ReviewQueue Validations tab
+// Build D+E, 2026-06-22. Redirect route in App.jsx: /ValidationTracking → /ReviewQueue
+// Safe to delete after confirming no imports reference this file.
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';

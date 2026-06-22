@@ -4,7 +4,8 @@ import { createPageUrl } from './utils';
 import { base44 } from '@/api/base44Client';
 import {
   LogOut, FolderOpen, FileText, BarChart2, TrendingUp, Zap, BookOpen, CheckSquare,
-  Palette, LayoutGrid, Library, Database, Grid, Activity, ChevronLeft, ChevronRight, Menu, X, ClipboardList
+  Palette, LayoutGrid, Library, Database, Grid, Activity, ChevronLeft, ChevronRight, Menu, X, ClipboardList,
+  ListChecks, FileBarChart2
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -23,10 +24,9 @@ const ADMIN_NAV = [
   {
     section: 'TRENDS',
     items: [
-      { label: 'Library', to: '/TrendLibrary', icon: TrendingUp, pages: ['TrendLibrary'] },
-      { label: 'Challenges', to: '/ChallengeLibrary', icon: Zap, pages: ['ChallengeLibrary'] },
-      { label: 'Trend Report', to: '/TrendReport', icon: BookOpen, pages: ['TrendReport'] },
-      { label: 'Validation', to: '/ValidationTracking', icon: CheckSquare, pages: ['ValidationTracking'] },
+      { label: 'Library',      to: '/TrendLibrary', icon: TrendingUp,    pages: ['TrendLibrary', 'TrendHub'] },
+      { label: 'Review queue', to: '/ReviewQueue',  icon: ListChecks,    pages: ['ReviewQueue'] },
+      { label: 'Reports',      to: '/Reports',      icon: FileBarChart2, pages: ['Reports'] },
     ],
   },
   {
