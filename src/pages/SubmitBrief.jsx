@@ -230,7 +230,7 @@ export default function SubmitBrief() {
                 style={{
                   flex: 1, resize: "none", fontSize: 14, padding: "10px 12px",
                   borderRadius: 6, border: `1px solid #d8d3c8`, minHeight: 64,
-                  fontFamily: "inherit", background: GOLD, color: DARK_BLUE,
+                  fontFamily: "inherit", background: "#ffffff", color: DARK_BLUE,
                   outline: "none"
                 }}
               />
