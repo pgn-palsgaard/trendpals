@@ -76,16 +76,16 @@ export default function ChallengesTab({ challenges, trends }) {
     });
   }, [challenges, statusFilter, categoryFilter]);
 
-  // Approved challenges visible under the current filter — selectable set
-  const visibleApproved = useMemo(() => filtered.filter(c => c.review_status === 'approved'), [filtered]);
-  const allApprovedSelected = visibleApproved.length > 0 && visibleApproved.every(c => selectedChallengeIds.includes(c.id));
+  // Pending challenges visible under the current filter — selectable set
+  const visiblePending = useMemo(() => filtered.filter(c => c.review_status === 'pending'), [filtered]);
+  const allPendingSelected = visiblePending.length > 0 && visiblePending.every(c => selectedChallengeIds.includes(c.id));
 
   const toggleSelectAll = () => {
-    if (allApprovedSelected) {
-      const visibleIds = new Set(visibleApproved.map(c => c.id));
+    if (allPendingSelected) {
+      const visibleIds = new Set(visiblePending.map(c => c.id));
       setSelectedChallengeIds(prev => prev.filter(id => !visibleIds.has(id)));
     } else {
-      setSelectedChallengeIds(prev => Array.from(new Set([...prev, ...visibleApproved.map(c => c.id)])));
+      setSelectedChallengeIds(prev => Array.from(new Set([...prev, ...visiblePending.map(c => c.id)])));
     }
   };
 
@@ -134,11 +134,11 @@ export default function ChallengesTab({ challenges, trends }) {
           {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
         </select>
 
-        {/* Select all approved — only when viewing Approved */}
-        {statusFilter === 'approved' && visibleApproved.length > 0 && (
+        {/* Select all pending — only when viewing Pending */}
+        {statusFilter === 'pending' && visiblePending.length > 0 && (
           <label style={{ display: 'flex', alignItems: 'center', gap: 7, marginLeft: 'auto', fontSize: 13, color: '#1D2B47', cursor: 'pointer' }}>
-            <input type="checkbox" checked={allApprovedSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
-            Select all approved
+            <input type="checkbox" checked={allPendingSelected} onChange={toggleSelectAll} style={{ cursor: 'pointer' }} />
+            Select all pending
           </label>
         )}
       </div>
@@ -198,7 +198,7 @@ export default function ChallengesTab({ challenges, trends }) {
                 {/* Challenge cards */}
                 <div>
                   {group.map((challenge, i) => {
-                    const selectable = challenge.review_status === 'approved';
+                    const selectable = challenge.review_status === 'pending';
                     const isSelected = selectedChallengeIds.includes(challenge.id);
                     return (
                       <div
