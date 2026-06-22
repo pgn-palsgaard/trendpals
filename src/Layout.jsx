@@ -26,7 +26,7 @@ const ADMIN_NAV = [
     items: [
       { label: 'Library',      to: '/TrendLibrary', icon: TrendingUp,    pages: ['TrendLibrary', 'TrendHub'] },
       { label: 'Review queue', to: '/ReviewQueue',  icon: ListChecks,    pages: ['ReviewQueue'] },
-      { label: 'Reports',      to: '/Reports',      icon: FileBarChart2, pages: ['Reports'] },
+      { label: 'Trend reports', to: '/Reports',      icon: FileBarChart2, pages: ['Reports'] },
     ],
   },
   {
