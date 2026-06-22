@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
@@ -30,6 +31,7 @@ const TABS = [
 
 export default function TrendLibrary() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [tab, setTab] = useState('pending');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [search, setSearch] = useState('');
@@ -212,7 +214,7 @@ export default function TrendLibrary() {
                       onDeactivate={handleDeactivate}
                       onArchive={handleArchive}
                       onEdit={handleEdit}
-                      onViewDetails={setSelectedTrend}
+                      onViewDetails={(trend) => navigate(`/TrendHub/${trend.id}`)}
                     />
                   ))}
                 </div>

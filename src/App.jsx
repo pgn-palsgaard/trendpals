@@ -18,6 +18,7 @@ import ThemeLibrary from './pages/ThemeLibrary';
 import ThemeMatrix from './pages/ThemeMatrix';
 import SMEReviewQueue from './pages/SMEReviewQueue';
 import ValidationTracking from './pages/ValidationTracking';
+import TrendHub from './pages/TrendHub';
 import { Navigate } from 'react-router-dom';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -93,6 +94,7 @@ const AuthenticatedApp = () => {
       <Route path="/ThemeMatrix" element={<LayoutWrapper currentPageName="ThemeMatrix"><ThemeMatrix /></LayoutWrapper>} />
       <Route path="/SMEReviewQueue" element={<LayoutWrapper currentPageName="SMEReviewQueue"><SMEReviewQueue /></LayoutWrapper>} />
       <Route path="/ValidationTracking" element={<LayoutWrapper currentPageName="ValidationTracking"><ValidationTracking /></LayoutWrapper>} />
+      <Route path="/TrendHub/:trendId" element={<LayoutWrapper currentPageName="TrendHub"><TrendHub /></LayoutWrapper>} />
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );
