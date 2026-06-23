@@ -88,6 +88,63 @@ export default function TrendLibrary() {
     enabled: !!regionFilter && trends.length > 0,
   });
 
+  // Phase 4 — Region map for ALL trends (signal-based), always on, to power pill counts.
+  // Same derivation as trendRegionMap but unconditional and cached separately.
+  const { data: signalRegionMap = {} } = useQuery({
+    queryKey: ['signalRegionMap', trends.length],
+    queryFn: async () => {
+      const map = {};
+      const products = await base44.entities.GNPDProduct.filter(
+        { region: { $ne: 'unknown' } }, '-launch_date', 5000
+      );
+      for (const p of products) {
+        if (!p.region) continue;
+        const commercialKey = getCommercialRegion(p.region, p.country);
+        if (!commercialKey) continue;
+        for (const tid of (p.linked_trend_ids || [])) {
+          if (!map[tid]) map[tid] = new Set();
+          map[tid].add(commercialKey);
+        }
+      }
+      for (const t of trends) {
+        for (const rm of (t.regional_manifestations || [])) {
+          const commercialKey = normalizeEditorialRegion(rm.region);
+          if (commercialKey && commercialKey !== 'global') {
+            if (!map[t.id]) map[t.id] = new Set();
+            map[t.id].add(commercialKey);
+          }
+        }
+      }
+      return map;
+    },
+    enabled: trends.length > 0,
+  });
+
+  // Phase 4 — Lightweight Source coverage_regions per category, to know if MOST trends
+  // in the list have any source coverage in a region (thin-coverage △ indicator).
+  const { data: coverageByCategory = {} } = useQuery({
+    queryKey: ['sourceCoverageByCategory'],
+    queryFn: async () => {
+      const sources = await base44.entities.Source.filter(
+        { source_type: { $in: ['gnpd', 'mintel', 'market_intel'] } }, '-created_date', 2000
+      );
+      // category -> Set(commercial region) that has at least one covering source
+      const byCat = {};
+      for (const s of sources) {
+        const cov = Array.isArray(s.coverage_regions) ? s.coverage_regions : [];
+        if (!cov.length) continue;
+        const cats = new Set();
+        if (s.category) cats.add(s.category);
+        (s.category_relevance || []).forEach(c => cats.add(c));
+        for (const cat of cats) {
+          if (!byCat[cat]) byCat[cat] = new Set();
+          cov.forEach(r => byCat[cat].add(r));
+        }
+      }
+      return byCat;
+    },
+  });
+
   const updateMutation = useMutation({
     mutationFn: ({ id, data }) => base44.entities.GlobalTrend.update(id, data),
     onSuccess: () => {
@@ -143,6 +200,34 @@ export default function TrendLibrary() {
     });
   }, [trends, tab, categoryFilter, search, megaTrendFilter, regionFilter, trendRegionMap]);
 
+  // Phase 4 — Per-pill data: signal count + thin-coverage flag, over the
+  // driver-filtered list (everything EXCEPT the region filter itself).
+  const pillData = useMemo(() => {
+    const baseList = trends.filter(t => {
+      if (tab === 'pending' && t.is_active !== false) return false;
+      if (tab === 'active' && t.is_active !== true) return false;
+      if (categoryFilter && t.category !== categoryFilter) return false;
+      if (megaTrendFilter && t.mega_trend !== megaTrendFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const nameMatch = t.trend_name?.toLowerCase().includes(q);
+        const kwMatch = t.trend_keywords?.some(k => k.toLowerCase().includes(q));
+        if (!nameMatch && !kwMatch) return false;
+      }
+      return true;
+    });
+    const total = baseList.length;
+    const data = {};
+    for (const key of ['aspac', 'americas', 'emec', 'imea']) {
+      const signalCount = baseList.filter(t => signalRegionMap[t.id]?.has(key)).length;
+      // thin = fewer than 50% of trends in the list have source coverage in this region
+      const coveredCount = baseList.filter(t => coverageByCategory[t.category]?.has(key)).length;
+      const thin = total > 0 && (coveredCount / total) < 0.5;
+      data[key] = { signalCount, thin };
+    }
+    return data;
+  }, [trends, tab, categoryFilter, megaTrendFilter, search, signalRegionMap, coverageByCategory]);
+
   // Group by category
   const grouped = useMemo(() => {
     const map = {};
@@ -175,7 +260,7 @@ export default function TrendLibrary() {
         />
 
         {/* Region filter pills */}
-        <RegionFilterPills activeRegion={regionFilter} onSelect={setRegionFilter} />
+        <RegionFilterPills activeRegion={regionFilter} onSelect={setRegionFilter} pillData={pillData} />
 
         {/* Filters row */}
         <div className="flex flex-col md:flex-row md:items-center gap-3 mb-6">
