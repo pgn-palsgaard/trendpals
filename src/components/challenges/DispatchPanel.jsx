@@ -108,7 +108,8 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
 
     // --- Send ONE consolidated email per reviewer ---
     const dispatchedBy = user?.full_name || user?.email || 'Palsgaard';
-    const failedEmails = [];
+    const failedEmails = [];   // genuine, unexpected failures
+    const pendingEmails = [];  // reviewer not yet joined — platform invite covers their access
 
     for (const [emailKey, { reviewer, challenges }] of Object.entries(newlyAssignedPerReviewer)) {
       const enrichedChallenges = challenges.map(c => ({
@@ -126,8 +127,16 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
           appUrl: window.location.origin,
         });
       } catch (err) {
-        failedEmails.push(emailKey);
-        console.error(`Failed to send email to ${emailKey}:`, err);
+        // "Cannot send emails to users outside the app" = reviewer has only a pending
+        // invite and hasn't joined yet. This is expected — the platform invitation email
+        // already gave them access. Treat as informational, not a failure.
+        const msg = (err?.response?.data?.error || err?.message || '').toLowerCase();
+        if (msg.includes('outside the app')) {
+          pendingEmails.push(emailKey);
+        } else {
+          failedEmails.push(emailKey);
+          console.error(`Failed to send email to ${emailKey}:`, err);
+        }
       }
     }
 
@@ -138,11 +147,17 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
       toast.warning(`No new assignments created. ${skipped} already open.`);
     }
 
+    // Genuine failures keep the panel open with a red banner.
     if (failedEmails.length > 0) {
       setEmailErrors(failedEmails);
       toast.error(`Email failed for: ${failedEmails.join(', ')}. Assignments were still created — resend from Validation Tracking.`);
       setDispatching(false);
-      return; // Keep panel open so admin sees the error
+      return;
+    }
+
+    // Pending invitees: just inform — they got the platform invite and will see their queue once they join.
+    if (pendingEmails.length > 0) {
+      toast.info(`${pendingEmails.join(', ')} ${pendingEmails.length > 1 ? 'were' : 'was'} invited to TrendPals. They'll see their review queue as soon as they accept the invitation.`);
     }
 
     setDispatching(false);
@@ -228,7 +243,7 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
 
           <p className="text-xs text-slate-400 mb-5 flex items-center gap-1.5">
             <Mail className="w-3 h-3" />
-            New reviewers are invited automatically with review-only access · one consolidated email per reviewer · duplicate open assignments are skipped
+            New reviewers get a TrendPals invitation with review-only access · the challenge summary email reaches them once they accept · duplicate open assignments are skipped
           </p>
 
           <div className="flex gap-3">
