@@ -31,6 +31,9 @@ export const MARKET_TO_REGION = {
   'indonesia': 'aspac', 'thailand': 'aspac', 'vietnam': 'aspac', 'philippines': 'aspac',
   'malaysia': 'aspac', 'singapore': 'aspac', 'australia': 'aspac', 'new zealand': 'aspac',
   'india': 'aspac', 'taiwan': 'aspac', 'hong kong': 'aspac',
+  'taiwan, china': 'aspac', 'hong kong, china': 'aspac', 'sri lanka': 'aspac',
+  'bangladesh': 'aspac', 'pakistan': 'aspac', 'cambodia': 'aspac',
+  'myanmar': 'aspac', 'laos': 'aspac',
 
   // ── Europe ──
   'uk': 'europe', 'united kingdom': 'europe', 'great britain': 'europe',
@@ -39,6 +42,8 @@ export const MARKET_TO_REGION = {
   'norway': 'europe', 'finland': 'europe', 'poland': 'europe', 'switzerland': 'europe',
   'austria': 'europe', 'ireland': 'europe', 'czech republic': 'europe', 'czechia': 'europe',
   'portugal': 'europe', 'greece': 'europe', 'romania': 'europe', 'hungary': 'europe',
+  'russia': 'europe', 'lithuania': 'europe', 'slovenia': 'europe',
+  'latvia': 'europe', 'croatia': 'europe',
 
   // ── North America ──
   'united states': 'north_america', 'us': 'north_america', 'usa': 'north_america',
@@ -47,16 +52,18 @@ export const MARKET_TO_REGION = {
   // ── LATAM ──
   'brazil': 'latam', 'mexico': 'latam', 'argentina': 'latam', 'colombia': 'latam',
   'chile': 'latam', 'peru': 'latam', 'ecuador': 'latam',
+  'puerto rico': 'latam', 'venezuela': 'latam', 'guatemala': 'latam', 'panama': 'latam',
 
   // ── MENA ──
   'uae': 'mena', 'united arab emirates': 'mena', 'saudi arabia': 'mena', 'egypt': 'mena',
   'turkey': 'mena', 'israel': 'mena', 'south africa': 'mena', 'morocco': 'mena',
   'tunisia': 'mena', 'lebanon': 'mena', 'kuwait': 'mena', 'qatar': 'mena',
-  'bahrain': 'mena', 'jordan': 'mena',
+  'bahrain': 'mena', 'jordan': 'mena', 'algeria': 'mena', 'oman': 'mena',
 
   // ── Sub-Saharan Africa ──
   'nigeria': 'sub_saharan_africa', 'kenya': 'sub_saharan_africa', 'ghana': 'sub_saharan_africa',
   'ethiopia': 'sub_saharan_africa', 'tanzania': 'sub_saharan_africa',
+  'cameroon': 'sub_saharan_africa', 'ivory coast': 'sub_saharan_africa',
 };
 
 // 2.3 — Resolve a market/country name to a canonical region key.
