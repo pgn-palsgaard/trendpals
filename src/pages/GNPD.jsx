@@ -218,6 +218,8 @@ function UploadsTab() {
                 const productCount = productStats?.by_source?.[s.id] || 0;
                 const inDb    = s.pipeline_stage === 'gnpd_ready' || productCount > 0;
                 const pState  = parsing[s.id];
+                const isIngesting = s.gnpd_mapping_status === 'detecting';
+                const ingestFailed = (s.gnpd_mapping_status === 'failed' || s.pipeline_stage === 'failed');
                 return (
                   <tr key={s.id} onClick={() => setOpenSourceId(s.id)} style={{
                     cursor: "pointer", borderBottom: "1px solid #ebe7e0",
@@ -243,6 +245,21 @@ function UploadsTab() {
                       {inDb ? (
                         <span style={{ fontSize: 11, padding: "3px 9px", borderRadius: 20, background: "#EDF4EA", color: GREEN, fontWeight: 700 }}>
                           ✓ {productCount > 0 ? `${productCount.toLocaleString()} products` : 'In database'}
+                        </span>
+                      ) : isIngesting ? (
+                        <span style={{ fontSize: 12, color: BLUE, display: "flex", alignItems: "center", gap: 5 }}>
+                          <Loader2 size={12} className="animate-spin" /> Processing…
+                          {detectingTimers[s.id]?.elapsed > 0 && (
+                            <span style={{ color: GREY }}>
+                              {detectingTimers[s.id].elapsed < 60
+                                ? `${detectingTimers[s.id].elapsed}s`
+                                : `${Math.floor(detectingTimers[s.id].elapsed / 60)}m ${detectingTimers[s.id].elapsed % 60}s`}
+                            </span>
+                          )}
+                        </span>
+                      ) : ingestFailed ? (
+                        <span style={{ fontSize: 11, color: ORANGE, display: "flex", alignItems: "center", gap: 4 }}>
+                          <AlertCircle size={12} /> {(s.gnpd_mapping_error || s.failure_reason || 'Processing failed').slice(0, 50)}
                         </span>
                       ) : pState?.status === 'parsing' ? (
                         <span style={{ fontSize: 12, color: GREY, display: "flex", alignItems: "center", gap: 5 }}>

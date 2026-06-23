@@ -61,16 +61,13 @@ export async function intakeFile({ file, projectId = null, title = null, allowDu
       gnpd_mapping_status: 'detecting',
       visibility: 'org_shared',
     });
-    const res = await base44.functions.invoke('validateAndIngestGNPD', { source_id: source.id });
-    if (!res.data?.success) {
-      await base44.entities.Source.update(source.id, {
-        pipeline_stage: 'failed',
-        failure_reason: `Not a valid Mintel GNPD template export: ${(res.data?.errors || ['validation failed']).join(' · ')}`,
-      });
-      throw new Error(`Spreadsheet rejected — not a valid Mintel GNPD template export: ${(res.data?.errors || ['validation failed']).join(' · ')}`);
-    }
+    // Heavy validation/parsing (fetch file → parse xlsx → write rows) can exceed the
+    // request timeout on large exports (15MB+), causing a 502. Run it in the background:
+    // the Source is created in 'detecting' state, the UploadsTab polls it, and the function
+    // flips it to 'complete' or 'failed' when done. The user gets an instant response.
+    base44.functions.invoke('validateAndIngestGNPD', { source_id: source.id }).catch(() => {});
     if (projectId) await linkSourceToProject(projectId, source.id);
-    return { sourceId: source.id, gnpd: true, rows: res.data.rows, auto_metadata: res.data.auto_metadata };
+    return { sourceId: source.id, gnpd: true, background: true };
   }
 
   // All other files: created untyped, classified automatically by LLM

@@ -11,12 +11,17 @@ const GREEN  = '#6F8263';
 const GREY   = '#969696';
 const GOLD   = '#F7F4EE';
 
+const MAX_GNPD_FILE_SIZE  = 10 * 1024 * 1024; // 10MB — soft warning above this
+const HARD_GNPD_FILE_SIZE = 25 * 1024 * 1024; // 25MB — hard block above this
+
+const fmtMB = (bytes) => (bytes / (1024 * 1024)).toFixed(1);
+
 export default function GNPDUploadModal({ onClose, onUploaded }) {
   const fileInputRef = useRef(null);
   const [file, setFile]           = useState(null);
-  const [stage, setStage]         = useState('idle'); // idle | uploading | validating | done | error
+  const [stage, setStage]         = useState('idle'); // idle | sizeWarning | uploading | done | error
   const [errors, setErrors]       = useState([]);
-  const [result, setResult]       = useState(null);  // { title, region_code, category, rows }
+  const [result, setResult]       = useState(null);  // { title }
 
   const handleFileSelect = (e) => {
     const f = e.target.files?.[0];
@@ -27,10 +32,19 @@ export default function GNPDUploadModal({ onClose, onUploaded }) {
       setStage('error');
       return;
     }
+    // Hard block — file too large to process reliably
+    if (f.size > HARD_GNPD_FILE_SIZE) {
+      setFile(null);
+      setErrors([`File exceeds 25MB limit (${fmtMB(f.size)}MB). Please split into smaller files by region or time period before uploading.`]);
+      setStage('error');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
     setFile(f);
     setErrors([]);
-    setStage('idle');
     setResult(null);
+    // Soft warning — large but allowed
+    setStage(f.size > MAX_GNPD_FILE_SIZE ? 'sizeWarning' : 'idle');
   };
 
   const handleUpload = async () => {
@@ -39,19 +53,12 @@ export default function GNPDUploadModal({ onClose, onUploaded }) {
     setErrors([]);
 
     try {
-      setStage('validating');
-      // Unified intake: dedup check + locked GNPD template validation + ingestion
-      const result = await intakeFile({ file, title: file.name });
+      // Unified intake: dedup check + upload. GNPD validation/parsing runs in the background.
+      await intakeFile({ file, title: file.name });
 
-      setResult({
-        title: result.auto_metadata?.title,
-        region_code: result.auto_metadata?.region_code,
-        category: result.auto_metadata?.category,
-        dateRange: result.auto_metadata?.dateRange,
-        rows: result.rows,
-      });
+      setResult({ title: file.name });
       setStage('done');
-      toast.success(`Uploaded: ${result.rows?.toLocaleString()} products detected`);
+      toast.success('Uploaded — processing in the background');
       onUploaded?.();
 
     } catch (err) {
@@ -73,7 +80,7 @@ export default function GNPDUploadModal({ onClose, onUploaded }) {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const isProcessing = stage === 'uploading' || stage === 'validating';
+  const isProcessing = stage === 'uploading';
 
   return (
     <Dialog open onOpenChange={onClose}>
@@ -135,11 +142,25 @@ export default function GNPDUploadModal({ onClose, onUploaded }) {
           onChange={handleFileSelect}
         />
 
+        {/* Large-file soft warning */}
+        {stage === 'sizeWarning' && file && (
+          <div style={{ background: '#FEF6EC', border: `1px solid ${ORANGE}`, borderLeft: `4px solid ${ORANGE}`, borderRadius: 8, padding: '12px 14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <AlertCircle size={15} style={{ color: ORANGE, flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: ORANGE }}>Large file ({fmtMB(file.size)}MB)</span>
+            </div>
+            <div style={{ fontSize: 12, color: '#7A4A1F', lineHeight: 1.5 }}>
+              Large files may take several minutes to process. For best results, split global exports
+              into regional files (e.g. one per sales region) before uploading.
+            </div>
+          </div>
+        )}
+
         {/* Processing status */}
         {isProcessing && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: '#E8EEF6', borderRadius: 8, fontSize: 13, color: BLUE }}>
             <Loader2 size={16} className="animate-spin" style={{ flexShrink: 0 }} />
-            {stage === 'uploading' ? 'Uploading file…' : 'Validating structure and extracting metadata…'}
+            Uploading… this may take a minute for large files.
           </div>
         )}
 
@@ -164,22 +185,15 @@ export default function GNPDUploadModal({ onClose, onUploaded }) {
         {/* Success state */}
         {stage === 'done' && result && (
           <div style={{ background: '#EDF4EA', border: '1px solid #9DC98D', borderLeft: `4px solid ${GREEN}`, borderRadius: 8, padding: '14px 16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
               <CheckCircle2 size={15} style={{ color: GREEN, flexShrink: 0 }} />
               <span style={{ fontSize: 13, fontWeight: 700, color: GREEN }}>Upload successful</span>
             </div>
-            {[
-              ['Title',    result.title],
-              ['Category', result.category],
-              ['Region',   result.region_code],
-              ['Period',   result.dateRange],
-              ['Products', result.rows?.toLocaleString()],
-            ].filter(([, v]) => v).map(([label, val]) => (
-              <div key={label} style={{ display: 'flex', gap: 10, fontSize: 12, marginBottom: 4 }}>
-                <span style={{ color: GREY, minWidth: 64, flexShrink: 0 }}>{label}</span>
-                <span style={{ color: '#1D2B47', fontWeight: 600 }}>{val}</span>
-              </div>
-            ))}
+            <div style={{ fontSize: 12, color: '#3F5A33', lineHeight: 1.5 }}>
+              <strong>{result.title}</strong> is now processing in the background. Structure
+              validation and metadata extraction run automatically — the export will appear in the
+              table with its title, region and row count once ready (this can take a few minutes for large files).
+            </div>
           </div>
         )}
 
@@ -208,9 +222,11 @@ export default function GNPDUploadModal({ onClose, onUploaded }) {
                 }}
               >
                 {isProcessing
-                  ? <><Loader2 size={13} className="animate-spin" /> Processing…</>
+                  ? <><Loader2 size={13} className="animate-spin" /> Uploading…</>
                   : stage === 'error'
                   ? 'Try another file'
+                  : stage === 'sizeWarning'
+                  ? <><Upload size={13} /> Upload anyway</>
                   : <><Upload size={13} /> Upload</>
                 }
               </button>
