@@ -8,8 +8,9 @@ Deno.serve(async (req) => {
     const isAuth = await base44.auth.isAuthenticated();
     if (!isAuth) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { global_trend_id } = await req.json();
+    const { global_trend_id, region } = await req.json();
     if (!global_trend_id) return Response.json({ error: 'global_trend_id required' }, { status: 400 });
+    const regionFilter = region && region !== 'all' ? region : null;
 
     // Fetch trend
     const trends = await base44.asServiceRole.entities.GlobalTrend.filter({ id: global_trend_id });
@@ -33,6 +34,24 @@ Deno.serve(async (req) => {
         recipesForChallenge[cid].push(recipe);
       }
     }
+
+    // Regional GNPD evidence — products linked to this trend, optionally region-scoped
+    let gnpdProducts = await base44.asServiceRole.entities.GNPDProduct.filter({ linked_trend_ids: global_trend_id }, '-launch_date', 1000);
+    if (regionFilter) {
+      gnpdProducts = gnpdProducts.filter(p => p.region === regionFilter);
+    }
+    const regional_evidence = {
+      region: regionFilter || 'all',
+      total_products: gnpdProducts.length,
+      products: gnpdProducts.slice(0, 30).map(p => ({
+        id: p.id,
+        product_name: p.product_name,
+        brand: p.brand,
+        country: p.country,
+        region: p.region || 'unknown',
+        launch_date: p.launch_date,
+      })),
+    };
 
     // Section 1: Trend header
     const section1_header = {
@@ -140,7 +159,9 @@ Deno.serve(async (req) => {
     return Response.json({
       ok: true,
       global_trend_id,
+      region: regionFilter || 'all',
       generated_at: new Date().toISOString(),
+      regional_evidence,
       summary: {
         has_approved_challenges,
         approved_challenge_count: approvedChallenges.length,

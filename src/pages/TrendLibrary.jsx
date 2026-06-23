@@ -9,6 +9,7 @@ import TrendCard from '@/components/trendlibrary/TrendCard';
 import TrendDetailPanel from '@/components/trendlibrary/TrendDetailPanel';
 import TrendEditModal from '@/components/trendlibrary/TrendEditModal';
 import DriverFilterPills from '@/components/trendlibrary/DriverFilterPills';
+import RegionFilterPills from '@/components/trendlibrary/RegionFilterPills';
 import MegaTrendDetailPanel from '@/components/trendlibrary/MegaTrendDetailPanel';
 
 const CATEGORIES = [
@@ -36,6 +37,7 @@ export default function TrendLibrary() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [search, setSearch] = useState('');
   const [megaTrendFilter, setMegaTrendFilter] = useState(null);
+  const [regionFilter, setRegionFilter] = useState(null);
   const [selectedTrend, setSelectedTrend] = useState(null);
   const [editingTrend, setEditingTrend] = useState(null);
   const [selectedMegaTrend, setSelectedMegaTrend] = useState(null);
@@ -43,6 +45,27 @@ export default function TrendLibrary() {
   const { data: trends = [], isLoading } = useQuery({
     queryKey: ['globalTrends'],
     queryFn: () => base44.entities.GlobalTrend.list(),
+  });
+
+  // Build trendId -> Set(region) from GNPD products that have a mapped region.
+  // Only fetched/used when a region filter is active.
+  const { data: trendRegionMap = {} } = useQuery({
+    queryKey: ['trendRegionMap'],
+    queryFn: async () => {
+      const products = await base44.entities.GNPDProduct.filter(
+        { region: { $ne: 'unknown' } }, '-launch_date', 5000
+      );
+      const map = {};
+      for (const p of products) {
+        if (!p.region) continue;
+        for (const tid of (p.linked_trend_ids || [])) {
+          if (!map[tid]) map[tid] = new Set();
+          map[tid].add(p.region);
+        }
+      }
+      return map;
+    },
+    enabled: !!regionFilter,
   });
 
   const updateMutation = useMutation({
@@ -89,6 +112,7 @@ export default function TrendLibrary() {
       if (tab === 'active' && t.is_active !== true) return false;
       if (categoryFilter && t.category !== categoryFilter) return false;
       if (megaTrendFilter && t.mega_trend !== megaTrendFilter) return false;
+      if (regionFilter && !(trendRegionMap[t.id]?.has(regionFilter))) return false;
       if (search) {
         const q = search.toLowerCase();
         const nameMatch = t.trend_name?.toLowerCase().includes(q);
@@ -97,7 +121,7 @@ export default function TrendLibrary() {
       }
       return true;
     });
-  }, [trends, tab, categoryFilter, search, megaTrendFilter]);
+  }, [trends, tab, categoryFilter, search, megaTrendFilter, regionFilter, trendRegionMap]);
 
   // Group by category
   const grouped = useMemo(() => {
@@ -129,6 +153,9 @@ export default function TrendLibrary() {
           onSelect={setMegaTrendFilter}
           onOpenDetail={setSelectedMegaTrend}
         />
+
+        {/* Region filter pills */}
+        <RegionFilterPills activeRegion={regionFilter} onSelect={setRegionFilter} />
 
         {/* Filters row */}
         <div className="flex flex-col md:flex-row md:items-center gap-3 mb-6">

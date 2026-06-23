@@ -11,6 +11,7 @@ import ChallengeDetailPanel from '@/components/challenges/ChallengeDetailPanel';
 import DispatchPanel from '@/components/challenges/DispatchPanel';
 import TrendReportSections from '@/components/trendreport/TrendReportSections';
 import ValidationSummary from '@/components/trendhub/ValidationSummary';
+import RegionalEvidence from '@/components/trendhub/RegionalEvidence';
 
 // ── Section wrapper ──────────────────────────────────────────
 function Section({ title, count, countColor, action, children }) {
@@ -479,6 +480,11 @@ export default function TrendHub() {
                 )}
               </div>
             )}
+          </Section>
+
+          {/* ── SECTION 2b: REGIONAL EVIDENCE ────────────── */}
+          <Section title="Regional evidence">
+            <RegionalEvidence trendId={trendId} />
           </Section>
 
           {/* ── SECTION 3: CHALLENGES ────────────────────── */}

@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ChevronDown } from 'lucide-react';
 import TrendReportSections from '@/components/trendreport/TrendReportSections';
+import { CANONICAL_REGIONS } from '@/lib/regions';
 
 const CATEGORY_LABELS = {
   bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Chocolate & Confectionery',
@@ -13,6 +14,7 @@ const CATEGORY_LABELS = {
 
 export default function Reports() {
   const [selectedTrendId, setSelectedTrendId] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState('all');
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -30,7 +32,7 @@ export default function Reports() {
     setError(null);
     setReportData(null);
     try {
-      const res = await base44.functions.invoke('generateTrendReport', { global_trend_id: selectedTrendId });
+      const res = await base44.functions.invoke('generateTrendReport', { global_trend_id: selectedTrendId, region: selectedRegion });
       setReportData(res?.data);
     } catch (err) {
       setError(err.message);
@@ -75,8 +77,8 @@ export default function Reports() {
           <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1D2B47', marginBottom: 10 }}>
             Select a trend
           </label>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div style={{ position: 'relative', flex: 1 }}>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 200 }}>
               <select
                 value={selectedTrendId}
                 onChange={e => { setSelectedTrendId(e.target.value); setReportData(null); setError(null); }}
@@ -91,6 +93,23 @@ export default function Reports() {
                   <option key={t.id} value={t.id}>
                     {t.trend_name}{t.category ? ` (${CATEGORY_LABELS[t.category] || t.category})` : ''}
                   </option>
+                ))}
+              </select>
+              <ChevronDown style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'hsl(var(--muted-foreground))', pointerEvents: 'none' }} />
+            </div>
+            <div style={{ position: 'relative', flex: '0 1 180px', minWidth: 150 }}>
+              <select
+                value={selectedRegion}
+                onChange={e => { setSelectedRegion(e.target.value); setReportData(null); setError(null); }}
+                style={{
+                  width: '100%', border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))',
+                  borderRadius: 8, padding: '8px 32px 8px 12px', fontSize: 13, color: '#1D2B47',
+                  appearance: 'none',
+                }}
+              >
+                <option value="all">All regions</option>
+                {CANONICAL_REGIONS.map(r => (
+                  <option key={r.key} value={r.key}>{r.label}</option>
                 ))}
               </select>
               <ChevronDown style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'hsl(var(--muted-foreground))', pointerEvents: 'none' }} />
