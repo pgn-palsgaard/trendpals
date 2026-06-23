@@ -2,6 +2,40 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 // READ-ONLY function. Persists nothing.
 
+// DUPLICATED from lib/regions.js — keep in sync.
+// Backend cannot import the frontend '@/lib/regions' path, so the commercial
+// region resolver is inlined here (same pattern as MARKET_TO_REGION / EMULSIFIER_TERMS).
+const CANONICAL_TO_COMMERCIAL = {
+  aspac:              'aspac',
+  north_america:      'americas',
+  latam:              'americas',
+  europe:             'emec',
+  mena:               'imea',
+  sub_saharan_africa: 'imea',
+};
+const COMMERCIAL_OVERRIDES = {
+  'india':        'imea',
+  'turkey':       'emec',
+  'iran':         'emec',
+  'uzbekistan':   'emec',
+  'turkmenistan': 'emec',
+  'kazakhstan':   'emec',
+  'kyrgyzstan':   'emec',
+  'tajikistan':   'emec',
+  'afghanistan':  'emec',
+  'azerbaijan':   'emec',
+  'georgia':      'emec',
+  'armenia':      'emec',
+  'russia':       'aspac',
+};
+function getCommercialRegion(canonicalKey, country = null) {
+  if (country) {
+    const normalized = country.toLowerCase().trim();
+    if (COMMERCIAL_OVERRIDES[normalized]) return COMMERCIAL_OVERRIDES[normalized];
+  }
+  return CANONICAL_TO_COMMERCIAL[canonicalKey] || null;
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -38,7 +72,9 @@ Deno.serve(async (req) => {
     // Regional GNPD evidence — products linked to this trend, optionally region-scoped
     let gnpdProducts = await base44.asServiceRole.entities.GNPDProduct.filter({ linked_trend_ids: global_trend_id }, '-launch_date', 1000);
     if (regionFilter) {
-      gnpdProducts = gnpdProducts.filter(p => p.region === regionFilter);
+      // regionFilter is a commercial key (aspac, americas, emec, imea).
+      // Fold each product's canonical region (+ country override) to commercial.
+      gnpdProducts = gnpdProducts.filter(p => getCommercialRegion(p.region, p.country) === regionFilter);
     }
     const regional_evidence = {
       region: regionFilter || 'all',

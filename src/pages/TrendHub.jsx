@@ -12,6 +12,7 @@ import DispatchPanel from '@/components/challenges/DispatchPanel';
 import TrendReportSections from '@/components/trendreport/TrendReportSections';
 import ValidationSummary from '@/components/trendhub/ValidationSummary';
 import RegionalEvidence from '@/components/trendhub/RegionalEvidence';
+import { COMMERCIAL_REGIONS } from '@/lib/regions';
 
 // ── Section wrapper ──────────────────────────────────────────
 function Section({ title, count, countColor, action, children }) {
@@ -89,6 +90,7 @@ export default function TrendHub() {
   const [reportData, setReportData] = useState(null);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState(null);
+  const [reportRegion, setReportRegion] = useState('all');
   const [showRejectedSources, setShowRejectedSources] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -200,7 +202,7 @@ export default function TrendHub() {
     setReportError(null);
     setReportData(null);
     try {
-      const res = await base44.functions.invoke('generateTrendReport', { global_trend_id: trendId });
+      const res = await base44.functions.invoke('generateTrendReport', { global_trend_id: trendId, region: reportRegion });
       setReportData(res?.data);
       toast.success('Report generated');
     } catch (err) {
@@ -484,7 +486,7 @@ export default function TrendHub() {
 
           {/* ── SECTION 2b: REGIONAL EVIDENCE ────────────── */}
           <Section title="Regional evidence">
-            <RegionalEvidence trendId={trendId} />
+            <RegionalEvidence trendId={trendId} trend={trend} />
           </Section>
 
           {/* ── SECTION 3: CHALLENGES ────────────────────── */}
@@ -590,6 +592,20 @@ export default function TrendHub() {
                 Builds from approved challenges and current sources.
               </p>
             </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <select
+              value={reportRegion}
+              onChange={e => setReportRegion(e.target.value)}
+              style={{
+                border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))',
+                borderRadius: 8, padding: '9px 12px', fontSize: 13, color: '#1D2B47',
+              }}
+            >
+              <option value="all">All regions</option>
+              {COMMERCIAL_REGIONS.map(r => (
+                <option key={r.key} value={r.key}>{r.label}</option>
+              ))}
+            </select>
             <button
               onClick={handleGenerateReport}
               disabled={generatingReport}
@@ -607,6 +623,7 @@ export default function TrendHub() {
               }
               {generatingReport ? 'Generating…' : 'Generate'}
             </button>
+            </div>
           </div>
 
           {reportError && (

@@ -302,8 +302,20 @@ async function parseRows(fileBuffer, fileUrl) {
 
 async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
   const source = await base44.asServiceRole.entities.Source.get(sourceId);
-  if (!source) throw new Error(`Source not found: ${sourceId}`);
-  if (source.source_type !== 'gnpd') throw new Error('Source is not GNPD type');
+
+  // ── Guard clauses (fires on every Source.update; must skip non-GNPD work) ──
+  if (!source) return { skipped: true, reason: 'no source' };
+  // Only process GNPD sources
+  if (source.source_type !== 'gnpd') {
+    return { skipped: true, reason: 'not gnpd source', source_type: source.source_type };
+  }
+  // Only process when in an eligible pipeline stage. This path fully ingests and
+  // marks the source gnpd_ready, so eligible stages are the pre-ingest ones.
+  const eligibleStages = ['uploaded', 'gnpd_ready'];
+  if (source.pipeline_stage && !eligibleStages.includes(source.pipeline_stage)) {
+    return { skipped: true, reason: 'not eligible stage', pipeline_stage: source.pipeline_stage };
+  }
+
   if (!source.file_url) throw new Error('Source has no file_url');
 
   // Load column mapping from GNPDColumnMapping entity
@@ -535,7 +547,7 @@ Deno.serve(async (req) => {
     for (const sourceId of sourceIds) {
       try {
         const result = await processOneSource(base44, anthropic, sourceId, batchSize);
-        results.push({ sourceId, status: 'ok', ...result });
+        results.push({ sourceId, status: result?.skipped ? 'skipped' : 'ok', ...result });
       } catch (e) {
         console.error(`Error processing ${sourceId}:`, e.message);
         results.push({ sourceId, status: 'error', error: e.message });

@@ -268,9 +268,24 @@ Deno.serve(async (req) => {
 
     // Load the source
     const source = await base44.asServiceRole.entities.Source.get(source_id);
-    if (!source) return Response.json({ error: 'Source not found' }, { status: 404 });
+
+    // ── Guard clauses (fires on every Source.update; must skip ineligible work) ──
+    if (!source) return Response.json({ skipped: true, reason: 'no source' });
+    // GNPD sources never produce expert examples
+    if (source.source_type === 'gnpd') {
+      return Response.json({ skipped: true, reason: 'gnpd source' });
+    }
+    // Only process sources that have completed extraction
+    if (source.pipeline_stage !== 'extracted') {
+      return Response.json({ skipped: true, reason: 'not extracted stage', pipeline_stage: source.pipeline_stage });
+    }
+    // Nothing to extract from without excerpts
+    if (!source.excerpts || source.excerpts.length === 0) {
+      return Response.json({ skipped: true, reason: 'no excerpts' });
+    }
+    // The PDF extraction path below is mintel-specific
     if (source.source_type !== 'mintel') {
-      return Response.json({ error: 'Source must be type mintel', source_type: source.source_type }, { status: 400 });
+      return Response.json({ skipped: true, reason: 'not mintel source', source_type: source.source_type });
     }
 
     // Fetch file content via signed URL

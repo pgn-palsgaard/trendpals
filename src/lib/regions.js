@@ -86,3 +86,88 @@ export function getRegionLabel(regionKey) {
 export function isCanonicalRegion(regionKey) {
   return CANONICAL_REGION_KEYS.includes(regionKey);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMMERCIAL REGION LAYER — the 4 Palsgaard sales regions (ASPAC, AMERICAS,
+// EMEC, IMEA). This is a presentation/grouping layer on top of the 6 canonical
+// regions. Canonical data is the source of truth; these helpers fold the 6
+// canonical keys down to the 4 commercial keys, with country-level overrides.
+//
+// Additive only — nothing above this line was modified.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 1.1 — The 4 commercial (Palsgaard sales) regions
+export const COMMERCIAL_REGIONS = [
+  { key: 'aspac',    label: 'ASPAC' },
+  { key: 'americas', label: 'AMERICAS' },
+  { key: 'emec',     label: 'EMEC' },
+  { key: 'imea',     label: 'IMEA' },
+];
+
+// 1.2 — Default canonical → commercial mapping (fallback when no country name).
+export const CANONICAL_TO_COMMERCIAL = {
+  aspac:              'aspac',     // Default; India override below
+  north_america:      'americas',
+  latam:              'americas',
+  europe:             'emec',
+  mena:               'imea',      // Default; Turkey/Iran/Stan override below
+  sub_saharan_africa: 'imea',
+};
+
+// 1.3 — Country-level overrides where the default canonical→commercial mapping
+// is wrong. Keys are lowercase country names matching MARKET_TO_REGION keys.
+const COMMERCIAL_OVERRIDES = {
+  // India is canonical 'aspac' but commercial IMEA
+  'india':           'imea',
+
+  // Turkey, Iran, Stan countries are canonical 'mena' but commercial EMEC
+  'turkey':          'emec',
+  'iran':            'emec',
+  'uzbekistan':      'emec',
+  'turkmenistan':    'emec',
+  'kazakhstan':      'emec',
+  'kyrgyzstan':      'emec',
+  'tajikistan':      'emec',
+  'afghanistan':     'emec',
+  'azerbaijan':      'emec',
+  'georgia':         'emec',
+  'armenia':         'emec',
+
+  // Russia excluded from EMEC — map to ASPAC as nearest Palsgaard sales region
+  'russia':          'aspac',
+};
+
+// 1.4 — Resolve to a commercial region key. Country override first, then the
+// default canonical→commercial fallback.
+export function getCommercialRegion(canonicalKey, country = null) {
+  if (country) {
+    const normalized = country.toLowerCase().trim();
+    if (COMMERCIAL_OVERRIDES[normalized]) {
+      return COMMERCIAL_OVERRIDES[normalized];
+    }
+  }
+  return CANONICAL_TO_COMMERCIAL[canonicalKey] || null;
+}
+
+// 1.5 — Commercial region key → display label.
+export function getCommercialLabel(commercialKey) {
+  const found = COMMERCIAL_REGIONS.find(r => r.key === commercialKey);
+  return found ? found.label : commercialKey?.toUpperCase() || 'Unknown';
+}
+
+// 1.6 — Map editorial region strings (regional_manifestations[].region) to
+// commercial keys. Editorial data uses inconsistent casing and naming.
+const EDITORIAL_TO_COMMERCIAL = {
+  'aspac':    'aspac',
+  'americas': 'americas',
+  'emea':     'emec',     // Old editorial name → EMEC
+  'emec':     'emec',
+  'imea':     'imea',
+  'global':   'global',   // Keep as-is, not a sales region
+};
+
+export function normalizeEditorialRegion(editorialRegion) {
+  if (!editorialRegion) return null;
+  const key = editorialRegion.toLowerCase().trim();
+  return EDITORIAL_TO_COMMERCIAL[key] || null;
+}

@@ -11,6 +11,7 @@ import TrendEditModal from '@/components/trendlibrary/TrendEditModal';
 import DriverFilterPills from '@/components/trendlibrary/DriverFilterPills';
 import RegionFilterPills from '@/components/trendlibrary/RegionFilterPills';
 import MegaTrendDetailPanel from '@/components/trendlibrary/MegaTrendDetailPanel';
+import { getCommercialRegion, normalizeEditorialRegion } from '@/lib/regions';
 
 const CATEGORIES = [
   { value: 'bakery',                  label: 'Bakery' },
@@ -47,25 +48,44 @@ export default function TrendLibrary() {
     queryFn: () => base44.entities.GlobalTrend.list(),
   });
 
-  // Build trendId -> Set(region) from GNPD products that have a mapped region.
+  // Build trendId -> Set(commercial region) from BOTH:
+  //  (a) GNPD products linked to the trend — canonical region folded to commercial
+  //      via getCommercialRegion(product.region, product.country)
+  //  (b) the trend's editorial regional_manifestations — via normalizeEditorialRegion
   // Only fetched/used when a region filter is active.
   const { data: trendRegionMap = {} } = useQuery({
-    queryKey: ['trendRegionMap'],
+    queryKey: ['trendRegionMap', trends.length],
     queryFn: async () => {
+      const map = {};
+
+      // (a) GNPD evidence
       const products = await base44.entities.GNPDProduct.filter(
         { region: { $ne: 'unknown' } }, '-launch_date', 5000
       );
-      const map = {};
       for (const p of products) {
         if (!p.region) continue;
+        const commercialKey = getCommercialRegion(p.region, p.country);
+        if (!commercialKey) continue;
         for (const tid of (p.linked_trend_ids || [])) {
           if (!map[tid]) map[tid] = new Set();
-          map[tid].add(p.region);
+          map[tid].add(commercialKey);
         }
       }
+
+      // (b) Editorial regional_manifestations
+      for (const t of trends) {
+        for (const rm of (t.regional_manifestations || [])) {
+          const commercialKey = normalizeEditorialRegion(rm.region);
+          if (commercialKey && commercialKey !== 'global') {
+            if (!map[t.id]) map[t.id] = new Set();
+            map[t.id].add(commercialKey);
+          }
+        }
+      }
+
       return map;
     },
-    enabled: !!regionFilter,
+    enabled: !!regionFilter && trends.length > 0,
   });
 
   const updateMutation = useMutation({

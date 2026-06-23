@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ChevronDown } from 'lucide-react';
 import TrendReportSections from '@/components/trendreport/TrendReportSections';
-import { CANONICAL_REGIONS } from '@/lib/regions';
+import { COMMERCIAL_REGIONS } from '@/lib/regions';
 
 const CATEGORY_LABELS = {
   bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Chocolate & Confectionery',
@@ -108,7 +108,7 @@ export default function Reports() {
                 }}
               >
                 <option value="all">All regions</option>
-                {CANONICAL_REGIONS.map(r => (
+                {COMMERCIAL_REGIONS.map(r => (
                   <option key={r.key} value={r.key}>{r.label}</option>
                 ))}
               </select>
