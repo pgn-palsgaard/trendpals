@@ -150,6 +150,17 @@ classification_reasoning: ONE sentence explaining the decision.`,
     const rawCategoryRelevance = result.category_relevance || [];
     const validatedCategoryRelevance = validateLLMCategoryArray(rawCategoryRelevance, source_id, base44.asServiceRole, 'classifySource');
 
+    // Phase 8 — derive coverage_regions from the LLM region_signal.
+    // region_signal is a commercial label (ASPAC/AMERICAS/EMEC/IMEA) or "Global".
+    const REGION_SIGNAL_TO_COVERAGE = { aspac: 'aspac', americas: 'americas', emec: 'emec', imea: 'imea' };
+    function coverageFromRegionSignal(sig) {
+      const v = String(sig || '').trim().toLowerCase();
+      if (!v) return [];
+      if (v === 'global') return ['aspac', 'americas', 'emec', 'imea'];
+      return REGION_SIGNAL_TO_COVERAGE[v] ? [REGION_SIGNAL_TO_COVERAGE[v]] : [];
+    }
+    const coverageRegions = coverageFromRegionSignal(result.region_signal);
+
     const classification = {
       proposed_source_type: result.proposed_source_type,
       document_type: result.document_type || '',
@@ -167,6 +178,7 @@ classification_reasoning: ONE sentence explaining the decision.`,
         pipeline_stage: 'uploaded',
         review_status: 'pending',
         classification: { ...classification, status: 'auto_applied' },
+        ...(coverageRegions.length ? { coverage_regions: coverageRegions } : {}),
       });
       // autoExtractMetadata handles routing: knowledge → auto-verify/approve; mintel/market_intel → verified=false
       // Use HTTP fallback in case asServiceRole.functions.invoke returns 403

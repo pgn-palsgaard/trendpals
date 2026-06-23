@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/AuthContext';
 import { Send, X, Plus, Mail, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendReviewNotificationEmail } from '@/lib/sendReviewEmail';
+import SMECoverageRow from '@/components/challenges/SMECoverageRow';
 import { CANONICAL_REGIONS, isCanonicalRegion } from '@/lib/regions';
 
 export default function DispatchPanel({ selectedChallenges, allChallenges, onClose }) {
@@ -207,6 +208,12 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
               </div>
             ))}
           </div>
+
+          {/* SME coverage for the trends being dispatched */}
+          <SMECoverageRow
+            assignments={existingAssignments}
+            trendIds={[...new Set(selectedChallenges.map(c => c.global_trend_id).filter(Boolean))]}
+          />
 
           {/* Region */}
           <div className="mb-5">

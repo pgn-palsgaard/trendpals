@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -12,6 +12,8 @@ import DispatchPanel from '@/components/challenges/DispatchPanel';
 import TrendReportSections from '@/components/trendreport/TrendReportSections';
 import ValidationSummary from '@/components/trendhub/ValidationSummary';
 import RegionalEvidence from '@/components/trendhub/RegionalEvidence';
+import CoverageHint from '@/components/trendhub/CoverageHint';
+import { computeRegionalAssessment } from '@/lib/coverageModel';
 import { COMMERCIAL_REGIONS } from '@/lib/regions';
 
 // ── Section wrapper ──────────────────────────────────────────
@@ -115,6 +117,31 @@ export default function TrendHub() {
   const assignments = allAssignments.filter(a =>
     challenges.some(c => c.id === a.challenge_id)
   );
+
+  // Phase 6 — coverage hint inputs for the Generate Report CTA (cheap, reuses coverageModel)
+  const { data: gnpdForTrend = [] } = useQuery({
+    queryKey: ['gnpdForTrend', trendId],
+    queryFn: () => base44.entities.GNPDProduct.filter({ linked_trend_ids: trendId }, '-launch_date', 1000),
+    enabled: !!trendId,
+  });
+  const { data: coverageSources = [] } = useQuery({
+    queryKey: ['sourceCoverage', trend?.category],
+    queryFn: () => base44.entities.Source.filter(
+      { source_type: { $in: ['gnpd', 'mintel', 'market_intel'] } }, '-created_date', 1000
+    ),
+    enabled: !!trend?.category,
+  });
+  const coverageAssessments = useMemo(() => {
+    if (!trend?.category) return [];
+    return computeRegionalAssessment({
+      gnpdProducts: gnpdForTrend,
+      sources: [],
+      reviewAssignments: assignments.filter(a => a.global_trend_id === trendId),
+      allSources: coverageSources,
+      trendCategory: trend.category,
+      regionalManifestations: trend.regional_manifestations || [],
+    });
+  }, [gnpdForTrend, coverageSources, assignments, trendId, trend]);
 
   // ── Mutations ────────────────────────────────────────────
   const challengeMutation = useMutation({
@@ -591,6 +618,7 @@ export default function TrendHub() {
               <p style={{ fontSize: 13, color: 'hsl(var(--muted-foreground))', margin: 0 }}>
                 Builds from approved challenges and current sources.
               </p>
+              <CoverageHint assessments={coverageAssessments} />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             <select

@@ -65,6 +65,25 @@ function getRegionForMarket(marketName) {
   return MARKET_TO_REGION[marketName.trim().toLowerCase()] || 'unknown';
 }
 
+// Canonical → commercial fold (mirrors lib/regions.js getCommercialRegion, incl. overrides)
+const CANONICAL_TO_COMMERCIAL = {
+  aspac: 'aspac', north_america: 'americas', latam: 'americas',
+  europe: 'emec', mena: 'imea', sub_saharan_africa: 'imea',
+};
+const COMMERCIAL_OVERRIDES = {
+  'india': 'imea', 'turkey': 'emec', 'iran': 'emec', 'uzbekistan': 'emec',
+  'turkmenistan': 'emec', 'kazakhstan': 'emec', 'kyrgyzstan': 'emec',
+  'tajikistan': 'emec', 'afghanistan': 'emec', 'azerbaijan': 'emec',
+  'georgia': 'emec', 'armenia': 'emec', 'russia': 'aspac',
+};
+function getCommercialRegion(canonicalKey, country = null) {
+  if (country) {
+    const n = country.toLowerCase().trim();
+    if (COMMERCIAL_OVERRIDES[n]) return COMMERCIAL_OVERRIDES[n];
+  }
+  return CANONICAL_TO_COMMERCIAL[canonicalKey] || null;
+}
+
 // ── Country-column integrity guard (Phase 4) ──
 // Some GNPD exports leak a product description into the Market/Country column.
 // A real country value is short and matches the region map; a description is long
@@ -427,6 +446,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
 
   const toCreate = [];
   let skipped = 0, errors = 0;
+  const coverageSet = new Set(); // Phase 8 — commercial regions this GNPD export covers
 
   for (const row of rows) {
     try {
@@ -456,6 +476,8 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
       const country    = sanitizeCountry(getMarket(row));
       const regionCode = COUNTRY_REGION[country] || source.region_code || 'Global';
       const region     = getRegionForMarket(country);
+      const commercialKey = getCommercialRegion(region, country);
+      if (commercialKey) coverageSet.add(commercialKey);
       const launchDate = getDatePublished(row);
 
       const recordHyperlink = getHyperlink(row);
@@ -527,8 +549,14 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
     created += Math.min(batchSize, toCreate.length - i);
   }
 
-  // Fully ingested — mark gnpd_ready (template validation was the gate on this path)
-  await base44.asServiceRole.entities.Source.update(sourceId, { pipeline_stage: 'gnpd_ready', review_status: 'approved' });
+  // Fully ingested — mark gnpd_ready (template validation was the gate on this path).
+  // Phase 8 — record commercial regions covered (merge with any previously recorded).
+  const mergedCoverage = [...new Set([...(source.coverage_regions || []), ...coverageSet])];
+  await base44.asServiceRole.entities.Source.update(sourceId, {
+    pipeline_stage: 'gnpd_ready',
+    review_status: 'approved',
+    ...(mergedCoverage.length ? { coverage_regions: mergedCoverage } : {}),
+  });
 
   return {
     source_id: sourceId, source_title: source.title,
