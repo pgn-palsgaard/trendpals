@@ -23,6 +23,13 @@ function validateCategoryArray(arr, sourceId, svc) {
   return [...new Set(canonical)];
 }
 
+// ── Inline canonical region validator (mirrors lib/regions.js — no local imports in Deno) ──
+const CANONICAL_REGION_KEYS = ['aspac', 'europe', 'north_america', 'latam', 'mena', 'sub_saharan_africa'];
+function sanitizeRegions(arr) {
+  if (!Array.isArray(arr)) return [];
+  return [...new Set(arr.filter(r => CANONICAL_REGION_KEYS.includes(r)))];
+}
+
 const SKIP_TYPES = new Set(['gnpd']);
 const EXTRACTING_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 const MAX_RETRIES = 3;
@@ -253,6 +260,13 @@ For each excerpt, identify:
 7. source_quote: A verbatim quote from the document (max 200 chars)
 8. category_relevance: Array of canonical Palsgaard solution keys (e.g. ["ice_cream", "bakery"]). Valid values: bakery, condiments, chocolate_confectionery, dairy, ice_cream, meat, oils_fats, plant_based, rutf_rusf, out_of_scope, needs_human_review. For cross-category sources, populate all relevant keys — do NOT use needs_human_review when the source legitimately spans multiple categories; instead return multiple canonical keys.
 9. trend_keywords: Array of 3-5 keyword phrases from this excerpt
+10. regions: Array of canonical region keys mentioned or implied in this excerpt. Use ONLY these keys: aspac, europe, north_america, latam, mena, sub_saharan_africa.
+   Rules:
+   - If the excerpt explicitly mentions a region or country, tag the corresponding region key.
+   - If the excerpt mentions a country, map it to its region (e.g. "Japan" → aspac, "Brazil" → latam, "Germany" → europe, "USA" → north_america, "UAE" → mena, "Nigeria" → sub_saharan_africa).
+   - If the excerpt is global or mentions no region, set regions to an empty array [].
+   - Multiple regions are allowed (e.g. "across Asia and Latin America" → ["aspac", "latam"]).
+   - Do NOT guess. Only tag regions the text explicitly states or clearly implies.
 
 Return ONLY a JSON object with this structure:
 {
@@ -287,6 +301,7 @@ Return ONLY a JSON object with this structure:
             ...e,
             id: `${source.id}_exc_${Date.now()}_${i}`,
             category_relevance: validateCategoryArray(e.category_relevance, source.id, base44.asServiceRole),
+            regions: sanitizeRegions(e.regions),
           }));
 
           if (excerpts.length === 0) {

@@ -235,6 +235,13 @@
       "type": "string",
       "format": "date-time"
     },
+    "stuck_recovery_count": {
+      "type": "number"
+    },
+    "last_stuck_recovery_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "excerpts": {
       "type": "array",
       "items": {
@@ -286,6 +293,13 @@
               "type": "string"
             },
             "description": "Canonical Palsgaard solution keys this excerpt applies to"
+          },
+          "regions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Canonical region keys explicitly mentioned or implied in this excerpt (aspac, europe, north_america, latam, mena, sub_saharan_africa). Empty array if the excerpt is global or mentions no region. Existing excerpts may lack this field \u2014 readers must treat missing as []."
           },
           "page_ref": {
             "type": "string"

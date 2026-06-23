@@ -30,6 +30,34 @@ const COUNTRY_REGION = {
   'Hong Kong': 'ASPAC', 'Singapore': 'ASPAC'
 };
 
+// ── Canonical region layer (mirrors lib/regions.js — no local imports in Deno) ──
+const MARKET_TO_REGION = {
+  'japan': 'aspac', 'china': 'aspac', 'south korea': 'aspac', 'korea': 'aspac',
+  'indonesia': 'aspac', 'thailand': 'aspac', 'vietnam': 'aspac', 'philippines': 'aspac',
+  'malaysia': 'aspac', 'singapore': 'aspac', 'australia': 'aspac', 'new zealand': 'aspac',
+  'india': 'aspac', 'taiwan': 'aspac', 'hong kong': 'aspac',
+  'uk': 'europe', 'united kingdom': 'europe', 'great britain': 'europe',
+  'germany': 'europe', 'france': 'europe', 'italy': 'europe', 'spain': 'europe',
+  'netherlands': 'europe', 'belgium': 'europe', 'sweden': 'europe', 'denmark': 'europe',
+  'norway': 'europe', 'finland': 'europe', 'poland': 'europe', 'switzerland': 'europe',
+  'austria': 'europe', 'ireland': 'europe', 'czech republic': 'europe', 'czechia': 'europe',
+  'portugal': 'europe', 'greece': 'europe', 'romania': 'europe', 'hungary': 'europe',
+  'united states': 'north_america', 'us': 'north_america', 'usa': 'north_america',
+  'u.s.': 'north_america', 'u.s.a.': 'north_america', 'canada': 'north_america',
+  'brazil': 'latam', 'mexico': 'latam', 'argentina': 'latam', 'colombia': 'latam',
+  'chile': 'latam', 'peru': 'latam', 'ecuador': 'latam',
+  'uae': 'mena', 'united arab emirates': 'mena', 'saudi arabia': 'mena', 'egypt': 'mena',
+  'turkey': 'mena', 'israel': 'mena', 'south africa': 'mena', 'morocco': 'mena',
+  'tunisia': 'mena', 'lebanon': 'mena', 'kuwait': 'mena', 'qatar': 'mena',
+  'bahrain': 'mena', 'jordan': 'mena',
+  'nigeria': 'sub_saharan_africa', 'kenya': 'sub_saharan_africa', 'ghana': 'sub_saharan_africa',
+  'ethiopia': 'sub_saharan_africa', 'tanzania': 'sub_saharan_africa',
+};
+function getRegionForMarket(marketName) {
+  if (!marketName || typeof marketName !== 'string') return 'unknown';
+  return MARKET_TO_REGION[marketName.trim().toLowerCase()] || 'unknown';
+}
+
 const LLM_SYSTEM_PROMPT = `You are validating whether a GNPD product launch is genuine evidence of a market trend, or whether the keyword overlap is incidental.
 
 A product GENUINELY EXPRESSES a trend when the product's positioning, formulation, or claims actively embody what the trend describes — not merely when the same words happen to appear.
@@ -388,6 +416,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
 
       const country    = String(getMarket(row) || '');
       const regionCode = COUNTRY_REGION[country] || source.region_code || 'Global';
+      const region     = getRegionForMarket(country);
       const launchDate = getDatePublished(row);
 
       const recordHyperlink = getHyperlink(row);
@@ -419,7 +448,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
         brand: String(getBrand(row) || ''),
         company,
         ultimate_company: String(get(row, 'ultimate_company') || ''),
-        country, region_code: regionCode,
+        country, region_code: regionCode, region,
         category: source.category || String(getCategory(row) || ''),
         sub_category: String(getSubCat(row) || ''),
         launch_date: launchDate,

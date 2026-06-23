@@ -39,6 +39,10 @@
         "Global"
       ]
     },
+    "region": {
+      "type": "string",
+      "description": "Canonical region key derived from the market/country field via getRegionForMarket(). One of: aspac, europe, north_america, latam, mena, sub_saharan_africa, or 'unknown' if the market is unmapped. Separate from the legacy region_code field."
+    },
     "launch_date": {
       "type": "string",
       "format": "date"

@@ -55,6 +55,14 @@
       "description": "The SME's display name.",
       "type": "string"
     },
+    "reviewer_region": {
+      "description": "Canonical region key for this reviewer (pre-set at dispatch). One of CANONICAL_REGIONS keys: aspac, europe, north_america, latam, mena, sub_saharan_africa. Validated against CANONICAL_REGIONS at write time. Set once at dispatch; the same reviewer can be dispatched with different regions across different dispatches.",
+      "type": "string"
+    },
+    "trend_signal": {
+      "description": "SME trend-level validation: 'strong', 'emerging', or 'not_seeing_it'. Written by the SME via the portal, never by automation. Per trend-group, applied to all assignments in that group on submit.",
+      "type": "string"
+    },
     "status": {
       "default": "sent",
       "description": "Lifecycle of this assignment. sent = dispatched; opened = reviewer viewed it; responded = reviewer submitted a verdict.",
