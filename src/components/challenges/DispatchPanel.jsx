@@ -5,12 +5,14 @@ import { useAuth } from '@/lib/AuthContext';
 import { Send, X, Plus, Mail, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { sendReviewNotificationEmail } from '@/lib/sendReviewEmail';
+import { CANONICAL_REGIONS, isCanonicalRegion } from '@/lib/regions';
 
 export default function DispatchPanel({ selectedChallenges, allChallenges, onClose }) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
   const [reviewers, setReviewers] = useState([{ name: '', email: '' }]);
+  const [region, setRegion] = useState('');
   const [dispatching, setDispatching] = useState(false);
   const [emailErrors, setEmailErrors] = useState([]); // emails that failed to send
 
@@ -36,6 +38,8 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
     const validReviewers = reviewers.filter(r => r.email.trim());
     if (validReviewers.length === 0) { toast.error('Add at least one reviewer email.'); return; }
     if (selectedChallenges.length === 0) { toast.error('No challenges selected.'); return; }
+    if (!region) { toast.error('Select a region for this dispatch.'); return; }
+    if (!isCanonicalRegion(region)) { toast.error('Invalid region selected.'); return; }
 
     setDispatching(true);
     setEmailErrors([]);
@@ -67,6 +71,7 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
           category: challenge.category || undefined,
           reviewer_email: emailKey,
           reviewer_name: reviewer.name.trim() || undefined,
+          reviewer_region: region,
           assigned_by: user?.full_name || user?.email || 'Admin',
           assigned_at: new Date().toISOString(),
           status: 'sent',
@@ -201,6 +206,23 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
                 <span className="ml-2 text-xs text-slate-400 capitalize">{c.category?.replace(/_/g, ' ')}</span>
               </div>
             ))}
+          </div>
+
+          {/* Region */}
+          <div className="mb-5">
+            <p className="text-sm font-semibold mb-2" style={{ color: '#1D2B47' }}>Review region *</p>
+            <select
+              value={region}
+              onChange={e => setRegion(e.target.value)}
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none"
+              style={{ color: region ? '#1D2B47' : '#9CA3AF' }}
+            >
+              <option value="">Select region…</option>
+              {CANONICAL_REGIONS.map(r => (
+                <option key={r.key} value={r.key}>{r.label} — {r.description}</option>
+              ))}
+            </select>
+            <p className="text-xs text-slate-400 mt-1.5">The reviewer validates these trends from this region's perspective.</p>
           </div>
 
           {/* Reviewers */}
