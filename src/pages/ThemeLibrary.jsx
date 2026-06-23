@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { Zap, CheckCircle, XCircle, Clock, Star, ChevronDown, ChevronRight, Eye } from 'lucide-react';
+import { Zap, CheckCircle, XCircle, Clock, Star, ChevronDown, ChevronRight, Eye, FileBarChart2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import ThemeLinkReviewRow from '@/components/themes/ThemeLinkReviewRow';
@@ -178,6 +179,15 @@ export default function ThemeLibrary() {
                         )}
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
+                        <Link
+                          to={`/Reports?theme=${theme.id}`}
+                          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg transition-colors text-white border border-white/30"
+                          style={{ backgroundColor: 'rgba(255,255,255,0.15)' }}
+                          title="Generate a report for this theme"
+                        >
+                          <FileBarChart2 className="w-3 h-3" />
+                          Report
+                        </Link>
                         <button
                           onClick={() => handlePropose(theme.id)}
                           disabled={isProposing}

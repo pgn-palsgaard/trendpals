@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { ChevronDown } from 'lucide-react';
 import TrendReportSections from '@/components/trendreport/TrendReportSections';
+import ThemeReportSections from '@/components/themereport/ThemeReportSections';
 import { COMMERCIAL_REGIONS } from '@/lib/regions';
 
 const CATEGORY_LABELS = {
@@ -12,8 +13,13 @@ const CATEGORY_LABELS = {
   plant_based: 'Plant-based', rutf_rusf: 'RUTF/RUSF', needs_human_review: 'Needs Review',
 };
 
+const urlParams = new URLSearchParams(window.location.search);
+const INITIAL_THEME = urlParams.get('theme') || '';
+
 export default function Reports() {
+  const [mode, setMode] = useState(INITIAL_THEME ? 'theme' : 'trend');
   const [selectedTrendId, setSelectedTrendId] = useState('');
+  const [selectedThemeId, setSelectedThemeId] = useState(INITIAL_THEME);
   const [selectedRegion, setSelectedRegion] = useState('all');
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -24,15 +30,23 @@ export default function Reports() {
     queryFn: () => base44.entities.GlobalTrend.list(),
   });
 
+  const { data: themes = [] } = useQuery({
+    queryKey: ['allCommunicationThemes'],
+    queryFn: () => base44.entities.CommunicationTheme.list('-year'),
+  });
+
   const activeTrends = trends.filter(t => t.is_active);
 
   const handleGenerate = async () => {
-    if (!selectedTrendId) return;
+    if (mode === 'trend' && !selectedTrendId) return;
+    if (mode === 'theme' && !selectedThemeId) return;
     setLoading(true);
     setError(null);
     setReportData(null);
     try {
-      const res = await base44.functions.invoke('generateTrendReport', { global_trend_id: selectedTrendId, region: selectedRegion });
+      const res = mode === 'theme'
+        ? await base44.functions.invoke('generateThemeReport', { theme_id: selectedThemeId, region: selectedRegion })
+        : await base44.functions.invoke('generateTrendReport', { global_trend_id: selectedTrendId, region: selectedRegion });
       setReportData(res?.data);
     } catch (err) {
       setError(err.message);
@@ -40,6 +54,8 @@ export default function Reports() {
       setLoading(false);
     }
   };
+
+  const canGenerate = mode === 'theme' ? !!selectedThemeId : !!selectedTrendId;
 
   return (
     <div style={{ minHeight: '100vh', background: 'hsl(var(--background))' }}>
@@ -55,8 +71,26 @@ export default function Reports() {
             Reports
           </h1>
           <p style={{ fontSize: 14, color: 'hsl(var(--muted-foreground))', margin: 0 }}>
-            Generate trend reports from approved challenges and current sources.
+            Generate trend or theme reports from approved challenges and current sources.
           </p>
+        </div>
+
+        {/* Mode toggle */}
+        <div style={{ display: 'inline-flex', background: 'hsl(var(--muted))', borderRadius: 8, padding: 3, marginBottom: 20 }}>
+          {[{ k: 'trend', label: 'By trend' }, { k: 'theme', label: 'By theme' }].map(t => (
+            <button
+              key={t.k}
+              onClick={() => { setMode(t.k); setReportData(null); setError(null); }}
+              style={{
+                padding: '6px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer',
+                background: mode === t.k ? '#fff' : 'transparent',
+                color: mode === t.k ? '#1D428A' : 'hsl(var(--muted-foreground))',
+                boxShadow: mode === t.k ? '0 1px 3px rgba(29,43,71,0.1)' : 'none',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {/* Info note */}
@@ -75,26 +109,45 @@ export default function Reports() {
           marginBottom: 28,
         }}>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1D2B47', marginBottom: 10 }}>
-            Select a trend
+            {mode === 'theme' ? 'Select a theme' : 'Select a trend'}
           </label>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ position: 'relative', flex: '1 1 240px', minWidth: 200 }}>
-              <select
-                value={selectedTrendId}
-                onChange={e => { setSelectedTrendId(e.target.value); setReportData(null); setError(null); }}
-                style={{
-                  width: '100%', border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))',
-                  borderRadius: 8, padding: '8px 32px 8px 12px', fontSize: 13, color: '#1D2B47',
-                  appearance: 'none',
-                }}
-              >
-                <option value="">— Choose a trend —</option>
-                {activeTrends.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.trend_name}{t.category ? ` (${CATEGORY_LABELS[t.category] || t.category})` : ''}
-                  </option>
-                ))}
-              </select>
+              {mode === 'theme' ? (
+                <select
+                  value={selectedThemeId}
+                  onChange={e => { setSelectedThemeId(e.target.value); setReportData(null); setError(null); }}
+                  style={{
+                    width: '100%', border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))',
+                    borderRadius: 8, padding: '8px 32px 8px 12px', fontSize: 13, color: '#1D2B47',
+                    appearance: 'none',
+                  }}
+                >
+                  <option value="">— Choose a theme —</option>
+                  {themes.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}{t.year ? ` (${t.year})` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <select
+                  value={selectedTrendId}
+                  onChange={e => { setSelectedTrendId(e.target.value); setReportData(null); setError(null); }}
+                  style={{
+                    width: '100%', border: '1px solid hsl(var(--border))', background: 'hsl(var(--card))',
+                    borderRadius: 8, padding: '8px 32px 8px 12px', fontSize: 13, color: '#1D2B47',
+                    appearance: 'none',
+                  }}
+                >
+                  <option value="">— Choose a trend —</option>
+                  {activeTrends.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.trend_name}{t.category ? ` (${CATEGORY_LABELS[t.category] || t.category})` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
               <ChevronDown style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: 'hsl(var(--muted-foreground))', pointerEvents: 'none' }} />
             </div>
             <div style={{ position: 'relative', flex: '0 1 180px', minWidth: 150 }}>
@@ -116,11 +169,11 @@ export default function Reports() {
             </div>
             <button
               onClick={handleGenerate}
-              disabled={!selectedTrendId || loading}
+              disabled={!canGenerate || loading}
               style={{
                 padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600,
                 background: '#1D428A', color: '#fff', border: 'none', cursor: 'pointer',
-                opacity: (!selectedTrendId || loading) ? 0.4 : 1,
+                opacity: (!canGenerate || loading) ? 0.4 : 1,
                 flexShrink: 0,
               }}
             >
@@ -145,7 +198,9 @@ export default function Reports() {
 
         {/* Report output */}
         {reportData && !loading && (
-          <TrendReportSections report={reportData} />
+          reportData.theme_header
+            ? <ThemeReportSections report={reportData} />
+            : <TrendReportSections report={reportData} />
         )}
       </div>
     </div>
