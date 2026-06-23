@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { CheckCircle, Clock, AlertTriangle, XCircle, ChevronDown, ChevronRight, Lightbulb } from 'lucide-react';
+import CoverageBanner from '@/components/trendreport/CoverageBanner';
 
 const CATEGORY_LABELS = {
   bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Chocolate & Confectionery',
@@ -65,6 +66,7 @@ export default function TrendReportSections({ report }) {
     section6_candidates: s6,
     summary,
     generated_at,
+    coverage_assessment,
   } = report;
 
   const confStyle = CONFIDENCE_STYLES[s1.confidence] || CONFIDENCE_STYLES.medium;
@@ -76,6 +78,9 @@ export default function TrendReportSections({ report }) {
       <div className="text-xs text-slate-400 text-right">
         Generated {new Date(generated_at).toLocaleString()} — internal use only
       </div>
+
+      {/* Coverage context */}
+      <CoverageBanner coverage={coverage_assessment} />
 
       {/* Section 1: Header */}
       <Section>

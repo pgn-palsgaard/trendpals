@@ -89,6 +89,45 @@ Deno.serve(async (req) => {
       })),
     };
 
+    // Coverage context — distinguishes "no signal" from "not searched".
+    // A region is "covered" for this trend's category if at least one Source's
+    // coverage_regions includes it AND the source is relevant to the category.
+    const COMMERCIAL_KEYS = ['aspac', 'americas', 'emec', 'imea'];
+    const COMMERCIAL_LABELS = { aspac: 'ASPAC', americas: 'AMERICAS', emec: 'EMEC', imea: 'IMEA' };
+    const coveredRegions = new Set();
+    if (trend.category) {
+      const sources = await base44.asServiceRole.entities.Source.filter(
+        { source_type: { $in: ['gnpd', 'mintel', 'market_intel'] } }, '-created_date', 2000
+      );
+      for (const s of sources) {
+        const cov = Array.isArray(s.coverage_regions) ? s.coverage_regions : [];
+        if (!cov.length) continue;
+        const relevant = s.category === trend.category ||
+          (Array.isArray(s.category_relevance) && s.category_relevance.includes(trend.category));
+        if (!relevant) continue;
+        cov.forEach(r => { if (COMMERCIAL_KEYS.includes(r)) coveredRegions.add(r); });
+      }
+    }
+    // Per-region signal counts (commercial fold) over the full trend-linked set
+    const signalCounts = {};
+    for (const p of (await base44.asServiceRole.entities.GNPDProduct.filter({ linked_trend_ids: global_trend_id }, '-launch_date', 1000))) {
+      const ck = getCommercialRegion(p.region, p.country);
+      if (ck) signalCounts[ck] = (signalCounts[ck] || 0) + 1;
+    }
+    const scopeKeys = regionFilter ? [regionFilter] : COMMERCIAL_KEYS;
+    const coverage_assessment = {
+      scope: regionFilter || 'all',
+      regions: scopeKeys.map(key => {
+        const covered = coveredRegions.has(key);
+        const signal = signalCounts[key] || 0;
+        let status, label;
+        if (!covered) { status = 'not_searched'; label = 'Not searched — no source coverage for this category'; }
+        else if (signal === 0) { status = 'no_signal'; label = 'Searched, no signal found'; }
+        else { status = 'signal'; label = `${signal} product${signal === 1 ? '' : 's'} found`; }
+        return { key, region_label: COMMERCIAL_LABELS[key], covered, signal_count: signal, status, label };
+      }),
+    };
+
     // Section 1: Trend header
     const section1_header = {
       trend_name: trend.trend_name,
@@ -198,6 +237,7 @@ Deno.serve(async (req) => {
       region: regionFilter || 'all',
       generated_at: new Date().toISOString(),
       regional_evidence,
+      coverage_assessment,
       summary: {
         has_approved_challenges,
         approved_challenge_count: approvedChallenges.length,
