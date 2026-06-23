@@ -96,6 +96,16 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
     queryClient.invalidateQueries({ queryKey: ['allAssignments'] });
     queryClient.invalidateQueries({ queryKey: ['allAssignmentsForDispatch'] });
 
+    // --- Ensure each new reviewer is a 'reviewer'-role user (gated to /review) ---
+    // inviteUser is idempotent-friendly here: if they already exist it throws, which we ignore.
+    for (const emailKey of Object.keys(newlyAssignedPerReviewer)) {
+      try {
+        await base44.users.inviteUser(emailKey, 'reviewer');
+      } catch {
+        // Already a user, or invite not permitted — assignment + email still proceed.
+      }
+    }
+
     // --- Send ONE consolidated email per reviewer ---
     const dispatchedBy = user?.full_name || user?.email || 'Palsgaard';
     const failedEmails = [];
@@ -218,7 +228,7 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
 
           <p className="text-xs text-slate-400 mb-5 flex items-center gap-1.5">
             <Mail className="w-3 h-3" />
-            One consolidated email per reviewer · duplicate open assignments are skipped automatically
+            New reviewers are invited automatically with review-only access · one consolidated email per reviewer · duplicate open assignments are skipped
           </p>
 
           <div className="flex gap-3">
