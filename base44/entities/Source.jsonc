@@ -449,6 +449,13 @@
         "Global"
       ]
     },
+    "coverage_regions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Commercial region keys (aspac, americas, emec, imea) this source covers. A source 'covers' a region if its data scope includes that region \u2014 regardless of whether it mentions it positively. Empty = coverage unknown (legacy). ['aspac','americas','emec','imea'] = global coverage."
+    },
     "tags": {
       "type": "array",
       "items": {
