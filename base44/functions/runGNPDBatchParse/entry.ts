@@ -65,6 +65,26 @@ function getRegionForMarket(marketName) {
   return MARKET_TO_REGION[marketName.trim().toLowerCase()] || 'unknown';
 }
 
+// ── Country-column integrity guard (Phase 4) ──
+// Some GNPD exports leak a product description into the Market/Country column.
+// A real country value is short and matches the region map; a description is long
+// and/or sentence-like. This rejects description-shaped values so they never get
+// stored as the country (which is what produced the "Type B" unknown-region records).
+function sanitizeCountry(raw) {
+  const value = String(raw || '').trim();
+  if (!value) return '';
+  // Known country → always accept
+  if (MARKET_TO_REGION[value.toLowerCase()]) return value;
+  // Description heuristics: too long, multi-word sentence, or contains punctuation
+  // that never appears in a country name.
+  const looksLikeDescription =
+    value.length > 40 ||
+    value.split(/\s+/).length > 5 ||
+    /[.;:!?]|\bde\b|\bproduct\b|\bcontains\b/i.test(value);
+  if (looksLikeDescription) return '';
+  return value;
+}
+
 const LLM_SYSTEM_PROMPT = `You are validating whether a GNPD product launch is genuine evidence of a market trend, or whether the keyword overlap is incidental.
 
 A product GENUINELY EXPRESSES a trend when the product's positioning, formulation, or claims actively embody what the trend describes — not merely when the same words happen to appear.
@@ -433,7 +453,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
       const flavours = typeof rawFlavours === 'string'
         ? rawFlavours.split(',').map(f => f.trim()).filter(Boolean) : [];
 
-      const country    = String(getMarket(row) || '');
+      const country    = sanitizeCountry(getMarket(row));
       const regionCode = COUNTRY_REGION[country] || source.region_code || 'Global';
       const region     = getRegionForMarket(country);
       const launchDate = getDatePublished(row);
@@ -448,7 +468,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
         product_name: productName,
         brand: String(getBrand(row) || ''),
         company,
-        country: String(getMarket(row) || ''),
+        country,
         category: source.category || String(getCategory(row) || ''),
         sub_category: String(getSubCat(row) || ''),
         product_description: description,
