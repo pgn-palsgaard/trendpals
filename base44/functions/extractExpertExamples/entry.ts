@@ -137,6 +137,215 @@ async function callAnthropicExtraction(apiKey, content, sourceTitle) {
   }
 }
 
+// ── Inline section→trend linking ──
+// Runs inside the worker after examples are created. Kept inline (not a separate function
+// invoke) because background functions cannot invoke other functions (403). Mirrors the
+// standalone linkExpertExampleSections function, which remains for manual/backfill use.
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function mapWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let cursor = 0;
+  async function run() {
+    while (cursor < items.length) {
+      const i = cursor++;
+      results[i] = await worker(items[i], i);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  return results;
+}
+
+async function validateSectionTrendLink(apiKey, section, trend) {
+  const prompt = `You are evaluating whether a themed section of a Mintel innovation report is genuine evidence of a specific market trend.
+
+TREND
+Name: ${trend.trend_name}
+Category: ${trend.category || 'Unknown'}
+Market signal: ${trend.market_signal || ''}
+Description: ${(trend.description || '').slice(0, 400)}
+Keywords: ${(trend.trend_keywords || []).join(', ')}
+
+REPORT SECTION
+Heading: ${section.section_heading || ''}
+Thesis (analyst's argument): ${section.section_thesis || ''}
+Example products cited as evidence: ${(section.product_names || []).slice(0, 8).join('; ')}
+
+Scoring guide:
+- 80-100 SUPPORTS: The section's thesis is clearly an instance/driver of this trend.
+- 50-79 PARTIAL: The section overlaps with the trend but also diverges, or alignment is implicit.
+- 0-49 NOT_SUPPORT: Only incidental keyword overlap — the section is not about this trend.
+
+Respond ONLY with JSON:
+{"verdict":"SUPPORTS"|"PARTIAL"|"NOT_SUPPORT","confidence_score":0-100,"reasoning":"one sentence"}`;
+
+  let res;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 200,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (res.status !== 429) break;
+    await sleep(1000 * Math.pow(2, attempt));
+  }
+  if (!res.ok) throw new Error(`Validation API error ${res.status}`);
+  const data = await res.json();
+  const raw = (data.content?.[0]?.text || '').trim();
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) return { verdict: 'NOT_SUPPORT', confidence_score: 0, reasoning: 'Parse error' };
+  return JSON.parse(match[0]);
+}
+
+function sectionTextFor(section) {
+  return [section.section_heading, section.section_thesis, ...(section.product_names || [])]
+    .filter(Boolean).join(' ').toLowerCase();
+}
+
+function keywordOverlapForSection(section, trend) {
+  const trendKws = (trend.keywords || []);
+  if (trendKws.length === 0) return [];
+  const text = sectionTextFor(section);
+  return trendKws.filter(kw => text.includes(kw));
+}
+
+const MAX_SAME_CATEGORY_FALLBACK = 6;
+function selectSectionCandidates(section, sectionCategoryKey, trendIndex) {
+  const keywordMatches = [];
+  for (const trend of trendIndex) {
+    const matched = keywordOverlapForSection(section, trend);
+    if (matched.length > 0) keywordMatches.push({ trend, matched });
+  }
+  if (keywordMatches.length > 0) return keywordMatches;
+  if (!sectionCategoryKey) return [];
+  return trendIndex
+    .filter(t => t.category === sectionCategoryKey)
+    .sort((a, b) => (b.keywords?.length || 0) - (a.keywords?.length || 0))
+    .slice(0, MAX_SAME_CATEGORY_FALLBACK)
+    .map(trend => ({ trend, matched: [] }));
+}
+
+function verdictToLink(trend, matched, verdict, now) {
+  const score = verdict.confidence_score || 0;
+  const v = verdict.verdict;
+  if (v === 'NOT_SUPPORT' || score < 40) {
+    return {
+      rejected: {
+        trend_id: trend.id, trend_name: trend.name, matched_keywords: matched,
+        llm_verdict: v, llm_reasoning: verdict.reasoning, llm_score: score, rejected_at: now,
+      },
+    };
+  }
+  const isAutoApply = v === 'SUPPORTS' && score >= 70;
+  return {
+    link: {
+      trend_id: trend.id, trend_name: trend.name, trend_type: 'global',
+      confidence: score >= 70 ? 'high' : 'medium', confidence_score: score,
+      reasoning: verdict.reasoning, matched_keywords: matched, linked_via: 'section',
+      review_status: isAutoApply ? 'auto_applied' : 'pending', linked_at: now,
+    },
+    autoApply: isAutoApply,
+  };
+}
+
+// Links every ExpertExample for a source to trends via its section thesis. Returns counts.
+async function linkSectionsInline(base44, apiKey, source_id, sourceCategory) {
+  const examples = await base44.asServiceRole.entities.ExpertExample.filter({ source_id }, '-created_date', 500);
+  if (examples.length === 0) return { auto_applied: 0, pending: 0, examples_updated: 0 };
+
+  // Group examples by section.
+  const sectionMap = new Map();
+  for (const ex of examples) {
+    const key = ex.mintel_section_heading || ex.section_thesis || `__no_section_${ex.id}`;
+    if (!sectionMap.has(key)) {
+      sectionMap.set(key, {
+        section_heading: ex.mintel_section_heading || '',
+        section_thesis: ex.section_thesis || '',
+        product_names: [], example_ids: [],
+      });
+    }
+    const sec = sectionMap.get(key);
+    if (ex.product_name) sec.product_names.push(ex.product_name);
+    sec.example_ids.push(ex.id);
+  }
+  const sections = Array.from(sectionMap.values());
+
+  const globalTrends = await base44.asServiceRole.entities.GlobalTrend.filter({ is_active: true });
+  const trendIndex = globalTrends.map(t => ({
+    id: t.id, name: t.trend_name,
+    keywords: (t.trend_keywords || []).map(k => k.toLowerCase()),
+    category: t.category,
+  }));
+  const trendDetails = {};
+  globalTrends.forEach(t => {
+    trendDetails[t.id] = {
+      trend_name: t.trend_name, market_signal: t.market_signal || '',
+      description: t.description || '', category: t.category || '',
+      trend_keywords: t.trend_keywords || [],
+    };
+  });
+
+  const now = new Date().toISOString();
+  const sourceCategoryKey = normalizeCategory(sourceCategory) || '';
+  const sectionLinks = sections.map(() => ({ links: [], linkedTrendIds: [], rejectedCandidates: [] }));
+
+  const pairs = [];
+  sections.forEach((section, sIdx) => {
+    for (const { trend, matched } of selectSectionCandidates(section, sourceCategoryKey, trendIndex)) {
+      pairs.push({ sIdx, section, trend, matched });
+    }
+  });
+  console.log(`[extractExpertExamples] linking: ${sections.length} sections, ${pairs.length} section/trend pairs`);
+
+  await mapWithConcurrency(pairs, 6, async ({ sIdx, section, trend, matched }) => {
+    const trendWithDetails = { ...trend, ...(trendDetails[trend.id] || {}) };
+    let verdict;
+    try {
+      verdict = await validateSectionTrendLink(apiKey, section, trendWithDetails);
+    } catch (e) {
+      console.warn(`section link failed for "${section.section_heading}" / ${trend.name}: ${e.message}`);
+      return;
+    }
+    const out = verdictToLink(trend, matched, verdict, now);
+    const bucket = sectionLinks[sIdx];
+    if (out.rejected) bucket.rejectedCandidates.push(out.rejected);
+    else {
+      bucket.links.push(out.link);
+      if (out.autoApply) bucket.linkedTrendIds.push(trend.id);
+    }
+  });
+
+  const updates = [];
+  sections.forEach((section, sIdx) => {
+    const { links, linkedTrendIds, rejectedCandidates } = sectionLinks[sIdx];
+    for (const exId of section.example_ids) {
+      updates.push({
+        id: exId,
+        linked_trend_ids: [...linkedTrendIds],
+        trend_links: links.map(l => ({ ...l })),
+        rejected_link_candidates: rejectedCandidates.map(r => ({ ...r })),
+      });
+    }
+  });
+
+  let updated = 0;
+  for (let i = 0; i < updates.length; i += 25) {
+    await base44.asServiceRole.entities.ExpertExample.bulkUpdate(updates.slice(i, i + 25));
+    updated += Math.min(25, updates.length - i);
+  }
+  const autoApplied = updates.reduce((n, u) => n + u.linked_trend_ids.length, 0);
+  const pending = updates.reduce((n, u) => n + u.trend_links.filter(l => l.review_status === 'pending').length, 0);
+  return { auto_applied: autoApplied, pending, examples_updated: updated };
+}
+
 Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
@@ -144,9 +353,10 @@ Deno.serve(async (req) => {
     // Support both direct calls ({source_id}) and entity automation payloads ({event, data})
     const body = await req.json().catch(() => ({}));
     const isAutomation = !!body?.event?.entity_name;
+    const isWorker = body.worker === true;
     const source_id = body.source_id || body?.event?.entity_id || body?.data?.id;
 
-    if (!isAutomation) {
+    if (!isAutomation && !isWorker) {
       const user = await base44.auth.me();
       if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -174,6 +384,15 @@ Deno.serve(async (req) => {
       return Response.json({ skipped: true, reason: 'not a report source', source_type: source.source_type });
     }
 
+    // The full extraction (PDF parse + LLM) runs ~2+ minutes — too long for an entity
+    // automation's budget. So when triggered by the automation, hand the heavy work to a
+    // background self-invocation and return immediately. The worker call does the real work.
+    if (isAutomation) {
+      base44.asServiceRole.functions.invoke('extractExpertExamples', { source_id, worker: true })
+        .catch(e => console.warn(`[extractExpertExamples] worker invoke failed: ${e.message}`));
+      return Response.json({ success: true, source_id, dispatched: true });
+    }
+
     // Fetch file content via signed URL
     let fileContent = '';
     const rawUrl = source.file_url || source.url;
@@ -187,18 +406,25 @@ Deno.serve(async (req) => {
       if (signed?.signed_url) fetchUrl = signed.signed_url;
     } catch (_) {}
 
-    const { getDocument } = await import('npm:pdfjs-dist@4.4.168/legacy/build/pdf.mjs');
-    const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
-    if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-    const ab = await res.arrayBuffer();
-    const pdf = await getDocument({ data: new Uint8Array(ab) }).promise;
-    const parts = [];
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      parts.push(content.items.map(item => item.str).join(' '));
+    try {
+      const { getDocument } = await import('npm:pdfjs-dist@4.4.168/legacy/build/pdf.mjs');
+      const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
+      if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
+      const ab = await res.arrayBuffer();
+      const pdf = await getDocument({ data: new Uint8Array(ab) }).promise;
+      const parts = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        parts.push(content.items.map(item => item.str).join(' '));
+      }
+      fileContent = parts.join('\n');
+    } catch (e) {
+      // Unreadable/corrupt PDF — not recoverable by retrying. Finish gracefully so the
+      // automation doesn't keep retrying it.
+      console.warn(`[extractExpertExamples] Could not read PDF for ${source.title}: ${e.message}`);
+      return Response.json({ success: true, source_id, sections_extracted: 0, examples_created: 0, reason: `unreadable PDF: ${e.message}` });
     }
-    fileContent = parts.join('\n');
 
     if (!fileContent || fileContent.length < 100) {
       return Response.json({ error: 'Could not extract text from PDF', examples_created: 0 });
@@ -215,7 +441,11 @@ Deno.serve(async (req) => {
     try {
       rawSections = await callAnthropicExtraction(apiKey, contentForLLM, source.title || 'Unknown report');
     } catch (e) {
-      return Response.json({ error: `Extraction failed: ${e.message}`, examples_created: 0 }, { status: 500 });
+      // A market-sizing report (vs a product-innovation report) often yields no parseable
+      // section JSON. Treat that as "nothing to extract" rather than a hard failure, so the
+      // automation doesn't keep retrying a report that has no curated product examples.
+      console.warn(`[extractExpertExamples] No extractable sections from ${source.title}: ${e.message}`);
+      return Response.json({ success: true, source_id, sections_extracted: 0, examples_created: 0, reason: 'no extractable product sections' });
     }
     if (!Array.isArray(rawSections)) rawSections = [];
 
@@ -292,13 +522,17 @@ Deno.serve(async (req) => {
 
     console.log(`[extractExpertExamples] Created ${created} ExpertExample records for source ${source_id}`);
 
-    // Phase 2: link each section to trends in a separate call so neither phase times out.
-    // Fire-and-forget — extraction is done; linking proceeds in the background.
-    let linkingTriggered = false;
+    // Phase 2: link each section's thesis to trends, inline. Every product in a section
+    // inherits its section's links. Done inline (not via a separate invoke) because a
+    // background worker can't invoke another function.
+    let linking = { auto_applied: 0, pending: 0, examples_updated: 0 };
     if (created > 0) {
-      base44.functions.invoke('linkExpertExampleSections', { source_id })
-        .catch(e => console.warn(`[extractExpertExamples] linker invoke failed: ${e.message}`));
-      linkingTriggered = true;
+      try {
+        linking = await linkSectionsInline(base44, apiKey, source_id, source.category);
+        console.log(`[extractExpertExamples] linked: ${linking.auto_applied} auto-applied, ${linking.pending} pending`);
+      } catch (e) {
+        console.warn(`[extractExpertExamples] inline linking failed: ${e.message}`);
+      }
     }
 
     return Response.json({
@@ -307,7 +541,8 @@ Deno.serve(async (req) => {
       sections_extracted: sections.length,
       examples_extracted: totalProducts,
       examples_created: created,
-      linking_triggered: linkingTriggered,
+      trend_links_auto_applied: linking.auto_applied,
+      trend_links_pending: linking.pending,
     });
 
   } catch (error) {
