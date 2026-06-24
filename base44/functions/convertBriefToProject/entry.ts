@@ -147,10 +147,12 @@ Deno.serve(async (req) => {
     };
 
     // Title format: "[account] — [category_display_name], [region]"
+    // Keep the account short — take only the company name before any separator/description.
+    const rawAccount = brief.account || brief.requester_name || 'Unnamed brief';
+    const account = rawAccount.split(/\s+[—–-]\s+|[,(]/)[0].trim() || rawAccount.trim();
     const categoryKey = resolveCategory(brief.categories);
     const categoryLabel = CATEGORY_LABELS[categoryKey] || 'Needs Review';
     const region = brief.region || 'Global';
-    const account = brief.account || brief.requester_name || 'Unnamed brief';
     const projectName = `${account} — ${categoryLabel}, ${region}`;
 
     // Merge suggested_source_ids from brief (if any) into selected_source_ids
