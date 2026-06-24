@@ -1,41 +1,58 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
-const EXTRACTION_SYSTEM_PROMPT = `You are extracting expert-curated product examples from a Mintel innovation report.
+// ── Section-aware extraction ──
+// Mintel reports are organised as THEMED SECTIONS. A section states a claim/trend
+// (e.g. "Consumers are enticed by chocolate that combines different textures") and the
+// product launches beneath it are the EVIDENCE for that claim. We extract the report as
+// a hierarchy of sections, then link each section's THESIS to trends once — every product
+// in the section inherits those links. This is both more accurate (a product like
+// "Fiorella Angel Hair" links to a texture trend via its section, not its name) and faster.
 
-Mintel analysts select specific product launches as illustrations of trends they are discussing. These look like:
-- A short bold or italic heading ("Turmeric biscuits with candied fennel seed", "Embracing the Dubai chocolate trend")
-- A product name in distinctive formatting (often a hyperlink in the source)
-- A 1-3 sentence description from the analyst
-- A country in parentheses at the end
+const EXTRACTION_SYSTEM_PROMPT = `You are extracting expert-curated content from a Mintel innovation report.
 
-Your job is to extract every such example, capturing only what is in the report itself.
+Mintel reports are organised into THEMED SECTIONS. Each section makes an argument about a market trend (stated in its heading and opening prose), and then cites specific product launches as EVIDENCE supporting that argument. A single thematic section can span multiple pages (e.g. a "texture" theme covers an intro page, a chart page, and one or more product-example pages).
 
-Critical rules:
-- Extract ONLY explicit product examples. Do not extract products mentioned ambiently in prose ("brands like X and Y are launching..."), only ones that are formatted as standalone examples with their own description and a country attribution.
-- The analyst_quote must be a verbatim copy of the report's description, maximum 2 sentences. Do NOT exceed 2 sentences. Do NOT paraphrase the quote — it is the literal evidence anchor, governed by copyright limits.
-- The mintel_trend_label is what the analyst calls the trend in their own words (the section heading or the example's bold heading). Do NOT invent a trend label.
-- analyst_framing is the short headline ABOVE the product example ("Turmeric biscuits with candied fennel seed"), not the surrounding prose.
-- Skip "Meet the expert" sections, "Other innovative launches" without category context, and disclaimer pages.
-- If a product example has no country attribution at the end (in parentheses), still extract it but leave country empty.
-- mintel_section_heading is the larger section title the example sits under (e.g. "Europe: flavour innovation continues to drive sweet biscuit launches").
-- Set extraction_confidence to "high" when all key fields are clearly present; "medium" when product name is clear but framing or quote is ambiguous; "low" only if you are genuinely uncertain whether this is an example at all (in which case lean toward not extracting it).
+Your job is to reconstruct that structure: identify each thematic section, capture the analyst's claim, and list the product examples that sit under it as evidence.
 
-You respond ONLY with a JSON array of example objects. No prose. No markdown. No commentary outside the JSON.
+How to identify a section:
+- A section has a thematic heading describing a trend/claim ("Consumers are enticed by chocolate that combines different textures", "Brands get creative with texture to captivate consumers").
+- Consecutive pages about the same topic belong to the SAME section, even if each page has its own sub-heading. Group them together.
+- The section_thesis is the core argument in your own words, 1-2 sentences (e.g. "Texture is now a primary driver of appeal and premium signalling in chocolate, prompting brands to combine contrasting textures").
 
-Schema per example:
+How to identify product examples within a section:
+- A short bold/italic heading + a product name (often a hyperlink) + a 1-3 sentence analyst description + usually a country in parentheses.
+- Extract ONLY explicit product examples. Do NOT extract products mentioned only ambiently in prose ("brands like X and Y..."). Only ones formatted as standalone examples with their own description.
+- analyst_quote must be a VERBATIM copy of the report's description, MAXIMUM 2 sentences. Never paraphrase, never exceed 2 sentences (copyright limit).
+- analyst_framing is the short headline ABOVE the product example ("Melt-in-mouth angel hair and crunchy pistachio").
+- section_evidence_role: one sentence on why THIS product is cited as evidence for the section thesis.
+- If a product has no country in parentheses, still extract it but leave country empty.
+
+Skip "Meet the expert" sections, generic "Other innovative launches" lists without a thematic claim, and disclaimer/contents pages.
+
+A section may legitimately have zero products (intro/chart-only pages) — in that case still capture the section with an empty products array if it states a clear thesis, otherwise omit it.
+
+You respond ONLY with a JSON array of SECTION objects. No prose, no markdown, no commentary outside the JSON.
+
+Schema per section:
 {
-  "product_name": string,
-  "brand": string or null,
-  "country": string or null,
-  "analyst_framing": string,
-  "analyst_quote": string (verbatim, max 2 sentences),
-  "mintel_section_heading": string,
-  "mintel_trend_label": string,
-  "claims": [string],
-  "flavours": [string],
-  "format_notes": string or null,
+  "section_heading": string,
+  "section_thesis": string,
   "page_ref": string or null,
-  "extraction_confidence": "high" | "medium" | "low"
+  "products": [
+    {
+      "product_name": string,
+      "brand": string or null,
+      "country": string or null,
+      "analyst_framing": string,
+      "analyst_quote": string (verbatim, max 2 sentences),
+      "section_evidence_role": string,
+      "claims": [string],
+      "flavours": [string],
+      "format_notes": string or null,
+      "page_ref": string or null,
+      "extraction_confidence": "high" | "medium" | "low"
+    }
+  ]
 }`;
 
 const REGION_MAP = {
@@ -54,6 +71,25 @@ function mapRegion(country) {
   if (!country) return null;
   const key = country.toLowerCase().trim();
   return REGION_MAP[key] || null;
+}
+
+// Map raw category strings to canonical trend category keys (inlined — backend functions
+// cannot import project files).
+function normalizeCategory(raw) {
+  if (!raw) return '';
+  const v = String(raw).toLowerCase().trim();
+  const direct = ['bakery', 'condiments', 'chocolate_confectionery', 'dairy', 'ice_cream',
+    'meat', 'oils_fats', 'plant_based', 'rutf_rusf'];
+  if (direct.includes(v)) return v;
+  if (/chocolate|confection|candy|sugar/.test(v)) return 'chocolate_confectionery';
+  if (/bakery|bread|biscuit|cookie|cake|pastr/.test(v)) return 'bakery';
+  if (/dairy|cheese|yog|yoghurt|yogurt|milk/.test(v)) return 'dairy';
+  if (/ice ?cream|frozen dessert|gelato/.test(v)) return 'ice_cream';
+  if (/meat|poultry|sausage|processed meat/.test(v)) return 'meat';
+  if (/condiment|sauce|dressing|mayo|spread/.test(v)) return 'condiments';
+  if (/oil|fat|margarine|shortening/.test(v)) return 'oils_fats';
+  if (/plant.?based|vegan|dairy.?free|meat.?free/.test(v)) return 'plant_based';
+  return '';
 }
 
 function truncateTo2Sentences(text) {
@@ -86,7 +122,6 @@ async function callAnthropicExtraction(apiKey, content, sourceTitle) {
   }
   const data = await res.json();
   const raw = data.content?.[0]?.text || '';
-  // Strip markdown code fences if present
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
   const start = cleaned.indexOf('[');
   if (start === -1) throw new Error('No JSON array in extraction response');
@@ -94,157 +129,12 @@ async function callAnthropicExtraction(apiKey, content, sourceTitle) {
   try {
     return JSON.parse(jsonText);
   } catch (_) {
-    // Salvage a truncated array: cut back to the last complete object and close the array
     const lastClose = jsonText.lastIndexOf('}');
     if (lastClose === -1) throw new Error('Unparseable extraction response');
     const salvaged = jsonText.slice(0, lastClose + 1) + ']';
     console.warn('[extractExpertExamples] Response truncated — salvaging complete objects');
     return JSON.parse(salvaged);
   }
-}
-
-async function validateTrendLinkLocal(apiKey, product, trend) {
-  const productText = [
-    product.product_name,
-    product.analyst_framing,
-    product.analyst_quote,
-    product.mintel_section_heading,
-    product.mintel_trend_label,
-    ...(product.claims || []),
-    ...(product.flavours || []),
-  ].filter(Boolean).join(' ');
-
-  const prompt = `You are evaluating whether a product launch is genuine evidence of a specific market trend.
-
-TREND
-Name: ${trend.trend_name}
-Category: ${trend.category || 'Unknown'}
-Market signal: ${trend.market_signal || ''}
-Description: ${(trend.description || '').slice(0, 400)}
-Keywords: ${(trend.trend_keywords || []).join(', ')}
-
-PRODUCT (from Mintel expert report)
-Product: ${product.product_name}
-Brand: ${product.brand || ''}
-Country: ${product.country || ''}
-Analyst framing: ${product.analyst_framing}
-Analyst quote: ${product.analyst_quote || ''}
-Claims: ${(product.claims || []).join(', ')}
-Flavours: ${(product.flavours || []).join(', ')}
-Matched keywords: ${(trend._matchedKeywords || []).join(', ')}
-
-ANALYST'S ORIGINAL LABEL
-Mintel section: ${product.mintel_section_heading || ''}
-Mintel trend label: ${product.mintel_trend_label || ''}
-
-Scoring guide:
-- 80-100 SUPPORTS: Product is clearly and deliberately an instance of this trend. Analyst framing or trend label directly aligns.
-- 50-79 PARTIAL: Product has some features of the trend but also diverges, or alignment is implicit.
-- 0-49 NOT_SUPPORT: Product name or keywords overlap incidentally — the trend is not the product's purpose.
-
-When the analyst's own Mintel trend label closely matches the GlobalTrend name/signal, heavily favor SUPPORTS.
-
-Respond ONLY with JSON:
-{"verdict":"SUPPORTS"|"PARTIAL"|"NOT_SUPPORT","confidence_score":0-100,"reasoning":"one sentence"}`;
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5',
-      max_tokens: 200,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
-  if (!res.ok) throw new Error(`Validation API error ${res.status}`);
-  const data = await res.json();
-  const raw = (data.content?.[0]?.text || '').trim();
-  const match = raw.match(/\{[\s\S]*\}/);
-  if (!match) return { verdict: 'NOT_SUPPORT', confidence_score: 0, reasoning: 'Parse error' };
-  return JSON.parse(match[0]);
-}
-
-function keywordOverlap(product, trend) {
-  const trendKws = (trend.trend_keywords || []).map(k => k.toLowerCase());
-  if (trendKws.length === 0) return [];
-  const text = [
-    product.product_name,
-    product.analyst_framing,
-    product.analyst_quote,
-    product.mintel_section_heading,
-    product.mintel_trend_label,
-    ...(product.claims || []),
-    ...(product.flavours || []),
-  ].filter(Boolean).join(' ').toLowerCase();
-
-  return trendKws.filter(kw => text.includes(kw));
-}
-
-async function linkExampleToTrends(apiKey, example, trendIndex, trendDetails) {
-  const links = [];
-  const rejectedCandidates = [];
-  const linkedTrendIds = [];
-
-  // Lower threshold for ExpertExamples: ≥1 keyword overlap (vs ≥2 for GNPD)
-  for (const trend of trendIndex) {
-    const matched = keywordOverlap(example, trend);
-    if (matched.length === 0) continue;
-
-    const trendWithDetails = {
-      ...trend,
-      ...(trendDetails[trend.id] || {}),
-      _matchedKeywords: matched,
-    };
-
-    let verdict;
-    try {
-      verdict = await validateTrendLinkLocal(apiKey, example, trendWithDetails);
-    } catch (e) {
-      console.warn(`validateTrendLink failed for ${example.product_name} / ${trend.trend_name}: ${e.message}`);
-      continue;
-    }
-
-    const score = verdict.confidence_score || 0;
-    const v = verdict.verdict;
-
-    if (v === 'NOT_SUPPORT' || score < 40) {
-      rejectedCandidates.push({
-        trend_id: trend.id,
-        trend_name: trend.name,
-        matched_keywords: matched,
-        llm_verdict: v,
-        llm_reasoning: verdict.reasoning,
-        llm_score: score,
-        rejected_at: new Date().toISOString(),
-      });
-      continue;
-    }
-
-    // SUPPORTS ≥70 → auto_applied/high; else pending/medium
-    const isAutoApply = v === 'SUPPORTS' && score >= 70;
-    const confidence = score >= 70 ? 'high' : 'medium';
-    const reviewStatus = isAutoApply ? 'auto_applied' : 'pending';
-
-    links.push({
-      trend_id: trend.id,
-      trend_name: trend.name,
-      trend_type: 'global',
-      confidence,
-      confidence_score: score,
-      reasoning: verdict.reasoning,
-      matched_keywords: matched,
-      review_status: reviewStatus,
-      linked_at: new Date().toISOString(),
-    });
-
-    if (isAutoApply) linkedTrendIds.push(trend.id);
-  }
-
-  return { links, linkedTrendIds, rejectedCandidates };
 }
 
 Deno.serve(async (req) => {
@@ -271,21 +161,17 @@ Deno.serve(async (req) => {
 
     // ── Guard clauses (fires on every Source.update; must skip ineligible work) ──
     if (!source) return Response.json({ skipped: true, reason: 'no source' });
-    // GNPD sources never produce expert examples
     if (source.source_type === 'gnpd') {
       return Response.json({ skipped: true, reason: 'gnpd source' });
     }
-    // Only process sources that have completed extraction
     if (source.pipeline_stage !== 'extracted') {
       return Response.json({ skipped: true, reason: 'not extracted stage', pipeline_stage: source.pipeline_stage });
     }
-    // Nothing to extract from without excerpts
     if (!source.excerpts || source.excerpts.length === 0) {
       return Response.json({ skipped: true, reason: 'no excerpts' });
     }
-    // The PDF extraction path below is mintel-specific
-    if (source.source_type !== 'mintel') {
-      return Response.json({ skipped: true, reason: 'not mintel source', source_type: source.source_type });
+    if (source.source_type !== 'mintel' && source.source_type !== 'market_intel') {
+      return Response.json({ skipped: true, reason: 'not a report source', source_type: source.source_type });
     }
 
     // Fetch file content via signed URL
@@ -318,97 +204,74 @@ Deno.serve(async (req) => {
       return Response.json({ error: 'Could not extract text from PDF', examples_created: 0 });
     }
 
-    // Truncate for token limits (target ~20k tokens input)
     const MAX_CHARS = 80000;
     const contentForLLM = fileContent.length > MAX_CHARS
       ? fileContent.slice(0, MAX_CHARS) + '\n\n[Content truncated]'
       : fileContent;
 
-    // --- Pass 1: extract raw examples via LLM ---
-    console.log(`[extractExpertExamples] Extracting from ${source.title} (${contentForLLM.length} chars)`);
-    let rawExamples;
+    // --- Pass 1: extract the report as themed sections ---
+    console.log(`[extractExpertExamples] Extracting sections from ${source.title} (${contentForLLM.length} chars)`);
+    let rawSections;
     try {
-      rawExamples = await callAnthropicExtraction(apiKey, contentForLLM, source.title || 'Unknown report');
+      rawSections = await callAnthropicExtraction(apiKey, contentForLLM, source.title || 'Unknown report');
     } catch (e) {
       return Response.json({ error: `Extraction failed: ${e.message}`, examples_created: 0 }, { status: 500 });
     }
+    if (!Array.isArray(rawSections)) rawSections = [];
 
-    console.log(`[extractExpertExamples] Got ${rawExamples.length} raw examples`);
+    // Keep only sections that actually have product examples to record.
+    const sections = rawSections
+      .filter(s => Array.isArray(s.products) && s.products.length > 0)
+      .map(s => ({
+        section_heading: s.section_heading || '',
+        section_thesis: s.section_thesis || '',
+        page_ref: s.page_ref || null,
+        products: s.products.filter(p => p.product_name && p.analyst_framing).map(p => ({
+          ...p,
+          analyst_quote: p.analyst_quote ? truncateTo2Sentences(p.analyst_quote) : null,
+        })),
+      }))
+      .filter(s => s.products.length > 0);
 
-    // --- Validate and sanitize ---
-    const validExamples = [];
-    for (const ex of rawExamples) {
-      if (!ex.product_name || !ex.analyst_framing) {
-        console.warn('[extractExpertExamples] Skipping invalid example (missing required fields):', ex.product_name);
-        continue;
-      }
-      // Enforce 2-sentence limit on analyst_quote
-      if (ex.analyst_quote) {
-        ex.analyst_quote = truncateTo2Sentences(ex.analyst_quote);
-      }
-      validExamples.push(ex);
-    }
+    const totalProducts = sections.reduce((n, s) => n + s.products.length, 0);
+    console.log(`[extractExpertExamples] Got ${sections.length} sections, ${totalProducts} products`);
 
-    // --- Load trend index for linking ---
-    const [globalTrends, megaTrends] = await Promise.all([
-      base44.asServiceRole.entities.GlobalTrend.filter({ is_active: true }),
-      base44.asServiceRole.entities.MegaTrend.filter({ is_active: true }),
-    ]);
-
-    const trendIndex = globalTrends.map(t => ({
-      id: t.id,
-      name: t.trend_name,
-      keywords: (t.trend_keywords || []).map(k => k.toLowerCase()),
-      mega_trend: t.mega_trend,
-      category: t.category,
-    }));
-
-    const trendDetails = {};
-    globalTrends.forEach(t => {
-      trendDetails[t.id] = {
-        market_signal: t.market_signal || '',
-        description: t.description || '',
-        category: t.category || '',
-        trend_keywords: t.trend_keywords || [],
-      };
-    });
-
-    // --- Pass 2: link each example to trends ---
+    // Build one ExpertExample per product, carrying its section context. Trend linking happens
+    // in a separate phase (linkExpertExampleSections) so this call stays within the time budget.
     const now = new Date().toISOString();
     const toCreate = [];
-
-    for (const ex of validExamples) {
-      const { links, linkedTrendIds, rejectedCandidates } = await linkExampleToTrends(
-        apiKey, ex, trendIndex, trendDetails
-      );
-
-      toCreate.push({
-        source_id,
-        report_title: source.title || '',
-        product_name: ex.product_name,
-        brand: ex.brand || null,
-        company: null,
-        country: ex.country || null,
-        region_code: mapRegion(ex.country),
-        category: source.category || null,
-        sub_category: null,
-        analyst_framing: ex.analyst_framing,
-        analyst_quote: ex.analyst_quote || null,
-        page_ref: ex.page_ref || null,
-        claims: Array.isArray(ex.claims) ? ex.claims : [],
-        flavours: Array.isArray(ex.flavours) ? ex.flavours : [],
-        format_notes: ex.format_notes || null,
-        mintel_section_heading: ex.mintel_section_heading || null,
-        mintel_trend_label: ex.mintel_trend_label || null,
-        extraction_confidence: ex.extraction_confidence || 'medium',
-        linked_trend_ids: linkedTrendIds,
-        trend_links: links,
-        rejected_link_candidates: rejectedCandidates,
-        image_url: null,
-        extracted_at: now,
-        extracted_via_run_id: null,
+    sections.forEach((section) => {
+      section.products.forEach(p => {
+        toCreate.push({
+          source_id,
+          report_title: source.title || '',
+          product_name: p.product_name,
+          brand: p.brand || null,
+          company: null,
+          country: p.country || null,
+          region_code: mapRegion(p.country),
+          category: source.category || null,
+          sub_category: null,
+          analyst_framing: p.analyst_framing,
+          analyst_quote: p.analyst_quote || null,
+          page_ref: p.page_ref || section.page_ref || null,
+          claims: Array.isArray(p.claims) ? p.claims : [],
+          flavours: Array.isArray(p.flavours) ? p.flavours : [],
+          format_notes: p.format_notes || null,
+          mintel_section_heading: section.section_heading || null,
+          mintel_trend_label: section.section_heading || null,
+          section_thesis: section.section_thesis || null,
+          section_evidence_role: p.section_evidence_role || null,
+          extraction_confidence: p.extraction_confidence || 'medium',
+          linked_trend_ids: [],
+          trend_links: [],
+          rejected_link_candidates: [],
+          image_url: null,
+          extracted_at: now,
+          extracted_via_run_id: null,
+        });
       });
-    }
+    });
 
     // Idempotency: remove any existing examples for this source before recreating
     const existing = await base44.asServiceRole.entities.ExpertExample.filter({ source_id }, '-created_date', 500);
@@ -429,13 +292,22 @@ Deno.serve(async (req) => {
 
     console.log(`[extractExpertExamples] Created ${created} ExpertExample records for source ${source_id}`);
 
+    // Phase 2: link each section to trends in a separate call so neither phase times out.
+    // Fire-and-forget — extraction is done; linking proceeds in the background.
+    let linkingTriggered = false;
+    if (created > 0) {
+      base44.functions.invoke('linkExpertExampleSections', { source_id })
+        .catch(e => console.warn(`[extractExpertExamples] linker invoke failed: ${e.message}`));
+      linkingTriggered = true;
+    }
+
     return Response.json({
       success: true,
       source_id,
-      examples_extracted: validExamples.length,
+      sections_extracted: sections.length,
+      examples_extracted: totalProducts,
       examples_created: created,
-      trend_links_auto_applied: toCreate.reduce((n, e) => n + e.linked_trend_ids.length, 0),
-      trend_links_pending: toCreate.reduce((n, e) => n + e.trend_links.filter(l => l.review_status === 'pending').length, 0),
+      linking_triggered: linkingTriggered,
     });
 
   } catch (error) {
