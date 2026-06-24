@@ -427,10 +427,21 @@ Deno.serve(async (req) => {
       } catch (_) {}
     }
     if (fileBytes && fileBytes > MAX_PDF_BYTES) {
-      console.warn(`[extractExpertExamples] Skipping oversized PDF (${(fileBytes / 1048576).toFixed(1)}MB) for ${source.title}`);
+      const mb = (fileBytes / 1048576).toFixed(1);
+      console.warn(`[extractExpertExamples] Skipping oversized PDF (${mb}MB) for ${source.title}`);
+      // Persist a visible flag so the source surfaces a "needs manual handling" badge in the library.
+      const skipReason = `PDF too large to parse safely (${mb}MB) — needs manual handling`;
+      try {
+        await base44.asServiceRole.entities.Source.update(source_id, {
+          extraction_quality_flag: 'needs_re_extraction',
+          skip_reason: skipReason,
+        });
+      } catch (e) {
+        console.warn(`[extractExpertExamples] could not persist skip flag: ${e.message}`);
+      }
       return Response.json({
         success: true, source_id, sections_extracted: 0, examples_created: 0,
-        reason: `PDF too large to parse safely (${(fileBytes / 1048576).toFixed(1)}MB) — needs manual handling`,
+        reason: skipReason,
       });
     }
 

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
@@ -49,6 +50,22 @@ export default function MarketIntelLibrary() {
         <span className="text-xs text-slate-600">
           {s.date_published ? format(new Date(s.date_published), 'MMM yyyy') : '—'}
         </span>
+      ),
+    },
+    {
+      key: 'manual_flag',
+      header: '',
+      render: (s) => (
+        s.extraction_quality_flag === 'needs_re_extraction' ? (
+          <span
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-pal-red-10"
+            style={{ color: '#A33B24' }}
+            title={s.skip_reason || 'This report could not be auto-processed — needs manual handling'}
+          >
+            <AlertTriangle className="w-3 h-3" />
+            Needs manual handling
+          </span>
+        ) : null
       ),
     },
   ];
