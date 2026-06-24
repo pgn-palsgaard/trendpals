@@ -110,41 +110,48 @@ Deno.serve(async (req) => {
       });
     }
 
-    const rawCategory = Array.isArray(brief.categories) ? brief.categories[0] : (brief.categories?.split(",")[0].trim() || "");
-    const rawCategoryLower = rawCategory.trim().toLowerCase();
-
-    // Fix 2A — ordered keyword groups (case-insensitive substring match, first match wins).
-    const CATEGORY_KEYWORD_GROUPS = [
-      { key: 'chocolate_confectionery', kws: ['chocolate', 'compound', 'confectionery', 'coating', 'cocoa', 'praline', 'candy', 'sweets', 'sugar confectionery'] },
-      { key: 'ice_cream',              kws: ['ice cream', 'frozen dessert', 'gelato', 'sorbet', 'frozen yogurt'] },
-      { key: 'bakery',                 kws: ['bakery', 'bread', 'biscuit', 'cake', 'pastry', 'cookie', 'cracker'] },
-      { key: 'dairy',                  kws: ['dairy', 'yogurt', 'cheese', 'butter', 'cream', 'milk', 'whey'] },
-      { key: 'oils_fats',              kws: ['oil', 'fat', 'margarine', 'shortening', 'spread'] },
-      { key: 'plant_based',            kws: ['plant-based', 'plant based', 'vegan', 'alt protein', 'alternative protein'] },
-      { key: 'meat',                   kws: ['meat', 'poultry', 'sausage', 'deli'] },
-      { key: 'condiments',             kws: ['sauce', 'dressing', 'condiment', 'dip', 'mayonnaise', 'ketchup', 'vinegar'] },
+    // Category keyword mapping — first match wins, case-insensitive (inlined; functions cannot import lib/)
+    const CATEGORY_KEYWORD_MAP = [
+      { key: 'chocolate_confectionery', keywords: ['chocolate', 'compound', 'confectionery', 'coating', 'cocoa', 'praline', 'candy', 'sweets', 'sugar confectionery'] },
+      { key: 'ice_cream',               keywords: ['ice cream', 'frozen dessert', 'gelato', 'sorbet', 'frozen yogurt'] },
+      { key: 'bakery',                  keywords: ['bakery', 'bread', 'biscuit', 'cake', 'pastry', 'cookie', 'cracker'] },
+      { key: 'dairy',                   keywords: ['dairy', 'yogurt', 'cheese', 'butter', 'cream', 'milk', 'whey'] },
+      { key: 'oils_fats',               keywords: ['oil', 'fat', 'margarine', 'shortening', 'spread'] },
+      { key: 'plant_based',             keywords: ['plant-based', 'plant based', 'vegan', 'alt protein', 'alternative protein'] },
+      { key: 'meat',                    keywords: ['meat', 'poultry', 'sausage', 'deli'] },
+      { key: 'condiments',              keywords: ['sauce', 'dressing', 'condiment', 'dip', 'mayonnaise', 'ketchup', 'vinegar'] },
     ];
-    let canonicalCategory = 'needs_human_review';
-    for (const group of CATEGORY_KEYWORD_GROUPS) {
-      if (group.kws.some(kw => rawCategoryLower.includes(kw))) {
-        canonicalCategory = group.key;
-        break;
+
+    function resolveCategory(categoriesText) {
+      if (!categoriesText) return 'needs_human_review';
+      const lower = categoriesText.toLowerCase();
+      for (const { key, keywords } of CATEGORY_KEYWORD_MAP) {
+        if (keywords.some(kw => lower.includes(kw))) return key;
       }
+      return 'needs_human_review';
     }
 
-    // Fix 2B — shared category display labels (inlined; functions cannot import lib/)
+    // Category display labels — for title construction only (inlined; functions cannot import lib/)
     const CATEGORY_LABELS = {
-      bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Confectionery',
-      dairy: 'Dairy', ice_cream: 'Ice Cream', meat: 'Meat', oils_fats: 'Oils & Fats',
-      plant_based: 'Plant-Based', rutf_rusf: 'RUTF/RUSF', out_of_scope: 'Out of Scope',
+      bakery: 'Bakery',
+      condiments: 'Condiments',
+      chocolate_confectionery: 'Confectionery',
+      dairy: 'Dairy',
+      ice_cream: 'Ice Cream',
+      meat: 'Meat',
+      oils_fats: 'Oils & Fats',
+      plant_based: 'Plant-Based',
+      rutf_rusf: 'RUTF/RUSF',
+      out_of_scope: 'Out of Scope',
       needs_human_review: 'Needs Review',
     };
-    const categoryDisplayName = CATEGORY_LABELS[canonicalCategory] || canonicalCategory;
 
-    // Fix 1 — title format: "[account] — [category_display_name], [region]"
+    // Title format: "[account] — [category_display_name], [region]"
+    const categoryKey = resolveCategory(brief.categories);
+    const categoryLabel = CATEGORY_LABELS[categoryKey] || 'Needs Review';
     const region = brief.region || 'Global';
-    const accountName = brief.account || 'Unnamed brief';
-    const projectName = `${accountName} — ${categoryDisplayName}, ${region}`;
+    const account = brief.account || brief.requester_name || 'Unnamed brief';
+    const projectName = `${account} — ${categoryLabel}, ${region}`;
 
     // Merge suggested_source_ids from brief (if any) into selected_source_ids
     const suggestedSourceIds = Array.isArray(brief.suggested_source_ids) && brief.suggested_source_ids.length > 0
@@ -155,7 +162,7 @@ Deno.serve(async (req) => {
     // schema validation errors when brief fields are absent (e.g. requester_email=null)
     const projectPayload = {
       name: projectName,
-      category: canonicalCategory,
+      category: categoryKey,
       region_code: mapRegion(brief.region),
       customer_name: brief.account,
       objective: brief.purpose || "",
