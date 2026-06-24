@@ -414,6 +414,26 @@ Deno.serve(async (req) => {
       if (signed?.signed_url) fetchUrl = signed.signed_url;
     } catch (_) {}
 
+    // Pre-flight size guard: parsing very large PDFs can exhaust the isolate's memory during
+    // pdf.js document initialization — an OOM crash no try/catch can recover. Skip oversized
+    // files up front and flag them for manual handling so the automation never hard-fails.
+    const MAX_PDF_BYTES = 15 * 1024 * 1024; // 15 MB
+    let fileBytes = source.file_size || 0;
+    if (!fileBytes) {
+      try {
+        const head = await fetch(fetchUrl, { method: 'HEAD', signal: AbortSignal.timeout(30000) });
+        const len = head.headers.get('content-length');
+        if (len) fileBytes = parseInt(len, 10);
+      } catch (_) {}
+    }
+    if (fileBytes && fileBytes > MAX_PDF_BYTES) {
+      console.warn(`[extractExpertExamples] Skipping oversized PDF (${(fileBytes / 1048576).toFixed(1)}MB) for ${source.title}`);
+      return Response.json({
+        success: true, source_id, sections_extracted: 0, examples_created: 0,
+        reason: `PDF too large to parse safely (${(fileBytes / 1048576).toFixed(1)}MB) — needs manual handling`,
+      });
+    }
+
     try {
       const { getDocument } = await import('npm:pdfjs-dist@4.4.168/legacy/build/pdf.mjs');
       const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
