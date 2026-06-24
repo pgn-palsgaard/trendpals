@@ -447,7 +447,14 @@ Deno.serve(async (req) => {
 
     try {
       const { getDocument } = await import('npm:pdfjs-dist@4.4.168/legacy/build/pdf.mjs');
-      const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
+      // The file URL can be rate-limited (429) when several extractions run back to back.
+      // Retry with exponential backoff so a transient throttle doesn't fail the whole run.
+      let res;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
+        if (res.status !== 429) break;
+        await new Promise(r => setTimeout(r, 2000 * Math.pow(2, attempt)));
+      }
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
       const ab = await res.arrayBuffer();
       // We only need the text layer — disable font face loading and eval to keep the parser
