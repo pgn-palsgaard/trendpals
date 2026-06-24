@@ -12,6 +12,7 @@ import DispatchPanel from '@/components/challenges/DispatchPanel';
 import TrendReportSections from '@/components/trendreport/TrendReportSections';
 import ValidationSummary from '@/components/trendhub/ValidationSummary';
 import RegionalEvidence from '@/components/trendhub/RegionalEvidence';
+import ExpertExamplesSection from '@/components/trendlibrary/ExpertExamplesSection';
 import CoverageHint from '@/components/trendhub/CoverageHint';
 import { computeRegionalAssessment } from '@/lib/coverageModel';
 import { COMMERCIAL_REGIONS } from '@/lib/regions';
@@ -514,6 +515,11 @@ export default function TrendHub() {
           {/* ── SECTION 2b: REGIONAL EVIDENCE ────────────── */}
           <Section title="Regional evidence">
             <RegionalEvidence trendId={trendId} trend={trend} />
+          </Section>
+
+          {/* ── SECTION 2c: MINTEL EXPERT EXAMPLES ───────── */}
+          <Section title="Mintel expert examples">
+            <ExpertExamplesSection trendId={trendId} />
           </Section>
 
           {/* ── SECTION 3: CHALLENGES ────────────────────── */}

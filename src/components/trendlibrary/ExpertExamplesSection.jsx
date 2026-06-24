@@ -164,26 +164,17 @@ export default function ExpertExamplesSection({ trendId }) {
     if (trendId) load();
   }, [trendId]);
 
-  if (loading) return (
-    <div className="mb-5">
-      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Mintel expert examples</h4>
-      <p className="text-xs text-slate-400">Loading…</p>
-    </div>
+  if (loading) return <p className="text-xs text-slate-400">Loading…</p>;
+
+  if (examples.length === 0) return (
+    <p className="text-sm text-slate-400 italic">No expert product examples linked to this trend yet.</p>
   );
 
-  if (examples.length === 0) return null;
-
   return (
-    <div className="mb-5">
-      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-        Mintel expert examples
-        <span className="ml-2 text-slate-300 font-normal normal-case">{examples.length}</span>
-      </h4>
-      <div className="space-y-2">
-        {examples.map(ex => (
-          <ExpertExampleCard key={ex.id} example={ex} onStatusChange={load} />
-        ))}
-      </div>
+    <div className="space-y-2">
+      {examples.map(ex => (
+        <ExpertExampleCard key={ex.id} example={ex} onStatusChange={load} />
+      ))}
     </div>
   );
 }
