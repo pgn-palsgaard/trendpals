@@ -398,6 +398,14 @@ Deno.serve(async (req) => {
     const rawUrl = source.file_url || source.url;
     if (!rawUrl) return Response.json({ error: 'Source has no file_url' }, { status: 400 });
 
+    // PowerPoint files are not PDFs — the PDF parser can never read them. Skip up front
+    // so the automation finishes gracefully instead of crashing on the parse attempt.
+    const lowerName = (source.title || rawUrl || '').toLowerCase();
+    if (lowerName.endsWith('.pptx') || lowerName.endsWith('.ppt')) {
+      console.warn(`[extractExpertExamples] Skipping non-PDF (PowerPoint) source: ${source.title}`);
+      return Response.json({ success: true, source_id, sections_extracted: 0, examples_created: 0, reason: 'PowerPoint file — not a parseable PDF' });
+    }
+
     let fetchUrl = rawUrl;
     try {
       const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({
@@ -411,12 +419,30 @@ Deno.serve(async (req) => {
       const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(60000) });
       if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
       const ab = await res.arrayBuffer();
-      const pdf = await getDocument({ data: new Uint8Array(ab) }).promise;
+      // We only need the text layer — disable font face loading and eval to keep the parser
+      // lightweight and avoid the graphics/rasterization path that can exhaust the isolate's memory.
+      const pdf = await getDocument({
+        data: new Uint8Array(ab),
+        disableFontFace: true,
+        isEvalSupported: false,
+        useSystemFonts: false,
+      }).promise;
+      // Only the first 80K chars are ever sent to the LLM, so there's no need to parse every
+      // page. Cap the page count and release each page's resources after reading its text —
+      // parsing all pages of a large, graphics-heavy PDF can exhaust the isolate's memory
+      // (an OOM crash that no try/catch can recover). We also stop early once we have enough text.
+      const MAX_PAGES = 120;
+      const pageLimit = Math.min(pdf.numPages, MAX_PAGES);
       const parts = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
+      let charCount = 0;
+      for (let i = 1; i <= pageLimit; i++) {
         const page = await pdf.getPage(i);
         const content = await page.getTextContent();
-        parts.push(content.items.map(item => item.str).join(' '));
+        const pageText = content.items.map(item => item.str).join(' ');
+        parts.push(pageText);
+        charCount += pageText.length;
+        page.cleanup();
+        if (charCount >= 85000) break; // enough for the LLM; stop reading further pages
       }
       fileContent = parts.join('\n');
     } catch (e) {
