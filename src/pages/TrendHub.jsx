@@ -519,7 +519,7 @@ export default function TrendHub() {
 
           {/* ── SECTION 2c: MINTEL EXPERT EXAMPLES ───────── */}
           <Section title="Mintel expert examples">
-            <ExpertExamplesSection trendId={trendId} />
+            <ExpertExamplesSection trendId={trendId} trendCategory={trend.category} />
           </Section>
 
           {/* ── SECTION 3: CHALLENGES ────────────────────── */}

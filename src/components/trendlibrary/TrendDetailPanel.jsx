@@ -153,7 +153,7 @@ export default function TrendDetailPanel({ trend, onClose, onActivate, onDeactiv
           )}
 
           {/* Mintel Expert Examples */}
-          <ExpertExamplesSection trendId={trend.id} />
+          <ExpertExamplesSection trendId={trend.id} trendCategory={trend.category} />
 
           {/* Sources */}
           {(() => {

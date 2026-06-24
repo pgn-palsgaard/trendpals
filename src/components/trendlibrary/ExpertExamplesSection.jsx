@@ -140,7 +140,7 @@ function ExpertExampleCard({ example, onStatusChange }) {
   );
 }
 
-export default function ExpertExamplesSection({ trendId }) {
+export default function ExpertExamplesSection({ trendId, trendCategory }) {
   const [examples, setExamples] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -150,6 +150,10 @@ export default function ExpertExamplesSection({ trendId }) {
     // (entity filter doesn't support array-contains, so we filter in memory)
     const all = await base44.entities.ExpertExample.list('-extracted_at', 500);
     const linked = all.filter(ex => {
+      // Category guard — an example only belongs to a trend in the same solution category.
+      // Hides legacy cross-industry links (e.g. chocolate products on a condiments trend)
+      // until the linker re-runs. Examples with no category fall through (shown).
+      if (trendCategory && ex.category && ex.category !== trendCategory) return false;
       const links = ex.trend_links || [];
       return links.some(l =>
         l.trend_id === trendId &&
@@ -162,7 +166,7 @@ export default function ExpertExamplesSection({ trendId }) {
 
   useEffect(() => {
     if (trendId) load();
-  }, [trendId]);
+  }, [trendId, trendCategory]);
 
   if (loading) return <p className="text-xs text-slate-400">Loading…</p>;
 

@@ -219,15 +219,22 @@ function keywordOverlapForSection(section, trend) {
 
 const MAX_SAME_CATEGORY_FALLBACK = 6;
 function selectSectionCandidates(section, sectionCategoryKey, trendIndex) {
+  // CATEGORY GATE: a section from a chocolate-confectionery report is evidence for
+  // chocolate-confectionery trends only — never condiments/dairy/etc. Generic keywords
+  // ("flavour", "premium", "indulgence") overlap across categories and were producing
+  // cross-industry links. If we know the section's category, restrict candidate trends to it.
+  const eligibleTrends = sectionCategoryKey
+    ? trendIndex.filter(t => t.category === sectionCategoryKey)
+    : trendIndex;
+
   const keywordMatches = [];
-  for (const trend of trendIndex) {
+  for (const trend of eligibleTrends) {
     const matched = keywordOverlapForSection(section, trend);
     if (matched.length > 0) keywordMatches.push({ trend, matched });
   }
   if (keywordMatches.length > 0) return keywordMatches;
   if (!sectionCategoryKey) return [];
-  return trendIndex
-    .filter(t => t.category === sectionCategoryKey)
+  return eligibleTrends
     .sort((a, b) => (b.keywords?.length || 0) - (a.keywords?.length || 0))
     .slice(0, MAX_SAME_CATEGORY_FALLBACK)
     .map(trend => ({ trend, matched: [] }));
