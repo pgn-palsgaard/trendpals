@@ -21,7 +21,8 @@ const JTBD_LABELS = {
 const STATUS_STYLES = {
   new: { bg: "#FEF6EC", color: ORANGE, label: "New" },
   in_progress: { bg: "#E8EEF6", color: BLUE, label: "In progress" },
-  delivered: { bg: "#EDF4EA", color: GREEN, label: "Delivered" }
+  delivered: { bg: "#EDF4EA", color: GREEN, label: "Delivered" },
+  unlinked: { bg: "#F3EFE6", color: TEAL, label: "Unlinked" }
 };
 
 export default function Briefs() {
@@ -159,7 +160,7 @@ export default function Briefs() {
                   </p>
                 </div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  {["new", "in_progress", "delivered"].map(s => (
+                  {["new", "in_progress", "delivered", ...(selected.status === "unlinked" ? ["unlinked"] : [])].map(s => (
                     <button key={s} onClick={() => updateStatus(selected.id, s)} style={{
                       background: selected.status === s ? BLUE : "white",
                       color: selected.status === s ? "white" : DARK_BLUE,

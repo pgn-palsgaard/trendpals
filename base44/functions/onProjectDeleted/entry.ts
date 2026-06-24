@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
     for (const brief of briefs) {
       await base44.asServiceRole.entities.ReportRequest.update(brief.id, {
         project_id: null,
-        status: 'new',
+        status: 'unlinked',
       });
       updated.push(brief.id);
     }

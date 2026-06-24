@@ -91,10 +91,11 @@
       "enum": [
         "new",
         "in_progress",
-        "delivered"
+        "delivered",
+        "unlinked"
       ],
       "default": "new",
-      "description": "Current status of the request"
+      "description": "Current status of the request. 'unlinked' = the linked project was deleted, brief is available again for a new project."
     },
     "project_id": {
       "type": "string",
