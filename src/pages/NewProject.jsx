@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -44,16 +45,9 @@ const formSchema = z.object({
 });
 
 const SOLUTION_OPTIONS = [
-  { value: 'bakery',                  label: 'Bakery' },
-  { value: 'condiments',              label: 'Condiments' },
-  { value: 'chocolate_confectionery', label: 'Confectionery' },
-  { value: 'dairy',                   label: 'Dairy' },
-  { value: 'ice_cream',               label: 'Ice Cream' },
-  { value: 'meat',                    label: 'Processed meat' },
-  { value: 'oils_fats',               label: 'Oils & Fats' },
-  { value: 'plant_based',             label: 'Plant-based products' },
-  { value: 'rutf_rusf',               label: 'RUTF and RUSF' },
-];
+  'bakery', 'condiments', 'chocolate_confectionery', 'dairy', 'ice_cream',
+  'meat', 'oils_fats', 'plant_based', 'rutf_rusf',
+].map(value => ({ value, label: CATEGORY_LABELS[value] }));
 const regions = ["Global", "IMEA", "EMEC", "ASPAC", "AMERICAS"];
 const trendTimeWindows = ["last 6 months", "last 12 months", "last 24 months", "last 36 months"];
 const meetingContextOptions = ["discovery", "innovation_day", "technical_workshop", "other"];

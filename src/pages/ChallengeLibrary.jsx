@@ -2,6 +2,7 @@
 // Build D+E, 2026-06-22. Redirect route in App.jsx: /ChallengeLibrary → /ReviewQueue
 // Safe to delete after confirming no imports reference this file.
 import React, { useState, useMemo } from 'react';
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Input } from '@/components/ui/input';
@@ -13,17 +14,9 @@ import ChallengeDetailPanel from '@/components/challenges/ChallengeDetailPanel';
 import DispatchPanel from '@/components/challenges/DispatchPanel';
 
 const CATEGORIES = [
-  { value: 'bakery', label: 'Bakery' },
-  { value: 'condiments', label: 'Condiments' },
-  { value: 'chocolate_confectionery', label: 'Confectionery' },
-  { value: 'dairy', label: 'Dairy' },
-  { value: 'ice_cream', label: 'Ice Cream' },
-  { value: 'meat', label: 'Processed Meat' },
-  { value: 'oils_fats', label: 'Oils & Fats' },
-  { value: 'plant_based', label: 'Plant-based' },
-  { value: 'rutf_rusf', label: 'RUTF/RUSF' },
-  { value: 'needs_human_review', label: 'Needs Review' },
-];
+  'bakery', 'condiments', 'chocolate_confectionery', 'dairy', 'ice_cream',
+  'meat', 'oils_fats', 'plant_based', 'rutf_rusf', 'needs_human_review',
+].map(value => ({ value, label: CATEGORY_LABELS[value] }));
 
 const TABS = [
   { key: 'pending', label: 'Awaiting review' },

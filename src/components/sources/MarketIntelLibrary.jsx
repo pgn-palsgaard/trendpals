@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
 import RagSourceTable from './RagSourceTable';
@@ -6,17 +7,9 @@ import BackfillJobPanel from '../BackfillJobPanel';
 
 const REGIONS = ['Global', 'IMEA', 'EMEC', 'ASPAC', 'AMERICAS'];
 const CATEGORIES = [
-  { value: 'bakery',                  label: 'Bakery' },
-  { value: 'condiments',              label: 'Condiments' },
-  { value: 'chocolate_confectionery', label: 'Confectionery' },
-  { value: 'dairy',                   label: 'Dairy' },
-  { value: 'ice_cream',               label: 'Ice Cream' },
-  { value: 'meat',                    label: 'Processed meat' },
-  { value: 'oils_fats',               label: 'Oils & Fats' },
-  { value: 'plant_based',             label: 'Plant-based products' },
-  { value: 'rutf_rusf',               label: 'RUTF and RUSF' },
-  { value: 'needs_human_review',      label: 'Needs review' },
-];
+  'bakery', 'condiments', 'chocolate_confectionery', 'dairy', 'ice_cream',
+  'meat', 'oils_fats', 'plant_based', 'rutf_rusf', 'needs_human_review',
+].map(value => ({ value, label: CATEGORY_LABELS[value] }));
 
 const SOURCE_TYPE_LABELS = {
   mintel:      'Mintel',

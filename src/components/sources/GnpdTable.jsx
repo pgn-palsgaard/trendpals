@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -17,17 +18,9 @@ const REGIONS = ['ASPAC', 'AMERICAS', 'EMEC', 'IMEA', 'Global'];
 // GNPD source uploads are classified by autoExtractMetadata using canonical keys.
 // Filter values must match what is stored in Source.category.
 const CATEGORIES = [
-  { value: 'bakery',                  label: 'Bakery' },
-  { value: 'condiments',              label: 'Condiments' },
-  { value: 'chocolate_confectionery', label: 'Confectionery' },
-  { value: 'dairy',                   label: 'Dairy' },
-  { value: 'ice_cream',               label: 'Ice Cream' },
-  { value: 'meat',                    label: 'Processed meat' },
-  { value: 'oils_fats',               label: 'Oils & Fats' },
-  { value: 'plant_based',             label: 'Plant-based products' },
-  { value: 'rutf_rusf',               label: 'RUTF and RUSF' },
-  { value: 'needs_human_review',      label: 'Needs review' },
-];
+  'bakery', 'condiments', 'chocolate_confectionery', 'dairy', 'ice_cream',
+  'meat', 'oils_fats', 'plant_based', 'rutf_rusf', 'needs_human_review',
+].map(value => ({ value, label: CATEGORY_LABELS[value] }));
 
 const GNPD_STATUS_CFG = {
   pending:    { label: 'Pending',    cls: 'bg-amber-100 text-amber-700' },

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 import { Link } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
@@ -9,16 +10,9 @@ import ChallengeDetailPanel from '@/components/challenges/ChallengeDetailPanel';
 import DispatchPanel from '@/components/challenges/DispatchPanel';
 
 const CATEGORIES = [
-  { value: 'bakery', label: 'Bakery' },
-  { value: 'condiments', label: 'Condiments' },
-  { value: 'chocolate_confectionery', label: 'Confectionery' },
-  { value: 'dairy', label: 'Dairy' },
-  { value: 'ice_cream', label: 'Ice Cream' },
-  { value: 'meat', label: 'Processed Meat' },
-  { value: 'oils_fats', label: 'Oils & Fats' },
-  { value: 'plant_based', label: 'Plant-based' },
-  { value: 'rutf_rusf', label: 'RUTF/RUSF' },
-];
+  'bakery', 'condiments', 'chocolate_confectionery', 'dairy', 'ice_cream',
+  'meat', 'oils_fats', 'plant_based', 'rutf_rusf',
+].map(value => ({ value, label: CATEGORY_LABELS[value] }));
 
 const STATUS_TABS = [
   { key: 'pending', label: 'Pending' },

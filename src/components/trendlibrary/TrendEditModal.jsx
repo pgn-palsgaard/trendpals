@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { X } from 'lucide-react';
@@ -7,17 +8,9 @@ import TrendSourcesEditor from './TrendSourcesEditor';
 import { base44 } from '@/api/base44Client';
 
 const CATEGORIES = [
-  { value: 'bakery',                  label: 'Bakery' },
-  { value: 'condiments',              label: 'Condiments' },
-  { value: 'chocolate_confectionery', label: 'Confectionery' },
-  { value: 'dairy',                   label: 'Dairy' },
-  { value: 'ice_cream',               label: 'Ice Cream' },
-  { value: 'meat',                    label: 'Processed meat' },
-  { value: 'oils_fats',               label: 'Oils & Fats' },
-  { value: 'plant_based',             label: 'Plant-based products' },
-  { value: 'rutf_rusf',               label: 'RUTF and RUSF' },
-  { value: 'needs_human_review',      label: 'Needs review' },
-];
+  'bakery', 'condiments', 'chocolate_confectionery', 'dairy', 'ice_cream',
+  'meat', 'oils_fats', 'plant_based', 'rutf_rusf', 'needs_human_review',
+].map(value => ({ value, label: CATEGORY_LABELS[value] }));
 const CAPABILITY_AREAS = [
   'sustainability', 'texture_quality', 'cost_efficiency', 'compliance_regulatory',
   'new_product_development', 'food_safety', 'supply_chain', 'plant_based', 'general',
