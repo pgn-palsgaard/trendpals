@@ -122,7 +122,14 @@ Deno.serve(async (req) => {
       'rutf': 'rutf_rusf', 'rusf': 'rutf_rusf', 'rutf and rusf': 'rutf_rusf',
       'condiments': 'condiments',
     };
-    const canonicalCategory = BRIEF_NORM[rawCategory.trim().toLowerCase()] || 'needs_human_review';
+    const rawCategoryLower = rawCategory.trim().toLowerCase();
+    // Keyword fallback: any string containing these maps to chocolate_confectionery
+    const CHOCOLATE_KEYWORDS = ['chocolate', 'compound', 'confectionery', 'coating', 'cocoa'];
+    let canonicalCategory = BRIEF_NORM[rawCategoryLower];
+    if (!canonicalCategory && CHOCOLATE_KEYWORDS.some(kw => rawCategoryLower.includes(kw))) {
+      canonicalCategory = 'chocolate_confectionery';
+    }
+    canonicalCategory = canonicalCategory || 'needs_human_review';
     const projectName = `${brief.account} — ${Array.isArray(brief.categories) ? brief.categories[0] : (brief.categories?.split(",")[0].trim() || "General")}`;
 
     // Merge suggested_source_ids from brief (if any) into selected_source_ids

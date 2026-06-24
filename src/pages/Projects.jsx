@@ -9,7 +9,7 @@ import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
 
 const CATEGORY_LABELS = {
-  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Choc & Confectionery',
+  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Confectionery',
   dairy: 'Dairy', ice_cream: 'Ice cream', meat: 'Processed meat',
   oils_fats: 'Oils & fats', plant_based: 'Plant-based', rutf_rusf: 'RUTF/RUSF',
 };

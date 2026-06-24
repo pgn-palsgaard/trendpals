@@ -35,7 +35,7 @@ export const VALID_CATEGORY_VALUES = [
 export const DISPLAY_LABELS = {
   bakery:                  'Bakery',
   condiments:              'Condiments',
-  chocolate_confectionery: 'Chocolate & Confectionery',
+  chocolate_confectionery: 'Confectionery',
   dairy:                   'Dairy',
   ice_cream:               'Ice Cream',
   meat:                    'Processed meat',

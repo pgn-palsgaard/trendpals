@@ -9,7 +9,7 @@ import { base44 } from '@/api/base44Client';
 const CATEGORIES = [
   { value: 'bakery',                  label: 'Bakery' },
   { value: 'condiments',              label: 'Condiments' },
-  { value: 'chocolate_confectionery', label: 'Chocolate & Confectionery' },
+  { value: 'chocolate_confectionery', label: 'Confectionery' },
   { value: 'dairy',                   label: 'Dairy' },
   { value: 'ice_cream',               label: 'Ice Cream' },
   { value: 'meat',                    label: 'Processed meat' },
