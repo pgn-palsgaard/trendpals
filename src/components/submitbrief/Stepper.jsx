@@ -1,7 +1,7 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 
-const STEPS = ['Brief type', 'Add context', 'Review brief'];
+const STEPS = ['Brief type', 'Add context', 'Focus trends', 'Review brief'];
 
 export default function Stepper({ currentStep }) {
   return (

@@ -4,6 +4,7 @@ import { Briefcase, BarChart3, Search, FlaskConical, MessageCircle, CheckCircle2
 import Stepper from '@/components/submitbrief/Stepper';
 import ChatPanel from '@/components/submitbrief/ChatPanel';
 import BriefReadiness from '@/components/submitbrief/BriefReadiness';
+import TrendRelevanceChecker from '@/components/submitbrief/TrendRelevanceChecker';
 
 const JTBD_OPTIONS = [
   { id: 'prepare_customer_meeting', icon: Briefcase, label: 'Prepare a customer meeting', desc: 'Get insight for an upcoming customer visit.' },
@@ -87,7 +88,9 @@ function parseDeadline(raw) {
 }
 
 export default function SubmitBrief() {
-  const [step, setStep] = useState(0); // 0 = jtbd, 1 = chat, 2 = review
+  const [step, setStep] = useState(0); // 0 = jtbd, 1 = chat, 2 = trend check, 3 = review
+  const [selectedTrendIds, setSelectedTrendIds] = useState([]);
+  const [selectedTrendNames, setSelectedTrendNames] = useState([]);
   const [jtbd, setJtbd] = useState(null);
   const [messages, setMessages] = useState([]);
   const [conversationLog, setConversationLog] = useState([]);
@@ -184,6 +187,8 @@ export default function SubmitBrief() {
         purpose: fields.objective || '',
         deadline: parseDeadline(fields.deadline),
         notes: summary,
+        ...(selectedTrendIds.length ? { selected_trend_ids: selectedTrendIds } : {}),
+        ...(selectedTrendNames.length ? { selected_trend_names: selectedTrendNames } : {}),
         conversation_log: conversationLog,
         status: 'new',
         submitted_at: new Date().toISOString(),
@@ -199,6 +204,7 @@ export default function SubmitBrief() {
     setStep(0); setJtbd(null); setMessages([]); setConversationLog([]);
     setFields({}); setInputText(''); setPlaceholder(DEFAULT_PLACEHOLDER);
     setRequesterName(''); setRequesterEmail(''); setSubmitError(''); setNameError(false);
+    setSelectedTrendIds([]); setSelectedTrendNames([]);
     setSubmitted(false);
   }
 
@@ -276,8 +282,18 @@ export default function SubmitBrief() {
           </div>
         )}
 
-        {/* ── Step 3: Review brief ── */}
+        {/* ── Step 3: Trend relevance check ── */}
         {step === 2 && !submitted && (
+          <TrendRelevanceChecker
+            fields={fields}
+            onBack={() => setStep(1)}
+            onSkip={() => { setSelectedTrendIds([]); setSelectedTrendNames([]); setStep(3); }}
+            onConfirm={({ ids, names }) => { setSelectedTrendIds(ids); setSelectedTrendNames(names); setStep(3); }}
+          />
+        )}
+
+        {/* ── Step 4: Review brief ── */}
+        {step === 3 && !submitted && (
           <div className="max-w-2xl mx-auto">
             <div className="bg-white rounded-xl shadow-sm border border-stone-200 p-6">
               <p className="text-sm font-semibold text-stone-800 mb-4">Your market intelligence brief</p>
@@ -288,6 +304,20 @@ export default function SubmitBrief() {
                     <span className="text-stone-800 font-medium">{value || 'Not specified'}</span>
                   </div>
                 ))}
+                <div className="flex gap-3 text-sm">
+                  <span className="text-stone-400 w-40 shrink-0">Focus trends</span>
+                  {selectedTrendNames.length > 0 ? (
+                    <span className="flex flex-wrap gap-1.5">
+                      {selectedTrendNames.map(name => (
+                        <span key={name} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50 text-[#1D428A]">
+                          {name}
+                        </span>
+                      ))}
+                    </span>
+                  ) : (
+                    <span className="text-stone-800 font-medium">None selected</span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -322,7 +352,7 @@ export default function SubmitBrief() {
               )}
 
               <div className="flex items-center justify-between mt-5">
-                <button onClick={() => setStep(1)} className="text-sm text-stone-500 hover:text-stone-800">
+                <button onClick={() => setStep(2)} className="text-sm text-stone-500 hover:text-stone-800">
                   ← Back
                 </button>
                 <button

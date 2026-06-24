@@ -68,6 +68,20 @@
       },
       "description": "Source IDs suggested during brief intake"
     },
+    "selected_trend_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "GlobalTrend IDs the requester confirmed as relevant during the Trend Relevance Check step"
+    },
+    "selected_trend_names": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Snapshot of confirmed trend names at submission time, for display"
+    },
     "conversation_log": {
       "type": "array",
       "description": "Full AI intake conversation transcript",
