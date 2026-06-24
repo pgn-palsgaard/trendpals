@@ -232,19 +232,56 @@ async function linkToTrends(anthropic, trendIndex, trendDetails, megaTrendMap, p
   return { links, linkedTrendIds, linkedMegaTrendIds, supportLabel, rejectedCandidates };
 }
 
-// Parse "Apr 2026" or "April 2026" style dates to ISO
-function parseMonthYearDate(str) {
-  if (!str) return null;
-  const s = String(str).trim();
-  // Already ISO or numeric
-  const d = new Date(s);
-  if (!isNaN(d.getTime()) && s.includes('-')) return s.split('T')[0];
-  // "Apr 2026" or "April 2026"
-  const m = s.match(/^([A-Za-z]+)\s+(\d{4})$/);
+const MONTH_NAMES = {
+  jan: '01', january: '01', feb: '02', february: '02', mar: '03', march: '03',
+  apr: '04', april: '04', may: '05', jun: '06', june: '06', jul: '07', july: '07',
+  aug: '08', august: '08', sep: '09', sept: '09', september: '09', oct: '10', october: '10',
+  nov: '11', november: '11', dec: '12', december: '12',
+};
+
+// Robust GNPD date parser. Handles (in addition to Excel serials, handled by caller):
+//   YYYY-MM-DD | MMM YYYY | MMMM YYYY | MM/YYYY | DD/MM/YYYY | MM/DD/YYYY
+// Month-only formats set day = 01. Returns ISO 'YYYY-MM-DD' or null (never throws).
+function parseGNPDDate(input) {
+  if (input === null || input === undefined) return null;
+  const s = String(input).trim();
+  if (!s) return null;
+
+  // YYYY-MM-DD (already supported) — keep, validate
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) {
-    const parsed = new Date(`${m[1]} 1, ${m[2]}`);
-    if (!isNaN(parsed.getTime())) return parsed.toISOString().split('T')[0];
+    const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`);
+    if (!isNaN(d.getTime())) return `${m[1]}-${m[2]}-${m[3]}`;
   }
+
+  // "MMM YYYY" / "MMMM YYYY" (e.g. "Jan 2024", "January 2024") → day 01
+  m = s.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (m) {
+    const mm = MONTH_NAMES[m[1].toLowerCase()];
+    if (mm) return `${m[2]}-${mm}-01`;
+  }
+
+  // "MM/YYYY" (e.g. "06/2026") → day 01
+  m = s.match(/^(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const mm = String(m[1]).padStart(2, '0');
+    if (+mm >= 1 && +mm <= 12) return `${m[2]}-${mm}-01`;
+  }
+
+  // "DD/MM/YYYY" or "MM/DD/YYYY" — disambiguate: if first part > 12 it must be the day.
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    let a = +m[1], b = +m[2];
+    const year = m[3];
+    let day, month;
+    if (a > 12 && b <= 12) { day = a; month = b; }       // DD/MM/YYYY
+    else if (b > 12 && a <= 12) { month = a; day = b; }  // MM/DD/YYYY
+    else { day = a; month = b; }                          // ambiguous → assume DD/MM/YYYY
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
   return null;
 }
 
@@ -419,21 +456,23 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
   const getStorage    = (row) => get(row, 'storage')      || row['Storage']     || '';
   const getPackageType= (row) => get(row, 'package_type') || row['Package Type']|| '';
 
+  // Returns { date: ISO|null, rawUnparsed: string|null }. Never throws.
   const getDatePublished = (row) => {
     const raw = get(row, 'date_published') || row['Date Published'];
-    if (!raw) return null;
-    // HTML format: "Apr 2026"
-    const monthYear = parseMonthYearDate(String(raw));
-    if (monthYear) return monthYear;
+    if (raw === null || raw === undefined || raw === '') return { date: null, rawUnparsed: null };
     // Excel serial number
     if (typeof raw === 'number') {
       const d = new Date((raw - 25569) * 86400 * 1000);
-      if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+      if (!isNaN(d.getTime())) return { date: d.toISOString().split('T')[0], rawUnparsed: null };
     }
-    // ISO / other parseable
-    const d = new Date(raw);
-    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
-    return null;
+    // String formats: YYYY-MM-DD, MMM/MMMM YYYY, MM/YYYY, DD/MM/YYYY, MM/DD/YYYY
+    const parsed = parseGNPDDate(raw);
+    if (parsed) return { date: parsed, rawUnparsed: null };
+    // Last resort: native Date for any other ISO-ish string
+    const d = new Date(String(raw));
+    if (!isNaN(d.getTime())) return { date: d.toISOString().split('T')[0], rawUnparsed: null };
+    // Parsing failed — surface the raw value, do not throw
+    return { date: null, rawUnparsed: String(raw) };
   };
 
   // Fallback columns for ingredients and claims
@@ -478,7 +517,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
       const region     = getRegionForMarket(country);
       const commercialKey = getCommercialRegion(region, country);
       if (commercialKey) coverageSet.add(commercialKey);
-      const launchDate = getDatePublished(row);
+      const { date: launchDate, rawUnparsed: unparsedDate } = getDatePublished(row);
 
       const recordHyperlink = getHyperlink(row);
       const mintelUrl = (recordHyperlink && typeof recordHyperlink === 'string')
@@ -532,6 +571,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
         linked_mega_trend_ids: linkedMegaTrendIds,
         support_label: supportLabel,
         processing_status: links.some(l => l.review_status === 'pending') ? 'trend_linking_pending' : 'trend_linked',
+        ...(unparsedDate ? { processing_error: `Unparsable launch_date: "${unparsedDate}"` } : {}),
         source_id: sourceId,
         mintel_record_url: mintelUrl,
         image_url: null

@@ -7,11 +7,7 @@ import TrendReportSections from '@/components/trendreport/TrendReportSections';
 import ThemeReportSections from '@/components/themereport/ThemeReportSections';
 import { COMMERCIAL_REGIONS } from '@/lib/regions';
 
-const CATEGORY_LABELS = {
-  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Confectionery',
-  dairy: 'Dairy', ice_cream: 'Ice Cream', meat: 'Processed Meat', oils_fats: 'Oils & Fats',
-  plant_based: 'Plant-based', rutf_rusf: 'RUTF/RUSF', needs_human_review: 'Needs Review',
-};
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 
 const urlParams = new URLSearchParams(window.location.search);
 const INITIAL_THEME = urlParams.get('theme') || '';

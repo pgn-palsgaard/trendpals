@@ -2,11 +2,7 @@ import React, { useState } from 'react';
 import { CheckCircle, Clock, AlertTriangle, XCircle, ChevronDown, ChevronRight, Lightbulb } from 'lucide-react';
 import CoverageBanner from '@/components/trendreport/CoverageBanner';
 
-const CATEGORY_LABELS = {
-  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Confectionery',
-  dairy: 'Dairy', ice_cream: 'Ice Cream', meat: 'Processed Meat', oils_fats: 'Oils & Fats',
-  plant_based: 'Plant-based', rutf_rusf: 'RUTF/RUSF', needs_human_review: 'Needs Review',
-};
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 
 const CAP_FIT_STYLES = {
   strong:  { bg: '#eaf2e8', text: '#3a6b2e', label: 'Strong fit' },

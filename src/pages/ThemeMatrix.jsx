@@ -9,11 +9,7 @@ const THEME_COLORS = {
   blue:      { header: '#1D428A', light: '#edf1f9', border: '#a8bcde', accent: '#132d5e', pill: '#e8eefc', pillText: '#1D428A' },
 };
 
-const CATEGORY_LABELS = {
-  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Confectionery',
-  dairy: 'Dairy', ice_cream: 'Ice Cream', meat: 'Processed Meat', oils_fats: 'Oils & Fats',
-  plant_based: 'Plant-based', rutf_rusf: 'RUTF/RUSF', needs_human_review: 'Needs Review',
-};
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 
 const CAP_FIT_COLORS = {
   strong: { bg: '#eaf2e8', text: '#3a6b2e' },

@@ -51,6 +51,29 @@ export function getDisplayLabel(key) {
   return DISPLAY_LABELS[key] || key || '—';
 }
 
+// ── Shared category display labels (Fix 2B — single source of truth) ───────
+// Every category enum value → its canonical display label. Use getCategoryLabel()
+// everywhere a category value is rendered as text (badges, tags, filters,
+// dropdowns, cards, list items).
+export const CATEGORY_LABELS = {
+  bakery:                  'Bakery',
+  condiments:              'Condiments',
+  chocolate_confectionery: 'Confectionery',
+  dairy:                   'Dairy',
+  ice_cream:               'Ice Cream',
+  meat:                    'Meat',
+  oils_fats:               'Oils & Fats',
+  plant_based:             'Plant-Based',
+  rutf_rusf:               'RUTF/RUSF',
+  out_of_scope:            'Out of Scope',
+  needs_human_review:      'Needs Review',
+};
+
+/** Returns the shared display label for a category enum value, or the raw value if unknown */
+export function getCategoryLabel(key) {
+  return CATEGORY_LABELS[key] || key || '—';
+}
+
 /** Array of {value, label} objects for Select/dropdown components */
 export const SOLUTION_OPTIONS = CANONICAL_KEYS.map(k => ({
   value: k,

@@ -12,19 +12,12 @@ import DriverFilterPills from '@/components/trendlibrary/DriverFilterPills';
 import RegionFilterPills from '@/components/trendlibrary/RegionFilterPills';
 import MegaTrendDetailPanel from '@/components/trendlibrary/MegaTrendDetailPanel';
 import { getCommercialRegion, normalizeEditorialRegion } from '@/lib/regions';
+import { CATEGORY_LABELS as SHARED_CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 
 const CATEGORIES = [
-  { value: 'bakery',                  label: 'Bakery' },
-  { value: 'condiments',              label: 'Condiments' },
-  { value: 'chocolate_confectionery', label: 'Confectionery' },
-  { value: 'dairy',                   label: 'Dairy' },
-  { value: 'ice_cream',               label: 'Ice Cream' },
-  { value: 'meat',                    label: 'Processed meat' },
-  { value: 'oils_fats',               label: 'Oils & Fats' },
-  { value: 'plant_based',             label: 'Plant-based products' },
-  { value: 'rutf_rusf',               label: 'RUTF and RUSF' },
-  { value: 'needs_human_review',      label: 'Needs review' },
-];
+  'bakery', 'condiments', 'chocolate_confectionery', 'dairy', 'ice_cream',
+  'meat', 'oils_fats', 'plant_based', 'rutf_rusf', 'needs_human_review',
+].map(value => ({ value, label: SHARED_CATEGORY_LABELS[value] }));
 const TABS = [
   { key: 'pending', label: 'Pending review' },
   { key: 'active', label: 'Active' },

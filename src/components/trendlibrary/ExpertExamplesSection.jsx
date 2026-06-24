@@ -2,11 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Star, CheckCircle, XCircle, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 
-const CATEGORY_LABELS = {
-  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Confectionery',
-  dairy: 'Dairy', ice_cream: 'Ice Cream', meat: 'Processed meat', oils_fats: 'Oils & Fats',
-  plant_based: 'Plant-based', rutf_rusf: 'RUTF/RUSF',
-};
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 

@@ -31,6 +31,51 @@ const COUNTRY_REGION = {
   'Hong Kong': 'ASPAC', 'Singapore': 'ASPAC'
 };
 
+const MONTH_NAMES = {
+  jan: '01', january: '01', feb: '02', february: '02', mar: '03', march: '03',
+  apr: '04', april: '04', may: '05', jun: '06', june: '06', jul: '07', july: '07',
+  aug: '08', august: '08', sep: '09', sept: '09', september: '09', oct: '10', october: '10',
+  nov: '11', november: '11', dec: '12', december: '12',
+};
+
+// Robust GNPD date parser. Handles YYYY-MM-DD | MMM YYYY | MMMM YYYY | MM/YYYY |
+// DD/MM/YYYY | MM/DD/YYYY. Month-only formats set day = 01. Returns ISO 'YYYY-MM-DD'
+// or null (never throws). Excel serials are handled separately by the caller.
+function parseGNPDDate(input) {
+  if (input === null || input === undefined) return null;
+  const s = String(input).trim();
+  if (!s) return null;
+
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (m) {
+    const d = new Date(`${m[1]}-${m[2]}-${m[3]}T00:00:00Z`);
+    if (!isNaN(d.getTime())) return `${m[1]}-${m[2]}-${m[3]}`;
+  }
+  m = s.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (m) {
+    const mm = MONTH_NAMES[m[1].toLowerCase()];
+    if (mm) return `${m[2]}-${mm}-01`;
+  }
+  m = s.match(/^(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const mm = String(m[1]).padStart(2, '0');
+    if (+mm >= 1 && +mm <= 12) return `${m[2]}-${mm}-01`;
+  }
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    let a = +m[1], b = +m[2];
+    const year = m[3];
+    let day, month;
+    if (a > 12 && b <= 12) { day = a; month = b; }
+    else if (b > 12 && a <= 12) { month = a; day = b; }
+    else { day = a; month = b; }
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+  return null;
+}
+
 function linkToTrends(trendIndex, megaTrendMap, ingredients, claims, productName, description) {
   const textToSearch = [
     productName, description, ingredients,
@@ -217,9 +262,19 @@ Deno.serve(async (req) => {
 
         const rawDate = get(row, 'date_published');
         let launchDate = null;
-        if (rawDate) {
-          const d = new Date(rawDate);
-          if (!isNaN(d.getTime())) launchDate = d.toISOString().split('T')[0];
+        let unparsedDate = null;
+        if (rawDate !== null && rawDate !== undefined && rawDate !== '') {
+          if (typeof rawDate === 'number') {
+            const d = new Date((rawDate - 25569) * 86400 * 1000);
+            if (!isNaN(d.getTime())) launchDate = d.toISOString().split('T')[0];
+          } else {
+            launchDate = parseGNPDDate(rawDate);
+            if (!launchDate) {
+              const d = new Date(String(rawDate));
+              if (!isNaN(d.getTime())) launchDate = d.toISOString().split('T')[0];
+            }
+          }
+          if (!launchDate) unparsedDate = String(rawDate);
         }
 
         const recordHyperlink = get(row, 'record_hyperlink') || null;
@@ -264,6 +319,7 @@ Deno.serve(async (req) => {
           linked_mega_trend_ids: linkedMegaTrendIds,
           support_label: supportLabel,
           processing_status: links.some(l => l.review_status === 'pending') ? 'trend_linking_pending' : 'trend_linked',
+          ...(unparsedDate ? { processing_error: `Unparsable launch_date: "${unparsedDate}"` } : {}),
           source_id: sourceId,
           mintel_record_url: mintelUrl,
           image_url: null

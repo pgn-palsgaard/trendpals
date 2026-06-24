@@ -7,11 +7,7 @@ import { base44 } from '@/api/base44Client';
 import { AlertTriangle, CheckCircle, Clock, XCircle, Lightbulb, ChevronDown } from 'lucide-react';
 import TrendReportSections from '@/components/trendreport/TrendReportSections';
 
-const CATEGORY_LABELS = {
-  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Confectionery',
-  dairy: 'Dairy', ice_cream: 'Ice Cream', meat: 'Processed Meat', oils_fats: 'Oils & Fats',
-  plant_based: 'Plant-based', rutf_rusf: 'RUTF/RUSF', needs_human_review: 'Needs Review',
-};
+import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 
 export default function TrendReport() {
   const [selectedTrendId, setSelectedTrendId] = useState('');

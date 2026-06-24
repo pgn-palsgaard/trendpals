@@ -1,11 +1,7 @@
 import React, { useState } from 'react';
 import { Check, X, TrendingUp, Sprout, EyeOff } from 'lucide-react';
 
-const CAT_LABELS = {
-  bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Confectionery',
-  dairy: 'Dairy', ice_cream: 'Ice Cream', meat: 'Processed Meat', oils_fats: 'Oils & Fats',
-  plant_based: 'Plant-based', rutf_rusf: 'RUTF/RUSF', needs_human_review: 'Needs review',
-};
+import { CATEGORY_LABELS as CAT_LABELS } from '@/lib/palsgaardCategoryMapping';
 
 const SIGNAL_OPTIONS = [
   { key: 'strong', label: 'Strong signal', desc: 'I clearly see this in my market', icon: TrendingUp, active: '#4A6040', bg: '#EEF1EC' },
