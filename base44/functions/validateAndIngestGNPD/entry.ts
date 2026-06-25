@@ -230,40 +230,53 @@ Deno.serve(async (req) => {
     // ── STEP 2: Structure validation — collect ALL errors ────────────────────
     const errors = [];
 
-    // Check A: Required sheet names
     const sheetNames = workbook.SheetNames;
-    const dataSheetName = sheetNames.find(n => n.toLowerCase() === 'products from gnpd');
-    const metaSheetName = sheetNames.find(n => n.toLowerCase() === 'search details');
-
-    if (!dataSheetName) {
-      errors.push(`Missing sheet "Products from GNPD". Found sheets: ${sheetNames.join(', ')}. Make sure you're using the Mintel Spreadsheet Template export.`);
-    }
-    if (!metaSheetName) {
-      errors.push(`Missing sheet "Search details". Found sheets: ${sheetNames.join(', ')}. Make sure you're using the Mintel Spreadsheet Template export.`);
-    }
-
-    // If critical sheets missing, fail early
-    if (errors.length > 0) {
-      await base44.entities.Source.update(source_id, {
-        gnpd_mapping_status: 'failed',
-        gnpd_mapping_error: errors.join(' | ')
-      });
-      return Response.json({ success: false, errors });
-    }
-
-    // Check B: Minimum row count
-    const dataSheet = workbook.Sheets[dataSheetName];
-    const rawData = utils.sheet_to_json(dataSheet, { header: 1, defval: '' });
-
-    // Find header row
     const knownHeaders = ['record id', 'product', 'brand', 'market', 'date published', 'category'];
-    let headerRowIndex = 0;
-    for (let i = 0; i < Math.min(rawData.length, 10); i++) {
-      const rowLower = rawData[i].map(c => String(c || '').toLowerCase().trim());
-      if (knownHeaders.some(h => rowLower.includes(h))) {
-        headerRowIndex = i;
-        break;
+
+    // Two supported layouts:
+    //  1. "Spreadsheet Template" export — two sheets: "Products from GNPD" + "Search details"
+    //  2. "GNPD-download" export — a single sheet holding the search details (top rows),
+    //     the column header row, then the product rows.
+    const templateDataSheetName = sheetNames.find(n => n.toLowerCase() === 'products from gnpd');
+    const templateMetaSheetName = sheetNames.find(n => n.toLowerCase() === 'search details');
+
+    let dataSheet, rawData, headerRowIndex = 0, metaSheet, singleSheetMode = false;
+
+    if (templateDataSheetName && templateMetaSheetName) {
+      // Layout 1 — separate sheets
+      dataSheet = workbook.Sheets[templateDataSheetName];
+      metaSheet = workbook.Sheets[templateMetaSheetName];
+      rawData = utils.sheet_to_json(dataSheet, { header: 1, defval: '' });
+      for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+        const rowLower = rawData[i].map(c => String(c || '').toLowerCase().trim());
+        if (knownHeaders.some(h => rowLower.includes(h))) { headerRowIndex = i; break; }
       }
+    } else {
+      // Layout 2 — single combined sheet (the standard GNPD-download export)
+      singleSheetMode = true;
+      const sheet = workbook.Sheets[sheetNames[0]];
+      rawData = utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+      // Locate the product header row anywhere in the first ~30 rows
+      headerRowIndex = -1;
+      for (let i = 0; i < Math.min(rawData.length, 30); i++) {
+        const rowLower = rawData[i].map(c => String(c || '').toLowerCase().trim());
+        const hits = knownHeaders.filter(h => rowLower.includes(h)).length;
+        if (hits >= 3) { headerRowIndex = i; break; }
+      }
+
+      if (headerRowIndex === -1) {
+        const errorMsg = `Could not find a product header row (Record ID, Product, Company…) in sheet "${sheetNames[0]}". Found sheets: ${sheetNames.join(', ')}. Make sure you're using the Mintel GNPD export.`;
+        await base44.entities.Source.update(source_id, {
+          gnpd_mapping_status: 'failed',
+          gnpd_mapping_error: errorMsg
+        });
+        return Response.json({ success: false, errors: [errorMsg] });
+      }
+
+      // The rows above the header are the embedded "Search details" block
+      const detailsAOA = rawData.slice(0, headerRowIndex);
+      metaSheet = utils.aoa_to_sheet(detailsAOA);
     }
 
     const headers = rawData[headerRowIndex].map(h => String(h || '').trim());
@@ -289,8 +302,7 @@ Deno.serve(async (req) => {
       return Response.json({ success: false, errors });
     }
 
-    // ── STEP 3: Extract metadata from "Search details" sheet ─────────────────
-    const metaSheet = workbook.Sheets[metaSheetName];
+    // ── STEP 3: Extract metadata from the "Search details" rows ──────────────
     const searchMetadata = parseSearchDetails(metaSheet, utils);
 
     // Map to Palsgaard taxonomy
