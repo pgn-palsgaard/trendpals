@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,6 +32,18 @@ export default function ReportView() {
     enabled: !!report?.project_id
   });
 
+
+  const [project, setProject] = useState(null);
+
+  useEffect(() => {
+    if (report?.project_id) {
+      base44.entities.Project.get(report.project_id)
+        .then(setProject)
+        .catch(() => setProject(null));
+    } else {
+      setProject(null);
+    }
+  }, [report?.project_id]);
 
   const [copied, setCopied] = useState(false);
 
@@ -150,12 +162,58 @@ export default function ReportView() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 py-8">
       <div className="max-w-5xl mx-auto px-4">
-        <Link to={createPageUrl('ReportsLibrary')}>
-          <Button variant="ghost" className="mb-4">
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Library
-          </Button>
-        </Link>
+        <div className="flex items-center gap-4 mb-4">
+          <Link to={createPageUrl('ReportsLibrary')}>
+            <Button variant="ghost">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Library
+            </Button>
+          </Link>
+          {project && (
+            <a
+              href={createPageUrl(`ProjectDetail?id=${report.project_id}`)}
+              className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+            >
+              ↗ Open project
+            </a>
+          )}
+        </div>
+
+        {/* Zone 1 — Commercial Context */}
+        {project && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
+            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Commercial Context</h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+              {project.customer_name && (
+                <div><span className="font-medium text-gray-600">Customer</span><span className="ml-2 text-gray-900">{project.customer_name}</span></div>
+              )}
+              {project.meeting_context && (
+                <div><span className="font-medium text-gray-600">Meeting type</span><span className="ml-2 text-gray-900">{
+                  { discovery: 'Discovery', innovation_day: 'Innovation Day', technical_workshop: 'Technical Workshop', other: 'Other' }[project.meeting_context] || project.meeting_context
+                }</span></div>
+              )}
+              {project.requester_name && (
+                <div><span className="font-medium text-gray-600">Requested by</span><span className="ml-2 text-gray-900">{project.requester_name}</span></div>
+              )}
+              {project.objective && (
+                <div className="sm:col-span-2"><span className="font-medium text-gray-600">Objective</span><span className="ml-2 text-gray-900">{project.objective}</span></div>
+              )}
+              {project.specific_focus && (
+                <div className="sm:col-span-2"><span className="font-medium text-gray-600">Specific focus</span><span className="ml-2 text-gray-900">{project.specific_focus}</span></div>
+              )}
+              {project.customer_priorities?.length > 0 && (
+                <div className="sm:col-span-2">
+                  <span className="font-medium text-gray-600 mr-2">Customer priorities</span>
+                  <span className="inline-flex flex-wrap gap-1">
+                    {project.customer_priorities.map((p, i) => (
+                      <span key={i} className="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full border border-blue-100">{p}</span>
+                    ))}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Report Header */}
         <Card className="mb-6">

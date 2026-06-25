@@ -159,6 +159,21 @@ export default function ReportsLibrary() {
                         </Badge>
                       )}
                     </div>
+                    {project && (project.customer_name || project.meeting_context || project.requester_name) && (
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mt-1 mb-2">
+                        {project.customer_name && (
+                          <span><span className="font-medium text-gray-600">Customer:</span> {project.customer_name}</span>
+                        )}
+                        {project.meeting_context && (
+                          <span><span className="font-medium text-gray-600">Meeting:</span> {
+                            { discovery: 'Discovery', innovation_day: 'Innovation Day', technical_workshop: 'Technical Workshop', other: 'Other' }[project.meeting_context] || project.meeting_context
+                          }</span>
+                        )}
+                        {project.requester_name && (
+                          <span><span className="font-medium text-gray-600">Requested by:</span> {project.requester_name}</span>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 text-sm text-slate-600">
                       <span>{report.category}</span>
                       <span>•</span>
