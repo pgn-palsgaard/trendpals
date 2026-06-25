@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
     const sample = readData.content.slice(0, 30_000);
 
     // 2. LLM classification (Claude Sonnet — same family as Source Processor)
-    const result = await base44.asServiceRole.integrations.Core.InvokeLLM({
+    const runClassification = () => base44.asServiceRole.integrations.Core.InvokeLLM({
       model: 'claude_sonnet_4_6',
       prompt: `You are a document classification system for Palsgaard (a Danish emulsifier/stabiliser manufacturer). Classify this uploaded document into exactly one source type.
 
@@ -125,26 +125,44 @@ classification_reasoning: ONE sentence explaining the decision.`,
       },
     });
 
-    const rawConfidence = Number(result.classification_confidence);
-    const confidence = (!isNaN(rawConfidence) && rawConfidence >= 0) ? Math.min(100, rawConfidence) : null;
+    // The model sometimes wraps the JSON in a { response: {...} } envelope. Unwrap it
+    // so we read the real fields instead of undefined (which was dead-ending uploads).
+    const unwrap = (r) => (r && typeof r === 'object' && r.response && typeof r.response === 'object') ? r.response : r;
+    const parseConfidence = (r) => {
+      const n = Number(unwrap(r)?.classification_confidence);
+      return (!isNaN(n) && n >= 0) ? Math.min(100, n) : null;
+    };
+    let result = unwrap(await runClassification());
+    let confidence = parseConfidence(result);
+    if (confidence === null) {
+      console.warn('[classifySource] No numeric confidence on first attempt — retrying once');
+      result = unwrap(await runClassification());
+      confidence = parseConfidence(result);
+    }
 
     if (confidence === null) {
-      await base44.asServiceRole.entities.Source.update(source_id, {
-        pipeline_stage: 'needs_classification',
-        review_status: 'pending',
-        failure_reason: 'classification: LLM did not return a numeric confidence',
-        classification: {
-          proposed_source_type: result.proposed_source_type || null,
-          document_type: result.document_type || '',
-          category_relevance: [],
-          region_signal: result.region_signal || '',
-          confidence: null,
-          reasoning: result.classification_reasoning || 'No confidence value returned',
-          status: 'failed',
-          classified_at: new Date().toISOString(),
-        },
-      });
-      return Response.json({ ok: false, error: 'LLM returned null/NaN confidence — routed to needs_classification' });
+      // Still no confidence after retry. If the model at least proposed a type, keep it and
+      // route to needs_classification with a moderate confidence so the human card is pre-filled.
+      if (result?.proposed_source_type) {
+        confidence = 50;
+      } else {
+        await base44.asServiceRole.entities.Source.update(source_id, {
+          pipeline_stage: 'needs_classification',
+          review_status: 'pending',
+          failure_reason: 'classification: LLM did not return a numeric confidence',
+          classification: {
+            proposed_source_type: result?.proposed_source_type || null,
+            document_type: result?.document_type || '',
+            category_relevance: [],
+            region_signal: result?.region_signal || '',
+            confidence: null,
+            reasoning: result?.classification_reasoning || 'No confidence value returned',
+            status: 'failed',
+            classified_at: new Date().toISOString(),
+          },
+        });
+        return Response.json({ ok: false, error: 'LLM returned null/NaN confidence — routed to needs_classification' });
+      }
     }
     // EN-1: validate category_relevance before storing
     const rawCategoryRelevance = result.category_relevance || [];
