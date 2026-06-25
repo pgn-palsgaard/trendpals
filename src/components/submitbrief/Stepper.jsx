@@ -1,14 +1,19 @@
 import React from 'react';
 import { Check } from 'lucide-react';
 
-const STEPS = ['Brief type', 'Add context', 'Focus trends', 'Review brief'];
+const STEPS = ['Brief type', 'Add context', 'Review brief'];
+
+// Focus trends (internal step 2) is temporarily disabled, so internal step 3 (review)
+// maps to the 3rd visible dot (index 2).
+const STEP_INDEX_MAP = { 0: 0, 1: 1, 3: 2 };
 
 export default function Stepper({ currentStep }) {
+  const displayStep = STEP_INDEX_MAP[currentStep] ?? currentStep;
   return (
     <div className="flex items-center justify-center gap-2 mb-8">
       {STEPS.map((label, i) => {
-        const isActive = i === currentStep;
-        const isDone = i < currentStep;
+        const isActive = i === displayStep;
+        const isDone = i < displayStep;
         return (
           <React.Fragment key={label}>
             <div className="flex items-center gap-2">

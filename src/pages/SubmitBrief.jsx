@@ -276,13 +276,13 @@ export default function SubmitBrief() {
                 fields={fields}
                 jtbdLabel={jtbdLabel}
                 onChangeType={() => setStep(0)}
-                onContinue={() => setStep(2)}
+                onContinue={() => setStep(3)}
               />
             </div>
           </div>
         )}
 
-        {/* ── Step 3: Trend relevance check ── */}
+        {/* ── Step 3: Trend relevance check — TEMPORARILY DISABLED (industry/trend matching needs refinement). Re-enable by restoring onContinue={() => setStep(2)} above and the Stepper "Focus trends" step. ──
         {step === 2 && !submitted && (
           <TrendRelevanceChecker
             fields={fields}
@@ -291,6 +291,7 @@ export default function SubmitBrief() {
             onConfirm={({ ids, names }) => { setSelectedTrendIds(ids); setSelectedTrendNames(names); setStep(3); }}
           />
         )}
+        */}
 
         {/* ── Step 4: Review brief ── */}
         {step === 3 && !submitted && (
@@ -352,7 +353,7 @@ export default function SubmitBrief() {
               )}
 
               <div className="flex items-center justify-between mt-5">
-                <button onClick={() => setStep(2)} className="text-sm text-stone-500 hover:text-stone-800">
+                <button onClick={() => setStep(1)} className="text-sm text-stone-500 hover:text-stone-800">
                   ← Back
                 </button>
                 <button
