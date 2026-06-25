@@ -1,12 +1,5 @@
 import React, { useRef, useEffect } from 'react';
 
-const CHIPS = [
-  { label: 'Paste email', hint: 'Paste the full meeting email or invite here…' },
-  { label: 'Describe meeting', hint: 'Who are you meeting, when, and what do they make?' },
-  { label: 'Use bullets', hint: '• Customer:\n• Category:\n• Region:\n• Goal:' },
-  { label: 'I only know the basics', hint: 'Just tell me what you do know — even one line is fine.' },
-];
-
 /**
  * Left-column conversation panel for step 2.
  * Pure presentational — all state lives in the parent SubmitBrief page.
@@ -73,18 +66,6 @@ export default function ChatPanel({
           className="w-full resize-none rounded-lg border border-stone-200 px-3 py-2.5 text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[#1D428A]/30 focus:border-[#1D428A]/50"
           style={{ background: '#ffffff' }}
         />
-
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          {CHIPS.map(chip => (
-            <button
-              key={chip.label}
-              onClick={() => setPlaceholder(chip.hint)}
-              className="text-xs px-2.5 py-1 rounded-full border border-stone-200 text-stone-600 hover:border-[#1D428A] hover:text-[#1D428A] transition-colors"
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
 
         <div className="flex items-center justify-between gap-3 mt-3">
           {!inputText.trim() && (
