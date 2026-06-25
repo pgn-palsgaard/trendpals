@@ -195,6 +195,10 @@ classification_reasoning: ONE sentence explaining the decision.`,
         source_type: result.proposed_source_type,
         pipeline_stage: 'uploaded',
         review_status: 'pending',
+        // A successful classification must clear any leftover error from a prior failed
+        // attempt — otherwise the UI keeps showing a stale "Processing issue detected" banner.
+        failure_reason: null,
+        processing_error: null,
         classification: { ...classification, status: 'auto_applied' },
         ...(coverageRegions.length ? { coverage_regions: coverageRegions } : {}),
       });
