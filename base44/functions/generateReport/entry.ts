@@ -409,6 +409,42 @@ product_shortlist items: { "product_name": "string", "brand": "string", "market"
 
     // ── Unwrap InvokeLLM response (it nests the JSON under a "response" key) ──
     const parsed = response?.response ?? response;
+
+    // ── Build the deterministic "Briefing Context" cover slide (always slide 1) ──
+    const MEETING_CONTEXT_LABELS = {
+      discovery: 'Discovery Meeting Preparation',
+      innovation_day: 'Innovation Day',
+      technical_workshop: 'Technical Workshop',
+      other: 'Briefing',
+    };
+    const preparedForParts = [];
+    if (project.requester_name) preparedForParts.push(project.requester_name);
+    if (project.meeting_context) preparedForParts.push(MEETING_CONTEXT_LABELS[project.meeting_context] || 'Briefing');
+    if (project.specific_focus) preparedForParts.push(project.specific_focus);
+    const categoryLabel = (DISPLAY_LABELS[project.category] || project.category || '').toUpperCase();
+
+    const briefingSlide = {
+      slide_number: 1,
+      slide_type: 'briefing_context',
+      slide_name: 'Briefing Context',
+      title: 'Why this report exists and what it is designed to answer',
+      subtitle: `${categoryLabel} | ${String(region).toUpperCase()} | BRIEFING CONTEXT`,
+      prepared_for: preparedForParts.join(' | '),
+      commercial_questions: (() => {
+        const objLines = String(project.objective || '')
+          .split(/\n|(?<=[.?])\s+(?=[A-Z0-9])/)
+          .map(s => s.trim())
+          .filter(Boolean)
+          .slice(0, 2);
+        return objLines.map(q => ({ question: q, markets_in_scope: region }));
+      })(),
+      trends_under_microscope: resolvedTrends.map(({ gt }, i) => `Trend ${i + 1} — ${gt.trend_name}`),
+      evidence_footer: 'All insights are evidence-led. Sources cited inline throughout.',
+    };
+
+    // Prepend briefing slide and renumber LLM slides after it
+    const llmSlides = Array.isArray(parsed.slides) ? parsed.slides : [];
+    const finalSlides = [briefingSlide, ...llmSlides.map((s, i) => ({ ...s, slide_number: i + 2 }))];
     console.log('SLIDES TO SAVE:', Array.isArray(parsed.slides) ? parsed.slides.length : 'NOT AN ARRAY');
     console.log('EVIDENCE_PACK TO SAVE:', Array.isArray(parsed.evidence_pack) ? parsed.evidence_pack.length : 'NOT AN ARRAY');
     console.log('PRODUCT_SHORTLIST TO SAVE:', Array.isArray(parsed.product_shortlist) ? parsed.product_shortlist.length : 'NOT AN ARRAY');
@@ -424,7 +460,7 @@ product_shortlist items: { "product_name": "string", "brand": "string", "market"
       title: `${DISPLAY_LABELS[project.category] || project.category} Trends — ${region}`,
       category: project.category,
       region,
-      slides: parsed.slides || [],
+      slides: finalSlides,
       evidence_pack: parsed.evidence_pack || [],
       product_shortlist: parsed.product_shortlist || [],
       image_map: {},

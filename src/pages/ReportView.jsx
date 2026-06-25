@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import FinalReportSection from '@/components/report/FinalReportSection';
 import ExecutiveSummaryCard from '@/components/report/ExecutiveSummaryCard';
+import BriefingContextSlide from '@/components/report/BriefingContextSlide';
 
 export default function ReportView() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -68,7 +69,19 @@ export default function ReportView() {
     lines.push(`Category: ${report.category} | Region: ${report.region} | Date: ${date}`);
     lines.push('');
 
-    (report.slides || []).forEach((slide, idx) => {
+    const briefing = (report.slides || []).find(s => s.slide_type === 'briefing_context');
+    if (briefing) {
+      lines.push('SLIDE 1 — BRIEFING CONTEXT');
+      lines.push(briefing.title || '');
+      if (briefing.prepared_for) lines.push(`Prepared for: ${briefing.prepared_for}`);
+      (briefing.commercial_questions || []).forEach((cq, i) => {
+        lines.push(`Question ${i + 1}: ${cq.question}${cq.markets_in_scope ? ` (Markets in scope: ${cq.markets_in_scope})` : ''}`);
+      });
+      (briefing.trends_under_microscope || []).forEach(t => lines.push(t));
+      lines.push('');
+    }
+
+    (report.slides || []).filter(s => s.slide_type !== 'briefing_context').forEach((slide, idx) => {
       lines.push(`TREND ${idx + 1}: ${slide.title || slide.slide_name || `Slide ${idx + 1}`}`);
       if (slide.market_signal) {
         lines.push(`Market signal: ${slide.market_signal}`);
@@ -181,6 +194,9 @@ export default function ReportView() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Briefing Context cover slide */}
+        <BriefingContextSlide slide={(report.slides || []).find(s => s.slide_type === 'briefing_context')} />
 
         {/* Final Report Files */}
         <FinalReportSection report={report} />
