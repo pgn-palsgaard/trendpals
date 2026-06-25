@@ -4,7 +4,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent } from '@/components/ui/card';
 import { Loader2, Library } from 'lucide-react';
 import { toast } from 'sonner';
-import PackshotManager from './ProductImageManager';
 import ProductProofPanel from './ProductProofPanel';
 import RankedTrendCard from './RankedTrendCard';
 import PotentialNewTrends from './PotentialNewTrends';
@@ -122,15 +121,15 @@ export default function ProjectTrends({ project, trendCandidates, sources }) {
       {/* 4D — potential new trends */}
       <PotentialNewTrends project={project} candidates={newTrendCandidates} />
 
-      {/* Evidence + packshots for selected trends */}
-      {selectedCount >= 3 && (
-        <PackshotManager project={project} trendCandidates={selectedCandidates} />
-      )}
-
       {selectedCandidates.length > 0 && (
         <div className="space-y-4">
           {selectedCandidates.map(trend => (
-            <ProductProofPanel key={trend.id} trend={trend} projectId={project.id} />
+            <ProductProofPanel
+              key={trend.id}
+              trend={trend}
+              projectId={project.id}
+              project={project}
+            />
           ))}
         </div>
       )}

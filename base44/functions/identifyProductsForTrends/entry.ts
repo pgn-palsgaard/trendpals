@@ -1,3 +1,6 @@
+// DEPRECATED — June 2026. Was used by ProductImageManager (removed).
+// Replaced by per-card packshot upload on ProductCandidate in ProductProofPanel.
+// Safe to delete once ProductImageRequest entity data is cleared.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 
 Deno.serve(async (req) => {

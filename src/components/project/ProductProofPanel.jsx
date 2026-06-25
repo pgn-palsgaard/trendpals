@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-export default function ProductProofPanel({ trend, projectId }) {
+export default function ProductProofPanel({ trend, projectId, project }) {
   const queryClient = useQueryClient();
   const [state, setState] = useState('idle'); // idle, generating, success, empty, error
   const [errorMessage, setErrorMessage] = useState('');
@@ -86,6 +86,17 @@ export default function ProductProofPanel({ trend, projectId }) {
     }
   });
 
+  // Packshot upload / remove
+  const packshotMutation = useMutation({
+    mutationFn: ({ productId, image_url, asset_status }) =>
+      base44.entities.ProductCandidate.update(productId, { image_url, asset_status }),
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries(['productCandidates', trend.id]);
+      toast.success(vars.image_url ? 'Packshot uploaded' : 'Packshot removed');
+    },
+    onError: () => toast.error('Failed to update packshot')
+  });
+
   const copyRecordId = (recordId) => {
     navigator.clipboard.writeText(recordId);
     toast.success('Record ID copied');
@@ -123,6 +134,7 @@ export default function ProductProofPanel({ trend, projectId }) {
       onCopyId={copyRecordId}
       onPin={(id, pinned) => pinMutation.mutate({ productId: id, pinned })}
       onExclude={excludeMutation.mutate}
+      onPackshot={packshotMutation.mutate}
       excludedStyle={opts.excludedStyle}
     />
   );
@@ -353,10 +365,26 @@ const SUPPORT_CONFIG = {
   NOT_SUPPORT: { cls: 'bg-red-600 text-white border-red-600', label: '✗ Weak match' }
 };
 
-function ProductCard({ product, trendName, onCopyId, onPin, onExclude, excludedStyle }) {
+function ProductCard({ product, trendName, onCopyId, onPin, onExclude, onPackshot, excludedStyle }) {
   const [excluding, setExcluding] = useState(false);
   const [excludeReason, setExcludeReason] = useState('');
   const [showAllBullets, setShowAllBullets] = useState(false);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
+
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+    setIsUploading(true);
+    try {
+      const upload = await base44.integrations.Core.UploadFile({ file: selectedFile });
+      onPackshot({ productId: product.id, image_url: upload.file_url, asset_status: 'packshot_uploaded' });
+      setSelectedFile(null);
+    } catch (e) {
+      toast.error('Upload failed');
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   const support = SUPPORT_CONFIG[product.support_label] || { cls: 'bg-slate-200 text-slate-600 border-slate-200', label: 'Unscored' };
 
@@ -440,6 +468,46 @@ function ProductCard({ product, trendName, onCopyId, onPin, onExclude, excludedS
               ))}
             </div>
           )}
+
+          {/* Packshot */}
+          <div className="mb-3">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1">Packshot</p>
+            {product.image_url ? (
+              <div className="flex items-center gap-3">
+                <img src={product.image_url} alt="packshot" className="w-16 h-16 object-cover rounded border" />
+                <div>
+                  <p className="text-xs text-green-600 font-medium">✓ Packshot uploaded</p>
+                  <button
+                    onClick={() => onPackshot({ productId: product.id, image_url: null, asset_status: 'packshot_missing' })}
+                    className="text-xs text-red-400 hover:text-red-600 mt-1"
+                  >
+                    ✕ Remove
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="w-16 h-16 bg-gray-100 border-2 border-dashed border-gray-300 rounded flex items-center justify-center">
+                  <span className="text-gray-400 text-xl">📷</span>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                    className="text-xs"
+                  />
+                  <button
+                    disabled={!selectedFile || isUploading}
+                    onClick={handleUpload}
+                    className="text-xs bg-blue-600 text-white px-2 py-1 rounded disabled:opacity-40 w-fit inline-flex items-center gap-1"
+                  >
+                    {isUploading ? <><Loader2 className="w-3 h-3 animate-spin" /> Uploading…</> : 'Upload'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Evidence links */}
           <div className="flex items-center gap-3 text-xs text-slate-500 mb-3">
