@@ -70,7 +70,7 @@ export default function ProjectOverview({ project, sources, trendCandidates }) {
         <Card className="border-slate-200/60 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 duration-200 bg-gradient-to-br from-white to-blue-50/30">
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-3 shadow-lg">
+              <div className="w-14 h-14 rounded-full bg-[#1D428A] flex items-center justify-center mx-auto mb-3 shadow-lg">
                 <Upload className="w-7 h-7 text-white" />
               </div>
               <div className="text-4xl font-bold text-slate-900 mb-1">{sources.length}</div>
@@ -82,7 +82,7 @@ export default function ProjectOverview({ project, sources, trendCandidates }) {
         <Card className="border-slate-200/60 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 duration-200 bg-gradient-to-br from-white to-purple-50/30">
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-purple-500 to-purple-600 flex items-center justify-center mx-auto mb-3 shadow-lg">
+              <div className="w-14 h-14 rounded-full bg-[#6F8263] flex items-center justify-center mx-auto mb-3 shadow-lg">
                 <TrendingUp className="w-7 h-7 text-white" />
               </div>
               <div className="text-4xl font-bold text-slate-900 mb-1">{trendCandidates.length}</div>
@@ -94,7 +94,7 @@ export default function ProjectOverview({ project, sources, trendCandidates }) {
         <Card className="border-slate-200/60 shadow-sm hover:shadow-md transition-all hover:-translate-y-1 duration-200 bg-gradient-to-br from-white to-emerald-50/30">
           <CardContent className="pt-6">
             <div className="text-center">
-              <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center mx-auto mb-3 shadow-lg">
+              <div className="w-14 h-14 rounded-full bg-[#62837F] flex items-center justify-center mx-auto mb-3 shadow-lg">
                 <CheckCircle className="w-7 h-7 text-white" />
               </div>
               <div className="text-4xl font-bold text-slate-900 mb-1">
