@@ -26,6 +26,7 @@ export const CANONICAL_KEYS = [
 /** Keys valid in entity enum fields (solutions + control values) */
 export const VALID_CATEGORY_VALUES = [
   ...CANONICAL_KEYS,
+  'cross_industry',
   'out_of_scope',
   'needs_human_review',
 ];
@@ -42,6 +43,7 @@ export const DISPLAY_LABELS = {
   oils_fats:               'Oils & Fats',
   plant_based:             'Plant-based products',
   rutf_rusf:               'RUTF and RUSF',
+  cross_industry:          'Cross-industry / Consumer trends',
   out_of_scope:            'Out of scope',
   needs_human_review:      'Needs review',
 };
@@ -65,6 +67,7 @@ export const CATEGORY_LABELS = {
   oils_fats:               'Oils & Fats',
   plant_based:             'Plant-Based',
   rutf_rusf:               'RUTF/RUSF',
+  cross_industry:          'Cross-Industry',
   out_of_scope:            'Out of Scope',
   needs_human_review:      'Needs Review',
 };

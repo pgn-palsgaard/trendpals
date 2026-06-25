@@ -4,10 +4,11 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Sparkles, Loader2 } from 'lucide-react';
+import { VALID_CATEGORY_VALUES, getDisplayLabel } from '@/lib/palsgaardCategoryMapping';
 
 const SOURCE_TYPES = ['mintel', 'market_intel', 'gnpd', 'report', 'url', 'knowledge', 'other'];
 const REGIONS = ['ASPAC', 'AMERICAS', 'EMEC', 'IMEA', 'Global'];
-const CATEGORIES = ['Bakery', 'Confectionery', 'Dairy', 'Feed', 'Fine Food', 'Ice Cream', 'Lipid', 'Meat', 'Other Food Applications', 'PCI', 'Polymer', 'Tech'];
+const CATEGORIES = VALID_CATEGORY_VALUES.map(v => ({ value: v, label: getDisplayLabel(v) }));
 
 const FIELDS = [
   { key: 'title', label: 'Title', type: 'text' },
@@ -84,7 +85,11 @@ export default function MetadataEditSection({ source, onSourceChange }) {
                     <SelectValue placeholder="—" />
                   </SelectTrigger>
                   <SelectContent>
-                    {options.map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                    {options.map(o => {
+                      const val = typeof o === 'string' ? o : o.value;
+                      const lbl = typeof o === 'string' ? o : o.label;
+                      return <SelectItem key={val} value={val}>{lbl}</SelectItem>;
+                    })}
                   </SelectContent>
                 </Select>
               ) : (
