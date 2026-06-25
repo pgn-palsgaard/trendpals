@@ -209,14 +209,14 @@ export default function ProjectDetail() {
           <TabsList className="mb-8 bg-white shadow-sm border border-slate-200/60 p-1.5 rounded-xl h-auto">
             <TabsTrigger 
               value="overview" 
-              className="flex items-center gap-2 px-5 py-3 rounded-lg data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
+              className="flex items-center gap-2 px-5 py-3 rounded-lg text-slate-600 hover:text-slate-900 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
             >
               <FileText className="w-4 h-4" />
               <span className="font-medium">Overview</span>
             </TabsTrigger>
             <TabsTrigger 
               value="sources" 
-              className="flex items-center gap-2 px-5 py-3 rounded-lg data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
+              className="flex items-center gap-2 px-5 py-3 rounded-lg text-slate-600 hover:text-slate-900 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
             >
               <Upload className="w-4 h-4" />
               <span className="font-medium">Sources</span>
@@ -226,7 +226,7 @@ export default function ProjectDetail() {
             </TabsTrigger>
             <TabsTrigger 
               value="trends" 
-              className="flex items-center gap-2 px-5 py-3 rounded-lg data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
+              className="flex items-center gap-2 px-5 py-3 rounded-lg text-slate-600 hover:text-slate-900 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
             >
               <TrendingUp className="w-4 h-4" />
               <span className="font-medium">Trends</span>
@@ -236,7 +236,7 @@ export default function ProjectDetail() {
             </TabsTrigger>
             <TabsTrigger 
               value="report" 
-              className="flex items-center gap-2 px-5 py-3 rounded-lg data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
+              className="flex items-center gap-2 px-5 py-3 rounded-lg text-slate-600 hover:text-slate-900 data-[state=active]:bg-gradient-to-br data-[state=active]:from-blue-500 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all"
             >
               <CheckCircle className="w-4 h-4" />
               <span className="font-medium">Report</span>
