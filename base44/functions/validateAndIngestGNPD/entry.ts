@@ -88,7 +88,8 @@ function parseSearchDetails(sheet, utils) {
     markets: [],
     dateRange: null,
     searchTitle: null,
-    ingredientSearch: null
+    ingredientSearch: null,
+    companySearch: null
   };
 
   // Collect all non-empty cell text from the sheet (single or multi-column)
@@ -131,6 +132,19 @@ function parseSearchDetails(sheet, utils) {
     const dateMatch = line.match(/date published is between (.+)/i);
     if (dateMatch) {
       metadata.dateRange = dateMatch[1].trim();
+    }
+
+    // "where Date Published is within the last three complete years"
+    const relDateMatch = line.match(/date published is (within .+)/i);
+    if (relDateMatch && !metadata.dateRange) {
+      metadata.dateRange = relDateMatch[1].trim().replace(/["']/g, '');
+    }
+
+    // "and Company Search matches Froneri and all child companies as the Company"
+    const companyMatch = line.match(/company search matches (.+?)(?:\s+and all child companies|\s+as the company|["']?$)/i);
+    if (companyMatch && !metadata.companySearch) {
+      const c = companyMatch[1].trim().replace(/["']/g, '');
+      if (c) metadata.companySearch = c;
     }
 
     // Key: value style (older export formats)
@@ -305,9 +319,41 @@ Deno.serve(async (req) => {
     // ── STEP 3: Extract metadata from the "Search details" rows ──────────────
     const searchMetadata = parseSearchDetails(metaSheet, utils);
 
-    // Map to Palsgaard taxonomy
-    const region_code = mapRegion(searchMetadata.markets);
-    const category = mapCategory(searchMetadata.categories);
+    // Map to Palsgaard taxonomy.
+    // Search-details categories/markets are only present in some exports (e.g. the
+    // "Spreadsheet Template"). The "GNPD-download" export often filters by company,
+    // so fall back to deriving region/category from the product rows themselves.
+    let region_code = mapRegion(searchMetadata.markets);
+    let category = mapCategory(searchMetadata.categories);
+
+    // Locate the relevant column indices once (used for fallbacks below)
+    const idxOf = (names) => {
+      for (const n of names) {
+        const i = headersLower.indexOf(n);
+        if (i !== -1) return i;
+      }
+      return -1;
+    };
+    const marketIdx   = idxOf(['market', 'country']);
+    const categoryIdx = idxOf(['category']);
+    const subCatIdx   = idxOf(['sub-category', 'sub category']);
+
+    // Region fallback — derive from the actual product markets
+    if ((!searchMetadata.markets || searchMetadata.markets.length === 0) && marketIdx !== -1) {
+      const markets = [...new Set(dataRows.map(r => String(r[marketIdx] || '').trim()).filter(Boolean))];
+      if (markets.length > 0) region_code = mapRegion(markets);
+    }
+
+    // Category fallback — pick the most common product category/sub-category
+    if (!category && (categoryIdx !== -1 || subCatIdx !== -1)) {
+      const counts = {};
+      for (const r of dataRows) {
+        const cat = String((subCatIdx !== -1 ? r[subCatIdx] : '') || (categoryIdx !== -1 ? r[categoryIdx] : '') || '').trim();
+        if (cat) counts[cat] = (counts[cat] || 0) + 1;
+      }
+      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+      if (sorted.length > 0) category = mapCategory([sorted[0][0]]);
+    }
 
     // Build a human-readable title from search metadata
     // Format: "<Ingredient> — <Sub-Categories> — <Date Range>"
@@ -325,12 +371,14 @@ Deno.serve(async (req) => {
       : null;
     const dateLabel = searchMetadata.dateRange || null;
 
+    const companyLabel = searchMetadata.companySearch || null;
+
     let autoTitle;
     if (searchMetadata.searchTitle) {
       autoTitle = searchMetadata.searchTitle;
     } else {
-      // Priority: ingredient — categories — markets — date
-      const segments = [ingredientLabel, catLabel, marketLabel, dateLabel].filter(Boolean);
+      // Priority: company — ingredient — categories — markets — date
+      const segments = [companyLabel, ingredientLabel, catLabel, marketLabel, dateLabel].filter(Boolean);
       autoTitle = segments.length > 0
         ? segments.join(' — ')
         : `GNPD Export — ${new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;

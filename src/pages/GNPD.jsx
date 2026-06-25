@@ -127,9 +127,14 @@ function UploadsTab() {
     try {
       const res = await base44.functions.invoke('runGNPDBatchParse', { sourceIds: [sourceId] });
       const result = (res.data?.results || [])[0];
-      if (result?.status === 'ok') {
+      if (result?.status === 'ok' || result?.status === 'skipped') {
         setParsing(prev => ({ ...prev, [sourceId]: { status: 'done', rows: result.rows_parsed, created: result.created } }));
-        toast.success(`${result.created} new product(s) created${result.skipped ? `, ${result.skipped} already in database` : ''}`);
+        const created = result.created || 0;
+        toast.success(
+          created > 0
+            ? `${created} new product(s) created${result.skipped ? `, ${result.skipped} already in database` : ''}`
+            : `All ${result.skipped || result.rows_parsed || 0} product(s) already in database`
+        );
         queryClient.invalidateQueries({ queryKey });
         queryClient.invalidateQueries({ queryKey: ['gnpdStats'] });
       } else {
