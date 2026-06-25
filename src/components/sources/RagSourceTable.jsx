@@ -166,8 +166,13 @@ export default function RagSourceTable({
         await Promise.all(ids.map(id => base44.entities.Source.update(id, { review_status: 'rejected', reviewed_at: new Date().toISOString() })));
         toast.success(`${ids.length} source(s) rejected`);
       } else if (bulkAction === 'retry') {
-        await Promise.all(ids.map(id => base44.entities.Source.update(id, { pipeline_stage: 'uploaded', failure_reason: null, retry_count: 0, last_retry_at: new Date().toISOString() })));
+        // Reset to queue. Also clear review_status so the source genuinely leaves
+        // its current review tab and reappears in the Queue tab — otherwise an
+        // already-approved/rejected source short-circuits the attention state and
+        // the row looks unchanged after retry.
+        await Promise.all(ids.map(id => base44.entities.Source.update(id, { pipeline_stage: 'uploaded', review_status: null, failure_reason: null, retry_count: 0, last_retry_at: new Date().toISOString() })));
         toast.success(`${ids.length} source(s) reset to queue`);
+        setActiveTab('uploaded');
       } else if (bulkAction === 'mark_deletion') {
         const selected = sources.filter(s => ids.includes(s.id));
         await Promise.all(selected.map(s => base44.entities.Source.update(s.id, { tags: Array.from(new Set([...(s.tags || []), 'deletion_pending'])) })));
