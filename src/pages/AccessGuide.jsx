@@ -6,12 +6,12 @@ const STEPS = [
   {
     icon: Mail,
     title: 'Check your inbox',
-    body: 'Look for an invitation email from Base44 (it powers TrendPals). If you don\u2019t see it, check your spam or junk folder.',
+    body: 'Look for an invitation email from Base44 (it powers TrendPals). If you don’t see it, check your spam or junk folder.',
   },
   {
     icon: KeyRound,
     title: 'Verify and set your password',
-    body: 'Open the link in that email. The first time, you\u2019ll be asked to verify your email and create a secure password \u2014 this becomes your TrendPals login.',
+    body: 'Open the link in that email. The first time, you’ll be asked to verify your email and create a secure password — this becomes your TrendPals login.',
   },
   {
     icon: LogIn,
@@ -99,11 +99,11 @@ export default function AccessGuide() {
         <div className="pal-card p-5" style={{ background: '#F7F4EE' }}>
           <div className="flex items-center gap-2 mb-2">
             <HelpCircle className="w-4 h-4" style={{ color: '#6F8263' }} />
-            <h3 className="text-sm font-semibold text-foreground">Didn\u2019t receive an invitation?</h3>
+            <h3 className="text-sm font-semibold text-foreground">Didn’t receive an invitation?</h3>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Access is granted by invitation only. If you can\u2019t find your invite \u2014 and it\u2019s not in
-            your spam folder \u2014 please contact your TrendPals administrator to request access for your
+            Access is granted by invitation only. If you can’t find your invite — and it’s not in
+            your spam folder — please contact your TrendPals administrator to request access for your
             email address.
           </p>
         </div>
