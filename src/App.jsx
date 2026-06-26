@@ -70,7 +70,6 @@ const AuthenticatedApp = () => {
   // SCENARIO A — role field exists on the user object.
   // Reviewer role: gated to the SME portal only. All other paths redirect to /review.
   const isReviewer = user?.role === 'reviewer';
-  const isSubmitter = user?.role === 'submitter';
 
   if (isReviewer) {
     return (
@@ -81,31 +80,17 @@ const AuthenticatedApp = () => {
     );
   }
 
-  // Submitter role: gated to the Submit Brief page and their own profile.
-  if (isSubmitter) {
+  // Submitter is the default experience for everyone who is not an admin or reviewer.
+  // Newly invited users land here with role 'user' (or no role yet) — they are
+  // treated as submitters and gated to the Submit Brief page and their own profile.
+  const isAdmin = user?.role === 'admin';
+
+  if (!isAdmin) {
     return (
       <Routes>
         <Route path="/SubmitBrief" element={<SubmitterLayout><SubmitBrief /></SubmitterLayout>} />
         <Route path="/Profile" element={<SubmitterLayout><Profile /></SubmitterLayout>} />
         <Route path="*" element={<Navigate to="/SubmitBrief" replace />} />
-      </Routes>
-    );
-  }
-
-  const isUser = user?.role === 'user';
-
-  // Ordinary user role: read-only access to libraries, themes and reports only.
-  if (isUser) {
-    return (
-      <Routes>
-        <Route path="/TrendLibrary" element={<LayoutWrapper currentPageName="TrendLibrary"><TrendLibrary /></LayoutWrapper>} />
-        <Route path="/TrendHub/:trendId" element={<LayoutWrapper currentPageName="TrendHub"><TrendHub /></LayoutWrapper>} />
-        <Route path="/Reports" element={<LayoutWrapper currentPageName="Reports"><Reports /></LayoutWrapper>} />
-        <Route path="/ThemeLibrary" element={<LayoutWrapper currentPageName="ThemeLibrary"><ThemeLibrary /></LayoutWrapper>} />
-        <Route path="/ThemeMatrix" element={<LayoutWrapper currentPageName="ThemeMatrix"><ThemeMatrix /></LayoutWrapper>} />
-        <Route path="/ReportsLibrary" element={<LayoutWrapper currentPageName="ReportsLibrary"><Pages.ReportsLibrary /></LayoutWrapper>} />
-        <Route path="/Profile" element={<LayoutWrapper currentPageName="Profile"><Profile /></LayoutWrapper>} />
-        <Route path="*" element={<Navigate to="/TrendLibrary" replace />} />
       </Routes>
     );
   }
