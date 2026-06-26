@@ -22,7 +22,8 @@ import ReviewerLayout from './components/layout/ReviewerLayout';
 import SMEReviewPortal from './pages/SMEReviewPortal';
 import SubmitterLayout from './components/layout/SubmitterLayout';
 import Profile from './pages/Profile';
-import { Navigate } from 'react-router-dom';
+import AccessGuide from './pages/AccessGuide';
+import { Navigate, useLocation } from 'react-router-dom';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -34,6 +35,17 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 
 const AuthenticatedApp = () => {
   const { user, isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const location = useLocation();
+
+  // Public access guide — reachable without login (e.g. by colleagues who haven't
+  // registered yet). Rendered before any auth gating below.
+  if (location.pathname === '/access') {
+    return (
+      <Routes>
+        <Route path="/access" element={<AccessGuide />} />
+      </Routes>
+    );
+  }
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
