@@ -20,6 +20,8 @@ import ReviewQueue from './pages/ReviewQueue';
 import Reports from './pages/Reports';
 import ReviewerLayout from './components/layout/ReviewerLayout';
 import SMEReviewPortal from './pages/SMEReviewPortal';
+import SubmitterLayout from './components/layout/SubmitterLayout';
+import Profile from './pages/Profile';
 import { Navigate } from 'react-router-dom';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -56,12 +58,42 @@ const AuthenticatedApp = () => {
   // SCENARIO A — role field exists on the user object.
   // Reviewer role: gated to the SME portal only. All other paths redirect to /review.
   const isReviewer = user?.role === 'reviewer';
+  const isSubmitter = user?.role === 'submitter';
 
   if (isReviewer) {
     return (
       <Routes>
         <Route path="/review" element={<ReviewerLayout><SMEReviewPortal /></ReviewerLayout>} />
         <Route path="*" element={<Navigate to="/review" replace />} />
+      </Routes>
+    );
+  }
+
+  // Submitter role: gated to the Submit Brief page and their own profile.
+  if (isSubmitter) {
+    return (
+      <Routes>
+        <Route path="/SubmitBrief" element={<SubmitterLayout><SubmitBrief /></SubmitterLayout>} />
+        <Route path="/Profile" element={<SubmitterLayout><Profile /></SubmitterLayout>} />
+        <Route path="*" element={<Navigate to="/SubmitBrief" replace />} />
+      </Routes>
+    );
+  }
+
+  const isUser = user?.role === 'user';
+
+  // Ordinary user role: read-only access to libraries, themes and reports only.
+  if (isUser) {
+    return (
+      <Routes>
+        <Route path="/TrendLibrary" element={<LayoutWrapper currentPageName="TrendLibrary"><TrendLibrary /></LayoutWrapper>} />
+        <Route path="/TrendHub/:trendId" element={<LayoutWrapper currentPageName="TrendHub"><TrendHub /></LayoutWrapper>} />
+        <Route path="/Reports" element={<LayoutWrapper currentPageName="Reports"><Reports /></LayoutWrapper>} />
+        <Route path="/ThemeLibrary" element={<LayoutWrapper currentPageName="ThemeLibrary"><ThemeLibrary /></LayoutWrapper>} />
+        <Route path="/ThemeMatrix" element={<LayoutWrapper currentPageName="ThemeMatrix"><ThemeMatrix /></LayoutWrapper>} />
+        <Route path="/ReportsLibrary" element={<LayoutWrapper currentPageName="ReportsLibrary"><Pages.ReportsLibrary /></LayoutWrapper>} />
+        <Route path="/Profile" element={<LayoutWrapper currentPageName="Profile"><Profile /></LayoutWrapper>} />
+        <Route path="*" element={<Navigate to="/TrendLibrary" replace />} />
       </Routes>
     );
   }
@@ -98,6 +130,7 @@ const AuthenticatedApp = () => {
       <Route path="/TrendHub/:trendId" element={<LayoutWrapper currentPageName="TrendHub"><TrendHub /></LayoutWrapper>} />
       <Route path="/ReviewQueue" element={<LayoutWrapper currentPageName="ReviewQueue"><ReviewQueue /></LayoutWrapper>} />
       <Route path="/Reports" element={<LayoutWrapper currentPageName="Reports"><Reports /></LayoutWrapper>} />
+      <Route path="/Profile" element={<LayoutWrapper currentPageName="Profile"><Profile /></LayoutWrapper>} />
       {/* Redirects for deprecated routes */}
       <Route path="/ChallengeLibrary" element={<Navigate to="/ReviewQueue" replace />} />
       <Route path="/TrendReport" element={<Navigate to="/Reports" replace />} />

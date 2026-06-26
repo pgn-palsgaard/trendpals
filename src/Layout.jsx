@@ -5,7 +5,7 @@ import { base44 } from '@/api/base44Client';
 import {
   LogOut, FolderOpen, FileText, BarChart2, TrendingUp, Zap, BookOpen, CheckSquare,
   Palette, LayoutGrid, Library, Database, Grid, Activity, ChevronLeft, ChevronRight, Menu, X, ClipboardList,
-  ListChecks, FileBarChart2
+  ListChecks, FileBarChart2, UserCircle
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -57,6 +57,30 @@ const REVIEWER_NAV = [
     section: 'REVIEW',
     items: [
       { label: 'Review Queue', to: '/SMEReviewQueue', icon: ClipboardList, pages: ['SMEReviewQueue'] },
+    ],
+  },
+];
+
+// Ordinary 'user' role — read-only access to libraries and reports only.
+const USER_NAV = [
+  {
+    section: 'TRENDS',
+    items: [
+      { label: 'Library', to: '/TrendLibrary', icon: TrendingUp, pages: ['TrendLibrary', 'TrendHub'] },
+      { label: 'Trend reports', to: '/Reports', icon: FileBarChart2, pages: ['Reports'] },
+    ],
+  },
+  {
+    section: 'THEMES',
+    items: [
+      { label: 'Themes', to: '/ThemeLibrary', icon: Palette, pages: ['ThemeLibrary'] },
+      { label: 'Theme Matrix', to: '/ThemeMatrix', icon: LayoutGrid, pages: ['ThemeMatrix'] },
+    ],
+  },
+  {
+    section: 'REPORTS',
+    items: [
+      { label: 'Reports', to: createPageUrl('ReportsLibrary'), icon: BarChart2, pages: ['ReportsLibrary'] },
     ],
   },
 ];
@@ -174,10 +198,21 @@ function Sidebar({ collapsed, onToggle, currentPageName, navGroups, newBriefCoun
       {/* Bottom: user info + logout */}
       <div className="shrink-0 px-2 pb-4 pt-3"       style={{ borderTop: '1px solid hsl(var(--border))' }}>
         {(!collapsed || isMobile) && user && (
-          <div className="px-3 pb-3">
+          <Link to="/Profile" className="block px-3 pb-3 rounded-lg transition-colors" title="Edit your profile"
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(29,66,138,0.07)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+          >
             <p className="text-xs font-semibold truncate" style={{ color: '#1D2B47' }}>{user.full_name}</p>
             <p className="text-xs truncate" style={{ color: '#9CA3AF' }}>{user.email}</p>
-          </div>
+          </Link>
+        )}
+        {collapsed && !isMobile && user && (
+          <Link to="/Profile" className="flex items-center justify-center py-2 rounded-lg transition-colors" title="Profile"
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(29,66,138,0.07)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+          >
+            <UserCircle className="w-4 h-4" style={{ color: '#1D428A' }} />
+          </Link>
         )}
         <button
           onClick={() => base44.auth.logout()}
@@ -233,11 +268,12 @@ export default function Layout({ children, currentPageName }) {
   const [isMobile, setIsMobile] = useState(false);
 
   const isReviewer = user?.role === 'reviewer';
+  const isUser = user?.role === 'user';
 
   useEffect(() => {
-    if (isReviewer) return;
+    if (isReviewer || isUser) return;
     base44.entities.ReportRequest.filter({ status: 'new' }).then(r => setNewBriefCount(r.length)).catch(() => {});
-  }, [isReviewer]);
+  }, [isReviewer, isUser]);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -252,7 +288,7 @@ export default function Layout({ children, currentPageName }) {
     try { localStorage.setItem('sidebar_collapsed', String(next)); } catch {}
   };
 
-  const navGroups = isReviewer ? REVIEWER_NAV : ADMIN_NAV;
+  const navGroups = isReviewer ? REVIEWER_NAV : isUser ? USER_NAV : ADMIN_NAV;
 
   return (
     <div className="flex min-h-screen bg-background">

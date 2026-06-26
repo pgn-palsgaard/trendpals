@@ -7,10 +7,11 @@
       "enum": [
         "admin",
         "user",
+        "submitter",
         "reviewer"
       ],
       "default": "user",
-      "description": "App role. 'reviewer' = external SME, gated to the review portal only."
+      "description": "App role. 'admin' = full access. 'user' = read-only access to libraries. 'submitter' = Submit Brief page only. 'reviewer' = external SME, gated to the review portal only."
     }
   }
 }
