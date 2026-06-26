@@ -1,6 +1,6 @@
 import React from 'react';
 import { base44 } from '@/api/base44Client';
-import { Mail, KeyRound, LogIn, HelpCircle, ArrowRight } from 'lucide-react';
+import { Mail, UserPlus, ShieldCheck, LogIn, HelpCircle, ArrowRight } from 'lucide-react';
 
 const STEPS = [
   {
@@ -9,14 +9,19 @@ const STEPS = [
     body: 'Look for an invitation email from Base44 (it powers TrendPals). If you don’t see it, check your spam or junk folder.',
   },
   {
-    icon: KeyRound,
-    title: 'Verify and set your password',
-    body: 'Open the link in that email. The first time, you’ll be asked to verify your email and create a secure password — this becomes your TrendPals login.',
+    icon: UserPlus,
+    title: 'Create your account',
+    body: 'Open the link in that email, then use the button below and choose “Sign up”. Enter your work email and pick a secure password — this becomes your TrendPals login.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Verify with the code',
+    body: 'We’ll email you a 6-digit verification code. Enter it on the screen to confirm your email address. The code is only valid for a few minutes, so check your inbox right away.',
   },
   {
     icon: LogIn,
     title: 'Log in',
-    body: 'Once your password is set, use the button below to sign in. From then on, you\u2019ll log in with the email and password you just created.',
+    body: 'Once verified, you’re in. From then on you’ll simply log in with the email and password you just created.',
   },
 ];
 
