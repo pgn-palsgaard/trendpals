@@ -248,7 +248,7 @@ Source metadata:
 Document content:
 ${contentForLLM}
 
-Extract 3-8 structured excerpts from this document. Each excerpt should represent a distinct market signal, customer pain point, or strategic insight relevant to an emulsifier and stabilizer supplier.
+Extract all distinct, high-relevance market intelligence excerpts from this document. Each excerpt should represent a distinct market signal, customer pain point, or strategic insight relevant to an emulsifier and stabilizer supplier. Do not limit the count to a fixed number — extract as many genuinely distinct, well-supported insights as the document contains. Dense documents may yield more than 8; thin ones may yield only 1-2. Prioritize only insights clearly supported by the text, and keep each field concise so all insights fit within the response.
 
 For each excerpt, identify:
 1. market_signal: What is the observable market trend or shift (1-2 sentences, outside-in, factual)
@@ -283,7 +283,7 @@ Return ONLY a JSON object with this structure:
             },
             body: JSON.stringify({
               model: 'claude-sonnet-4-5',
-              max_tokens: 4096,
+              max_tokens: 8192,
               messages: [{ role: 'user', content: prompt }],
             }),
           });
