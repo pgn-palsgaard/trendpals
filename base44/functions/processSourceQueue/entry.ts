@@ -33,6 +33,81 @@ function sanitizeRegions(arr) {
 const SKIP_TYPES = new Set(['gnpd']);
 const EXTRACTING_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
+// ── Phase 2C: source-level pre-extraction gate ─────────────────────────────
+// Stages a source can be in when it becomes eligible for the pre-gate. The
+// skipped_low_value transition is conditional on the prior stage being one of
+// these — never a blind flip. Confirmed against the current normal-path
+// eligibility (review_status approved + verified + pipeline_stage in this set).
+const PRE_GATE_ELIGIBLE_STAGES = ['uploaded', 'metadata_extracted', 'pre_gate_error'];
+const PRE_GATE_TEXT_CHARS = 2000;
+
+// Cheap single-shot pre-gate. Returns one of:
+//   { proceed: true|false, reason }            — valid decision
+//   { error: '<message>' }                     — call/parse failure → pre_gate_error path
+// NO silent default: a malformed or failed call returns { error }, never a proceed/skip guess.
+async function runPreGate(source, openingText) {
+  const summary = source.metadata_extraction?.summary || '';
+  const description = source.subtitle || source.notes || '';
+  const opening = (openingText || '').slice(0, PRE_GATE_TEXT_CHARS);
+
+  const prompt = `You are evaluating whether a source document should be extracted for TrendPals, an outside-in market intelligence tool for commercial teams in the food ingredients industry. TrendPals captures market signals, consumer drivers, category movements, regional expressions, and competitive activity — to help account managers prepare better customer conversations.
+Given the title, summary, and opening text below, answer:
+
+Does this source plausibly contain ANY market-intelligence signal of this kind?
+Be inclusive — uncertain → proceed. Only reject sources that are clearly off-scope (e.g. internal HR documents, equipment manuals, off-topic press releases, pure advertising, finance reports unrelated to category, regulatory filings without market content).
+Ingredient mentions are NOT required. A signal-rich, ingredient-free source is fully in scope.
+
+Title: ${source.title || 'Unknown'}
+Summary: ${summary || 'None provided'}
+Description: ${description || 'None provided'}
+Opening text (first ~${PRE_GATE_TEXT_CHARS} chars):
+${opening || 'None provided'}
+
+Return JSON: { "proceed": boolean, "reason": "one short sentence" }.`;
+
+  let usage = null;
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': Deno.env.get('ANTHROPIC_API_KEY'),
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5',
+        max_tokens: 256,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      return { error: `pre_gate API error ${res.status}: ${errText.slice(0, 200)}` };
+    }
+    const data = await res.json();
+    usage = data.usage || null;
+    const rawText = data.content?.[0]?.text || '';
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return { error: 'pre_gate: no JSON in response', usage };
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonMatch[0]);
+    } catch (parseErr) {
+      return { error: `pre_gate: malformed JSON (${parseErr.message})`, usage };
+    }
+    // Parse-time validation — proceed MUST be a real boolean, reason a string.
+    if (typeof parsed.proceed !== 'boolean') {
+      return { error: `pre_gate: invalid 'proceed' (got ${JSON.stringify(parsed.proceed)})`, usage };
+    }
+    const reason = typeof parsed.reason === 'string' && parsed.reason.trim()
+      ? parsed.reason.trim().slice(0, 300)
+      : (parsed.proceed ? 'proceed (no reason given)' : 'rejected (no reason given)');
+    return { proceed: parsed.proceed, reason, usage };
+  } catch (err) {
+    return { error: `pre_gate: ${err.message || 'network error'}`, usage };
+  }
+}
+
 // ── Excerpt verification (non-destructive) ─────────────────────────────────
 // Capture broad, promote narrow. NO excerpt is dropped — every extracted excerpt
 // is stored with a promotion_status. Only 'promoted' feeds downstream report tokens.
@@ -132,28 +207,30 @@ Deno.serve(async (req) => {
       sourcesToProcess = fetched.filter(s => {
         if (!s || SKIP_TYPES.has(s.source_type)) return false;
         if (s.excerpts?.length > 0) return false;
-        // Branch A: normal approved+verified path
+        // Branch A: normal approved+verified path. pre_gate_error is included so a
+        // transient pre-gate failure is retried (pre_gate_evaluated stays false).
         const normalPath = s.metadata_extraction?.verified === true &&
           s.review_status === 'approved' &&
-          ['uploaded', 'metadata_extracted'].includes(s.pipeline_stage);
+          ['uploaded', 'metadata_extracted', 'pre_gate_error'].includes(s.pipeline_stage);
         // Branch B: stuck-extracting recovery (no verification requirement)
         const recoveryPath = isEligibleForStuckRecovery(s);
         return normalPath || recoveryPath;
       });
       console.log(`[processSourceQueue] Requested ${sourceIds.length} IDs, found ${sourcesToProcess.length} eligible sources`);
     } else {
-      const [up, metaDone, extracting] = await Promise.all([
+      const [up, metaDone, extracting, preGateErr] = await Promise.all([
         db.entities.Source.filter({ pipeline_stage: 'uploaded' }, '-created_date', 500),
         db.entities.Source.filter({ pipeline_stage: 'metadata_extracted' }, '-created_date', 500),
         db.entities.Source.filter({ pipeline_stage: 'extracting' }, '-created_date', 100),
+        db.entities.Source.filter({ pipeline_stage: 'pre_gate_error' }, '-created_date', 200),
       ]);
-      const all = [...up, ...metaDone, ...extracting];
+      const all = [...up, ...metaDone, ...extracting, ...preGateErr];
       sourcesToProcess = all.filter(s => {
         if (!s || SKIP_TYPES.has(s.source_type)) return false;
         if (s.excerpts?.length > 0) return false;
         const normalPath = s.metadata_extraction?.verified === true &&
           s.review_status === 'approved' &&
-          ['uploaded', 'metadata_extracted'].includes(s.pipeline_stage);
+          ['uploaded', 'metadata_extracted', 'pre_gate_error'].includes(s.pipeline_stage);
         const recoveryPath = isEligibleForStuckRecovery(s);
         return normalPath || recoveryPath;
       });
@@ -209,6 +286,91 @@ Deno.serve(async (req) => {
           console.warn(`[processSourceQueue] LARGE FILE WARNING: ${source.title} (${Math.round(source.file_size / 1024 / 1024)}MB)`);
         }
 
+        // Content read is hoisted to loop scope so the pre-gate and full
+        // extraction share a single readSourceContent call (no double read).
+        let fileContent = '';
+        const readSourceText = async () => {
+          if (!(source.file_url || source.url)) return;
+          let readData;
+          try {
+            const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
+            readData = readRes?.data ?? readRes;
+          } catch (invokeErr) {
+            console.warn(`[processSourceQueue] asServiceRole invoke failed (${invokeErr.message}) — retrying via direct HTTP`);
+            const fnUrl = `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/readSourceContent`;
+            const headers = { 'Content-Type': 'application/json' };
+            for (const h of ['authorization', 'api_key', 'x-api-key', 'cookie']) {
+              const v = req.headers.get(h);
+              if (v) headers[h] = v;
+            }
+            const httpRes = await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ source_id: source.id }) });
+            if (!httpRes.ok) throw new Error(`readSourceContent HTTP ${httpRes.status}: ${(await httpRes.text()).slice(0, 200)}`);
+            readData = await httpRes.json();
+          }
+          if (readData?.ok) {
+            fileContent = readData.content || '';
+            console.log(`[processSourceQueue] Got ${fileContent.length} chars (${readData.mime_type}) for ${source.id}`);
+          } else {
+            console.warn(`[processSourceQueue] Could not read content for ${source.id}: ${readData?.error || 'unknown'}`);
+          }
+        };
+
+        // ── Phase 2C: SOURCE-LEVEL PRE-EXTRACTION GATE ─────────────────────
+        // Runs at most once per source (guarded by pre_gate_evaluated). Forward-
+        // facing: a source with pre_gate_evaluated===true skips straight to the
+        // atomic claim + extraction below. Recovery sources also skip the gate —
+        // they were already past the gate when first claimed; re-gating them would
+        // re-spend tokens and is not the recovery path's job.
+        if (source.pre_gate_evaluated !== true && !isRecovery) {
+          await readSourceText();
+          // No readable content → leave the existing 'no readable content' path
+          // (the claim+extraction block below) to mark it skipped. Don't pre-gate emptiness.
+          if (fileContent && fileContent.trim().length >= 50) {
+            const gate = await runPreGate(source, fileContent);
+
+            if (gate.error) {
+              // NO silent default. Transient error state; pre_gate_evaluated stays false.
+              // Conditional: only move INTO pre_gate_error from an eligible pre-gate stage,
+              // so a concurrent writer that already advanced the source isn't clobbered.
+              console.warn(`[processSourceQueue] PRE-GATE ERROR: ${source.id} — ${gate.error}`);
+              await db.entities.Source.updateMany(
+                { id: source.id, pipeline_stage: { $in: PRE_GATE_ELIGIBLE_STAGES } },
+                { $set: { pipeline_stage: 'pre_gate_error', processing_error: gate.error.slice(0, 500) } }
+              );
+              skipped++;
+              continue;
+            }
+
+            if (gate.proceed === false) {
+              // Conditional skip: flip → skipped_low_value ONLY if still in an eligible
+              // pre-gate stage. pre_gate_evaluated + pre_gate_reason written in the SAME
+              // atomic $set (single write, no follow-up). updated===0 → another caller
+              // already advanced it; abort silently, never blind-flip.
+              const skipRes = await db.entities.Source.updateMany(
+                { id: source.id, pipeline_stage: { $in: PRE_GATE_ELIGIBLE_STAGES }, pre_gate_evaluated: { $ne: true } },
+                { $set: { pipeline_stage: 'skipped_low_value', pre_gate_evaluated: true, pre_gate_reason: gate.reason } }
+              );
+              if (!skipRes || skipRes.updated === 0) {
+                console.log(`[processSourceQueue] PRE-GATE skip claim lost: ${source.id} — already evaluated/advanced. Aborting.`);
+              } else {
+                console.log(`[processSourceQueue] PRE-GATE → skipped_low_value: ${source.id} — ${gate.reason}`);
+              }
+              skipped++;
+              continue; // do NOT run full extraction
+            }
+
+            // proceed === true: mark evaluated (+reason) in one conditional write,
+            // conditional on pre_gate_evaluated !== true (idempotent — second caller
+            // sees updated===0 but still falls through to the atomic claim, which
+            // is itself the concurrency guard for extraction).
+            await db.entities.Source.updateMany(
+              { id: source.id, pre_gate_evaluated: { $ne: true } },
+              { $set: { pre_gate_evaluated: true, pre_gate_reason: gate.reason } }
+            );
+            console.log(`[processSourceQueue] PRE-GATE → proceed: ${source.id} — ${gate.reason}`);
+          }
+        }
+
         // ── ATOMIC CLAIM (TOCTOU fix) ──────────────────────────────────────
         // Single conditional DB op: flip pipeline_stage → 'extracting' ONLY if the
         // source is still claimable (in a pre-extraction stage). updateMany matches
@@ -219,7 +381,7 @@ Deno.serve(async (req) => {
         // empty (verified separately just below via re-fetch) to stay hermetic.
         const claimableStages = isRecovery
           ? ['extracting', 'uploaded', 'metadata_extracted', 'failed']
-          : ['uploaded', 'metadata_extracted'];
+          : ['uploaded', 'metadata_extracted', 'pre_gate_error'];
         const claimRes = await db.entities.Source.updateMany(
           { id: source.id, pipeline_stage: { $in: claimableStages } },
           { $set: { pipeline_stage: 'extracting', processing_started_at: new Date().toISOString() } }
@@ -251,30 +413,10 @@ Deno.serve(async (req) => {
         });
 
         try {
-          let fileContent = '';
-          if (source.file_url || source.url) {
-            let readData;
-            try {
-              const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
-              readData = readRes?.data ?? readRes;
-            } catch (invokeErr) {
-              console.warn(`[processSourceQueue] asServiceRole invoke failed (${invokeErr.message}) — retrying via direct HTTP`);
-              const fnUrl = `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/readSourceContent`;
-              const headers = { 'Content-Type': 'application/json' };
-              for (const h of ['authorization', 'api_key', 'x-api-key', 'cookie']) {
-                const v = req.headers.get(h);
-                if (v) headers[h] = v;
-              }
-              const httpRes = await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ source_id: source.id }) });
-              if (!httpRes.ok) throw new Error(`readSourceContent HTTP ${httpRes.status}: ${(await httpRes.text()).slice(0, 200)}`);
-              readData = await httpRes.json();
-            }
-            if (readData?.ok) {
-              fileContent = readData.content || '';
-              console.log(`[processSourceQueue] Got ${fileContent.length} chars (${readData.mime_type}) for ${source.id}`);
-            } else {
-              console.warn(`[processSourceQueue] Could not read content for ${source.id}: ${readData?.error || 'unknown'}`);
-            }
+          // Reuse the content already read for the pre-gate; only read here if the
+          // gate path was skipped (recovery / already-evaluated source).
+          if (!fileContent) {
+            await readSourceText();
           }
 
           if (!fileContent || fileContent.trim().length < 50) {

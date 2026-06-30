@@ -211,8 +211,11 @@
         "extracted",
         "gnpd_ready",
         "skipped",
+        "skipped_low_value",
+        "pre_gate_error",
         "failed"
-      ]
+      ],
+      "description": "Pipeline lifecycle stage. skipped_low_value = source rejected by the Phase 2C pre-extraction gate as off-scope (no market-intelligence signal); never re-extracted unless manually overridden. pre_gate_error = transient state when the pre-gate LLM call failed (network/parse); pre_gate_evaluated stays false and normal retry applies."
     },
     "review_status": {
       "type": "string",
@@ -221,6 +224,15 @@
         "approved",
         "rejected"
       ]
+    },
+    "pre_gate_evaluated": {
+      "type": "boolean",
+      "default": false,
+      "description": "Phase 2C: true once the source-level pre-extraction gate has run for this source. Forward-facing \u2014 defaults false for existing rows; the gate runs the next time a source becomes eligible for extraction, never on a backfill. A skipped_low_value source with pre_gate_evaluated=true is never re-extracted unless manually overridden."
+    },
+    "pre_gate_reason": {
+      "type": "string",
+      "description": "Phase 2C: the pre-gate model's one-sentence justification for its proceed/reject decision."
     },
     "failure_reason": {
       "type": "string"
