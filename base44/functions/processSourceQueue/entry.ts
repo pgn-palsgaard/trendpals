@@ -209,7 +209,34 @@ Deno.serve(async (req) => {
           console.warn(`[processSourceQueue] LARGE FILE WARNING: ${source.title} (${Math.round(source.file_size / 1024 / 1024)}MB)`);
         }
 
-        await db.entities.Source.update(source.id, { pipeline_stage: 'extracting' });
+        // ── ATOMIC CLAIM (TOCTOU fix) ──────────────────────────────────────
+        // Single conditional DB op: flip pipeline_stage → 'extracting' ONLY if the
+        // source is still claimable (in a pre-extraction stage). updateMany matches
+        // and writes atomically; updated === 0 means another caller already claimed
+        // it (or it left a claimable stage) — abort silently, no LLM spend.
+        // For a stuck-recovery source the current stage IS 'extracting', so the
+        // claim guard explicitly includes 'extracting' but ANDs on excerpts being
+        // empty (verified separately just below via re-fetch) to stay hermetic.
+        const claimableStages = isRecovery
+          ? ['extracting', 'uploaded', 'metadata_extracted', 'failed']
+          : ['uploaded', 'metadata_extracted'];
+        const claimRes = await db.entities.Source.updateMany(
+          { id: source.id, pipeline_stage: { $in: claimableStages } },
+          { $set: { pipeline_stage: 'extracting', processing_started_at: new Date().toISOString() } }
+        );
+        if (!claimRes || claimRes.updated === 0) {
+          console.log(`[processSourceQueue] CLAIM LOST: ${source.id} — another caller is processing it. Aborting silently.`);
+          skipped++;
+          continue;
+        }
+        // Defence-in-depth: re-fetch and confirm no excerpts were written by a
+        // writer that claimed-then-completed in the gap. Hermetic for the count jump.
+        const claimed = await db.entities.Source.get(source.id);
+        if (claimed?.excerpts?.length > 0) {
+          console.log(`[processSourceQueue] CLAIM STALE: ${source.id} already has ${claimed.excerpts.length} excerpts from a concurrent run. Aborting.`);
+          skipped++;
+          continue;
+        }
         const runStartedAt = new Date();
         const run = await base44.asServiceRole.entities.ProcessingRun.create({
           source_id: source.id,
