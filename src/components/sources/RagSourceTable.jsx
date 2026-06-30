@@ -124,6 +124,17 @@ export default function RagSourceTable({
   // Invariant: tabs are disjoint — sum must always equal All
   useEffect(() => { checkTabInvariant(sources, counts); }, [sources, counts]);
 
+  // Approved sources that are verified but not yet extracted (no excerpts).
+  // These can be sent straight to extraction from the Approved tab.
+  const approvedPendingCount = useMemo(() =>
+    sources.filter(s =>
+      tabFilter('approved', s) &&
+      s.pipeline_stage !== 'extracted' &&
+      s.pipeline_stage !== 'skipped' &&
+      !(s.excerpts?.length > 0)
+    ).length
+  , [sources]);
+
   const visibleRows = useMemo(() => {
     let rows = sources.filter(s => tabFilter(activeTab, s));
     if (search.trim()) {
@@ -309,6 +320,7 @@ export default function RagSourceTable({
           visibleRows={visibleRows}
           selectedIds={selectedIds}
           allQueueCount={counts.uploaded}
+          allApprovedPendingCount={approvedPendingCount}
           allFailedCount={counts.failed}
           processing={processing}
           onProcessingChange={updateProcessing}

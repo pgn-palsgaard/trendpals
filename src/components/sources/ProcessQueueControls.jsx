@@ -50,6 +50,7 @@ function ConfirmProcessModal({ count, onConfirm, onCancel }) {
  *   visibleRows: Source[]
  *   selectedIds: Set<string>
  *   allQueueCount: number     — total queue count (for "process all" when nothing selected)
+ *   allApprovedPendingCount: number — approved sources not yet extracted (Approved tab)
  *   allFailedCount: number    — total failed count
  *   processing: { active, batchDone, batchTotal, stopped }
  *   onProcessingChange: (update) => void   — merges into processing state
@@ -61,6 +62,7 @@ export default function ProcessQueueControls({
   visibleRows,
   selectedIds,
   allQueueCount,
+  allApprovedPendingCount = 0,
   allFailedCount,
   processing,
   onProcessingChange,
@@ -69,9 +71,18 @@ export default function ProcessQueueControls({
   const [showConfirm, setShowConfirm] = useState(false);
   const [pendingIds, setPendingIds] = useState(null); // null = all
 
-  // ── Queue tab — "Process" button ──────────────────────────────────────────
+  // ── Process button (Queue tab + Approved tab) ─────────────────────────────
+  // On the Approved tab, when nothing is selected, target every approved source
+  // that hasn't been extracted yet (pipeline_stage !== 'extracted', no excerpts).
+  const approvedPendingIds = visibleRows
+    .filter(s => s.pipeline_stage !== 'extracted' && !(s.excerpts?.length > 0))
+    .map(s => s.id);
+
   const handleProcessClick = () => {
-    const ids = selectedIds.size > 0 ? [...selectedIds] : null;
+    let ids = selectedIds.size > 0 ? [...selectedIds] : null;
+    // On the Approved tab there is no 'uploaded'-stage fallback — explicitly pass
+    // the pending approved IDs so the server processes the metadata_extracted ones.
+    if (!ids && activeTab === 'approved') ids = approvedPendingIds;
     setPendingIds(ids);
     setShowConfirm(true);
   };
@@ -185,6 +196,23 @@ export default function ProcessQueueControls({
             <span className="text-sm text-slate-500">
               Batch {processing.batchDone} of {processing.batchTotal} running…
             </span>
+          )}
+        </div>
+      )}
+
+      {/* Approved tab action — extract approved sources that aren't extracted yet */}
+      {activeTab === 'approved' && allApprovedPendingCount > 0 && (
+        <div className="flex items-center gap-3">
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 gap-2"
+            disabled={processing.active}
+            onClick={handleProcessClick}
+          >
+            {processing.active ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            Process {selectedIds.size > 0 ? selectedIds.size : allApprovedPendingCount} approved source{(selectedIds.size > 0 ? selectedIds.size : allApprovedPendingCount) !== 1 ? 's' : ''}
+          </Button>
+          {processing.active && (
+            <span className="text-sm text-slate-500">Batch {processing.batchDone} of {processing.batchTotal} running…</span>
           )}
         </div>
       )}
