@@ -286,11 +286,35 @@
           },
           "relevance_score": {
             "type": "number",
-            "description": "0-100: how relevant this excerpt is to Palsgaard emulsifier/stabilizer business and sales/trend-report use. Excerpts below the configured threshold are dropped at extraction time and never stored."
+            "description": "0-100: commercial market-signal value for TrendPals (category movement, consumer driver, regional expression, competitive activity). Ingredient presence neither raises nor lowers this score."
           },
           "quality_score": {
             "type": "number",
-            "description": "0-100: how well the source document text supports this excerpt. Excerpts below the configured threshold are dropped at extraction time."
+            "description": "0-100: specificity and evidence strength of the excerpt itself (concrete claim, figure, named brand/launch/region, quoted statistic vs. boilerplate/filler)."
+          },
+          "signal_type": {
+            "type": "string",
+            "enum": [
+              "consumer_driver",
+              "category_movement",
+              "regional_expression",
+              "competitive_activity",
+              "other"
+            ],
+            "description": "The kind of market signal this excerpt carries. Locked enum. Unknown/missing at write-time normalizes to 'other'."
+          },
+          "promotion_status": {
+            "type": "string",
+            "enum": [
+              "promoted",
+              "demoted",
+              "pending_review"
+            ],
+            "description": "Non-destructive verification result. promoted = clears both thresholds and feeds downstream report context. demoted = stored but below threshold, excluded from report context. pending_review = score missing/out-of-range, needs human review. Only 'promoted' excerpts feed report token spend."
+          },
+          "promotion_reason": {
+            "type": "string",
+            "description": "Short machine-written explanation of the promotion_status decision (e.g. 'promoted', 'quality below threshold (52 < 65)', 'score missing or out of range')."
           },
           "source_quote": {
             "type": "string"

@@ -33,11 +33,34 @@ function sanitizeRegions(arr) {
 const SKIP_TYPES = new Set(['gnpd']);
 const EXTRACTING_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 
-// ── Excerpt quality/relevance gate ─────────────────────────────────────────
-// Excerpts below BOTH bars are discarded before storage, so they never consume
-// downstream report tokens. Tunable per-call via the request body.
-const DEFAULT_MIN_RELEVANCE = 60; // 0-100: how relevant to Palsgaard's emulsifier/stabilizer business
-const DEFAULT_MIN_QUALITY = 55;   // 0-100: how well the source text supports the insight
+// ── Excerpt verification (non-destructive) ─────────────────────────────────
+// Capture broad, promote narrow. NO excerpt is dropped — every extracted excerpt
+// is stored with a promotion_status. Only 'promoted' feeds downstream report tokens.
+//   QUALITY_MIN — HARD bar: boilerplate suppression is safe.
+//   RELEVANCE_MIN — SOFT bar: protect signal-light-but-quality-high excerpts.
+// Tunable per-call via qualityMin / relevanceMin in the request body.
+const DEFAULT_QUALITY_MIN = 65;    // HARD
+const DEFAULT_RELEVANCE_MIN = 35;  // SOFT
+
+const SIGNAL_TYPES = new Set(['consumer_driver', 'category_movement', 'regional_expression', 'competitive_activity', 'other']);
+
+// Classify an excerpt's promotion_status non-destructively. Never deletes.
+function classifyExcerpt(e, qualityMin, relevanceMin) {
+  const rel = Number(e.relevance_score);
+  const qual = Number(e.quality_score);
+  const inRange = (n) => Number.isFinite(n) && n >= 0 && n <= 100;
+  if (!inRange(rel) || !inRange(qual)) {
+    return { promotion_status: 'pending_review', promotion_reason: 'score missing or out of range' };
+  }
+  if (qual < qualityMin) {
+    return { promotion_status: 'demoted', promotion_reason: `quality below threshold (${qual} < ${qualityMin})` };
+  }
+  if (rel < relevanceMin) {
+    return { promotion_status: 'demoted', promotion_reason: `relevance below threshold (${rel} < ${relevanceMin})` };
+  }
+  return { promotion_status: 'promoted', promotion_reason: 'promoted' };
+}
+
 const MAX_RETRIES = 3;
 // CL-18: separate cap for stuck-extracting recovery — never mixes semantics with retry_count
 const MAX_STUCK_RECOVERIES = 2;
@@ -83,9 +106,9 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
-    let { sourceIds, batchSize = 5, delaySeconds = 45, minRelevance, minQuality } = body;
-    const MIN_RELEVANCE = Number.isFinite(minRelevance) ? minRelevance : DEFAULT_MIN_RELEVANCE;
-    const MIN_QUALITY = Number.isFinite(minQuality) ? minQuality : DEFAULT_MIN_QUALITY;
+    let { sourceIds, batchSize = 5, delaySeconds = 45, qualityMin, relevanceMin } = body;
+    const QUALITY_MIN = Number.isFinite(qualityMin) ? qualityMin : DEFAULT_QUALITY_MIN;
+    const RELEVANCE_MIN = Number.isFinite(relevanceMin) ? relevanceMin : DEFAULT_RELEVANCE_MIN;
 
     // Entity automation payload (Source update: verified + approved + uploaded)
     let isAutomation = false;
@@ -152,6 +175,8 @@ Deno.serve(async (req) => {
     let skipped = 0;
     let processedCount = 0;
     let timedOut = false;
+    const promotionTotals = { promoted: 0, demoted: 0, pending_review: 0 };
+    const perSourceCounts = [];
 
     const TIME_BUDGET_MS = 140000;
     const startTime = Date.now();
@@ -244,7 +269,7 @@ Deno.serve(async (req) => {
             ? fileContent.slice(0, MAX_CHARS) + '\n\n[Content truncated for token limits]'
             : fileContent;
 
-          const prompt = `You are a market intelligence processor for an emulsifier and stabilizer supplier. Extract structured market intelligence excerpts from the following document.
+          const prompt = `You are an outside-in market intelligence processor for TrendPals, a commercial signal tool used by account managers and category teams preparing customer conversations. Extract structured market intelligence excerpts that surface category movements, consumer drivers, regional expressions, and competitive activity.
 
 Source metadata:
 - Title: ${source.title || 'Unknown'}
@@ -310,45 +335,47 @@ Return ONLY a JSON object with this structure:
 
           const rawExcerpts = result?.excerpts || [];
 
-          // Quality/relevance gate — drop weak excerpts before they ever get stored,
-          // so they never consume downstream report tokens.
-          const passedRaw = rawExcerpts.filter(e => {
-            const rel = Number(e.relevance_score);
-            const qual = Number(e.quality_score);
-            // Missing scores are treated as below-bar (don't silently keep unscored excerpts).
-            if (!Number.isFinite(rel) || !Number.isFinite(qual)) return false;
-            return rel >= MIN_RELEVANCE && qual >= MIN_QUALITY;
-          });
-          const droppedCount = rawExcerpts.length - passedRaw.length;
-          if (droppedCount > 0) {
-            console.log(`[processSourceQueue] ${source.id} — dropped ${droppedCount}/${rawExcerpts.length} excerpts below threshold (rel≥${MIN_RELEVANCE}, qual≥${MIN_QUALITY})`);
-          }
-
-          const excerpts = passedRaw.map((e, i) => ({
-            ...e,
-            id: `${source.id}_exc_${Date.now()}_${i}`,
-            relevance_score: Number(e.relevance_score),
-            quality_score: Number(e.quality_score),
-            category_relevance: validateCategoryArray(e.category_relevance, source.id, base44.asServiceRole),
-            regions: sanitizeRegions(e.regions),
-          }));
-
-          // A document with content but no excerpts clearing the bar is a valid outcome
-          // (low-relevance source) — mark it extracted with 0, not failed.
+          // A document with content but no excerpts at all is a likely rate-limit/empty
+          // response — treat as a failure so it retries. (Distinct from "all demoted".)
           if (rawExcerpts.length === 0) {
             throw new Error('LLM returned 0 excerpts — likely a rate limit or empty response');
           }
 
+          // Non-destructive verification: classify EVERY excerpt, store all of them.
+          // Filtering = promotion_status, never deletion. Only 'promoted' feeds reports.
+          const tsNow = Date.now();
+          const excerpts = rawExcerpts.map((e, i) => {
+            const cls = classifyExcerpt(e, QUALITY_MIN, RELEVANCE_MIN);
+            const sig = SIGNAL_TYPES.has(e.signal_type) ? e.signal_type : 'other';
+            return {
+              ...e,
+              id: `${source.id}_exc_${tsNow}_${i}`,
+              relevance_score: Number.isFinite(Number(e.relevance_score)) ? Number(e.relevance_score) : null,
+              quality_score: Number.isFinite(Number(e.quality_score)) ? Number(e.quality_score) : null,
+              signal_type: sig,
+              promotion_status: cls.promotion_status,
+              promotion_reason: cls.promotion_reason,
+              category_relevance: validateCategoryArray(e.category_relevance, source.id, base44.asServiceRole),
+              regions: sanitizeRegions(e.regions),
+            };
+          });
+
+          const counts = { promoted: 0, demoted: 0, pending_review: 0 };
+          for (const e of excerpts) counts[e.promotion_status]++;
+          promotionTotals.promoted += counts.promoted;
+          promotionTotals.demoted += counts.demoted;
+          promotionTotals.pending_review += counts.pending_review;
+          perSourceCounts.push({ source_id: source.id, ...counts });
+          console.log(`[processSourceQueue] ${source.id} — verified ${excerpts.length} excerpts:`, counts);
+
           await db.entities.Source.update(source.id, {
             pipeline_stage: 'extracted',
             excerpts,
-            rag_excerpt_count: excerpts.length,
+            rag_excerpt_count: counts.promoted,
             ai_summary: result?.ai_summary || '',
             processing_completed_at: new Date().toISOString(),
             processing_error: null,
-            skip_reason: excerpts.length === 0
-              ? `all_excerpts_below_threshold (rel≥${MIN_RELEVANCE}, qual≥${MIN_QUALITY})`
-              : null,
+            skip_reason: null,
             failure_reason: null,
           });
 
@@ -425,6 +452,8 @@ Return ONLY a JSON object with this structure:
       remaining: remainingSources.length,
       remaining_ids: remainingSources.map(s => s.id),
       timed_out: timedOut,
+      promotion_totals: promotionTotals,
+      per_source_counts: perSourceCounts,
     };
     console.log('[processSourceQueue] Done:', summary);
     return Response.json(summary);
