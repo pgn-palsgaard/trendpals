@@ -42,9 +42,13 @@ const PRE_GATE_ELIGIBLE_STAGES = ['uploaded', 'metadata_extracted', 'pre_gate_er
 const PRE_GATE_TEXT_CHARS = 2000;
 
 // Cheap single-shot pre-gate. Returns one of:
-//   { proceed: true|false, reason }            — valid decision
-//   { error: '<message>' }                     — call/parse failure → pre_gate_error path
+//   { proceed: true|false, confidence: 'high'|'low', reason }   — valid decision
+//   { error: '<message>' }                                      — call/parse failure → pre_gate_error path
 // NO silent default: a malformed or failed call returns { error }, never a proceed/skip guess.
+// confidence only steers a proceed:false outcome:
+//   proceed:false + high → skipped_low_value (permanent skip)
+//   proceed:false + low  → pre_gate_review (flagged for human review, not permanent)
+// Missing/invalid confidence on a proceed:false is treated as 'low' (safe default).
 async function runPreGate(source, openingText) {
   const summary = source.metadata_extraction?.summary || '';
   const description = source.subtitle || source.notes || '';
@@ -57,13 +61,21 @@ Does this source plausibly contain ANY market-intelligence signal of this kind?
 Be inclusive — uncertain → proceed. Only reject sources that are clearly off-scope (e.g. internal HR documents, equipment manuals, off-topic press releases, pure advertising, finance reports unrelated to category, regulatory filings without market content).
 Ingredient mentions are NOT required. A signal-rich, ingredient-free source is fully in scope.
 
+When returning proceed: false, also assess your confidence:
+
+"high" — you are certain this source has no market-intelligence value (e.g. equipment manual, HR policy, unrelated regulatory filing, pure advertising with zero category content). The source will be permanently skipped.
+"low" — you lean toward no, but the source might contain some signal that isn't obvious from the title and opening text. The source will be flagged for human review, not permanently skipped.
+
+When in doubt between high and low, choose low. A false "high" permanently loses a source; a false "low" only adds one item to a review queue.
+When returning proceed: true, set confidence to "high" (the field is required but has no behavioural effect on proceed:true).
+
 Title: ${source.title || 'Unknown'}
 Summary: ${summary || 'None provided'}
 Description: ${description || 'None provided'}
 Opening text (first ~${PRE_GATE_TEXT_CHARS} chars):
 ${opening || 'None provided'}
 
-Return JSON: { "proceed": boolean, "reason": "one short sentence" }.`;
+Return JSON: { "proceed": boolean, "confidence": "high" | "low", "reason": "one short sentence" }.`;
 
   let usage = null;
   try {
@@ -102,7 +114,10 @@ Return JSON: { "proceed": boolean, "reason": "one short sentence" }.`;
     const reason = typeof parsed.reason === 'string' && parsed.reason.trim()
       ? parsed.reason.trim().slice(0, 300)
       : (parsed.proceed ? 'proceed (no reason given)' : 'rejected (no reason given)');
-    return { proceed: parsed.proceed, reason, usage };
+    // Missing/invalid confidence on a proceed:false is the safe default 'low'
+    // (flag for review, never permanent-skip on malformed output).
+    const confidence = parsed.confidence === 'high' ? 'high' : 'low';
+    return { proceed: parsed.proceed, confidence, reason, usage };
   } catch (err) {
     return { error: `pre_gate: ${err.message || 'network error'}`, usage };
   }
@@ -342,18 +357,21 @@ Deno.serve(async (req) => {
             }
 
             if (gate.proceed === false) {
-              // Conditional skip: flip → skipped_low_value ONLY if still in an eligible
-              // pre-gate stage. pre_gate_evaluated + pre_gate_reason written in the SAME
-              // atomic $set (single write, no follow-up). updated===0 → another caller
-              // already advanced it; abort silently, never blind-flip.
+              // Confidence split:
+              //   high → skipped_low_value (permanent skip unless manually overridden)
+              //   low  → pre_gate_review (flagged for human review, not permanently skipped)
+              // Either way pre_gate_evaluated=true is written in the SAME atomic $set, so
+              // the gate never re-runs. Conditional on an eligible stage + not-yet-evaluated;
+              // updated===0 → another caller already advanced it; abort silently.
+              const targetStage = gate.confidence === 'high' ? 'skipped_low_value' : 'pre_gate_review';
               const skipRes = await db.entities.Source.updateMany(
                 { id: source.id, pipeline_stage: { $in: PRE_GATE_ELIGIBLE_STAGES }, pre_gate_evaluated: { $ne: true } },
-                { $set: { pipeline_stage: 'skipped_low_value', pre_gate_evaluated: true, pre_gate_reason: gate.reason } }
+                { $set: { pipeline_stage: targetStage, pre_gate_evaluated: true, pre_gate_reason: gate.reason } }
               );
               if (!skipRes || skipRes.updated === 0) {
-                console.log(`[processSourceQueue] PRE-GATE skip claim lost: ${source.id} — already evaluated/advanced. Aborting.`);
+                console.log(`[processSourceQueue] PRE-GATE reject claim lost: ${source.id} — already evaluated/advanced. Aborting.`);
               } else {
-                console.log(`[processSourceQueue] PRE-GATE → skipped_low_value: ${source.id} — ${gate.reason}`);
+                console.log(`[processSourceQueue] PRE-GATE → ${targetStage} (confidence=${gate.confidence}): ${source.id} — ${gate.reason}`);
               }
               skipped++;
               continue; // do NOT run full extraction

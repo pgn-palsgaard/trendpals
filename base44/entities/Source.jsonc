@@ -212,10 +212,11 @@
         "gnpd_ready",
         "skipped",
         "skipped_low_value",
+        "pre_gate_review",
         "pre_gate_error",
         "failed"
       ],
-      "description": "Pipeline lifecycle stage. skipped_low_value = source rejected by the Phase 2C pre-extraction gate as off-scope (no market-intelligence signal); never re-extracted unless manually overridden. pre_gate_error = transient state when the pre-gate LLM call failed (network/parse); pre_gate_evaluated stays false and normal retry applies."
+      "description": "Pipeline lifecycle stage. skipped_low_value = source rejected by the Phase 2C pre-extraction gate with HIGH confidence as off-scope (no market-intelligence signal); never re-extracted unless manually overridden. pre_gate_review = source the pre-gate rejected with LOW confidence (proceed:false but might still hold signal); NOT extracted and NOT permanently skipped \u2014 flagged for human review. pre_gate_evaluated is set true for both. pre_gate_error = transient state when the pre-gate LLM call failed (network/parse); pre_gate_evaluated stays false and normal retry applies."
     },
     "review_status": {
       "type": "string",
