@@ -32,6 +32,12 @@ function sanitizeRegions(arr) {
 
 const SKIP_TYPES = new Set(['gnpd']);
 const EXTRACTING_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+// ── Excerpt quality/relevance gate ─────────────────────────────────────────
+// Excerpts below BOTH bars are discarded before storage, so they never consume
+// downstream report tokens. Tunable per-call via the request body.
+const DEFAULT_MIN_RELEVANCE = 60; // 0-100: how relevant to Palsgaard's emulsifier/stabilizer business
+const DEFAULT_MIN_QUALITY = 55;   // 0-100: how well the source text supports the insight
 const MAX_RETRIES = 3;
 // CL-18: separate cap for stuck-extracting recovery — never mixes semantics with retry_count
 const MAX_STUCK_RECOVERIES = 2;
@@ -77,7 +83,9 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json().catch(() => ({}));
-    let { sourceIds, batchSize = 5, delaySeconds = 45 } = body;
+    let { sourceIds, batchSize = 5, delaySeconds = 45, minRelevance, minQuality } = body;
+    const MIN_RELEVANCE = Number.isFinite(minRelevance) ? minRelevance : DEFAULT_MIN_RELEVANCE;
+    const MIN_QUALITY = Number.isFinite(minQuality) ? minQuality : DEFAULT_MIN_QUALITY;
 
     // Entity automation payload (Source update: verified + approved + uploaded)
     let isAutomation = false;
@@ -248,7 +256,7 @@ Source metadata:
 Document content:
 ${contentForLLM}
 
-Extract all distinct, high-relevance market intelligence excerpts from this document. Each excerpt should represent a distinct market signal, customer pain point, or strategic insight relevant to an emulsifier and stabilizer supplier. Do not limit the count to a fixed number — extract as many genuinely distinct, well-supported insights as the document contains. Dense documents may yield more than 8; thin ones may yield only 1-2. Prioritize only insights clearly supported by the text, and keep each field concise so all insights fit within the response.
+Extract ONLY market intelligence excerpts that are genuinely useful for Palsgaard — a supplier of emulsifiers and stabilizers to food manufacturers. The purpose is to support customer-facing trend reports and sales conversations. Do NOT pad the list: a thin or off-topic document may legitimately yield 0-2 excerpts. Quality over quantity — every excerpt you return must clear a relevance and quality bar (see scores below). Skip generic market commentary, non-food content, and insights with no plausible connection to emulsifier/stabilizer applications (texture, mouthfeel, shelf-life, stability, fat reduction, plant-based formulation, clean label, processing efficiency, etc.).
 
 For each excerpt, identify:
 1. market_signal: What is the observable market trend or shift (1-2 sentences, outside-in, factual)
@@ -257,10 +265,12 @@ For each excerpt, identify:
 4. has_direct_role: true if emulsifier/stabilizer expertise can directly help, false if it's general market context
 5. capability_area: One of: sustainability, texture_quality, cost_efficiency, compliance_regulatory, new_product_development, food_safety, supply_chain, plant_based, general
 6. confidence: high/medium/low based on how clearly the source supports this excerpt
-7. source_quote: A verbatim quote from the document (max 200 chars)
-8. category_relevance: Array of canonical Palsgaard solution keys (e.g. ["ice_cream", "bakery"]). Valid values: bakery, condiments, chocolate_confectionery, dairy, ice_cream, meat, oils_fats, plant_based, rutf_rusf, out_of_scope, needs_human_review. For cross-category sources, populate all relevant keys — do NOT use needs_human_review when the source legitimately spans multiple categories; instead return multiple canonical keys.
-9. trend_keywords: Array of 3-5 keyword phrases from this excerpt
-10. regions: Array of canonical region keys mentioned or implied in this excerpt. Use ONLY these keys: aspac, europe, north_america, latam, mena, sub_saharan_africa.
+7. relevance_score: Integer 0-100. How relevant is this insight to Palsgaard's emulsifier/stabilizer business and a sales/trend-report use case? 0 = no connection (generic news, non-food, unrelated category), 100 = directly actionable for an emulsifier/stabilizer supplier. Be strict — most generic market chatter scores below 60.
+8. quality_score: Integer 0-100. How well does the actual document text support this insight? 0 = speculative/unsupported, 100 = explicitly stated with concrete evidence (data, named example, clear claim). Be strict — do not reward vague paraphrasing.
+9. source_quote: A verbatim quote from the document (max 200 chars)
+10. category_relevance: Array of canonical Palsgaard solution keys (e.g. ["ice_cream", "bakery"]). Valid values: bakery, condiments, chocolate_confectionery, dairy, ice_cream, meat, oils_fats, plant_based, rutf_rusf, out_of_scope, needs_human_review. For cross-category sources, populate all relevant keys — do NOT use needs_human_review when the source legitimately spans multiple categories; instead return multiple canonical keys.
+11. trend_keywords: Array of 3-5 keyword phrases from this excerpt
+12. regions: Array of canonical region keys mentioned or implied in this excerpt. Use ONLY these keys: aspac, europe, north_america, latam, mena, sub_saharan_africa.
    Rules:
    - If the excerpt explicitly mentions a region or country, tag the corresponding region key.
    - If the excerpt mentions a country, map it to its region (e.g. "Japan" → aspac, "Brazil" → latam, "Germany" → europe, "USA" → north_america, "UAE" → mena, "Nigeria" → sub_saharan_africa).
@@ -297,14 +307,34 @@ Return ONLY a JSON object with this structure:
           if (!jsonMatch) throw new Error('No JSON found in Anthropic response');
           const result = JSON.parse(jsonMatch[0]);
 
-          const excerpts = (result?.excerpts || []).map((e, i) => ({
+          const rawExcerpts = result?.excerpts || [];
+
+          // Quality/relevance gate — drop weak excerpts before they ever get stored,
+          // so they never consume downstream report tokens.
+          const passedRaw = rawExcerpts.filter(e => {
+            const rel = Number(e.relevance_score);
+            const qual = Number(e.quality_score);
+            // Missing scores are treated as below-bar (don't silently keep unscored excerpts).
+            if (!Number.isFinite(rel) || !Number.isFinite(qual)) return false;
+            return rel >= MIN_RELEVANCE && qual >= MIN_QUALITY;
+          });
+          const droppedCount = rawExcerpts.length - passedRaw.length;
+          if (droppedCount > 0) {
+            console.log(`[processSourceQueue] ${source.id} — dropped ${droppedCount}/${rawExcerpts.length} excerpts below threshold (rel≥${MIN_RELEVANCE}, qual≥${MIN_QUALITY})`);
+          }
+
+          const excerpts = passedRaw.map((e, i) => ({
             ...e,
             id: `${source.id}_exc_${Date.now()}_${i}`,
+            relevance_score: Number(e.relevance_score),
+            quality_score: Number(e.quality_score),
             category_relevance: validateCategoryArray(e.category_relevance, source.id, base44.asServiceRole),
             regions: sanitizeRegions(e.regions),
           }));
 
-          if (excerpts.length === 0) {
+          // A document with content but no excerpts clearing the bar is a valid outcome
+          // (low-relevance source) — mark it extracted with 0, not failed.
+          if (rawExcerpts.length === 0) {
             throw new Error('LLM returned 0 excerpts — likely a rate limit or empty response');
           }
 
@@ -315,7 +345,9 @@ Return ONLY a JSON object with this structure:
             ai_summary: result?.ai_summary || '',
             processing_completed_at: new Date().toISOString(),
             processing_error: null,
-            skip_reason: null,
+            skip_reason: excerpts.length === 0
+              ? `all_excerpts_below_threshold (rel≥${MIN_RELEVANCE}, qual≥${MIN_QUALITY})`
+              : null,
             failure_reason: null,
           });
 

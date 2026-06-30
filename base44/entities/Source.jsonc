@@ -284,6 +284,14 @@
               "low"
             ]
           },
+          "relevance_score": {
+            "type": "number",
+            "description": "0-100: how relevant this excerpt is to Palsgaard emulsifier/stabilizer business and sales/trend-report use. Excerpts below the configured threshold are dropped at extraction time and never stored."
+          },
+          "quality_score": {
+            "type": "number",
+            "description": "0-100: how well the source document text supports this excerpt. Excerpts below the configured threshold are dropped at extraction time."
+          },
           "source_quote": {
             "type": "string"
           },
