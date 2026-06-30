@@ -31,7 +31,13 @@ async function getExcerptsForProject(base44, project) {
   const allExcerpts = [];
   for (const ks of allKnowledge) {
     if (!ks.excerpts || ks.excerpts.length === 0) continue;
-    for (const ex of ks.excerpts) {
+    // Only promoted excerpts feed report context. Demoted / pending_review must never reach the report.
+    const promotedExcerpts = ks.excerpts.filter(ex => ex.promotion_status === 'promoted');
+    if (promotedExcerpts.length === 0) {
+      console.log(`[generateReport] Knowledge source "${ks.title}" (${ks.id}) has 0 promoted excerpts — skipping its excerpt contribution`);
+      continue;
+    }
+    for (const ex of promotedExcerpts) {
       const relevantCategories = ex.category_relevance || [];
       const isRelevant =
         relevantCategories.length === 0 ||
@@ -154,7 +160,13 @@ Deno.serve(async (req) => {
     const mintelExcerpts = [];
     sources.forEach(source => {
       if (source.source_type === 'mintel' && source.excerpts?.length > 0) {
-        source.excerpts.slice(0, 8).forEach(ex => {
+        // Only promoted excerpts feed supporting_data. Demoted / pending_review excluded.
+        const promoted = source.excerpts.filter(ex => ex.promotion_status === 'promoted');
+        if (promoted.length === 0) {
+          console.log(`[generateReport] Mintel source "${source.title}" (${source.id}) has 0 promoted excerpts — skipping supporting_data contribution`);
+          return;
+        }
+        promoted.slice(0, 8).forEach(ex => {
           mintelExcerpts.push({
             market_signal: ex.market_signal || ex.text || '',
             source_quote: ex.source_quote || '',
@@ -243,7 +255,13 @@ ${candidate.project_notes ? `Project notes: ${candidate.project_notes}` : ''}`;
     const allSourceQuotes = [];
     sources.forEach(source => {
       if (source.excerpts?.length > 0) {
-        source.excerpts.forEach(ex => {
+        // Only promoted excerpts feed source-quote grounding. Demoted / pending_review excluded.
+        const promoted = source.excerpts.filter(ex => ex.promotion_status === 'promoted');
+        if (promoted.length === 0) {
+          console.log(`[generateReport] Source "${source.title}" (${source.id}) has 0 promoted excerpts — skipping source-quote contribution`);
+          return;
+        }
+        promoted.forEach(ex => {
           if (ex.source_quote && ex.source_quote.trim().length > 0) {
             allSourceQuotes.push({
               quote: ex.source_quote,
