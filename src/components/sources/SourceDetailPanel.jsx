@@ -240,10 +240,17 @@ export default function SourceDetailPanel({ sourceId, onClose, onRefresh }) {
   };
 
   const handleRetry = async () => {
+    // Clearing excerpts is essential: processSourceQueue silently skips any source
+    // whose excerpts[] is non-empty, so a reset that keeps old excerpts never re-extracts.
     await base44.entities.Source.update(sourceId, {
       pipeline_stage: 'uploaded',
+      excerpts: [],
+      rag_excerpt_count: 0,
+      pre_gate_evaluated: false,
+      pre_gate_reason: null,
       failure_reason: null,
       processing_error: null,
+      skip_reason: null,
       retry_count: (source?.retry_count || 0) + 1,
       last_retry_at: new Date().toISOString(),
     });
@@ -253,12 +260,19 @@ export default function SourceDetailPanel({ sourceId, onClose, onRefresh }) {
   };
 
   const handleResetPipeline = async (stage) => {
-    await base44.entities.Source.update(sourceId, {
+    // When resetting to a pre-extraction stage, clear stale excerpts so the queue
+    // can re-process the source (the queue skips sources that already have excerpts).
+    const reExtractStages = ['uploaded', 'metadata_extracted'];
+    const clearExcerpts = reExtractStages.includes(stage);
+    const payload = {
       pipeline_stage: stage,
       failure_reason: null,
       processing_error: null,
-    });
-    setSource(prev => ({ ...prev, pipeline_stage: stage, failure_reason: null, processing_error: null }));
+      skip_reason: null,
+      ...(clearExcerpts ? { excerpts: [], rag_excerpt_count: 0, pre_gate_evaluated: false, pre_gate_reason: null } : {}),
+    };
+    await base44.entities.Source.update(sourceId, payload);
+    setSource(prev => ({ ...prev, ...payload }));
     toast.success(`Pipeline stage set to "${stage}"`);
     onRefresh?.();
   };

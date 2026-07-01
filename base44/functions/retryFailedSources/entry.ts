@@ -28,8 +28,15 @@ Deno.serve(async (req) => {
     await Promise.all(targets.map(s =>
       base44.entities.Source.update(s.id, {
         pipeline_stage: 'uploaded',
+        // Clear stale excerpts + pre-gate flag: processSourceQueue skips any source
+        // that already has excerpts, so a reset must wipe them to allow re-extraction.
+        excerpts: [],
+        rag_excerpt_count: 0,
+        pre_gate_evaluated: false,
+        pre_gate_reason: null,
         failure_reason: null,
         processing_error: null,
+        skip_reason: null,
         last_retry_at: now,
         // retry_count intentionally preserved
       })
