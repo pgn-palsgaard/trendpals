@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { ExternalLink, Loader2, RefreshCw, Trash2, BarChart2 } from 'lucide-react';
 import { format } from 'date-fns';
+import GnpdMetadataEditor from './GnpdMetadataEditor';
 
 const MAPPING_STATUS_BADGE = {
   not_started: 'bg-slate-100 text-slate-500',
@@ -124,6 +125,16 @@ export default function GnpdDetailPanel({ sourceId, onClose, onRefresh, onDelete
                   </span>
                 </div>
               </div>
+
+              {/* Editable metadata */}
+              <GnpdMetadataEditor
+                source={source}
+                onSaved={async () => {
+                  const updated = await base44.entities.Source.filter({ id: sourceId }, null, 1);
+                  setSource(updated[0]);
+                  onRefresh?.();
+                }}
+              />
 
               {/* Column mapping */}
               <div>
