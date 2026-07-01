@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CheckCircle, Clock, AlertTriangle, XCircle, ChevronDown, ChevronRight, Lightbulb } from 'lucide-react';
 import CoverageBanner from '@/components/trendreport/CoverageBanner';
+import AIDisclaimer from '@/components/report/AIDisclaimer';
 
 import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 
@@ -74,6 +75,9 @@ export default function TrendReportSections({ report }) {
       <div className="text-xs text-slate-400 text-right">
         Generated {new Date(generated_at).toLocaleString()} — internal use only
       </div>
+
+      {/* AI disclaimer */}
+      <AIDisclaimer />
 
       {/* Coverage context */}
       <CoverageBanner coverage={coverage_assessment} />

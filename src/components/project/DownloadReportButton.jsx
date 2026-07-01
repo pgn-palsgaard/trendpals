@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Download, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { jsPDF } from 'jspdf';
+import { AI_DISCLAIMER_FULL, AI_DISCLAIMER_SHORT } from '@/lib/aiDisclaimer';
 
 export default function DownloadReportButton({ report, project, variant = "outline", size = "default", label = "Download Report PDF" }) {
   const [downloading, setDownloading] = useState(false);
@@ -47,6 +48,16 @@ export default function DownloadReportButton({ report, project, variant = "outli
       doc.setTextColor(100, 116, 139);
       doc.setFontSize(9);
       addText(`Generated ${new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`, margin, 68);
+
+      // AI disclaimer box on the cover
+      doc.setDrawColor(232, 228, 218);
+      doc.setFillColor(247, 244, 238);
+      doc.roundedRect(margin, 250, contentW, 24, 2, 2, 'FD');
+      doc.setTextColor(107, 114, 128);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'italic');
+      const discLines = doc.splitTextToSize(AI_DISCLAIMER_FULL, contentW - 8);
+      doc.text(discLines, margin + 4, 257);
 
       if (report.selected_trends?.length) {
         doc.setFontSize(10);
@@ -176,6 +187,17 @@ export default function DownloadReportButton({ report, project, variant = "outli
           }
           y += 2;
         });
+      }
+
+      // Footer disclaimer on every page
+      const pageH = doc.internal.pageSize.getHeight();
+      const totalPages = doc.internal.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        doc.setPage(p);
+        doc.setFontSize(7);
+        doc.setFont('helvetica', 'italic');
+        doc.setTextColor(148, 163, 184);
+        doc.text(AI_DISCLAIMER_SHORT, margin, pageH - 8, { maxWidth: contentW });
       }
 
       const projectName = project?.name || report.title || 'report';

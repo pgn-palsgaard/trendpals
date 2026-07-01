@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Loader2, Sparkles, Copy, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
+import { AI_DISCLAIMER_SHORT } from '@/lib/aiDisclaimer';
 
 export default function ExecutiveSummaryCard({ report }) {
   const queryClient = useQueryClient();
@@ -48,7 +49,7 @@ The summary should:
   };
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(report.executive_summary);
+    navigator.clipboard.writeText(`${report.executive_summary}\n\n— ${AI_DISCLAIMER_SHORT}`);
     toast.success('Copied to clipboard');
   };
 
@@ -82,7 +83,10 @@ The summary should:
       </CardHeader>
       <CardContent>
         {report.executive_summary ? (
-          <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{report.executive_summary}</p>
+          <>
+            <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{report.executive_summary}</p>
+            <p className="text-xs text-slate-400 italic mt-3 pt-3 border-t border-slate-100">{AI_DISCLAIMER_SHORT}</p>
+          </>
         ) : (
           <p className="text-sm text-slate-400 italic">
             No executive summary yet. Click "Generate" to create one from the slide content.

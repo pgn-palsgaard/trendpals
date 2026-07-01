@@ -9,9 +9,11 @@ import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
 import FinalReportSection from '@/components/report/FinalReportSection';
 import ExecutiveSummaryCard from '@/components/report/ExecutiveSummaryCard';
 import BriefingContextSlide from '@/components/report/BriefingContextSlide';
+import AIDisclaimer from '@/components/report/AIDisclaimer';
 
 export default function ReportView() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -79,6 +81,8 @@ export default function ReportView() {
 
     lines.push(`TRENDPALS REPORT: ${report.title}`);
     lines.push(`Category: ${report.category} | Region: ${report.region} | Date: ${date}`);
+    lines.push('');
+    lines.push(AI_DISCLAIMER_FULL);
     lines.push('');
 
     const briefing = (report.slides || []).find(s => s.slide_type === 'briefing_context');
@@ -214,6 +218,9 @@ export default function ReportView() {
             </div>
           </div>
         )}
+
+        {/* AI disclaimer — applies to everything below */}
+        <AIDisclaimer className="mb-4" />
 
         {/* Report Header */}
         <Card className="mb-6">

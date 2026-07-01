@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ChevronDown, ChevronRight, Star, Layers } from 'lucide-react';
 import TrendReportSections from '@/components/trendreport/TrendReportSections';
+import AIDisclaimer from '@/components/report/AIDisclaimer';
 
 const THEME_COLORS = {
   sage:      { bg: '#6F8263' },
@@ -56,6 +57,9 @@ export default function ThemeReportSections({ report }) {
       <div className="text-xs text-slate-400 text-right">
         Generated {new Date(generated_at).toLocaleString()} — internal use only
       </div>
+
+      {/* AI disclaimer */}
+      <AIDisclaimer />
 
       {/* Theme header band */}
       <div className="rounded-xl overflow-hidden shadow-sm">

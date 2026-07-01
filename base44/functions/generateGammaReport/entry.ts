@@ -182,25 +182,35 @@ DESIGN PRINCIPLES:
       prompt += `\n---\n\n`;
     }
 
+    const AI_DISCLAIMER = 'This deck was generated with the assistance of AI and may contain errors or omissions. Review and verify all information before sharing externally or acting on it.';
+
     // Call Claude via InvokeLLM
     const claudeResponse = await base44.integrations.Core.InvokeLLM({
       model: 'claude_sonnet_4_6',
       prompt: `You are a senior B2B market intelligence specialist at Palsgaard. Based on the following report content, produce a refined, polished, presentation-ready version of this deck in markdown format. Structure it clearly with slides separated by ---. Make the language punchy, insight-driven, and commercially relevant. Do not invent any new facts — only use what is provided. Palsgaard sections must mention capabilities only, no product grades.
 
+Add a final slide (separated by ---) titled "Disclaimer" whose only content is this exact sentence: "${AI_DISCLAIMER}"
+
 ${prompt}`,
     });
+
+    // Guarantee the disclaimer is present even if the model omits it.
+    const claudeText = typeof claudeResponse === 'string' ? claudeResponse : JSON.stringify(claudeResponse);
+    const finalDeck = claudeText.includes('assistance of AI')
+      ? claudeText
+      : `${claudeText}\n\n---\n\n## Disclaimer\n\n*${AI_DISCLAIMER}*\n`;
 
     // Store the Claude output as the "gamma_prompt" for audit, and use gamma_url to signal completion
     await base44.asServiceRole.entities.Report.update(report_id, {
       gamma_url: 'claude_generated',
       gamma_pdf_url: null,
       gamma_pptx_url: null,
-      gamma_prompt: typeof claudeResponse === 'string' ? claudeResponse : JSON.stringify(claudeResponse)
+      gamma_prompt: finalDeck
     });
 
     return Response.json({ 
       success: true,
-      output: typeof claudeResponse === 'string' ? claudeResponse : JSON.stringify(claudeResponse)
+      output: finalDeck
     });
 
   } catch (error) {
