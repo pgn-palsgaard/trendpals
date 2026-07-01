@@ -392,23 +392,35 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
     return { skipped: true, reason: 'not eligible stage', pipeline_stage: source.pipeline_stage };
   }
 
-  if (!source.file_url) throw new Error('Source has no file_url');
-
   // Load column mapping from GNPDColumnMapping entity
   const mappingRecords = await base44.asServiceRole.entities.GNPDColumnMapping.filter({ source_id: sourceId });
   const colMap = mappingRecords.length > 0 ? (mappingRecords[0].mappings || {}) : (source.gnpd_column_mapping || {});
 
-  // Fetch and parse file (XLSX or HTML) — sign private URLs
-  let fetchUrl = source.file_url;
-  try {
-    const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: source.file_url, expires_in: 300 });
-    if (signed?.signed_url) fetchUrl = signed.signed_url;
-  } catch (_) { /* public file — use original URL */ }
-  const fileResponse = await fetch(fetchUrl);
-  if (!fileResponse.ok) throw new Error(`Failed to fetch file: ${fileResponse.status}`);
-  const fileBuffer = await fileResponse.arrayBuffer();
-  const { rows, isHtml } = await parseRows(fileBuffer, source.file_url);
-  if (rows.length === 0) throw new Error('No rows parsed from file');
+  // Prefer the clean, pre-parsed rows stored on the source at upload time.
+  // Re-fetching the raw XLSX is unreliable: some GNPD exports carry banner rows
+  // above the real header (e.g. "Search details"), which makes sheet_to_json
+  // mis-detect the header and yields __EMPTY columns → every row skipped, 0 created.
+  // source.gnpd_data already holds the correctly-headed rows.
+  let rows;
+  let isHtml = false;
+  if (Array.isArray(source.gnpd_data) && source.gnpd_data.length > 0) {
+    rows = source.gnpd_data;
+  } else {
+    if (!source.file_url) throw new Error('Source has no file_url and no stored gnpd_data');
+    isHtml = /\.html?($|\?)/i.test(source.file_url);
+    let fetchUrl = source.file_url;
+    try {
+      const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: source.file_url, expires_in: 300 });
+      if (signed?.signed_url) fetchUrl = signed.signed_url;
+    } catch (_) { /* public file — use original URL */ }
+    const fileResponse = await fetch(fetchUrl);
+    if (!fileResponse.ok) throw new Error(`Failed to fetch file: ${fileResponse.status}`);
+    const fileBuffer = await fileResponse.arrayBuffer();
+    const parsed = await parseRows(fileBuffer, source.file_url);
+    rows = parsed.rows;
+    isHtml = parsed.isHtml;
+  }
+  if (rows.length === 0) throw new Error('No rows parsed from source');
 
   // Deduplicate
   const existing = await base44.asServiceRole.entities.GNPDProduct.filter({ source_id: sourceId }, null, 10000);
