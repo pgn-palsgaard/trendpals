@@ -18,6 +18,7 @@ import SMEReviewQueue from './pages/SMEReviewQueue';
 import TrendHub from './pages/TrendHub';
 import ReviewQueue from './pages/ReviewQueue';
 import Reports from './pages/Reports';
+import EmergingSignals from './pages/EmergingSignals';
 import ReviewerLayout from './components/layout/ReviewerLayout';
 import SMEReviewPortal from './pages/SMEReviewPortal';
 import SubmitterLayout from './components/layout/SubmitterLayout';
@@ -127,6 +128,7 @@ const AuthenticatedApp = () => {
       <Route path="/TrendHub/:trendId" element={<LayoutWrapper currentPageName="TrendHub"><TrendHub /></LayoutWrapper>} />
       <Route path="/ReviewQueue" element={<LayoutWrapper currentPageName="ReviewQueue"><ReviewQueue /></LayoutWrapper>} />
       <Route path="/Reports" element={<LayoutWrapper currentPageName="Reports"><Reports /></LayoutWrapper>} />
+      <Route path="/EmergingSignals" element={<LayoutWrapper currentPageName="EmergingSignals"><EmergingSignals /></LayoutWrapper>} />
       <Route path="/Profile" element={<LayoutWrapper currentPageName="Profile"><Profile /></LayoutWrapper>} />
       {/* Redirects for deprecated routes */}
       <Route path="/ChallengeLibrary" element={<Navigate to="/ReviewQueue" replace />} />

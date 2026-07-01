@@ -1,0 +1,155 @@
+{
+  "name": "EmergingSignalCluster",
+  "type": "object",
+  "description": "A candidate pool record \u2014 a cluster of promoted excerpts that have no home in the active trend library, i.e. an emerging market signal not yet promoted to a GlobalTrend. NOT a taxonomy record: intentionally has no is_active / is_approved / validation_status.",
+  "properties": {
+    "theme_description": {
+      "type": "string",
+      "description": "LLM-generated, 1-2 sentences describing the emerging theme."
+    },
+    "theme_short_label": {
+      "type": "string",
+      "description": "LLM-generated short headline, max 5 words, for card display."
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "bakery",
+        "condiments",
+        "chocolate_confectionery",
+        "dairy",
+        "ice_cream",
+        "meat",
+        "oils_fats",
+        "plant_based",
+        "rutf_rusf",
+        "needs_human_review"
+      ],
+      "description": "Canonical Palsgaard solution key, same enum as GlobalTrend."
+    },
+    "signal_type": {
+      "type": "string",
+      "enum": [
+        "consumer_driver",
+        "category_movement",
+        "regional_expression",
+        "competitive_activity",
+        "other"
+      ]
+    },
+    "driver_hypothesis": {
+      "type": "string",
+      "enum": [
+        "Value",
+        "Wellbeing",
+        "Surroundings",
+        "Experiences",
+        "Rights",
+        "Identity"
+      ],
+      "description": "LLM-proposed consumer driver. Hypothesis only, not authoritative."
+    },
+    "excerpt_refs": {
+      "type": "array",
+      "description": "References into Source.excerpts arrays. Excerpts are inline on Source, not standalone entities, so referenced by {source_id, excerpt_index} tuple.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "excerpt_index": {
+            "type": "number"
+          },
+          "market_signal_snippet": {
+            "type": "string"
+          },
+          "publisher": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "gnpd_product_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "GNPDProduct.id strings whose claims/format/positioning match this theme."
+    },
+    "gnpd_evidence_strength": {
+      "type": "string",
+      "enum": [
+        "strong",
+        "moderate",
+        "none"
+      ],
+      "description": "Deterministic from matching product count: 5+ strong, 2-4 moderate, 0-1 none. 'none' = written about, not yet shipping."
+    },
+    "gnpd_reasoning": {
+      "type": "string",
+      "description": "LLM-generated summary of why the matched GNPD products fit the theme."
+    },
+    "source_diversity_count": {
+      "type": "number",
+      "description": "Distinct source_ids across excerpt_refs."
+    },
+    "publisher_diversity_count": {
+      "type": "number",
+      "description": "Distinct publishers across excerpt_refs."
+    },
+    "distance_from_existing_note": {
+      "type": "string",
+      "description": "LLM-generated note on how this cluster differs from the nearest existing trend."
+    },
+    "most_similar_existing_trend_id": {
+      "type": "string",
+      "description": "GlobalTrend id of the nearest existing trend. Null if genuinely new."
+    },
+    "most_similar_existing_trend_score": {
+      "type": "number",
+      "description": "0-100 similarity to the nearest existing trend."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "emerging",
+        "promoted_to_trend",
+        "dismissed",
+        "snoozed"
+      ],
+      "default": "emerging"
+    },
+    "snoozed_until": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When a snoozed cluster re-appears. Null unless status=snoozed."
+    },
+    "promoted_to_globaltrend_id": {
+      "type": "string",
+      "description": "GlobalTrend id created via the Promote flow. Null unless status=promoted_to_trend."
+    },
+    "dismiss_reason": {
+      "type": "string",
+      "description": "Optional reason captured on Dismiss. Null unless status=dismissed."
+    },
+    "detected_in_run_id": {
+      "type": "string",
+      "description": "ProcessingJob.id of the run that detected this cluster."
+    },
+    "detected_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_refreshed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Updated when a later run re-detects the same cluster (>=60% excerpt overlap) instead of creating a duplicate."
+    }
+  },
+  "required": [
+    "theme_short_label",
+    "category",
+    "status"
+  ]
+}

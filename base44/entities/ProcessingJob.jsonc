@@ -10,7 +10,8 @@
       "type": "string",
       "enum": [
         "revalidate_trend_links",
-        "backfill_expert_examples"
+        "backfill_expert_examples",
+        "detect_emerging_signals"
       ],
       "description": "Type of long-running sweep job"
     },
@@ -48,27 +49,13 @@
     },
     "summary": {
       "type": "object",
-      "description": "Running counts of outcomes",
-      "properties": {
-        "links_rejected": {
-          "type": "number"
-        },
-        "links_upgraded_to_auto_applied": {
-          "type": "number"
-        },
-        "links_revalidated": {
-          "type": "number"
-        },
-        "examples_created": {
-          "type": "number"
-        },
-        "sources_processed": {
-          "type": "number"
-        },
-        "errors": {
-          "type": "number"
-        }
-      }
+      "description": "Running counts of outcomes. Free-form \u2014 shape varies by job_type.",
+      "additionalProperties": true
+    },
+    "dry_run_summary": {
+      "type": "object",
+      "description": "For detect_emerging_signals test runs (test_flag=true): the summary that WOULD have been written, without creating EmergingSignalCluster records.",
+      "additionalProperties": true
     },
     "last_error": {
       "type": "string",

@@ -5,7 +5,7 @@ import { base44 } from '@/api/base44Client';
 import {
   LogOut, FolderOpen, FileText, BarChart2, TrendingUp, Zap, BookOpen, CheckSquare,
   Palette, LayoutGrid, Library, Database, Grid, Activity, ChevronLeft, ChevronRight, Menu, X, ClipboardList,
-  ListChecks, FileBarChart2, UserCircle
+  ListChecks, FileBarChart2, UserCircle, Sparkles
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -25,6 +25,7 @@ const ADMIN_NAV = [
     section: 'TRENDS',
     items: [
       { label: 'Library',      to: '/TrendLibrary', icon: TrendingUp,    pages: ['TrendLibrary', 'TrendHub'] },
+      { label: 'Emerging signals', to: '/EmergingSignals', icon: Sparkles, pages: ['EmergingSignals'] },
       { label: 'Review queue', to: '/ReviewQueue',  icon: ListChecks,    pages: ['ReviewQueue'] },
       { label: 'Trend reports', to: '/Reports',      icon: FileBarChart2, pages: ['Reports'] },
     ],
