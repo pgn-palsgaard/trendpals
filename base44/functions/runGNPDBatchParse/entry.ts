@@ -376,7 +376,7 @@ async function parseRows(fileBuffer, fileUrl) {
   }
 }
 
-async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
+async function processOneSource(base44, anthropic, sourceId, batchSize = 50, skipTrendLinking = false) {
   const source = await base44.asServiceRole.entities.Source.get(sourceId);
 
   // ── Guard clauses (fires on every Source.update; must skip non-GNPD work) ──
@@ -549,8 +549,14 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
         flavours,
         ingredients
       };
+      // Fast bulk path: skip the per-product LLM trend-linking (the ~90ms/row
+      // bottleneck that pushes large files past the function timeout). Products
+      // are created immediately and marked trend_linking_pending so the existing
+      // trend-linking flow can process them separately.
       const { links, linkedTrendIds, linkedMegaTrendIds, supportLabel, rejectedCandidates } =
-        await linkToTrends(anthropic, trendIndex, trendDetails, megaTrendMap, productForLinking);
+        skipTrendLinking
+          ? { links: [], linkedTrendIds: [], linkedMegaTrendIds: [], supportLabel: 'NOT_SUPPORT', rejectedCandidates: [] }
+          : await linkToTrends(anthropic, trendIndex, trendDetails, megaTrendMap, productForLinking);
 
       const hasPalsgaardRelevance = hasEmulsifier || linkedTrendIds.length > 0;
 
@@ -582,7 +588,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
         linked_trend_ids: linkedTrendIds,
         linked_mega_trend_ids: linkedMegaTrendIds,
         support_label: supportLabel,
-        processing_status: links.some(l => l.review_status === 'pending') ? 'trend_linking_pending' : 'trend_linked',
+        processing_status: (skipTrendLinking || links.some(l => l.review_status === 'pending')) ? 'trend_linking_pending' : 'trend_linked',
         ...(unparsedDate ? { processing_error: `Unparsable launch_date: "${unparsedDate}"` } : {}),
         source_id: sourceId,
         mintel_record_url: mintelUrl,
@@ -599,6 +605,8 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50) {
   for (let i = 0; i < toCreate.length; i += batchSize) {
     await base44.asServiceRole.entities.GNPDProduct.bulkCreate(toCreate.slice(i, i + batchSize));
     created += Math.min(batchSize, toCreate.length - i);
+    // Small pause between batches to stay under the platform DB rate limit on large files.
+    if (i + batchSize < toCreate.length) await new Promise(r => setTimeout(r, 200));
   }
 
   // Fully ingested — mark gnpd_ready (template validation was the gate on this path).
@@ -624,7 +632,7 @@ Deno.serve(async (req) => {
   try {
     const base44 = createClientFromRequest(req);
     const body = await req.json();
-    let { sourceIds, batchSize = 50 } = body;
+    let { sourceIds, batchSize = 50, skipTrendLinking = false } = body;
 
     // Entity automation payload (Source update: gnpd_mapping_status → complete)
     let isAutomation = false;
@@ -646,7 +654,7 @@ Deno.serve(async (req) => {
     const results = [];
     for (const sourceId of sourceIds) {
       try {
-        const result = await processOneSource(base44, anthropic, sourceId, batchSize);
+        const result = await processOneSource(base44, anthropic, sourceId, batchSize, skipTrendLinking);
         results.push({ sourceId, status: result?.skipped ? 'skipped' : 'ok', ...result });
       } catch (e) {
         console.error(`Error processing ${sourceId}:`, e.message);
