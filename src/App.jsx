@@ -24,6 +24,7 @@ import SMEReviewPortal from './pages/SMEReviewPortal';
 import SubmitterLayout from './components/layout/SubmitterLayout';
 import Profile from './pages/Profile';
 import AccessGuide from './pages/AccessGuide';
+import AccessGuideReview from './pages/AccessGuideReview';
 import { Navigate, useLocation } from 'react-router-dom';
 
 const { Pages, Layout, mainPage } = pagesConfig;
@@ -40,10 +41,11 @@ const AuthenticatedApp = () => {
 
   // Public access guide — reachable without login (e.g. by colleagues who haven't
   // registered yet). Rendered before any auth gating below.
-  if (location.pathname === '/access') {
+  if (location.pathname === '/access' || location.pathname === '/access-review') {
     return (
       <Routes>
         <Route path="/access" element={<AccessGuide />} />
+        <Route path="/access-review" element={<AccessGuideReview />} />
       </Routes>
     );
   }
