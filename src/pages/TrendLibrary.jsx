@@ -27,7 +27,7 @@ const TABS = [
 export default function TrendLibrary() {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('pending');
+  const [tab, setTab] = useState('active');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [search, setSearch] = useState('');
   const [megaTrendFilter, setMegaTrendFilter] = useState(null);
