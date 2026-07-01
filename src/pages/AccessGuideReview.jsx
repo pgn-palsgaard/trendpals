@@ -4,24 +4,24 @@ import { Mail, UserPlus, ShieldCheck, LogIn, HelpCircle, ArrowRight } from 'luci
 
 const STEPS = [
   {
-    icon: Mail,
-    title: 'Check your inbox',
-    body: 'Look for an invitation email from Base44 (it powers TrendPals). If you don’t see it, check your spam or junk folder.',
+    icon: LogIn,
+    title: 'Click “Log in to the Review area” below',
+    body: 'You reached this page from a link in an email. The first time you click the button below, you’ll be taken to the secure Base44 login screen — Base44 is the platform that powers TrendPals.',
   },
   {
     icon: UserPlus,
-    title: 'Create your account',
-    body: 'Open the link in that email, then use the button below and choose “Sign up”. Enter your work email and pick a secure password — this becomes your TrendPals login.',
+    title: 'Choose “Sign up” to create your account',
+    body: 'On that login screen, click “Sign up” (bottom right, next to “Need an account?”). Enter your work email and choose a secure password of at least 8 characters. This becomes your personal reviewer login.',
   },
   {
     icon: ShieldCheck,
-    title: 'Verify with the code',
-    body: 'We’ll email you a 6-digit verification code. Enter it on the screen to confirm your email address. The code is only valid for a few minutes, so check your inbox right away.',
+    title: 'Confirm your email',
+    body: 'Follow the on-screen prompt to confirm your email address. Once confirmed, your reviewer account is ready to use.',
   },
   {
-    icon: LogIn,
-    title: 'Log in to review',
-    body: 'Once verified, you’re in. You’ll land directly in your Review Queue, where the trends and challenges assigned to you are waiting for your expert input.',
+    icon: Mail,
+    title: 'You’re in — straight to your Review Queue',
+    body: 'After signing up once, you won’t need to sign up again. You’ll land directly in your Review Queue, where the trends and challenges assigned to you are waiting for your expert input.',
   },
 ];
 
@@ -51,7 +51,8 @@ export default function AccessGuideReview() {
           <p className="text-base text-muted-foreground leading-relaxed">
             As a subject-matter expert, you help validate the trends and challenges that shape
             TrendPals. Your review area is where you confirm, refine or reject what our analysts
-            have surfaced. Getting access the first time takes a few short steps.
+            have surfaced. You were sent here by a colleague — setting up your account the first
+            time takes a few short steps.
           </p>
         </div>
 
@@ -105,12 +106,11 @@ export default function AccessGuideReview() {
         <div className="pal-card p-5" style={{ background: '#F7F4EE' }}>
           <div className="flex items-center gap-2 mb-2">
             <HelpCircle className="w-4 h-4" style={{ color: '#6F8263' }} />
-            <h3 className="text-sm font-semibold text-foreground">Didn’t receive an invitation?</h3>
+            <h3 className="text-sm font-semibold text-foreground">Having trouble getting in?</h3>
           </div>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Reviewer access is granted by invitation only. If you can’t find your invite — and it’s
-            not in your spam folder — please contact your TrendPals administrator to request reviewer
-            access for your email address.
+            If the “Sign up” option doesn’t appear, or you can’t create your account, reply to the
+            email that sent you here and your TrendPals contact will help you get set up.
           </p>
         </div>
       </main>
