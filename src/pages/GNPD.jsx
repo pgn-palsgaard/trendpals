@@ -354,7 +354,7 @@ function ProductsTab({ onNavigateToReviewQueue }) {
   const [loadingMore, setLoadingMore] = useState(false);
   const [skip, setSkip]             = useState(0);
   const [hasMore, setHasMore]       = useState(false);
-  const [filters, setFilters]       = useState({ category: "", region: "", has_emulsifier: "", search: "" });
+  const [filters, setFilters]       = useState({ category: "", region: "", has_emulsifier: "", trend_link: "", search: "" });
   const [searchInput, setSearchInput] = useState("");
   const [selected, setSelected]     = useState(null);
   const [stats, setStats]           = useState(null);
@@ -393,6 +393,8 @@ function ProductsTab({ onNavigateToReviewQueue }) {
       if (filters.region)   query.region_code = filters.region;
       if (filters.has_emulsifier === "yes") query.has_emulsifier = true;
       if (filters.has_emulsifier === "no")  query.has_emulsifier = false;
+      if (filters.trend_link === "linked")   query.linked_trend_ids = { $exists: true, $ne: [] };
+      if (filters.trend_link === "unlinked") query.linked_trend_ids = { $in: [null, []] };
       if (filters.search) {
         query.$or = [
           { product_name: { $regex: filters.search, $options: "i" } },
@@ -485,6 +487,12 @@ function ProductsTab({ onNavigateToReviewQueue }) {
               <option value="no">No emulsifier</option>
             </select>
           </div>
+          <select value={filters.trend_link} onChange={e => setFilters(f => ({ ...f, trend_link: e.target.value }))}
+            style={{ width: "100%", marginTop: 6, fontSize: 12, padding: "5px 7px", borderRadius: 5, border: "1px solid #d8d3c8", fontFamily: "inherit", background: "white" }}>
+            <option value="">All trend links</option>
+            <option value="linked">Trend-linked only</option>
+            <option value="unlinked">Not trend-linked</option>
+          </select>
         </div>
 
         {/* Product list */}
@@ -510,9 +518,15 @@ function ProductsTab({ onNavigateToReviewQueue }) {
                       {p.has_emulsifier && (
                         <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#E8EEF6", color: BLUE, fontWeight: 700 }}>E</span>
                       )}
-                      {(p.linked_trend_ids || []).length > 0 && (
-                        <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#EDF4EA", color: GREEN, fontWeight: 700 }}>T</span>
-                      )}
+                      {(p.linked_trend_ids || []).length > 0 && (() => {
+                        const scores = (p.trend_links || []).map(l => l.confidence_score).filter(n => typeof n === 'number');
+                        const topScore = scores.length ? Math.max(...scores) : null;
+                        return (
+                          <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#EDF4EA", color: GREEN, fontWeight: 700 }}>
+                            T{topScore != null ? ` ${topScore}` : ""}
+                          </span>
+                        );
+                      })()}
                       {p.processing_status === "trend_linking_pending" && (
                         <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 20, background: "#FEF6EC", color: ORANGE, fontWeight: 700 }}>!</span>
                       )}
