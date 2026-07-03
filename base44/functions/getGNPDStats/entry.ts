@@ -24,8 +24,23 @@ Deno.serve(async (req) => {
     const by_region = {};
     const by_source = {};
 
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    // Fetch one page with a single retry on 429 rate-limit
+    async function fetchPage(currentSkip) {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          return await base44.asServiceRole.entities.GNPDProduct.list('-created_date', PAGE, currentSkip);
+        } catch (err) {
+          const is429 = err?.status === 429 || String(err?.message || '').includes('429') || String(err?.message || '').toLowerCase().includes('rate limit');
+          if (is429 && attempt < 3) { await sleep(1500 * (attempt + 1)); continue; }
+          throw err;
+        }
+      }
+    }
+
     while (true) {
-      const page = await base44.asServiceRole.entities.GNPDProduct.list('-created_date', PAGE, skip);
+      const page = await fetchPage(skip);
       if (!page || page.length === 0) break;
 
       for (const p of page) {
@@ -53,6 +68,7 @@ Deno.serve(async (req) => {
 
       if (page.length < PAGE) break;
       skip += PAGE;
+      await sleep(250); // gentle pacing to stay under the platform rate limit
     }
 
     return Response.json({ total, with_image, with_emulsifier, trend_linked, pending_review, by_category, by_region, by_source });
