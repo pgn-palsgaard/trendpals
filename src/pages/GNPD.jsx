@@ -8,6 +8,7 @@ import { Upload, Search, Database, CheckCircle2, AlertCircle, Loader2, FileText,
 import { format } from 'date-fns';
 import GnpdDetailPanel from '../components/sources/GnpdDetailPanel';
 import GNPDUploadModal from '../components/gnpd/GNPDUploadModal';
+import { CANONICAL_KEYS, getCategoryLabel } from '@/lib/palsgaardCategoryMapping';
 import TrendLinkReviewCard from '../components/gnpd/TrendLinkReviewCard';
 import ReviewQueueTab from '../components/gnpd/ReviewQueueTab';
 import RevalidateJobPanel from '../components/gnpd/RevalidateJobPanel';
@@ -355,12 +356,16 @@ function ProductsTab({ onNavigateToReviewQueue }) {
   const [skip, setSkip]             = useState(0);
   const [hasMore, setHasMore]       = useState(false);
   const [filters, setFilters]       = useState({ category: "", region: "", has_emulsifier: "", trend_link: "", search: "" });
+  const [sortBy, setSortBy]         = useState("newest"); // 'newest' | 'score'
   const [searchInput, setSearchInput] = useState("");
   const [selected, setSelected]     = useState(null);
   const [stats, setStats]           = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
-  const [allCategories, setAllCategories] = useState([]);
   const searchTimeoutRef = React.useRef(null);
+
+  // Category dropdown is driven by the fixed canonical taxonomy (palsgaard_category),
+  // NOT by the stats aggregation — so it is always populated and independent of getGNPDStats.
+  const allCategories = CANONICAL_KEYS;
 
   // Load stats once on mount
   useEffect(() => { loadStats(); }, []);
@@ -370,26 +375,28 @@ function ProductsTab({ onNavigateToReviewQueue }) {
     try {
       const res = await base44.functions.invoke('getGNPDStats', {});
       setStats(res.data);
-      // Derive sorted category list from stats
-      if (res.data?.by_category) {
-        setAllCategories(Object.keys(res.data.by_category).sort());
-      }
     } catch (e) { console.error(e); }
     setStatsLoading(false);
   }
 
-  // Reload from scratch when filters change
+  // Reload from scratch when filters or sort change
   useEffect(() => {
     setSkip(0);
     setProducts([]);
     fetchProducts(0, true);
-  }, [filters]);
+  }, [filters, sortBy]);
+
+  // Highest-score helper — top confidence_score across a product's trend links
+  const topScore = (p) => {
+    const scores = (p.trend_links || []).map(l => l.confidence_score).filter(n => typeof n === 'number');
+    return scores.length ? Math.max(...scores) : -1;
+  };
 
   async function fetchProducts(currentSkip, replace = false) {
     replace ? setLoading(true) : setLoadingMore(true);
     try {
       const query = {};
-      if (filters.category) query.category = filters.category;
+      if (filters.category) query.palsgaard_category = filters.category;
       if (filters.region)   query.region_code = filters.region;
       if (filters.has_emulsifier === "yes") query.has_emulsifier = true;
       if (filters.has_emulsifier === "no")  query.has_emulsifier = false;
@@ -405,9 +412,12 @@ function ProductsTab({ onNavigateToReviewQueue }) {
 
       const page = await base44.entities.GNPDProduct.filter(query, "-launch_date", PAGE_SIZE, currentSkip);
       if (replace) {
-        setProducts(page);
+        setProducts(sortBy === "score" ? [...page].sort((a, b) => topScore(b) - topScore(a)) : page);
       } else {
-        setProducts(prev => [...prev, ...page]);
+        setProducts(prev => {
+          const merged = [...prev, ...page];
+          return sortBy === "score" ? merged.sort((a, b) => topScore(b) - topScore(a)) : merged;
+        });
       }
       setHasMore(page.length === PAGE_SIZE);
       setSkip(currentSkip + page.length);
@@ -473,7 +483,7 @@ function ProductsTab({ onNavigateToReviewQueue }) {
             <select value={filters.category} onChange={e => setFilters(f => ({ ...f, category: e.target.value }))}
               style={{ flex: 1, fontSize: 12, padding: "5px 7px", borderRadius: 5, border: "1px solid #d8d3c8", fontFamily: "inherit", background: "white" }}>
               <option value="">All categories</option>
-              {allCategories.map(c => <option key={c}>{c}</option>)}
+              {allCategories.map(c => <option key={c} value={c}>{getCategoryLabel(c)}</option>)}
             </select>
             <select value={filters.region} onChange={e => setFilters(f => ({ ...f, region: e.target.value }))}
               style={{ flex: 1, fontSize: 12, padding: "5px 7px", borderRadius: 5, border: "1px solid #d8d3c8", fontFamily: "inherit", background: "white" }}>
@@ -493,6 +503,16 @@ function ProductsTab({ onNavigateToReviewQueue }) {
             <option value="linked">Trend-linked only</option>
             <option value="unlinked">Not trend-linked</option>
           </select>
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+            style={{ width: "100%", marginTop: 6, fontSize: 12, padding: "5px 7px", borderRadius: 5, border: "1px solid #d8d3c8", fontFamily: "inherit", background: "white" }}>
+            <option value="newest">Sort: Newest launch</option>
+            <option value="score">Sort: Highest trend score</option>
+          </select>
+          {sortBy === "score" && (
+            <p style={{ fontSize: 11, color: GREY, margin: "6px 0 0", lineHeight: 1.4 }}>
+              Ranks the products loaded so far by their highest trend-link score. Load more to rank additional products.
+            </p>
+          )}
         </div>
 
         {/* Product list */}
