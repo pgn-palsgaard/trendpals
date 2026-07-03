@@ -97,6 +97,14 @@
     "mintel_trend_label": {
       "type": "string"
     },
+    "section_thesis": {
+      "type": "string",
+      "description": "The Mintel analyst's core argument for the themed section this product sits under, in 1-2 sentences. This is the primary trend signal \u2014 the section's claim, not the individual product. Trend-linking validates against this thesis. Extracted by extractExpertExamples from the section's heading + opening prose."
+    },
+    "section_evidence_role": {
+      "type": "string",
+      "description": "One sentence on why THIS specific product is cited as evidence for the section thesis."
+    },
     "extraction_confidence": {
       "type": "string",
       "enum": [
