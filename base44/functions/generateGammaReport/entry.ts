@@ -120,10 +120,11 @@ DESIGN PRINCIPLES:
           
           if (relatedProducts.length > 0 && slideProducts.length === 0) {
             prompt += `**Relevant Product Launches**\n\n`;
-            prompt += `| Brand | Product | Market | Launched | Key Claims |\n`;
-            prompt += `|-------|---------|--------|----------|------------|\n`;
             relatedProducts.forEach(p => {
-              prompt += `| ${p.brand || '-'} | ${p.product_name || '-'} | ${p.market || '-'} | ${p.launch_date || '-'} | ${(p.claims || []).slice(0,3).join(', ') || '-'} |\n`;
+              if (p.image_url) {
+                prompt += `![${p.brand || ''} - ${p.product_name}](${p.image_url})\n`;
+              }
+              prompt += `**${p.brand || '-'}** — ${p.product_name || '-'} | ${p.market || '-'} | ${p.launch_date || '-'} | ${(p.claims || []).slice(0,3).join(', ') || '-'}\n\n`;
             });
             prompt += `\n`;
           }
@@ -171,6 +172,13 @@ DESIGN PRINCIPLES:
       report.product_shortlist.slice(0, 20).forEach(p => {
         prompt += `| ${p.brand || '-'} | ${p.product_name || '-'} | ${p.market || '-'} | ${p.launch_date || '-'} | ${(p.supporting_trends || []).join(', ') || '-'} |\n`;
       });
+      const shortlistImages = report.product_shortlist.slice(0, 20).filter(p => p.image_url);
+      if (shortlistImages.length > 0) {
+        prompt += `\n**Product Images** (small thumbnails — keep multiple per slide)\n\n`;
+        shortlistImages.forEach(p => {
+          prompt += `![${p.brand || ''} - ${p.product_name}](${p.image_url}) *${p.product_name}*\n`;
+        });
+      }
       prompt += `\n---\n\n`;
     }
 
@@ -188,6 +196,8 @@ DESIGN PRINCIPLES:
     const claudeResponse = await base44.integrations.Core.InvokeLLM({
       model: 'claude_sonnet_4_6',
       prompt: `You are a senior B2B market intelligence specialist at Palsgaard. Based on the following report content, produce a refined, polished, presentation-ready version of this deck in markdown format. Structure it clearly with slides separated by ---. Make the language punchy, insight-driven, and commercially relevant. Do not invent any new facts — only use what is provided. Palsgaard sections must mention capabilities only, no product grades.
+
+IMPORTANT: Preserve ALL image markdown (![alt](url)) exactly as provided — never drop, alter, or invent image URLs. Keep product images as small thumbnails placed next to the product they belong to, so several products with images can share one slide.
 
 Add a final slide (separated by ---) titled "Disclaimer" whose only content is this exact sentence: "${AI_DISCLAIMER}"
 

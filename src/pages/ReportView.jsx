@@ -14,6 +14,7 @@ import FinalReportSection from '@/components/report/FinalReportSection';
 import ExecutiveSummaryCard from '@/components/report/ExecutiveSummaryCard';
 import BriefingContextSlide from '@/components/report/BriefingContextSlide';
 import AIDisclaimer from '@/components/report/AIDisclaimer';
+import ProductShortlistSection from '@/components/report/ProductShortlistSection';
 
 export default function ReportView() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -268,6 +269,9 @@ export default function ReportView() {
 
         {/* Executive Summary */}
         <ExecutiveSummaryCard report={report} />
+
+        {/* Product Shortlist with images */}
+        <ProductShortlistSection report={report} />
 
 
       </div>

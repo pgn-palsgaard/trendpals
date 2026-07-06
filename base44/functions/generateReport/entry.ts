@@ -233,10 +233,19 @@ Deno.serve(async (req) => {
     // GNPD launch evidence: products linked to the selected GlobalTrends (HIGH-confidence links), images first
     // Region gate: launch examples must match the project region (Global projects see everything)
     const gnpdProducts = [];
+    // Image lookup: product name (lowercased) -> image_url, built from all products in play
+    const imageIndex = new Map();
+    const addToImageIndex = (p) => {
+      if (p.image_url && p.product_name) {
+        imageIndex.set(p.product_name.trim().toLowerCase(), p.image_url);
+      }
+    };
+    accountLaunches.forEach(addToImageIndex);
     for (const { gt } of resolvedTrends) {
       const fetched = await base44.entities.GNPDProduct.filter({ linked_trend_ids: gt.id }, '-launch_date', 40);
       const linked = region === 'Global' ? fetched : fetched.filter(p => p.region_code === region);
       linked.sort((a, b) => (b.image_url ? 1 : 0) - (a.image_url ? 1 : 0));
+      linked.forEach(addToImageIndex);
       for (const p of linked.slice(0, 6)) {
         gnpdProducts.push({
           product_name: p.product_name || '',
@@ -543,7 +552,10 @@ product_shortlist items: { "product_name": "string", "brand": "string", "market"
       region,
       slides: finalSlides,
       evidence_pack: parsed.evidence_pack || [],
-      product_shortlist: parsed.product_shortlist || [],
+      product_shortlist: (parsed.product_shortlist || []).map(item => ({
+        ...item,
+        image_url: imageIndex.get(String(item.product_name || '').trim().toLowerCase()) || null
+      })),
       image_map: {},
       selected_trends: resolvedTrends.map(r => r.gt.trend_name),
       warnings,
