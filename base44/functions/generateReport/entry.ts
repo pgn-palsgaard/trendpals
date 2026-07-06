@@ -83,7 +83,9 @@ STRICT RULES:
 - Never invent statistics. supporting_data must come exclusively from the provided MINTEL SOURCE QUOTES.
 - gnpd_examples: use only real product names from the provided GNPD data. Never invent products.
 - When INDUSTRY-RECOGNIZED EXAMPLES are provided, include them in a separate evidence_footer or as the last entry in gnpd_examples, prefixed with "[Expert pick]" to distinguish them from bulk GNPD data.
-- If a customer pain can be addressed without emulsification expertise, still include it — showing broad industry knowledge builds credibility.`;
+- If a customer pain can be addressed without emulsification expertise, still include it — showing broad industry knowledge builds credibility.
+
+ANALYSIS MODE — Product-first: When an ACCOUNT LAUNCH HISTORY block is provided, the customer's own launches are your analytical starting point — NOT the trend list. First identify what the launches reveal (clusters, claims, markets, formats). Then treat each trend as either CONFIRMED by their launches ("your pipeline already reflects X") or a GAP ("the wider category is moving toward Y faster than your current launches"). Frame the widened global view as "what else is happening in the categories you operate in" — grounded in the GNPD examples provided.`;
 
 Deno.serve(async (req) => {
   try {
@@ -118,34 +120,82 @@ Deno.serve(async (req) => {
       sources = await base44.entities.Source.filter({ project_id });
     }
 
-    // Fetch trends — TrendCandidate is a thin selection layer pointing at GlobalTrends
+    // Fetch trends — TrendCandidate is a thin selection layer pointing at GlobalTrends.
+    // Manual selection is now OPTIONAL — product-first derivation kicks in when absent.
     const trendCandidates = await base44.entities.TrendCandidate.filter({ project_id });
     const selectedTrends = trendCandidates.filter(t => t.is_selected);
 
-    if (selectedTrends.length < 3 || selectedTrends.length > 5) {
-      return Response.json({
-        error: 'Must select 3-5 trends for report generation'
-      }, { status: 400 });
+    const warnings = [];
+
+    // ── Product-first: fetch the account's own GNPD launch history ─────────
+    const accountName = (project.customer_name || '').trim();
+    let accountLaunches = [];
+    if (accountName.length >= 3) {
+      try {
+        accountLaunches = await base44.entities.GNPDProduct.filter({
+          $or: [
+            { company: { $regex: accountName, $options: 'i' } },
+            { ultimate_company: { $regex: accountName, $options: 'i' } },
+            { brand: { $regex: accountName, $options: 'i' } },
+          ]
+        }, '-launch_date', 60);
+      } catch (e) {
+        console.warn('Account launch fetch failed:', e.message);
+      }
     }
 
-    // Resolve the selected candidates to active GlobalTrends
+    // Resolve any manually selected candidates to active GlobalTrends (optional)
     const resolvedTrends = [];
-    const unmappedCandidates = [];
     for (const tc of selectedTrends) {
-      if (!tc.global_trend_id) { unmappedCandidates.push(tc.trend_name); continue; }
+      if (!tc.global_trend_id) continue;
       try {
         const gt = await base44.entities.GlobalTrend.get(tc.global_trend_id);
         if (gt && gt.is_active !== false) resolvedTrends.push({ gt, candidate: tc });
-        else unmappedCandidates.push(tc.trend_name);
-      } catch (_) { unmappedCandidates.push(tc.trend_name); }
-    }
-    if (resolvedTrends.length < 3) {
-      return Response.json({
-        error: `Selected trends must link to active Trend Library trends (3 minimum). Unlinked: ${unmappedCandidates.join(', ') || 'none resolved'}. Re-select trends from the Trend Library.`
-      }, { status: 400 });
+      } catch (_) {}
     }
 
-    const warnings = [];
+    // ── Product-first trend derivation ─────────────────────────────────────
+    // Step 1: rank trends by how strongly the account's OWN launches link to them.
+    // Step 2: fill remaining slots from active category trends (the wider industry view).
+    let trendsWereDerived = false;
+    if (resolvedTrends.length < 3) {
+      trendsWereDerived = true;
+      const scoreByTrend = new Map();
+      for (const p of accountLaunches) {
+        for (const l of (p.trend_links || [])) {
+          if (l.trend_type !== 'mega' && ['auto_applied', 'approved'].includes(l.review_status)) {
+            scoreByTrend.set(l.trend_id, (scoreByTrend.get(l.trend_id) || 0) + (l.confidence_score || 50));
+          }
+        }
+      }
+      const rankedIds = [...scoreByTrend.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
+      for (const id of rankedIds) {
+        if (resolvedTrends.length >= 5) break;
+        if (resolvedTrends.some(r => r.gt.id === id)) continue;
+        try {
+          const gt = await base44.entities.GlobalTrend.get(id);
+          if (gt && gt.is_active !== false) resolvedTrends.push({ gt, candidate: { trend_name: gt.trend_name } });
+        } catch (_) {}
+      }
+      if (resolvedTrends.length < 5) {
+        const catTrends = await base44.entities.GlobalTrend.filter({ category: project.category, is_active: true }, '-updated_date', 10);
+        for (const gt of catTrends) {
+          if (resolvedTrends.length >= 5) break;
+          if (!resolvedTrends.some(r => r.gt.id === gt.id)) resolvedTrends.push({ gt, candidate: { trend_name: gt.trend_name } });
+        }
+      }
+      if (resolvedTrends.length < 3) {
+        return Response.json({
+          error: `Not enough trend evidence: only ${resolvedTrends.length} active trend(s) could be derived from the account's launch history and the ${project.category} trend library.`
+        }, { status: 400 });
+      }
+      warnings.push({
+        type: 'auto_trends',
+        severity: 'low',
+        message: `Trends derived automatically from ${accountName ? accountName + "'s" : "the account's"} launch history and category activity (product-first mode)`,
+        created_at: new Date().toISOString()
+      });
+    }
     const hasSources = sources.some(s => s.excerpts?.length > 0 || s.gnpd_data?.length > 0);
     if (!hasSources) {
       warnings.push({ type: 'weak_evidence', severity: 'medium', message: 'No processed project sources attached — report relies on Trend Library evidence only', created_at: new Date().toISOString() });
@@ -243,6 +293,13 @@ ${candidate.project_notes ? `Project notes: ${candidate.project_notes}` : ''}`;
       ? gnpdProducts.map(p => `- [${p.trend_name}] ${p.product_name} | ${p.brand} | ${p.country} | ${p.launch_date} | ${p.claims}${p.has_image ? ' | (image available)' : ''}`).join('\n')
       : '(No GNPD product data available)';
 
+    // Account's own launch history — the product-first starting point
+    const accountLaunchBlock = accountLaunches.length > 0
+      ? accountLaunches.slice(0, 40).map(p =>
+          `- ${p.product_name} | ${p.brand || ''} | ${p.country || ''} | ${p.launch_date || ''} | ${p.sub_category || p.category || ''} | Claims: ${(p.claims || []).join(', ').substring(0, 150)}`
+        ).join('\n')
+      : '';
+
     const expertExamplesBlock = expertExamples.length > 0
       ? expertExamples.map(ex => {
           const trendLinks = (ex.trend_links || []).filter(l => l.review_status === 'auto_applied' || l.review_status === 'approved');
@@ -282,8 +339,8 @@ Category: ${DISPLAY_LABELS[project.category] || project.category}
 Region: ${region}
 Objective: ${project.objective}
 Audience: ${project.audience || 'Industrial food manufacturers'}
-
-SELECTED TRENDS:
+${accountLaunchBlock ? `\nACCOUNT LAUNCH HISTORY (${accountName}'s own recent launches — this is your analytical starting point):\n${accountLaunchBlock}\n` : ''}
+SELECTED TRENDS${trendsWereDerived ? ' (auto-derived from the account launch history and category activity — treat as data-driven hypotheses to validate against the launches, not user picks)' : ''}:
 ${trendsBlock}
 
 PALSGAARD KNOWLEDGE BASE (use these to inform palsgaard_angle — do not copy verbatim):
@@ -298,11 +355,14 @@ ${expertExamplesBlock ? `\nINDUSTRY-RECOGNIZED EXAMPLES (Mintel analyst-curated 
 MINTEL SOURCE QUOTES (use ONLY these for supporting_data — never invent statistics):
 ${mintelStatsBlock}
 
-Generate ${resolvedTrends.length + 2} slides. Return a JSON object with "slides", "evidence_pack", and "product_shortlist" arrays.
+Generate ${resolvedTrends.length + 2 + (accountLaunchBlock ? 1 : 0)} slides. Return a JSON object with "slides", "evidence_pack", and "product_shortlist" arrays.
 
 Slide structure:
 - Slide 1: Category landscape overview (no trend name required)
-- Slides 2 to ${resolvedTrends.length + 1}: One per selected trend (use the trend's market signal and customer pains from the SELECTED TRENDS block above as your starting point, then deepen them)
+${accountLaunchBlock
+  ? `- Slide 2: "What ${accountName} is launching" — analyse the ACCOUNT LAUNCH HISTORY above: identify 2-3 launch clusters (what they launch, in which markets, with which claims), state what innovation focus this reveals, and note where the trends confirm or challenge that focus. gnpd_examples on this slide must come from the ACCOUNT LAUNCH HISTORY only.
+- Slides 3 to ${resolvedTrends.length + 2}: One per trend — open each trend by connecting it to the account's own launches where possible, then widen to the global category (use the GNPD PRODUCT EXAMPLES as the wider industry evidence)`
+  : `- Slides 2 to ${resolvedTrends.length + 1}: One per selected trend (use the trend's market signal and customer pains from the SELECTED TRENDS block above as your starting point, then deepen them)`}
 - Last slide: "What This Means" synthesis
 
 IMPORTANT for trend slides: customer_pains must be concrete and technical — not generic. Explain the physics or chemistry or commercial mechanics of WHY the trend creates a problem. Then follow each pain immediately with the capability angle inside the same object.
