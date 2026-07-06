@@ -128,15 +128,18 @@ Deno.serve(async (req) => {
     const warnings = [];
 
     // ── Product-first: fetch the account's own GNPD launch history ─────────
-    const accountName = (project.customer_name || '').trim();
+    // Clean the customer name: take only the core account name (strip parenthetical
+    // notes and em-dash suffixes) and escape regex special characters.
+    const accountName = (project.customer_name || '').split('(')[0].split('—')[0].trim();
+    const accountPattern = accountName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     let accountLaunches = [];
     if (accountName.length >= 3) {
       try {
         accountLaunches = await base44.entities.GNPDProduct.filter({
           $or: [
-            { company: { $regex: accountName, $options: 'i' } },
-            { ultimate_company: { $regex: accountName, $options: 'i' } },
-            { brand: { $regex: accountName, $options: 'i' } },
+            { company: { $regex: accountPattern, $options: 'i' } },
+            { ultimate_company: { $regex: accountPattern, $options: 'i' } },
+            { brand: { $regex: accountPattern, $options: 'i' } },
           ]
         }, '-launch_date', 60);
       } catch (e) {
@@ -170,17 +173,17 @@ Deno.serve(async (req) => {
       }
       const rankedIds = [...scoreByTrend.entries()].sort((a, b) => b[1] - a[1]).map(e => e[0]);
       for (const id of rankedIds) {
-        if (resolvedTrends.length >= 5) break;
+        if (resolvedTrends.length >= 4) break;
         if (resolvedTrends.some(r => r.gt.id === id)) continue;
         try {
           const gt = await base44.entities.GlobalTrend.get(id);
           if (gt && gt.is_active !== false) resolvedTrends.push({ gt, candidate: { trend_name: gt.trend_name } });
         } catch (_) {}
       }
-      if (resolvedTrends.length < 5) {
+      if (resolvedTrends.length < 4) {
         const catTrends = await base44.entities.GlobalTrend.filter({ category: project.category, is_active: true }, '-updated_date', 10);
         for (const gt of catTrends) {
-          if (resolvedTrends.length >= 5) break;
+          if (resolvedTrends.length >= 4) break;
           if (!resolvedTrends.some(r => r.gt.id === gt.id)) resolvedTrends.push({ gt, candidate: { trend_name: gt.trend_name } });
         }
       }
