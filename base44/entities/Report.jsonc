@@ -18,6 +18,14 @@
       "type": "string",
       "description": "Region (copied from project)"
     },
+    "analysis_mode": {
+      "type": "string",
+      "enum": [
+        "standard",
+        "product_first"
+      ],
+      "description": "How the report's trends were determined. standard = manually selected trends. product_first = KAM approach \u2014 trends derived automatically from the account's own GNPD launch history (outside-in, product-led analysis)."
+    },
     "slides": {
       "type": "array",
       "description": "Complete slide deck (5-10 slides)",

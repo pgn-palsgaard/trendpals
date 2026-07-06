@@ -549,6 +549,7 @@ product_shortlist items: { "product_name": "string", "brand": "string", "market"
       warnings,
       freshness,
       status: 'draft',
+      analysis_mode: (trendsWereDerived && accountLaunches.length > 0) ? 'product_first' : 'standard',
       version: nextVersion
     });
 

@@ -9,6 +9,7 @@ import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
 
 import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
+import KAMBadge from '@/components/KAMBadge';
 
 const STATE_STYLE = {
   draft:              { label: 'Draft',              bg: '#F3F4F6', color: '#6B7280' },
@@ -35,6 +36,13 @@ export default function Projects() {
     queryKey: ['projects'],
     queryFn: () => base44.entities.Project.list('-updated_date', 100),
   });
+
+  // Projects with at least one product-first (KAM) report get a visual cue
+  const { data: kamReports = [] } = useQuery({
+    queryKey: ['kamReports'],
+    queryFn: () => base44.entities.Report.filter({ analysis_mode: 'product_first' }, '-created_date', 100),
+  });
+  const kamProjectIds = new Set(kamReports.map(r => r.project_id));
 
   const deleteProjectMutation = useMutation({
     mutationFn: (projectId) => base44.entities.Project.delete(projectId),
@@ -136,6 +144,10 @@ export default function Projects() {
                         {s.label}
                       </span>
                     </div>
+
+                    {kamProjectIds.has(project.id) && (
+                      <div className="mb-2"><KAMBadge /></div>
+                    )}
 
                     <div className="space-y-1.5 text-xs text-muted-foreground">
                       <div className="flex gap-1.5">

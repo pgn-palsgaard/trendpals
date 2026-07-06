@@ -10,6 +10,7 @@ import { FileText, Search, ExternalLink, Copy, Calendar, TrendingUp, Download } 
 import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
+import KAMBadge from '@/components/KAMBadge';
 
 export default function ReportsLibrary() {
   const navigate = useNavigate();
@@ -159,6 +160,9 @@ export default function ReportsLibrary() {
                         </Badge>
                       )}
                     </div>
+                    {report.analysis_mode === 'product_first' && (
+                      <div className="mb-2"><KAMBadge /></div>
+                    )}
                     {project && (project.customer_name || project.meeting_context || project.requester_name) && (
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mt-1 mb-2">
                         {project.customer_name && (
