@@ -41,9 +41,11 @@ Deno.serve(async (req) => {
         let maxDate = null;
         
         for (const row of source.gnpd_data) {
-          if (row._date_published_parsed) {
+          // Prefer the pre-parsed helper field; fall back to parsing the mapped raw column
+          const rawValue = row._date_published_parsed || row[mappings.date_published];
+          const date = rawValue ? new Date(rawValue) : null;
+          if (date && !isNaN(date.getTime())) {
             dateSuccessCount++;
-            const date = new Date(row._date_published_parsed);
             if (!minDate || date < minDate) minDate = date;
             if (!maxDate || date > maxDate) maxDate = date;
           } else {
@@ -82,9 +84,21 @@ Deno.serve(async (req) => {
     };
     
     if (validationStatus) {
-      updateData['metadata_extraction.extracted_data.validation_status'] = validationStatus;
-      updateData['metadata_extraction.extracted_data.unique_markets_count'] = validationStatus.unique_markets_count;
-      updateData['metadata_extraction.extracted_data.date_parse_success_rate'] = validationStatus.date_parsing_success_rate;
+      // Merge into the nested metadata_extraction object (dot-path keys are not supported)
+      const source = await base44.entities.Source.get(source_id);
+      const existingMeta = source.metadata_extraction || {};
+      const existingExtracted = existingMeta.extracted_data || {};
+      updateData['metadata_extraction'] = {
+        ...existingMeta,
+        extracted_data: {
+          ...existingExtracted,
+          validation_status: validationStatus,
+          unique_markets_count: validationStatus.unique_markets_count,
+          date_parse_success_rate: validationStatus.date_parsing_success_rate,
+          min_date_published: validationStatus.date_range_min,
+          max_date_published: validationStatus.date_range_max
+        }
+      };
     }
     
     console.log('[updateGNPDMapping] updateData keys:', Object.keys(updateData));
