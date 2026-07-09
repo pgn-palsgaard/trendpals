@@ -107,7 +107,9 @@ function needsTriage(link) {
 
 const BATCH_SIZE = 5;
 const PAUSE_MS = 10000;
-const MAX_TIME_BUDGET_MS = 4 * 60 * 1000;
+// Must stay well under the platform's request gateway timeout (~2 min),
+// otherwise the run 504s even though work is still progressing.
+const MAX_TIME_BUDGET_MS = 80 * 1000;
 
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
@@ -352,6 +354,8 @@ Deno.serve(async (req) => {
       return candidates;
     }
 
+    const deadlineReached = () => Date.now() - invocationStart > timeBudget;
+
     async function processProduct(product) {
       if ((product.trend_links || []).length === 0) {
         const candidates = await generateCandidates(product);
@@ -372,6 +376,7 @@ Deno.serve(async (req) => {
       let changed = false;
 
       for (const link of targets) {
+        if (deadlineReached()) break; // remaining links stay pending — picked up next run
         const trend = trendMap[link.trend_id];
         if (!trend) {
           // Trend is inactive or deleted — the link can never be approved; reject it
