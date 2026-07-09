@@ -233,6 +233,8 @@ Deno.serve(async (req) => {
     // GNPD launch evidence: products linked to the selected GlobalTrends (HIGH-confidence links), images first
     // Region gate: launch examples must match the project region (Global projects see everything)
     const gnpdProducts = [];
+    // Track GNPD record IDs of every product used in the report — exported on the final slide
+    const usedProductRecordIds = new Set();
     // Image lookup: product name (lowercased) -> image_url, built from all products in play
     const imageIndex = new Map();
     const addToImageIndex = (p) => {
@@ -247,6 +249,7 @@ Deno.serve(async (req) => {
       linked.sort((a, b) => (b.image_url ? 1 : 0) - (a.image_url ? 1 : 0));
       linked.forEach(addToImageIndex);
       for (const p of linked.slice(0, 6)) {
+        if (p.gnpd_record_id) usedProductRecordIds.add(p.gnpd_record_id);
         gnpdProducts.push({
           product_name: p.product_name || '',
           brand: p.brand || '',
@@ -311,6 +314,9 @@ ${candidate.project_notes ? `Project notes: ${candidate.project_notes}` : ''}`;
           `- ${p.product_name} | ${p.brand || ''} | ${p.country || ''} | ${p.launch_date || ''} | ${p.sub_category || p.category || ''} | Claims: ${(p.claims || []).join(', ').substring(0, 150)}`
         ).join('\n')
       : '';
+    if (accountLaunchBlock) {
+      accountLaunches.slice(0, 40).forEach(p => { if (p.gnpd_record_id) usedProductRecordIds.add(p.gnpd_record_id); });
+    }
 
     const expertExamplesBlock = expertExamples.length > 0
       ? expertExamples.map(ex => {
@@ -535,6 +541,18 @@ product_shortlist items: { "product_name": "string", "brand": "string", "market"
     // Prepend briefing slide and renumber LLM slides after it
     const llmSlides = Array.isArray(parsed.slides) ? parsed.slides : [];
     const finalSlides = [briefingSlide, ...llmSlides.map((s, i) => ({ ...s, slide_number: i + 2 }))];
+
+    // Always append a final slide with all GNPD record IDs used, in Mintel search format
+    if (usedProductRecordIds.size > 0) {
+      finalSlides.push({
+        slide_number: finalSlides.length + 1,
+        slide_type: 'product_export',
+        slide_name: 'Product Export IDs',
+        title: 'GNPD Product Record IDs',
+        subtitle: 'All products referenced in this report — paste into Mintel GNPD search',
+        market_signal: [...usedProductRecordIds].join(' OR '),
+      });
+    }
     console.log('SLIDES TO SAVE:', Array.isArray(parsed.slides) ? parsed.slides.length : 'NOT AN ARRAY');
     console.log('EVIDENCE_PACK TO SAVE:', Array.isArray(parsed.evidence_pack) ? parsed.evidence_pack.length : 'NOT AN ARRAY');
     console.log('PRODUCT_SHORTLIST TO SAVE:', Array.isArray(parsed.product_shortlist) ? parsed.product_shortlist.length : 'NOT AN ARRAY');

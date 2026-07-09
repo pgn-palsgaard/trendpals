@@ -138,6 +138,32 @@ export default function SubmitBriefBeta() {
       };
       const finalSlides = [disclaimerSlide, ...slides.map((s, i) => ({ ...s, slide_number: i + 1 }))];
 
+      // Resolve GNPD record IDs for every product referenced in the deck — final export slide
+      const productNames = [...new Set(slides.flatMap(s =>
+        (s.gnpd_examples || []).map(ex =>
+          String(ex).replace(/^\[Expert pick\]\s*/i, '').split('—')[0].split('|')[0].trim()
+        ).filter(n => n.length >= 4)
+      ))];
+      const recordIds = [];
+      for (const name of productNames.slice(0, 60)) {
+        try {
+          const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const hits = await base44.entities.GNPDProduct.filter(
+            { product_name: { $regex: esc, $options: 'i' } }, null, 1
+          );
+          if (hits[0]?.gnpd_record_id) recordIds.push(hits[0].gnpd_record_id);
+        } catch { /* skip unresolvable names */ }
+      }
+      if (recordIds.length > 0) {
+        finalSlides.push({
+          slide_number: finalSlides.length,
+          slide_name: 'Product Export IDs',
+          title: 'GNPD Product Record IDs',
+          subtitle: 'All products referenced in this report — paste into Mintel GNPD search',
+          market_signal: [...new Set(recordIds)].join(' OR '),
+        });
+      }
+
       const report = await base44.entities.Report.create({
         project_id: project.id,
         title,
