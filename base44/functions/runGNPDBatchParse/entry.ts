@@ -156,7 +156,7 @@ Matched: ${matchedKeywords.join(', ')}
 Is this product genuine evidence of this trend? Respond with JSON only.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 400,
       system: LLM_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }]
@@ -634,11 +634,18 @@ Deno.serve(async (req) => {
     const body = await req.json();
     let { sourceIds, batchSize = 50, skipTrendLinking = false } = body;
 
-    // Entity automation payload (Source update: gnpd_mapping_status → complete)
+    // Entity automation payload (Source update: gnpd_mapping_status → complete).
+    // Large Source records (>200KB gnpd_data) arrive with data=null — fall back
+    // to event.entity_id so the automation doesn't hard-fail on big GNPD files.
     let isAutomation = false;
-    if ((!sourceIds || sourceIds.length === 0) && body.event && body.data?.id) {
-      sourceIds = [body.data.id];
+    if ((!sourceIds || sourceIds.length === 0) && body.event) {
+      const eventEntityId = body.data?.id || body.event.entity_id;
       isAutomation = true;
+      if (eventEntityId) {
+        sourceIds = [eventEntityId];
+      } else {
+        return Response.json({ skipped: true, reason: 'automation event without entity id' });
+      }
     }
 
     let user = null;

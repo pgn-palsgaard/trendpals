@@ -79,7 +79,7 @@ Matched: ${(matched_keywords || []).join(', ')}
 Is this product genuine evidence of this trend? Respond with JSON only.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 400,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }]
@@ -90,6 +90,7 @@ Is this product genuine evidence of this trend? Respond with JSON only.`;
     const parsed = JSON.parse(jsonText);
     return { verdict: parsed.verdict, confidence_score: parsed.confidence_score, reasoning: parsed.reasoning, validated_at };
   } catch (e) {
+    console.error('[triage] LLM validation error:', e.message?.slice(0, 300));
     return { verdict: 'ERROR', confidence_score: 0, reasoning: `LLM validation failed: ${e.message?.slice(0, 100)}`, validated_at };
   }
 }
@@ -234,8 +235,11 @@ Deno.serve(async (req) => {
       );
       if (scanBatch.length === 0) break;
       for (const p of scanBatch) {
-        if ((p.trend_links || []).some(needsTriage)) pendingIds.push(p.id);
+        // Products with zero links were bulk-ingested with skipTrendLinking — they
+        // still need candidate GENERATION, not just triage of existing candidates.
+        if ((p.trend_links || []).length === 0 || (p.trend_links || []).some(needsTriage)) pendingIds.push(p.id);
       }
+      if (pendingIds.length >= 800) break; // enough for one time-budgeted run
       if (scanBatch.length < 100) break;
       scanSkip += 100;
     }
@@ -304,7 +308,62 @@ Deno.serve(async (req) => {
       };
     }
 
+    // ── Candidate generation for products with no links yet ──────────────────
+    // Two paths into candidacy: (1) ≥2 trend-keyword matches in the product text,
+    // (2) the product matches a Mintel analyst-cited ExpertExample for the trend
+    // (same brand + shared product-name token, or brand + ≥1 keyword). All
+    // candidates then go through the same grounded LLM validation below.
+    const nameTokens = (s) => String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 4);
+
+    async function generateCandidates(product) {
+      const text = [product.product_name, product.product_description, product.ingredients,
+        Array.isArray(product.claims) ? product.claims.join(' ') : product.claims,
+        Array.isArray(product.flavours) ? product.flavours.join(' ') : product.flavours
+      ].filter(Boolean).join(' ').toLowerCase();
+      const brand = String(product.brand || '').toLowerCase().trim();
+      const pTokens = new Set(nameTokens(product.product_name));
+      const now = new Date().toISOString();
+      const candidates = [];
+      for (const t of globalTrends) {
+        const kws = (t.trend_keywords || []).map(k => String(k).toLowerCase());
+        const matched = kws.filter(kw => kw.length > 3 && text.includes(kw));
+        let expertMatch = false;
+        if (matched.length < 2) {
+          const examples = await getExpertExamples(t.id);
+          expertMatch = examples.some(ex => {
+            const exBrand = String(ex.brand || '').toLowerCase().trim();
+            const brandHit = exBrand.length > 3 && brand.length > 3 && (brand.includes(exBrand) || exBrand.includes(brand));
+            if (!brandHit) return false;
+            return matched.length >= 1 || nameTokens(ex.product_name).some(tok => pTokens.has(tok));
+          });
+        }
+        if (matched.length >= 2 || expertMatch) {
+          candidates.push({
+            trend_id: t.id, trend_name: t.trend_name, trend_type: 'global',
+            confidence: 'low', confidence_score: 0,
+            matched_keywords: expertMatch ? [...matched, 'expert_example_match'] : matched,
+            reasoning: expertMatch
+              ? 'Candidate: matches a Mintel analyst-cited product for this trend'
+              : 'Candidate: keyword match, awaiting LLM validation',
+            review_status: 'pending', linked_at: now
+          });
+        }
+      }
+      return candidates;
+    }
+
     async function processProduct(product) {
+      if ((product.trend_links || []).length === 0) {
+        const candidates = await generateCandidates(product);
+        if (candidates.length === 0) {
+          // No plausible trend for this product — finalize so it leaves the queue
+          await base44.asServiceRole.entities.GNPDProduct.update(product.id, {
+            processing_status: 'trend_linked', support_label: 'NOT_SUPPORT'
+          });
+          return;
+        }
+        product = { ...product, trend_links: candidates };
+      }
       const targets = (product.trend_links || []).filter(needsTriage);
       if (targets.length === 0) return;
 
@@ -417,7 +476,9 @@ Deno.serve(async (req) => {
         if (Date.now() - invocationStart > timeBudget) { timedOut = true; break; }
 
         const product = await base44.asServiceRole.entities.GNPDProduct.get(productId);
-        if (!product || !(product.trend_links || []).some(needsTriage)) continue;
+        if (!product) continue;
+        const existingLinks = product.trend_links || [];
+        if (existingLinks.length > 0 && !existingLinks.some(needsTriage)) continue;
 
         await processProduct(product);
         lastCursor = product.id;

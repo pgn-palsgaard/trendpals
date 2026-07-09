@@ -98,7 +98,7 @@ Matched: ${(matched_keywords || []).join(', ')}
 Is this product genuine evidence of this trend? Respond with JSON only.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-5',
       max_tokens: 400,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }]
