@@ -1,0 +1,30 @@
+{
+  "name": "BetaFeedback",
+  "type": "object",
+  "properties": {
+    "verdict": {
+      "type": "string",
+      "enum": [
+        "up",
+        "down"
+      ],
+      "description": "Thumbs up/down on an assistant message in the beta briefing chat"
+    },
+    "message_snippet": {
+      "type": "string",
+      "description": "First ~300 chars of the assistant message being rated"
+    },
+    "message_index": {
+      "type": "number",
+      "description": "Index of the message in the conversation"
+    },
+    "session_started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the beta chat session started \u2014 groups feedback per session"
+    }
+  },
+  "required": [
+    "verdict"
+  ]
+}

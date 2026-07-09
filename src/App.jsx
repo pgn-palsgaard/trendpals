@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Briefs from './pages/Briefs';
 import SubmitBrief from './pages/SubmitBrief';
+import SubmitBriefBeta from './pages/SubmitBriefBeta';
 import TrendLibrary from './pages/TrendLibrary';
 import AgentActivity from './pages/AgentActivity';
 import GNPD from './pages/GNPD';
@@ -121,6 +122,7 @@ const AuthenticatedApp = () => {
       ))}
       <Route path="/Briefs" element={<LayoutWrapper currentPageName="Briefs"><Briefs /></LayoutWrapper>} />
       <Route path="/SubmitBrief" element={<SubmitBrief />} />
+      <Route path="/SubmitBriefBeta" element={<LayoutWrapper currentPageName="SubmitBriefBeta"><SubmitBriefBeta /></LayoutWrapper>} />
       <Route path="/TrendLibrary" element={<LayoutWrapper currentPageName="TrendLibrary"><TrendLibrary /></LayoutWrapper>} />
       <Route path="/AgentActivity" element={<LayoutWrapper currentPageName="AgentActivity"><AgentActivity /></LayoutWrapper>} />
       <Route path="/GNPD" element={<LayoutWrapper currentPageName="GNPD"><GNPD /></LayoutWrapper>} />
