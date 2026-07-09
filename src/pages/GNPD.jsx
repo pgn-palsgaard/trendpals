@@ -600,14 +600,24 @@ function ProductDetail({ product: p, onProductUpdated }) {
   return (
     <>
       {/* Header */}
-      <div style={{ borderBottom: `2px solid ${BLUE}`, paddingBottom: "1rem", marginBottom: "1.5rem" }}>
-        <p style={{ fontSize: 11, color: GREY, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-          {p.category}{p.sub_category ? ` · ${p.sub_category}` : ""}{p.region_code ? ` · ${p.region_code}` : ""}
-        </p>
-        <h2 style={{ fontSize: 22, fontWeight: 700, color: BLUE, margin: "0 0 4px", fontFamily: "Calibri, Arial, sans-serif" }}>{p.product_name}</h2>
-        <p style={{ fontSize: 14, color: DARK_BLUE, margin: 0 }}>
-          {[p.brand, p.company, p.country].filter(Boolean).join(" · ")}
-        </p>
+      <div style={{ borderBottom: `2px solid ${BLUE}`, paddingBottom: "1rem", marginBottom: "1.5rem", display: "flex", gap: 20, alignItems: "flex-start" }}>
+        {p.image_url && (
+          <img
+            src={p.image_url}
+            alt={p.product_name}
+            style={{ width: 120, height: 120, objectFit: "contain", borderRadius: 8, border: "1px solid #d8d3c8", background: "white", flexShrink: 0, padding: 6 }}
+            onError={e => { e.currentTarget.style.display = "none"; }}
+          />
+        )}
+        <div style={{ minWidth: 0 }}>
+          <p style={{ fontSize: 11, color: GREY, margin: "0 0 4px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            {p.category}{p.sub_category ? ` · ${p.sub_category}` : ""}{p.region_code ? ` · ${p.region_code}` : ""}
+          </p>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: BLUE, margin: "0 0 4px", fontFamily: "Calibri, Arial, sans-serif" }}>{p.product_name}</h2>
+          <p style={{ fontSize: 14, color: DARK_BLUE, margin: 0 }}>
+            {[p.brand, p.company, p.country].filter(Boolean).join(" · ")}
+          </p>
+        </div>
       </div>
 
       {/* Details card */}
