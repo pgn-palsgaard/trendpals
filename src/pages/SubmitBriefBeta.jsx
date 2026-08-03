@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { FlaskConical, Save, CheckCircle2 } from 'lucide-react';
+import { FlaskConical, CheckCircle2 } from 'lucide-react';
 import ArchitectChat from '@/components/briefbeta/ArchitectChat';
 import ContractPanel from '@/components/briefbeta/ContractPanel';
-import SlideCard from '@/components/briefbeta/SlideCard';
+import DeckPreview from '@/components/briefbeta/DeckPreview';
 import GammaExportPanel from '@/components/briefbeta/GammaExportPanel';
 import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbeta/architectPrompt';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
@@ -199,7 +199,7 @@ export default function SubmitBriefBeta() {
 
         <div className="flex flex-col lg:flex-row gap-5">
           {/* Chat */}
-          <div className="lg:w-3/5">
+          <div className={slides ? 'lg:w-2/5' : 'lg:w-3/5'}>
             <ArchitectChat
               messages={messages}
               loading={loading}
@@ -212,27 +212,16 @@ export default function SubmitBriefBeta() {
           </div>
 
           {/* Contract + slides */}
-          <div className="lg:w-2/5 space-y-4">
+          <div className={`space-y-4 ${slides ? 'lg:w-3/5' : 'lg:w-2/5'}`}>
             <ContractPanel contract={contract} trendCount={trends?.length || 0} />
 
             {slides && !savedReport && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="section-label">Proposed deck — {slides.length} slides</p>
-                  <button
-                    onClick={saveAsReport}
-                    disabled={saving}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-                    style={{ background: '#1D428A' }}
-                  >
-                    <Save className="w-4 h-4" />
-                    {saving ? 'Saving…' : 'Save as beta report'}
-                  </button>
-                </div>
-                {slides.map((slide, i) => (
-                  <SlideCard key={i} slide={slide} onChange={updated => updateSlide(i, updated)} />
-                ))}
-              </div>
+              <DeckPreview
+                slides={slides}
+                onSlideChange={updateSlide}
+                onSave={saveAsReport}
+                saving={saving}
+              />
             )}
 
             {savedReport && (
