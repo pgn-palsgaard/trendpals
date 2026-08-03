@@ -197,6 +197,29 @@
     "gamma_prompt": {
       "type": "string"
     },
+    "gamma_generation_id": {
+      "type": "string",
+      "description": "Gamma API generation job id for the current PPTX export. Used to poll generation status."
+    },
+    "gamma_export_status": {
+      "type": "string",
+      "enum": [
+        "idle",
+        "generating",
+        "ready",
+        "failed"
+      ],
+      "description": "Lifecycle of the Gamma PPTX export for this report."
+    },
+    "gamma_export_error": {
+      "type": "string",
+      "description": "Error message from the last failed Gamma export attempt."
+    },
+    "gamma_export_started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the current Gamma export job was started."
+    },
     "final_pptx_url": {
       "type": "string"
     },

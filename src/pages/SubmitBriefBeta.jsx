@@ -5,6 +5,7 @@ import { FlaskConical, Save, CheckCircle2 } from 'lucide-react';
 import ArchitectChat from '@/components/briefbeta/ArchitectChat';
 import ContractPanel from '@/components/briefbeta/ContractPanel';
 import SlideCard from '@/components/briefbeta/SlideCard';
+import GammaExportPanel from '@/components/briefbeta/GammaExportPanel';
 import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbeta/architectPrompt';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
 
@@ -247,6 +248,13 @@ export default function SubmitBriefBeta() {
                   Open report
                 </Link>
               </div>
+            )}
+
+            {savedReport && (
+              <GammaExportPanel
+                report={savedReport}
+                slideCount={(savedReport.slides || []).length}
+              />
             )}
           </div>
         </div>
