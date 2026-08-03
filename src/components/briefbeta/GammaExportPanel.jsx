@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Presentation, Download, ExternalLink, AlertCircle, Sparkles } from 'lucide-react';
 import GammaProgressSteps from './GammaProgressSteps';
+import ImagePreflight from './ImagePreflight';
 
 const STEPS = [
   'Preparing deck structure',
@@ -127,6 +128,7 @@ export default function GammaExportPanel({ report, slideCount }) {
       <p className="text-xs text-muted-foreground mb-4">
         Sends your approved {slideCount}-slide deck to Gamma and returns a finished .pptx file.
       </p>
+      <ImagePreflight reportId={report.id} />
       {phase === 'failed' && (
         <div className="flex items-start gap-2 rounded-lg p-3 mb-3" style={{ background: '#FAE9E5' }}>
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#C15338' }} />

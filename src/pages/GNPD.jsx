@@ -12,6 +12,7 @@ import { CANONICAL_KEYS, getCategoryLabel } from '@/lib/palsgaardCategoryMapping
 import TrendLinkReviewCard from '../components/gnpd/TrendLinkReviewCard';
 import ReviewQueueTab from '../components/gnpd/ReviewQueueTab';
 import RevalidateJobPanel from '../components/gnpd/RevalidateJobPanel';
+import ImageCoveragePanel from '../components/gnpd/ImageCoveragePanel';
 
 // ── Brand colours ────────────────────────────────────────────────────────────
 const BLUE      = "#1D428A";
@@ -698,7 +699,7 @@ export default function GNPD() {
 
       {/* Tabs */}
       <div style={{ background: "white", borderBottom: "1px solid #d8d3c8", padding: "0 28px", display: "flex", gap: 0 }}>
-        {[["uploads", "Uploads"], ["products", "Products"], ["review", "Review queue"]].map(([key, label]) => (
+        {[["uploads", "Uploads"], ["products", "Products"], ["images", "Image coverage"], ["review", "Review queue"]].map(([key, label]) => (
           <button key={key} onClick={() => setTab(key)} style={{
             background: "none", border: "none", cursor: "pointer",
             padding: "12px 20px", fontSize: 14, fontWeight: 600,
@@ -717,6 +718,7 @@ export default function GNPD() {
       <div>
         {tab === "uploads"  && <UploadsTab />}
         {tab === "products" && <ProductsTab onNavigateToReviewQueue={() => setTab("review")} />}
+        {tab === "images"   && <ImageCoveragePanel />}
         {tab === "review"   && <ReviewQueueTab />}
       </div>
     </div>

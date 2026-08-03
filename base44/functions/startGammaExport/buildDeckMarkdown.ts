@@ -1,14 +1,8 @@
 // Turns a saved Report's slide array into the markdown Gamma generates from.
 // One "---" separated block per slide, so Gamma keeps a 1:1 slide mapping.
 // imageMap: { [lowercased product name]: image_url } resolved from GNPDProduct.
-export function productNameFromExample(example) {
-  return String(example)
-    .replace(/^\[Expert pick\]\s*/i, '')
-    .split('—')[0]
-    .split('|')[0]
-    .split(' - ')[0]
-    .trim();
-}
+export { productNameFromExample } from '../../shared/productNames.ts';
+import { productNameFromExample } from '../../shared/productNames.ts';
 
 export function buildDeckMarkdown(report, imageMap = {}) {
   const parts = [];
