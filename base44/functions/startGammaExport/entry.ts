@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { secrets } from 'base44:runtime';
-import { buildDeckMarkdown } from './buildDeckMarkdown.ts';
+import { buildDeckMarkdown, productNameFromExample } from './buildDeckMarkdown.ts';
 
 export default async function (req) {
   try {
@@ -17,7 +17,28 @@ export default async function (req) {
       return Response.json({ error: 'This report has no slides to export' }, { status: 400 });
     }
 
-    const inputText = buildDeckMarkdown(report);
+    // Resolve GNPD product images for every product referenced in the deck, so the
+    // exported PPTX shows real pack shots next to the market evidence.
+    const productNames = [...new Set(
+      (report.slides || [])
+        .flatMap(s => s.gnpd_examples || [])
+        .map(productNameFromExample)
+        .filter(n => n.length >= 4)
+    )].slice(0, 40);
+
+    const imageMap = {};
+    for (const name of productNames) {
+      try {
+        const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const hits = await base44.asServiceRole.entities.GNPDProduct.filter(
+          { product_name: { $regex: esc, $options: 'i' } }, null, 3
+        );
+        const withImage = hits.find(h => h.image_url && String(h.image_url).startsWith('http'));
+        if (withImage) imageMap[name.toLowerCase()] = withImage.image_url;
+      } catch { /* skip unresolvable product names */ }
+    }
+
+    const inputText = buildDeckMarkdown(report, imageMap);
 
     const body = {
       inputText,
@@ -27,7 +48,7 @@ export default async function (req) {
       exportAs: 'pptx',
       title: report.title?.slice(0, 200),
       additionalInstructions:
-        'Professional B2B market intelligence deck for Palsgaard. Calm, authoritative tone. Keep all facts exactly as written — do not invent data. Keep product images as small thumbnails next to the product they belong to.',
+        'Professional B2B market intelligence deck for Palsgaard. Calm, authoritative tone. Keep all facts exactly as written — do not invent data. Use ONLY the image URLs provided in the markdown; do not generate or stock-source any other images. Place each provided product image as a small thumbnail directly next to the product it belongs to.',
     };
 
     // GAMMA_TEMPLATE_ID holds a Gamma *file* id, not a theme id — look up the file's
