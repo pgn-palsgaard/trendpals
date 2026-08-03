@@ -158,10 +158,6 @@ Deno.serve(async (req) => {
 
     if (rows.length === 0) return Response.json({ error: 'No rows parsed from file' }, { status: 400 });
 
-    // 4. Load existing record IDs to deduplicate
-    const existingRecords = await base44.asServiceRole.entities.GNPDProduct.filter({ source_id: sourceId }, null, 10000);
-    const existingIds = new Set(existingRecords.map(r => String(r.gnpd_record_id)));
-
     // 5. Load GlobalTrends + MegaTrends for linking
     const [globalTrends, megaTrends] = await Promise.all([
       base44.asServiceRole.entities.GlobalTrend.filter({ is_active: true }),
@@ -183,15 +179,44 @@ Deno.serve(async (req) => {
       return col ? (row[col] ?? null) : null;
     };
 
+    const getImageUrl = (row) => {
+      const raw = get(row, 'image_url') || row['Image URL'] || row['Image Hyperlink'] || row['Product Image'] || row['Image'] || null;
+      const s = String(raw || '').trim();
+      return s.startsWith('http') ? s : null;
+    };
+
+    // 4. Global dedup: a GNPD record id already in the database — from ANY previous
+    // upload — must never be created again. Look up only ids present in this file.
+    const fileRecordIds = [...new Set(rows.map(r => String(get(r, 'record_id') || '').trim()).filter(id => id && id !== 'null'))];
+    const existingById = new Map(); // record_id -> { id, image_url }
+    for (let i = 0; i < fileRecordIds.length; i += 200) {
+      const chunk = fileRecordIds.slice(i, i + 200);
+      const hits = await base44.asServiceRole.entities.GNPDProduct.filter(
+        { gnpd_record_id: { $in: chunk } }, null, chunk.length * 3
+      );
+      for (const h of hits) existingById.set(String(h.gnpd_record_id), { id: h.id, image_url: h.image_url });
+    }
+    const existingIds = new Set(existingById.keys());
+
     // 6. Build records
     const toCreate = [];
+    const imageUpdates = []; // existing records that get an image from this re-uploaded file
     let skipped = 0, errors = 0;
 
     for (const row of rows) {
       try {
         const recordId = String(get(row, 'record_id') || '').trim();
         if (!recordId || recordId === 'null') { skipped++; continue; }
-        if (existingIds.has(recordId)) { skipped++; continue; }
+        if (existingIds.has(recordId)) {
+          // Duplicate — never re-create, but backfill the image if the new file has one.
+          const ex = existingById.get(recordId);
+          const img = getImageUrl(row);
+          if (ex && img && !ex.image_url) {
+            imageUpdates.push({ id: ex.id, image_url: img });
+            ex.image_url = img; // guard against duplicate rows within the same file
+          }
+          skipped++; continue;
+        }
 
         const productName = String(get(row, 'product_name') || '').trim();
         if (!productName) { skipped++; continue; }
@@ -322,7 +347,7 @@ Deno.serve(async (req) => {
           ...(unparsedDate ? { processing_error: `Unparsable launch_date: "${unparsedDate}"` } : {}),
           source_id: sourceId,
           mintel_record_url: mintelUrl,
-          image_url: null
+          image_url: getImageUrl(row)
         });
 
         existingIds.add(recordId);
@@ -338,6 +363,13 @@ Deno.serve(async (req) => {
       const batch = toCreate.slice(i, i + batchSize);
       await base44.asServiceRole.entities.GNPDProduct.bulkCreate(batch);
       created += batch.length;
+    }
+
+    // 7b. Backfill images on existing records found as duplicates in this file.
+    let imagesBackfilled = 0;
+    for (let i = 0; i < imageUpdates.length; i += batchSize) {
+      await base44.asServiceRole.entities.GNPDProduct.bulkUpdate(imageUpdates.slice(i, i + batchSize));
+      imagesBackfilled += Math.min(batchSize, imageUpdates.length - i);
     }
 
     // 8. Update source stage
@@ -366,6 +398,7 @@ Deno.serve(async (req) => {
       created,
       skipped,
       errors,
+      images_backfilled: imagesBackfilled,
       trend_links_applied: toCreate.reduce((acc, p) => acc + p.trend_links.filter(l => l.review_status === 'auto_applied').length, 0),
       trend_links_pending: toCreate.reduce((acc, p) => acc + p.trend_links.filter(l => l.review_status === 'pending').length, 0),
       products_with_emulsifier: toCreate.filter(p => p.has_emulsifier).length,

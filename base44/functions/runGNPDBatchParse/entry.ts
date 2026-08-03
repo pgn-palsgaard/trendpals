@@ -422,10 +422,6 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
   }
   if (rows.length === 0) throw new Error('No rows parsed from source');
 
-  // Deduplicate
-  const existing = await base44.asServiceRole.entities.GNPDProduct.filter({ source_id: sourceId }, null, 10000);
-  const existingIds = new Set(existing.map(r => String(r.gnpd_record_id)));
-
   // Load trends
   const [globalTrends, megaTrends] = await Promise.all([
     base44.asServiceRole.entities.GlobalTrend.filter({ is_active: true }),
@@ -467,6 +463,24 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
   const getFormatType = (row) => get(row, 'format_type')  || row['Format Type'] || '';
   const getStorage    = (row) => get(row, 'storage')      || row['Storage']     || '';
   const getPackageType= (row) => get(row, 'package_type') || row['Package Type']|| '';
+  const getImageUrl   = (row) => {
+    const raw = get(row, 'image_url') || row['Image URL'] || row['Image Hyperlink'] || row['Product Image'] || row['Image'] || null;
+    const s = String(raw || '').trim();
+    return s.startsWith('http') ? s : null;
+  };
+
+  // Global dedup: a GNPD record id already in the database — from ANY previous upload —
+  // must never be created again. Look up only the ids present in this file, in chunks.
+  const fileRecordIds = [...new Set(rows.map(r => String(getRecordId(r) || '').trim()).filter(id => id && id !== 'null'))];
+  const existingById = new Map(); // record_id -> { id, image_url }
+  for (let i = 0; i < fileRecordIds.length; i += 200) {
+    const chunk = fileRecordIds.slice(i, i + 200);
+    const hits = await base44.asServiceRole.entities.GNPDProduct.filter(
+      { gnpd_record_id: { $in: chunk } }, null, chunk.length * 3
+    );
+    for (const h of hits) existingById.set(String(h.gnpd_record_id), { id: h.id, image_url: h.image_url });
+  }
+  const existingIds = new Set(existingById.keys());
 
   // Returns { date: ISO|null, rawUnparsed: string|null }. Never throws.
   const getDatePublished = (row) => {
@@ -496,6 +510,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
   };
 
   const toCreate = [];
+  const imageUpdates = []; // existing records that get an image from this re-uploaded file
   let skipped = 0, errors = 0;
   const coverageSet = new Set(); // Phase 8 — commercial regions this GNPD export covers
 
@@ -503,7 +518,16 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
     try {
       const recordId = String(getRecordId(row) || '').trim();
       if (!recordId || recordId === 'null') { skipped++; continue; }
-      if (existingIds.has(recordId)) { skipped++; continue; }
+      if (existingIds.has(recordId)) {
+        // Duplicate — never re-create, but backfill the image if the new file has one.
+        const ex = existingById.get(recordId);
+        const img = getImageUrl(row);
+        if (ex && img && !ex.image_url) {
+          imageUpdates.push({ id: ex.id, image_url: img });
+          ex.image_url = img; // guard against duplicate rows within the same file
+        }
+        skipped++; continue;
+      }
 
       // HTML: product cell = "Company\n - \n Brand\n - \n Product name"
       const productRaw  = getProductRaw(row);
@@ -592,7 +616,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
         ...(unparsedDate ? { processing_error: `Unparsable launch_date: "${unparsedDate}"` } : {}),
         source_id: sourceId,
         mintel_record_url: mintelUrl,
-        image_url: null
+        image_url: getImageUrl(row)
       });
       existingIds.add(recordId);
     } catch (e) {
@@ -609,6 +633,14 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
     if (i + batchSize < toCreate.length) await new Promise(r => setTimeout(r, 200));
   }
 
+  // Backfill images on existing records found as duplicates in this file.
+  let imagesBackfilled = 0;
+  for (let i = 0; i < imageUpdates.length; i += batchSize) {
+    await base44.asServiceRole.entities.GNPDProduct.bulkUpdate(imageUpdates.slice(i, i + batchSize));
+    imagesBackfilled += Math.min(batchSize, imageUpdates.length - i);
+    if (i + batchSize < imageUpdates.length) await new Promise(r => setTimeout(r, 200));
+  }
+
   // Fully ingested — mark gnpd_ready (template validation was the gate on this path).
   // Phase 8 — record commercial regions covered (merge with any previously recorded).
   const mergedCoverage = [...new Set([...(source.coverage_regions || []), ...coverageSet])];
@@ -621,6 +653,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
   return {
     source_id: sourceId, source_title: source.title,
     rows_parsed: rows.length, created, skipped, errors,
+    images_backfilled: imagesBackfilled,
     trend_links_applied: toCreate.reduce((acc, p) => acc + p.trend_links.filter(l => l.review_status === 'auto_applied').length, 0),
     trend_links_pending: toCreate.reduce((acc, p) => acc + p.trend_links.filter(l => l.review_status === 'pending').length, 0),
     products_with_emulsifier: toCreate.filter(p => p.has_emulsifier).length,
