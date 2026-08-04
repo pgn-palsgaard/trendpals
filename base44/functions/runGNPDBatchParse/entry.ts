@@ -464,7 +464,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
   const getStorage    = (row) => get(row, 'storage')      || row['Storage']     || '';
   const getPackageType= (row) => get(row, 'package_type') || row['Package Type']|| '';
   const getImageUrl   = (row) => {
-    const raw = get(row, 'image_url') || row['Image URL'] || row['Image Hyperlink'] || row['Product Image'] || row['Image'] || null;
+    const raw = get(row, 'image_url') || row['Primary Image Link'] || row['Image URL'] || row['Image Hyperlink'] || row['Product Image'] || row['Image'] || null;
     const s = String(raw || '').trim();
     return s.startsWith('http') ? s : null;
   };

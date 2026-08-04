@@ -180,7 +180,7 @@ Deno.serve(async (req) => {
     };
 
     const getImageUrl = (row) => {
-      const raw = get(row, 'image_url') || row['Image URL'] || row['Image Hyperlink'] || row['Product Image'] || row['Image'] || null;
+      const raw = get(row, 'image_url') || row['Primary Image Link'] || row['Image URL'] || row['Image Hyperlink'] || row['Product Image'] || row['Image'] || null;
       const s = String(raw || '').trim();
       return s.startsWith('http') ? s : null;
     };
