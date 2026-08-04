@@ -89,7 +89,8 @@ function parseSearchDetails(sheet, utils) {
     dateRange: null,
     searchTitle: null,
     ingredientSearch: null,
-    companySearch: null
+    companySearch: null,
+    rawText: ''
   };
 
   // Collect all non-empty cell text from the sheet (single or multi-column)
@@ -140,6 +141,12 @@ function parseSearchDetails(sheet, utils) {
       metadata.dateRange = relDateMatch[1].trim().replace(/["']/g, '');
     }
 
+    // "and Date Published matches less than six months ago"
+    const matchDateMatch = line.match(/date published matches (.+)/i);
+    if (matchDateMatch && !metadata.dateRange) {
+      metadata.dateRange = matchDateMatch[1].trim().replace(/["']/g, '');
+    }
+
     // "and Company Search matches Froneri and all child companies as the Company"
     const companyMatch = line.match(/company search matches (.+?)(?:\s+and all child companies|\s+as the company|["']?$)/i);
     if (companyMatch && !metadata.companySearch) {
@@ -169,6 +176,7 @@ function parseSearchDetails(sheet, utils) {
   // Deduplicate
   metadata.categories = [...new Set(metadata.categories)];
   metadata.markets    = [...new Set(metadata.markets)];
+  metadata.rawText    = allLines.join('\n').slice(0, 3000);
 
   return metadata;
 }
@@ -382,6 +390,39 @@ Deno.serve(async (req) => {
       autoTitle = segments.length > 0
         ? segments.join(' — ')
         : `GNPD Export — ${new Date().toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`;
+
+      // Preferred: a short, human-readable summary name derived from the raw
+      // "Search details" block, instead of a truncated list of sub-categories.
+      // Falls back silently to the segment-based title above.
+      if (searchMetadata.rawText) {
+        try {
+          const res = await base44.asServiceRole.integrations.Core.InvokeLLM({
+            prompt: `You name Mintel GNPD export files for a food-ingredient company (Palsgaard).
+
+Below is the "Search details" block from a GNPD export. Write ONE short, descriptive file name that tells a colleague what this export contains.
+
+RULES
+- Max 70 characters.
+- Summarise long sub-category lists into the umbrella area (e.g. a long list of milk, yogurt, cream, margarine and dairy-alternative sub-categories = "Dairy & Dairy Alternatives"). NEVER list individual sub-categories and never use "+N more".
+- Use the format: <Area> — <Market/Region if stated> — <Time period if stated>
+- If a company or ingredient is the search subject, lead with it.
+- Convert relative periods to plain wording, e.g. "less than six months ago" → "Last 6 months".
+- Title Case. No quotes, no file extension, no explanation.
+
+SEARCH DETAILS
+${searchMetadata.rawText}`,
+            response_json_schema: {
+              type: 'object',
+              properties: { title: { type: 'string' } },
+              required: ['title']
+            }
+          });
+          const suggested = String(res?.title || '').trim().replace(/^["']|["']$/g, '');
+          if (suggested.length >= 5) autoTitle = suggested.slice(0, 90);
+        } catch (e) {
+          console.warn('Auto-naming failed, using fallback title:', e.message);
+        }
+      }
     }
 
     // Build structured rows for the data sheet
