@@ -386,11 +386,16 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
     return { skipped: true, reason: 'not gnpd source', source_type: source.source_type };
   }
   // Only process when in an eligible pipeline stage. This path fully ingests and
-  // marks the source gnpd_ready, so eligible stages are the pre-ingest ones.
-  const eligibleStages = ['uploaded', 'gnpd_ready'];
+  // marks the source gnpd_ready. 'gnpd_ready' is NOT eligible — that would let the
+  // function's own final Source.update re-trigger the automation and ingest twice.
+  const eligibleStages = ['uploaded'];
   if (source.pipeline_stage && !eligibleStages.includes(source.pipeline_stage)) {
     return { skipped: true, reason: 'not eligible stage', pipeline_stage: source.pipeline_stage };
   }
+
+  // Claim the source immediately so a concurrent automation event for the same
+  // source hits the stage guard above and skips instead of double-ingesting.
+  await base44.asServiceRole.entities.Source.update(sourceId, { pipeline_stage: 'extracting' });
 
   // Load column mapping from GNPDColumnMapping entity
   const mappingRecords = await base44.asServiceRole.entities.GNPDColumnMapping.filter({ source_id: sourceId });
