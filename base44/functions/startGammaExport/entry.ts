@@ -52,18 +52,21 @@ export default async function (req) {
         'B2B market intelligence deck for Palsgaard. Keep all facts exactly as written — never invent data. Use ONLY provided image URLs, as small thumbnails beside their product. Palsgaard CVI: blue #1D428A for headings and section dividers (H1-only cards = full-bleed Palsgaard blue divider slides with white text), dark blue #1D2B47 body text, cream #F7F4EE backgrounds, sage #6F8263 and teal #22566E accents, grey #969696 source citations. Never red/green/yellow. Titles are sentence-case insight statements, not topic labels.',
     };
 
-    // GAMMA_TEMPLATE_ID holds a Gamma *file* id, not a theme id — look up the file's
-    // theme so the export inherits the Palsgaard branding. Optional: skipped on failure.
+    // GAMMA_TEMPLATE_ID may hold either a Gamma *theme* id (used directly) or a Gamma
+    // *file* id (we resolve the file's theme). Branding must apply — fail loudly if not.
     const templateId = secrets.get('GAMMA_TEMPLATE_ID');
     if (templateId) {
+      let themeId = null;
       try {
         const tRes = await fetch(`https://public-api.gamma.app/v1.0/gammas/${templateId}`, {
           headers: { 'X-API-KEY': secrets.get('GAMMA_API_KEY') },
         });
-        const tData = await tRes.json();
-        const themeId = tData?.themeId || tData?.theme?.id;
-        if (tRes.ok && themeId) body.themeId = themeId;
-      } catch { /* branding is optional — continue without a theme */ }
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          themeId = tData?.themeId || tData?.theme?.id || null;
+        }
+      } catch { /* not a file id — treat the value as a theme id below */ }
+      body.themeId = themeId || templateId;
     }
 
     const res = await fetch('https://public-api.gamma.app/v1.0/generations', {
@@ -96,6 +99,7 @@ export default async function (req) {
     return Response.json({
       success: true,
       generation_id: data.generationId,
+      theme_id: body.themeId || null,
       slide_count: (report.slides || []).length,
       warnings: data.warnings || null,
     });
