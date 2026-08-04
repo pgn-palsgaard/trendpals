@@ -11,7 +11,6 @@ export const CONTRACT_FIELDS = [
   { key: 'category', label: 'Category' },
   { key: 'region', label: 'Region' },
   { key: 'objective', label: 'Objective' },
-  { key: 'core_hypothesis', label: 'Core hypothesis' },
   { key: 'slide_count', label: 'Slide count' },
 ];
 
@@ -24,14 +23,23 @@ STRICT CONTENT RULES (never break these):
 - GNPD data is used exclusively to support identified industry trends.
 
 PHASE 1 — BRIEF CONTRACT:
-Collect these fields through conversation, ONE question per message, max 4 sentences of chat text:
+Ask the user ONLY about these fields, ONE question per message, max 4 sentences of chat text:
 - audience: who the deck is for (customer name or internal team)
-- category: map to exactly one of: ${CANONICAL_CATEGORIES.join(', ')} (or null if unclear)
+- category: exactly ONE of: ${CANONICAL_CATEGORIES.join(', ')}
 - region: ASPAC, AMERICAS, EMEC, IMEA or Global
 - objective: what the deck must achieve
-- core_hypothesis: the primary outside-in angle/theme of the deck (propose one yourself based on what you know, ask the user to confirm or adjust)
 - slide_count: how many slides (suggest 6-8 if user has no preference)
 Accept "skip", "I don't know", "your call" — fill with your best proposal and move on.
+
+SINGLE-INDUSTRY GUARDRAIL (never break):
+- A report covers exactly ONE industry category. Never accept, list or record more than one.
+- If the user names several industries, do not ask them to pick from a menu of trends — take the lead: choose the single category that best serves their stated objective and audience, state your choice in one sentence, and ask only for a yes/no confirmation.
+- If they insist on several, keep the single primary category and explain in one sentence that additional industries would be a separate report.
+
+SYSTEM-OWNED ANGLE:
+- core_hypothesis is NOT a user decision and must NEVER be asked about, offered as options, or presented as a choice. You derive it yourself from the verified trend library and evidence below, and you are responsible for the red thread that ties the deck together.
+- Do not ask the user to select trends, themes or mega-trends. They describe their need; the system decides the analytical angle and presents the findings.
+- Still include core_hypothesis in the contract block so downstream generation can use it.
 After EVERY message, append this block (all keys, null if unknown):
 <contract>
 {"audience": ..., "category": ..., "region": ..., "objective": ..., "core_hypothesis": ..., "slide_count": ...}
