@@ -3,7 +3,8 @@ import { CheckCircle2, Circle } from 'lucide-react';
 import { CONTRACT_FIELDS } from '@/components/briefbeta/architectPrompt';
 
 export default function ContractPanel({ contract, trendCount }) {
-  const filled = CONTRACT_FIELDS.filter(f => contract[f.key]).length;
+  const isFilled = v => Array.isArray(v) ? v.length > 0 : !!v;
+  const filled = CONTRACT_FIELDS.filter(f => isFilled(contract[f.key])).length;
 
   return (
     <div className="pal-card p-5">
@@ -16,7 +17,8 @@ export default function ContractPanel({ contract, trendCount }) {
       </p>
       <div className="space-y-2.5">
         {CONTRACT_FIELDS.map(f => {
-          const value = contract[f.key];
+          const raw = contract[f.key];
+          const value = Array.isArray(raw) ? (raw.length ? raw.join(', ') : null) : raw;
           return (
             <div key={f.key} className="flex items-start gap-2 text-sm">
               {value

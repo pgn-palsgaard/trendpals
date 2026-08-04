@@ -33,11 +33,16 @@ export default function SubmitBriefBeta() {
   const [savedReport, setSavedReport] = useState(null);
   const sessionStart = useRef(new Date().toISOString());
 
-  async function loadTrendsFor(category) {
-    if (!CANONICAL_CATEGORIES.includes(category)) return null;
-    const result = await base44.entities.GlobalTrend.filter({ category, is_active: true }, '-updated_date', 12);
-    setTrends(result);
-    return result;
+  async function loadTrendsFor(categories) {
+    const valid = (Array.isArray(categories) ? categories : [categories])
+      .filter(c => CANONICAL_CATEGORIES.includes(c));
+    if (valid.length === 0) return null;
+    const results = await Promise.all(valid.map(c =>
+      base44.entities.GlobalTrend.filter({ category: c, is_active: true }, '-updated_date', 8)
+    ));
+    const flat = results.flat();
+    setTrends(flat);
+    return flat;
   }
 
   async function sendMessage() {
@@ -54,7 +59,7 @@ export default function SubmitBriefBeta() {
         .join('\n\n');
 
       const trendContext = trends?.length
-        ? trends.map(t => `- ${t.trend_name}: ${(t.market_signal || t.description || '').slice(0, 180)}`).join('\n')
+        ? trends.map(t => `- [${t.category}] ${t.trend_name}: ${(t.market_signal || t.description || '').slice(0, 180)}`).join('\n')
         : null;
 
       const reply = await base44.integrations.Core.InvokeLLM({
@@ -73,8 +78,10 @@ export default function SubmitBriefBeta() {
             for (const [k, v] of Object.entries(parsed)) {
               if (v !== null && v !== 'null' && String(v).trim()) next[k] = v;
             }
-            // Lazy-load verified trends once the category resolves
-            if (next.category && next.category !== prev.category) loadTrendsFor(next.category);
+            // Lazy-load verified trends once the categories resolve
+            if (next.categories && JSON.stringify(next.categories) !== JSON.stringify(prev.categories)) {
+              loadTrendsFor(next.categories);
+            }
             return next;
           });
         } catch { /* malformed contract — ignore, next turn re-emits */ }
@@ -118,7 +125,9 @@ export default function SubmitBriefBeta() {
     if (!slides || saving) return;
     setSaving(true);
     try {
-      const category = CANONICAL_CATEGORIES.includes(contract.category) ? contract.category : 'needs_human_review';
+      const cats = (Array.isArray(contract.categories) ? contract.categories : [contract.categories])
+        .filter(c => CANONICAL_CATEGORIES.includes(c));
+      const category = cats[0] || 'needs_human_review';
       const regionCode = toRegionCode(contract.region);
       const title = `[BETA] ${contract.core_hypothesis || contract.objective || 'Architect draft'}`.slice(0, 120);
 

@@ -1,3 +1,4 @@
+// Starts a Gamma PPTX export for a saved report, styled to the Palsgaard CVI.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { secrets } from 'base44:runtime';
 import { buildDeckMarkdown, productNameFromExample } from './buildDeckMarkdown.ts';
@@ -48,7 +49,7 @@ export default async function (req) {
       exportAs: 'pptx',
       title: report.title?.slice(0, 200),
       additionalInstructions:
-        'Professional B2B market intelligence deck for Palsgaard. Calm, authoritative tone. Keep all facts exactly as written — do not invent data. Use ONLY the image URLs provided in the markdown; do not generate or stock-source any other images. Place each provided product image as a small thumbnail directly next to the product it belongs to.',
+        'B2B market intelligence deck for Palsgaard. Keep all facts exactly as written — never invent data. Use ONLY provided image URLs, as small thumbnails beside their product. Palsgaard CVI: blue #1D428A for headings and section dividers (H1-only cards = full-bleed Palsgaard blue divider slides with white text), dark blue #1D2B47 body text, cream #F7F4EE backgrounds, sage #6F8263 and teal #22566E accents, grey #969696 source citations. Never red/green/yellow. Titles are sentence-case insight statements, not topic labels.',
     };
 
     // GAMMA_TEMPLATE_ID holds a Gamma *file* id, not a theme id — look up the file's

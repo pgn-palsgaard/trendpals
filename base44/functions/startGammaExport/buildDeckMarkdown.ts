@@ -12,6 +12,12 @@ export function buildDeckMarkdown(report, imageMap = {}) {
   );
 
   for (const slide of report.slides || []) {
+    // Category section divider — its own card so Gamma renders a full-bleed break slide.
+    if (slide.slide_type === 'section_header') {
+      parts.push(`# ${slide.title || slide.slide_name || 'Section'}${slide.subtitle ? `\n## ${slide.subtitle}` : ''}`);
+      continue;
+    }
+
     let s = `## ${slide.title || slide.slide_name || 'Slide'}\n`;
     if (slide.subtitle) s += `### ${slide.subtitle}\n\n`;
     if (slide.market_signal) s += `${slide.market_signal}\n\n`;
