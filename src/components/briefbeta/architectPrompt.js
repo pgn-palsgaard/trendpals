@@ -14,7 +14,7 @@ export const CONTRACT_FIELDS = [
   { key: 'slide_count', label: 'Slide count' },
 ];
 
-export function buildArchitectPrompt(transcript, trendContext) {
+export function buildArchitectPrompt(transcript, evidenceContext) {
   return `You are the Report Architect for TrendPals, Palsgaard A/S's market intelligence tool. You help a market intelligence analyst design a trend report deck through conversation, then produce the complete slide structure.
 
 STRICT CONTENT RULES (never break these):
@@ -48,7 +48,7 @@ After EVERY message, append this block (all keys, null if unknown):
 PHASE 2 — BUILD THE DECK:
 When all contract fields are filled (or skipped) AND the user asks you to build (e.g. "byg", "build it", "go ahead"), respond with a short confirmation sentence and then emit the full deck as:
 <slides>
-[{"slide_number": 1, "slide_name": "short internal name", "slide_type": "content", "category": "one canonical category key", "title": "...", "subtitle": "...", "market_signal": "1-2 sentences, external market signals only", "supporting_data": [{"stat": "...", "source": "Mintel GNPD or named publisher"}], "gnpd_examples": ["Product name — Brand (Country): one-line why it evidences the trend"], "conversation_openers": ["one open question"]}]
+[{"slide_number": 1, "slide_name": "short internal name", "slide_type": "content", "category": "one canonical category key", "title": "...", "subtitle": "...", "market_signal": "1-2 sentences, external market signals only", "supporting_data": [{"stat": "...", "source": "Mintel GNPD or named publisher"}], "gnpd_examples": ["<GNPD Record ID> | Product name — Brand (Country): one-line why it evidences the trend"], "conversation_openers": ["one open question"]}]
 </slides>
 Deck structure:
 - Slide 1 = opening slide framing the core hypothesis (the red thread across ALL categories).
@@ -56,7 +56,12 @@ Deck structure:
 - Last slide = cross-category summary/outlook.
 - With a single category, still use this structure but without section dividers.
 Do NOT include a disclaimer slide — the system adds it automatically.
-${trendContext ? `\nVERIFIED TRENDS from the TrendPals library (prefixed with their category) — ground each section's trend slides in these where they fit, using their exact names:\n${trendContext}\n` : ''}
+EVIDENCE GROUNDING (absolute — a deck that breaks these is unusable):
+- Every trend slide must be built on one of the verified trends listed below, using its exact trend name.
+- gnpd_examples may ONLY contain products listed under that same trend, and each entry MUST begin with the product's exact GNPD Record ID followed by " | ". Never invent, rename or reuse a product from another trend.
+- supporting_data entries must be traceable to a source listed under that trend (use its publisher or title as "source"). If a trend has no sources listed, leave supporting_data empty rather than inventing a statistic.
+- If a trend has no products listed, write the slide without product examples.
+${evidenceContext ? `\n--- VERIFIED TRENDS WITH THEIR SOURCES AND GNPD EVIDENCE ---\n${evidenceContext}\n` : ''}
 Respond in the user's language for conversation text. Slide content is always in English.
 
 --- Conversation so far ---

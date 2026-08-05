@@ -8,6 +8,7 @@ import DeckPreview from '@/components/briefbeta/DeckPreview';
 import GammaExportPanel from '@/components/briefbeta/GammaExportPanel';
 import ClaudePptxPanel from '@/components/briefbeta/ClaudePptxPanel';
 import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbeta/architectPrompt';
+import { buildEvidenceContext, extractRecordIds } from '@/components/briefbeta/evidenceContext';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
 
 const OPENER = {
@@ -27,6 +28,7 @@ export default function SubmitBriefBeta() {
   const [contract, setContract] = useState({});
   const [slides, setSlides] = useState(null);
   const [trends, setTrends] = useState(null); // verified trends for the contract category
+  const [evidence, setEvidence] = useState(null); // sources + real GNPD products per trend
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [feedbackGiven, setFeedbackGiven] = useState({});
@@ -34,16 +36,25 @@ export default function SubmitBriefBeta() {
   const [savedReport, setSavedReport] = useState(null);
   const sessionStart = useRef(new Date().toISOString());
 
-  async function loadTrendsFor(categories) {
+  // Retrieval works exactly like the manual workflow: verified trends first, then
+  // the Source records behind them and the real GNPD products that support them.
+  async function loadEvidenceFor(categories, region) {
     const valid = (Array.isArray(categories) ? categories : [categories])
       .filter(c => CANONICAL_CATEGORIES.includes(c));
     if (valid.length === 0) return null;
-    const results = await Promise.all(valid.map(c =>
-      base44.entities.GlobalTrend.filter({ category: c, is_active: true }, '-updated_date', 8)
-    ));
-    const flat = results.flat();
-    setTrends(flat);
-    return flat;
+    try {
+      const res = await base44.functions.invoke('getArchitectEvidence', {
+        categories: valid,
+        region: toRegionCode(region),
+      });
+      const data = res?.data;
+      if (!data?.trends) return null;
+      setEvidence(data);
+      setTrends(data.trends);
+      return data;
+    } catch {
+      return null;
+    }
   }
 
   async function sendMessage() {
@@ -59,12 +70,8 @@ export default function SubmitBriefBeta() {
         .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
         .join('\n\n');
 
-      const trendContext = trends?.length
-        ? trends.map(t => `- [${t.category}] ${t.trend_name}: ${(t.market_signal || t.description || '').slice(0, 180)}`).join('\n')
-        : null;
-
       const reply = await base44.integrations.Core.InvokeLLM({
-        prompt: buildArchitectPrompt(transcript, trendContext),
+        prompt: buildArchitectPrompt(transcript, buildEvidenceContext(evidence)),
         model: 'claude_sonnet_4_6',
       });
       const rawText = typeof reply === 'string' ? reply : (reply?.content || '');
@@ -79,9 +86,9 @@ export default function SubmitBriefBeta() {
             for (const [k, v] of Object.entries(parsed)) {
               if (v !== null && v !== 'null' && String(v).trim()) next[k] = v;
             }
-            // Lazy-load verified trends once the categories resolve
+            // Lazy-load trends + their sources and GNPD evidence once the categories resolve
             if (next.categories && JSON.stringify(next.categories) !== JSON.stringify(prev.categories)) {
-              loadTrendsFor(next.categories);
+              loadEvidenceFor(next.categories, next.region);
             }
             return next;
           });
@@ -134,11 +141,8 @@ export default function SubmitBriefBeta() {
 
       // The trends the architect worked from carry the market-intel sources behind
       // the deck — attach them to the project so the evidence chain stays traceable.
-      const usedTrends = (trends || []).filter(t => cats.includes(t.category));
-      const sourceIds = [...new Set(usedTrends.flatMap(t => [
-        ...(t.source_references || []),
-        ...(t.sources || []).map(s => s.source_id),
-      ]).filter(Boolean))];
+      const usedTrends = (evidence?.trends || []).filter(t => cats.includes(t.category));
+      const sourceIds = [...new Set(usedTrends.flatMap(t => (t.sources || []).map(s => s.id)).filter(Boolean))];
 
       const project = await base44.entities.Project.create({
         name: title,
@@ -159,38 +163,20 @@ export default function SubmitBriefBeta() {
       };
       const finalSlides = [disclaimerSlide, ...slides.map((s, i) => ({ ...s, slide_number: i + 1 }))];
 
-      // Resolve GNPD record IDs for every product referenced in the deck — final export slide
-      const productNames = [...new Set(slides.flatMap(s =>
-        (s.gnpd_examples || []).map(ex =>
-          String(ex).replace(/^\[Expert pick\]\s*/i, '').split('—')[0].split('|')[0].trim()
-        ).filter(n => n.length >= 4)
-      ))];
-      const recordIds = [];
-      const shortlist = [];
-      for (const name of productNames.slice(0, 60)) {
-        try {
-          const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          const hits = await base44.entities.GNPDProduct.filter(
-            { product_name: { $regex: esc, $options: 'i' } }, null, 1
-          );
-          const p = hits[0];
-          if (!p?.gnpd_record_id) continue;
-          recordIds.push(p.gnpd_record_id);
-          shortlist.push({
-            gnpd_record_id: p.gnpd_record_id,
-            product_name: p.product_name,
-            brand: p.brand,
-            company: p.company,
-            country: p.country,
-            launch_date: p.launch_date,
-            category: p.palsgaard_category || p.category,
-            claims: p.claims || [],
-            image_url: p.image_url,
-            mintel_record_url: p.mintel_record_url,
-            linked_trends: (p.trend_links || []).map(l => l.trend_name).filter(Boolean),
-          });
-        } catch { /* skip unresolvable names */ }
-      }
+      // The deck cites products by their exact GNPD Record ID, so the shortlist is
+      // built straight from the retrieved evidence — no name guessing.
+      const recordIds = extractRecordIds(slides);
+      const evidenceById = {};
+      for (const p of evidence?.products || []) evidenceById[p.gnpd_record_id] = p;
+      const shortlist = recordIds
+        .map(id => evidenceById[id])
+        .filter(Boolean)
+        .map(p => ({
+          ...p,
+          supporting_trends: usedTrends
+            .filter(t => (t.products || []).some(tp => tp.gnpd_record_id === p.gnpd_record_id))
+            .map(t => t.trend_name),
+        }));
       if (recordIds.length > 0) {
         finalSlides.push({
           slide_number: finalSlides.length,
