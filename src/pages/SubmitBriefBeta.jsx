@@ -6,6 +6,7 @@ import ArchitectChat from '@/components/briefbeta/ArchitectChat';
 import ContractPanel from '@/components/briefbeta/ContractPanel';
 import DeckPreview from '@/components/briefbeta/DeckPreview';
 import GammaExportPanel from '@/components/briefbeta/GammaExportPanel';
+import ClaudePptxPanel from '@/components/briefbeta/ClaudePptxPanel';
 import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbeta/architectPrompt';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
 
@@ -249,10 +250,16 @@ export default function SubmitBriefBeta() {
             )}
 
             {savedReport && (
-              <GammaExportPanel
-                report={savedReport}
-                slideCount={(savedReport.slides || []).length}
-              />
+              <>
+                <ClaudePptxPanel
+                  report={savedReport}
+                  slideCount={(savedReport.slides || []).length}
+                />
+                <GammaExportPanel
+                  report={savedReport}
+                  slideCount={(savedReport.slides || []).length}
+                />
+              </>
             )}
           </div>
         </div>

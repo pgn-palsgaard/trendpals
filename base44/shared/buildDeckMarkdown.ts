@@ -1,8 +1,8 @@
-// Turns a saved Report's slide array into the markdown Gamma generates from.
-// One "---" separated block per slide, so Gamma keeps a 1:1 slide mapping.
+// Turns a saved Report's slide array into deck markdown.
+// One "---" separated block per slide, so exports keep a 1:1 slide mapping.
 // imageMap: { [lowercased product name]: image_url } resolved from GNPDProduct.
-export { productNameFromExample } from '../../shared/productNames.ts';
-import { productNameFromExample } from '../../shared/productNames.ts';
+export { productNameFromExample } from './productNames.ts';
+import { productNameFromExample } from './productNames.ts';
 
 export function buildDeckMarkdown(report, imageMap = {}) {
   const parts = [];
@@ -12,7 +12,7 @@ export function buildDeckMarkdown(report, imageMap = {}) {
   );
 
   for (const slide of report.slides || []) {
-    // Category section divider — its own card so Gamma renders a full-bleed break slide.
+    // Category section divider — its own card so exports render a full-bleed break slide.
     if (slide.slide_type === 'section_header') {
       parts.push(`# ${slide.title || slide.slide_name || 'Section'}${slide.subtitle ? `\n## ${slide.subtitle}` : ''}`);
       continue;

@@ -1,7 +1,7 @@
 // Starts a Gamma PPTX export for a saved report, styled to the Palsgaard CVI.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { secrets } from 'base44:runtime';
-import { buildDeckMarkdown, productNameFromExample } from './buildDeckMarkdown.ts';
+import { buildDeckMarkdown, productNameFromExample } from '../../shared/buildDeckMarkdown.ts';
 
 export default async function (req) {
   try {
