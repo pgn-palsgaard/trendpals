@@ -18,6 +18,15 @@
       "type": "string",
       "description": "Region (copied from project)"
     },
+    "generated_by": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "architect"
+      ],
+      "default": "manual",
+      "description": "How the report was produced. architect = built automatically by the Report Architect agent chat flow. manual = assembled in the project workspace."
+    },
     "analysis_mode": {
       "type": "string",
       "enum": [

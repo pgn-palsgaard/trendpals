@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 
 import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 import KAMBadge from '@/components/KAMBadge';
+import ArchitectBadge from '@/components/ArchitectBadge';
 
 const STATE_STYLE = {
   draft:              { label: 'Draft',              bg: '#F3F4F6', color: '#6B7280' },
@@ -145,8 +146,11 @@ export default function Projects() {
                       </span>
                     </div>
 
-                    {kamProjectIds.has(project.id) && (
-                      <div className="mb-2"><KAMBadge /></div>
+                    {(kamProjectIds.has(project.id) || project.generated_by === 'architect') && (
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {kamProjectIds.has(project.id) && <KAMBadge />}
+                        {project.generated_by === 'architect' && <ArchitectBadge />}
+                      </div>
                     )}
 
                     <div className="space-y-1.5 text-xs text-muted-foreground">

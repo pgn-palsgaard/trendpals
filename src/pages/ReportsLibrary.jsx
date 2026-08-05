@@ -12,6 +12,7 @@ import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
 import KAMBadge from '@/components/KAMBadge';
 import { reportSearchText, matchSnippet, reportFiles } from '@/lib/reportSearch';
+import ArchitectBadge from '@/components/ArchitectBadge';
 
 export default function ReportsLibrary() {
   const navigate = useNavigate();
@@ -189,8 +190,11 @@ export default function ReportsLibrary() {
                         </Badge>
                       )}
                     </div>
-                    {report.analysis_mode === 'product_first' && (
-                      <div className="mb-2"><KAMBadge /></div>
+                    {(report.analysis_mode === 'product_first' || report.generated_by === 'architect') && (
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {report.analysis_mode === 'product_first' && <KAMBadge />}
+                        {report.generated_by === 'architect' && <ArchitectBadge />}
+                      </div>
                     )}
                     {project && (project.customer_name || project.meeting_context || project.requester_name) && (
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mt-1 mb-2">

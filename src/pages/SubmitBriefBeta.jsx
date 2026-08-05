@@ -132,6 +132,14 @@ export default function SubmitBriefBeta() {
       const regionCode = toRegionCode(contract.region);
       const title = `[BETA] ${contract.core_hypothesis || contract.objective || 'Architect draft'}`.slice(0, 120);
 
+      // The trends the architect worked from carry the market-intel sources behind
+      // the deck — attach them to the project so the evidence chain stays traceable.
+      const usedTrends = (trends || []).filter(t => cats.includes(t.category));
+      const sourceIds = [...new Set(usedTrends.flatMap(t => [
+        ...(t.source_references || []),
+        ...(t.sources || []).map(s => s.source_id),
+      ]).filter(Boolean))];
+
       const project = await base44.entities.Project.create({
         name: title,
         category,
@@ -139,6 +147,8 @@ export default function SubmitBriefBeta() {
         objective: contract.objective || contract.core_hypothesis || 'Beta chat-briefed report',
         customer_name: contract.audience || '',
         state: 'draft',
+        generated_by: 'architect',
+        selected_source_ids: sourceIds,
       });
 
       const disclaimerSlide = {
@@ -156,13 +166,29 @@ export default function SubmitBriefBeta() {
         ).filter(n => n.length >= 4)
       ))];
       const recordIds = [];
+      const shortlist = [];
       for (const name of productNames.slice(0, 60)) {
         try {
           const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           const hits = await base44.entities.GNPDProduct.filter(
             { product_name: { $regex: esc, $options: 'i' } }, null, 1
           );
-          if (hits[0]?.gnpd_record_id) recordIds.push(hits[0].gnpd_record_id);
+          const p = hits[0];
+          if (!p?.gnpd_record_id) continue;
+          recordIds.push(p.gnpd_record_id);
+          shortlist.push({
+            gnpd_record_id: p.gnpd_record_id,
+            product_name: p.product_name,
+            brand: p.brand,
+            company: p.company,
+            country: p.country,
+            launch_date: p.launch_date,
+            category: p.palsgaard_category || p.category,
+            claims: p.claims || [],
+            image_url: p.image_url,
+            mintel_record_url: p.mintel_record_url,
+            linked_trends: (p.trend_links || []).map(l => l.trend_name).filter(Boolean),
+          });
         } catch { /* skip unresolvable names */ }
       }
       if (recordIds.length > 0) {
@@ -181,7 +207,10 @@ export default function SubmitBriefBeta() {
         category,
         region: regionCode,
         analysis_mode: 'standard',
+        generated_by: 'architect',
         slides: finalSlides,
+        product_shortlist: shortlist,
+        selected_trends: usedTrends.map(t => t.trend_name),
         status: 'draft',
         version: 1,
       });

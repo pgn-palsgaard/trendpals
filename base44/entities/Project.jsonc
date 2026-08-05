@@ -37,6 +37,15 @@
       ],
       "description": "Canonical region code"
     },
+    "generated_by": {
+      "type": "string",
+      "enum": [
+        "manual",
+        "architect"
+      ],
+      "default": "manual",
+      "description": "How the project was created. architect = auto-created by the Report Architect agent when saving a chat-built deck. manual = created by a user in the project workspace."
+    },
     "customer_name": {
       "type": "string"
     },
