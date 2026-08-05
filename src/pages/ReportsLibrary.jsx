@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { base44 } from '@/api/base44Client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -11,6 +11,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { toast } from 'sonner';
 import KAMBadge from '@/components/KAMBadge';
+import { reportSearchText, matchSnippet, reportFiles } from '@/lib/reportSearch';
 
 export default function ReportsLibrary() {
   const navigate = useNavigate();
@@ -18,11 +19,12 @@ export default function ReportsLibrary() {
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [regionFilter, setRegionFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('published');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [deepSearch, setDeepSearch] = useState(true);
 
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ['reportsLibrary'],
-    queryFn: () => base44.entities.Report.list('-created_date', 100)
+    queryFn: () => base44.entities.Report.list('-created_date', 500)
   });
 
   const { data: projects = [] } = useQuery({
@@ -48,13 +50,22 @@ export default function ReportsLibrary() {
   const categories = ['all', ...new Set(reports.map(r => r.category).filter(Boolean))];
   const regions = ['all', ...new Set(reports.map(r => r.region).filter(Boolean))];
 
-  // Filter reports
+  // Pre-index every report's full slide content once, so search covers the
+  // actual report body — not only its title.
+  const searchIndex = useMemo(() => {
+    const map = {};
+    for (const r of reports) map[r.id] = reportSearchText(r);
+    return map;
+  }, [reports]);
+
+  const q = searchQuery.trim().toLowerCase();
+
   const filteredReports = reports.filter(report => {
-    const matchesSearch = !searchQuery || 
-      report.title?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      report.category?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      report.region?.toLowerCase().includes(searchQuery.toLowerCase());
-    
+    const haystack = deepSearch
+      ? searchIndex[report.id] || ''
+      : [report.title, report.category, report.region].filter(Boolean).join(' ').toLowerCase();
+    const matchesSearch = !q || haystack.includes(q);
+
     const matchesCategory = categoryFilter === 'all' || report.category === categoryFilter;
     const matchesRegion = regionFilter === 'all' || report.region === regionFilter;
     const matchesStatus = statusFilter === 'all' || report.status === statusFilter;
@@ -81,7 +92,9 @@ export default function ReportsLibrary() {
       <div className="max-w-7xl mx-auto px-4">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Reports Library</h1>
-          <p className="text-slate-600">Browse, search, and clone published trend reports</p>
+          <p className="text-slate-600">
+            All generated reports — manual and automatic. Search titles or the full slide content.
+          </p>
         </div>
 
         {/* Filters */}
@@ -91,7 +104,7 @@ export default function ReportsLibrary() {
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                 <Input
-                  placeholder="Search reports..."
+                  placeholder="Search titles, trends, products, slide text…"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-9"
@@ -133,6 +146,20 @@ export default function ReportsLibrary() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-3 border-t">
+              <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={deepSearch}
+                  onChange={(e) => setDeepSearch(e.target.checked)}
+                  className="rounded border-slate-300"
+                />
+                Search inside report content (slides, trends, products)
+              </label>
+              <p className="text-xs text-slate-500">
+                {filteredReports.length} of {reports.length} reports
+              </p>
+            </div>
           </CardContent>
         </Card>
 
@@ -149,6 +176,8 @@ export default function ReportsLibrary() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredReports.map(report => {
               const project = projects.find(p => p.id === report.project_id);
+              const snippet = q && deepSearch ? matchSnippet(searchIndex[report.id] || '', q) : null;
+              const files = reportFiles(report);
               return (
                 <Card key={report.id} className="hover:shadow-lg transition-shadow">
                   <CardHeader>
@@ -185,6 +214,12 @@ export default function ReportsLibrary() {
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
+                    {snippet && (
+                      <p className="text-xs text-slate-600 bg-amber-50 border border-amber-100 rounded p-2 line-clamp-3">
+                        {snippet}
+                      </p>
+                    )}
+
                     {/* Stats */}
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div className="p-2 bg-slate-50 rounded">
@@ -229,20 +264,20 @@ export default function ReportsLibrary() {
                       <span>{new Date(report.created_date).toLocaleDateString()}</span>
                     </div>
 
-                    {/* Final file pills */}
-                    {(report.final_pptx_url || report.final_pdf_url) && (
+                    {/* Downloadable deck files */}
+                    {(files.pptx || files.pdf) && (
                       <div className="flex flex-wrap gap-2">
-                        {report.final_pptx_url && (
-                          <a href={report.final_pptx_url} target="_blank" rel="noopener noreferrer">
+                        {files.pptx && (
+                          <a href={files.pptx} target="_blank" rel="noopener noreferrer">
                             <Badge className="bg-green-100 text-green-700 border-green-200 cursor-pointer hover:bg-green-200 gap-1">
-                              <Download className="w-3 h-3" /> PPTX ready
+                              <Download className="w-3 h-3" /> PPTX
                             </Badge>
                           </a>
                         )}
-                        {report.final_pdf_url && (
-                          <a href={report.final_pdf_url} target="_blank" rel="noopener noreferrer">
+                        {files.pdf && (
+                          <a href={files.pdf} target="_blank" rel="noopener noreferrer">
                             <Badge className="bg-green-100 text-green-700 border-green-200 cursor-pointer hover:bg-green-200 gap-1">
-                              <Download className="w-3 h-3" /> PDF ready
+                              <Download className="w-3 h-3" /> PDF
                             </Badge>
                           </a>
                         )}
