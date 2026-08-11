@@ -62,6 +62,15 @@ const AuthenticatedApp = () => {
 
   // Handle authentication errors
   if (authError) {
+    // Submit Brief is open to colleagues without a login — serve it before any
+    // auth gating so unauthenticated (or unregistered) visitors can submit.
+    if (location.pathname === '/SubmitBrief') {
+      return (
+        <Routes>
+          <Route path="/SubmitBrief" element={<SubmitBrief />} />
+        </Routes>
+      );
+    }
     if (authError.type === 'user_not_registered') {
       return <UserNotRegisteredError />;
     } else if (authError.type === 'auth_required') {

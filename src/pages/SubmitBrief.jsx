@@ -132,12 +132,12 @@ export default function SubmitBrief() {
         .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
         .join('\n\n');
 
-      const reply = await base44.integrations.Core.InvokeLLM({
+      // Routed through a backend function so the page works without a login.
+      const res = await base44.functions.invoke('briefAssistant', {
         prompt: `${SYSTEM_PROMPT(jtbdLabel)}\n\n--- Conversation so far ---\n${transcript}\n\n--- Now write your next assistant message, following all behaviour rules, and end with the <brief_fields> JSON block. ---`,
-        model: 'claude_sonnet_4_6',
       });
 
-      const rawText = typeof reply === 'string' ? reply : (reply?.content || '');
+      const rawText = res?.data?.reply || '';
 
       // Parse <brief_fields> JSON block, then strip it from the visible message
       let extracted = null;
@@ -177,7 +177,8 @@ export default function SubmitBrief() {
       const lastAssistant = [...conversationLog].reverse().find(m => m.role === 'assistant');
       const summary = lastAssistant?.content?.replace(/I have everything I need\.[\s\S]*$/, '').trim() || '';
 
-      await base44.entities.ReportRequest.create({
+      // Submitted via the backend function so no login is required.
+      const res = await base44.functions.invoke('submitBrief', {
         requester_name: requesterName.trim(),
         ...(requesterEmail.trim() ? { requester_email: requesterEmail.trim() } : {}),
         jtbd,
@@ -190,9 +191,9 @@ export default function SubmitBrief() {
         ...(selectedTrendIds.length ? { selected_trend_ids: selectedTrendIds } : {}),
         ...(selectedTrendNames.length ? { selected_trend_names: selectedTrendNames } : {}),
         conversation_log: conversationLog,
-        status: 'new',
         submitted_at: new Date().toISOString(),
       });
+      if (!res?.data?.success) throw new Error(res?.data?.error || 'Submission failed — please try again.');
       setSubmitted(true);
     } catch (e) {
       setSubmitError(e.message || 'Submission failed — please try again.');
