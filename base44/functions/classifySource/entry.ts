@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { readSourceText } from '../../shared/extractText.ts';
 
 // ── Inline category validator ──────────────────────────────────────────────
 const VALID_CATEGORY_VALUES = ['bakery','condiments','chocolate_confectionery','dairy','ice_cream','meat','oils_fats','plant_based','rutf_rusf','out_of_scope','needs_human_review'];
@@ -57,22 +58,12 @@ Deno.serve(async (req) => {
       return Response.json({ ok: false, error: 'GNPD sources are not classified — they use the locked template pipeline' });
     }
 
-    // 1. Extract text — with HTTP fallback for asServiceRole 403 (same pattern as processSourceQueue)
+    // 1. Extract text — in-process via the shared extractor (no cross-function call)
     let readData = null;
     try {
-      const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id });
-      readData = readRes?.data ?? readRes;
-    } catch (invokeErr) {
-      console.warn(`[classifySource] asServiceRole invoke failed (${invokeErr.message}) — retrying via direct HTTP`);
-      const fnUrl = `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/readSourceContent`;
-      const headers = { 'Content-Type': 'application/json' };
-      for (const h of ['authorization', 'api_key', 'x-api-key', 'cookie']) {
-        const v = req.headers.get(h);
-        if (v) headers[h] = v;
-      }
-      const httpRes = await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ source_id }) });
-      if (!httpRes.ok) throw new Error(`readSourceContent HTTP ${httpRes.status}: ${(await httpRes.text()).slice(0, 200)}`);
-      readData = await httpRes.json();
+      readData = await readSourceText(base44.asServiceRole, source);
+    } catch (readErr) {
+      readData = { ok: false, error: readErr.message };
     }
     if (!readData?.ok || !readData.content?.trim()) {
       // No silent defaults: surface for human classification instead of failing with a guessed type
