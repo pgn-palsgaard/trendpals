@@ -58,6 +58,15 @@ function ExpertExampleCard({ example, onStatusChange }) {
   return (
     <div className="border border-slate-200 rounded-lg bg-white p-3">
       <div className="flex items-start justify-between gap-2">
+        {example.image_url && (
+          <img
+            src={example.image_url}
+            alt={example.product_name}
+            loading="lazy"
+            className="w-14 h-14 rounded-md object-cover border border-slate-200 bg-slate-50 shrink-0"
+            onError={e => { e.currentTarget.style.display = 'none'; }}
+          />
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-1.5 mb-1">
             <ExpertBadge />
