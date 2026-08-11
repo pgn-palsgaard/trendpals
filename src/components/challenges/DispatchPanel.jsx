@@ -4,7 +4,7 @@ import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { Send, X, Mail, AlertCircle, Search, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
-import { sendReviewNotificationEmail } from '@/lib/sendReviewEmail';
+import { dispatchAssignments } from '@/lib/dispatchAssignments';
 import SMECoverageRow from '@/components/challenges/SMECoverageRow';
 import { CANONICAL_REGIONS, isCanonicalRegion } from '@/lib/regions';
 
@@ -64,108 +64,22 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
     setDispatching(true);
     setEmailErrors([]);
 
-    // Track which challenges were actually newly assigned per reviewer
-    // { reviewerEmail -> [challenge, ...] }
-    const newlyAssignedPerReviewer = {};
-    let created = 0;
-    let skipped = 0;
+    // Shared code path — identical to the person-first flow on the Users page.
+    const { created, skipped, failedEmails, pendingEmails, writeErrors } = await dispatchAssignments({
+      challenges: selectedChallenges,
+      reviewers: validReviewers,
+      region,
+      dispatchedBy: user?.full_name || user?.email || 'Admin',
+      existingAssignments,
+      trendMap,
+    });
 
-    for (const challenge of selectedChallenges) {
-      for (const reviewer of validReviewers) {
-        const emailKey = reviewer.email.trim().toLowerCase();
-
-        // Check for existing open assignment (same challenge + reviewer, not responded)
-        const existing = existingAssignments.find(a =>
-          a.challenge_id === challenge.id &&
-          a.reviewer_email === emailKey &&
-          a.status !== 'responded'
-        );
-        if (existing) { skipped++; continue; }
-
-        // IMMUTABLE RULE: assigned_by set by dispatcher (current admin user)
-        // SME-set fields (verdict, comment, suggested_capability_fit, responded_at) intentionally omitted
-        const payload = {
-          challenge_id: challenge.id,
-          challenge_name: challenge.name,
-          global_trend_id: challenge.global_trend_id || undefined,
-          category: challenge.category || undefined,
-          reviewer_email: emailKey,
-          reviewer_name: reviewer.name.trim() || undefined,
-          reviewer_region: region,
-          assigned_by: user?.full_name || user?.email || 'Admin',
-          assigned_at: new Date().toISOString(),
-          status: 'sent',
-        };
-        Object.keys(payload).forEach(k => payload[k] === undefined && delete payload[k]);
-
-        const created_rec = await base44.entities.ReviewAssignment.create(payload);
-
-        // Read-back confirmation
-        const readBack = await base44.entities.ReviewAssignment.filter({ id: created_rec.id });
-        const rec = readBack[0];
-        if (!rec || rec.status !== 'sent') {
-          toast.error(`Write confirmation failed for ${challenge.name} → ${reviewer.email}`);
-          continue;
-        }
-
-        created++;
-
-        // Track for consolidated email
-        if (!newlyAssignedPerReviewer[emailKey]) {
-          newlyAssignedPerReviewer[emailKey] = { reviewer, challenges: [] };
-        }
-        newlyAssignedPerReviewer[emailKey].challenges.push(challenge);
-      }
-    }
+    writeErrors.forEach(e => toast.error(`Write confirmation failed for ${e}`));
 
     queryClient.invalidateQueries({ queryKey: ['allAssignments'] });
     queryClient.invalidateQueries({ queryKey: ['allAssignmentsForDispatch'] });
+    queryClient.invalidateQueries({ queryKey: ['usersReviewAssignments'] });
 
-    // --- Ensure each new reviewer is a 'reviewer'-role user (gated to /review) ---
-    // inviteUser is idempotent-friendly here: if they already exist it throws, which we ignore.
-    for (const emailKey of Object.keys(newlyAssignedPerReviewer)) {
-      try {
-        await base44.users.inviteUser(emailKey, 'reviewer');
-      } catch {
-        // Already a user, or invite not permitted — assignment + email still proceed.
-      }
-    }
-
-    // --- Send ONE consolidated email per reviewer ---
-    const dispatchedBy = user?.full_name || user?.email || 'Palsgaard';
-    const failedEmails = [];   // genuine, unexpected failures
-    const pendingEmails = [];  // reviewer not yet joined — platform invite covers their access
-
-    for (const [emailKey, { reviewer, challenges }] of Object.entries(newlyAssignedPerReviewer)) {
-      const enrichedChallenges = challenges.map(c => ({
-        name: c.name,
-        category: c.category,
-        trend_name: c.global_trend_id ? trendMap[c.global_trend_id]?.trend_name : undefined,
-      }));
-
-      try {
-        await sendReviewNotificationEmail({
-          reviewerEmail: emailKey,
-          reviewerName: reviewer.name.trim() || undefined,
-          dispatchedBy,
-          challenges: enrichedChallenges,
-          appUrl: window.location.origin,
-        });
-      } catch (err) {
-        // "Cannot send emails to users outside the app" = reviewer has only a pending
-        // invite and hasn't joined yet. This is expected — the platform invitation email
-        // already gave them access. Treat as informational, not a failure.
-        const msg = (err?.response?.data?.error || err?.message || '').toLowerCase();
-        if (msg.includes('outside the app')) {
-          pendingEmails.push(emailKey);
-        } else {
-          failedEmails.push(emailKey);
-          console.error(`Failed to send email to ${emailKey}:`, err);
-        }
-      }
-    }
-
-    // Surface results
     if (created > 0) {
       toast.success(`${created} assignment${created > 1 ? 's' : ''} dispatched${skipped > 0 ? `, ${skipped} skipped (already open)` : ''}.`);
     } else {
@@ -180,7 +94,7 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
       return;
     }
 
-    // Pending invitees: just inform — they got the platform invite and will see their queue once they join.
+    // Pending invitees: they got the platform invite and will see their queue once they join.
     if (pendingEmails.length > 0) {
       toast.info(`${pendingEmails.join(', ')} ${pendingEmails.length > 1 ? 'were' : 'was'} invited to TrendPals. They'll see their review queue as soon as they accept the invitation.`);
     }

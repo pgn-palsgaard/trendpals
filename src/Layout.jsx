@@ -5,7 +5,7 @@ import { base44 } from '@/api/base44Client';
 import {
   LogOut, FolderOpen, FileText, BarChart2, TrendingUp, Zap, BookOpen, CheckSquare,
   Palette, LayoutGrid, Library, Database, Grid, Activity, ChevronLeft, ChevronRight, Menu, X, ClipboardList,
-  ListChecks, FileBarChart2, UserCircle, Sparkles, FlaskConical, Globe
+  ListChecks, FileBarChart2, UserCircle, Sparkles, FlaskConical, Globe, Users
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -51,6 +51,7 @@ const ADMIN_NAV = [
     section: 'SYSTEM',
     items: [
       { label: 'Agent Activity', to: '/AgentActivity', icon: Activity, pages: ['AgentActivity'] },
+      { label: 'Users & access', to: '/Users', icon: Users, pages: ['Users'] },
     ],
   },
 ];
