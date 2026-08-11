@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
 import { Star, CheckCircle, XCircle, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 
@@ -141,34 +142,33 @@ function ExpertExampleCard({ example, onStatusChange }) {
 }
 
 export default function ExpertExamplesSection({ trendId, trendCategory }) {
-  const [examples, setExamples] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
 
-  async function load() {
-    setLoading(true);
-    // Fetch all ExpertExamples and filter client-side for this trend
-    // (entity filter doesn't support array-contains, so we filter in memory)
-    const all = await base44.entities.ExpertExample.list('-extracted_at', 500);
-    const linked = all.filter(ex => {
-      // Category guard — an example only belongs to a trend in the same solution category.
-      // Hides legacy cross-industry links (e.g. chocolate products on a condiments trend)
-      // until the linker re-runs. Examples with no category fall through (shown).
-      if (trendCategory && ex.category && ex.category !== trendCategory) return false;
-      const links = ex.trend_links || [];
-      return links.some(l =>
-        l.trend_id === trendId &&
-        (l.review_status === 'auto_applied' || l.review_status === 'approved' || l.review_status === 'pending')
-      );
-    });
-    setExamples(linked);
-    setLoading(false);
-  }
+  // Narrowed server-side by category and cached, so switching between trends in
+  // the same category does not re-read the whole ExpertExample library each time
+  // (that was tripping the entity read-traffic limit).
+  const { data: pool = [], isLoading } = useQuery({
+    queryKey: ['expertExamplesPool', trendCategory || 'all'],
+    queryFn: () => trendCategory
+      ? base44.entities.ExpertExample.filter({ category: trendCategory }, '-extracted_at', 300)
+      : base44.entities.ExpertExample.list('-extracted_at', 300),
+    enabled: !!trendId,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    if (trendId) load();
-  }, [trendId, trendCategory]);
+  const examples = useMemo(() => pool.filter(ex => {
+    // Category guard — an example only belongs to a trend in the same solution category.
+    if (trendCategory && ex.category && ex.category !== trendCategory) return false;
+    const links = ex.trend_links || [];
+    return links.some(l =>
+      l.trend_id === trendId &&
+      (l.review_status === 'auto_applied' || l.review_status === 'approved' || l.review_status === 'pending')
+    );
+  }), [pool, trendId, trendCategory]);
 
-  if (loading) return <p className="text-xs text-slate-400">Loading…</p>;
+  const load = () => queryClient.invalidateQueries({ queryKey: ['expertExamplesPool', trendCategory || 'all'] });
+
+  if (isLoading) return <p className="text-xs text-slate-400">Loading…</p>;
 
   if (examples.length === 0) return (
     <p className="text-sm text-slate-400 italic">No expert product examples linked to this trend yet.</p>
