@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
     // Wall-clock budget. The platform kills long invocations, so work that does
     // not fit is DEFERRED and reported — never dropped silently. Nothing is
     // written for a deferred cluster, so the next run picks it up unchanged.
-    const RUN_DEADLINE = Date.now() + 70000;
+    const RUN_DEADLINE = Date.now() + 80000;
     const budgetLeft = () => RUN_DEADLINE - Date.now();
 
     let totalInTok = 0, totalOutTok = 0;
@@ -167,11 +167,15 @@ Deno.serve(async (req) => {
 
     // ── STEP 1 — Pool assembly ────────────────────────────────────────────
     // 1a. All Sources (paginate — never a single 500 page as total).
+    // Sorted newest-first, so we stop as soon as a page falls entirely outside the
+    // 90-day window — reading the whole library would blow the read-traffic quota.
     let skip = 0; const page = 500; let sources = [];
     while (true) {
       const batch = await svc.entities.Source.list('-created_date', page, skip);
       sources = sources.concat(batch);
       if (batch.length < page) break;
+      const last = batch[batch.length - 1];
+      if (!withinDays(last?.created_date, NINETY_DAYS_MS)) break;
       skip += page;
       if (skip > 20000) break;
     }
@@ -269,7 +273,7 @@ Deno.serve(async (req) => {
     // P1.1 — no candidate left behind. The pool is grouped by category and each
     // group runs in batches of <=120, so a large pool costs more calls instead
     // of silently losing everything past the 120th excerpt.
-    const CLUSTER_INPUT_CAP = 120;
+    const CLUSTER_INPUT_CAP = 40;
     const byCategory = {};
     for (const c of candidates) {
       for (const cat of c.category_relevance) {
@@ -283,6 +287,14 @@ Deno.serve(async (req) => {
       for (let i = 0; i < list.length; i += CLUSTER_INPUT_CAP) {
         batches.push({ category: cat, items: list.slice(i, i + CLUSTER_INPUT_CAP) });
       }
+    }
+    // A single invocation only has room for a handful of clustering batches; the
+    // rest are picked up by later runs.
+    const MAX_BATCHES = Number(body.max_batches) > 0 ? Number(body.max_batches) : 3;
+    if (batches.length > MAX_BATCHES) {
+      summary.batches_deferred += batches.length - MAX_BATCHES;
+      summary.pool_truncated = true;
+      batches.length = MAX_BATCHES;
     }
     summary.batches_run = batches.length;
     console.log(`[detectEmergingSignals] clustering ${candidates.length} candidates in ${batches.length} batch(es) across ${Object.keys(byCategory).length} categor(ies)`);
@@ -329,7 +341,7 @@ Return ONLY a JSON array:
     const rawClusters = [];
     const batchRuns = await mapPool(batches, 6, async (batch) => {
       // Clustering must leave room for the distance + GNPD stages.
-      if (budgetLeft() < 40000) {
+      if (budgetLeft() < 14000) {
         summary.batches_deferred++;
         summary.pool_truncated = true;
         return { batch, deferred: true };
@@ -343,6 +355,7 @@ Return ONLY a JSON array:
       }
     });
     for (const r of batchRuns) {
+      if (r.deferred) { errors.push(`Step 2: clustering batch (${r.batch.category}) deferred — out of time budget, will run next time`); continue; }
       if (r.error) { errors.push(`Step 2: clustering batch (${r.batch.category}) failed — ${r.error}`); continue; }
       totalInTok += r.usage.input_tokens; totalOutTok += r.usage.output_tokens;
       if (!Array.isArray(r.parsed)) {
@@ -451,6 +464,12 @@ Return ONLY a JSON array of merge groups, each an array of 2+ idx values:
 
     // ── STEP 3 — Distance from existing (Haiku per cluster) ───────────────
     const distanceResults = await mapPool(mergedClusters, 5, async (cluster) => {
+      // Out of budget: leave the cluster untouched for the next run rather than
+      // writing it with an unassessed distance.
+      if (budgetLeft() < 12000) {
+        summary.clusters_deferred_no_budget++;
+        return { cluster, keep: false, localErrors: [] };
+      }
       const sameCatTrends = activeTrends
         .filter(t => t.category === cluster.category)
         .map(t => ({
@@ -532,14 +551,19 @@ Return ONLY JSON:
 
     // ── STEP 4 — GNPD overlay (Haiku per cluster) ─────────────────────────
     await mapPool(survivedDistance, 4, async (cluster) => {
+      if (budgetLeft() < 6000) {
+        cluster._deferred = true;
+        summary.clusters_deferred_no_budget++;
+        return;
+      }
       // 4a. GNPDProduct by palsgaard_category, launched last 18 months, newest 100.
-      let gnpd = await svc.entities.GNPDProduct.filter({ palsgaard_category: cluster.category }, '-launch_date', 500);
+      let gnpd = await svc.entities.GNPDProduct.filter({ palsgaard_category: cluster.category }, '-launch_date', 150);
       let usedFallback = false;
-      // 4b. Fallback to raw category strings if pool empty or < 20.
-      if (gnpd.length < 20) {
+      // 4b. Fallback to raw category strings only when the canonical pool is empty.
+      if (gnpd.length === 0) {
         const synonyms = RAW_CATEGORY_SYNONYMS[cluster.category] || [];
         if (synonyms.length) {
-          const rawMatches = await svc.entities.GNPDProduct.filter({ category: { $in: synonyms } }, '-launch_date', 500);
+          const rawMatches = await svc.entities.GNPDProduct.filter({ category: { $in: synonyms } }, '-launch_date', 150);
           const seen = new Set(gnpd.map(p => p.id));
           for (const p of rawMatches) if (!seen.has(p.id)) { gnpd.push(p); seen.add(p.id); }
           usedFallback = true;
@@ -645,6 +669,7 @@ Return ONLY JSON:
       const STRENGTH_RANK = { none: 0, moderate: 1, strong: 2 };
 
       for (const cluster of survivedDistance) {
+        if (cluster._deferred) continue;
         const refs = cluster.excerpt_refs;
         const sourceSet = new Set(refs.map(r => r.source_id));
         const pubSet = new Set(refs.map(r => r.publisher));
