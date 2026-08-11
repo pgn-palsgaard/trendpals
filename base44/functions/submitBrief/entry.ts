@@ -24,10 +24,6 @@ Deno.serve(async (req) => {
   const {
     requester_name,
     requester_email,
-    jtbd,
-    selected_trend_ids,
-    selected_trend_names,
-    conversation_log,
     account,
     region,
     deadline,
@@ -53,10 +49,6 @@ Deno.serve(async (req) => {
   const record = await base44.asServiceRole.entities.ReportRequest.create({
     requester_name,
     requester_email,
-    ...(jtbd ? { jtbd } : {}),
-    ...(Array.isArray(selected_trend_ids) && selected_trend_ids.length ? { selected_trend_ids } : {}),
-    ...(Array.isArray(selected_trend_names) && selected_trend_names.length ? { selected_trend_names } : {}),
-    ...(Array.isArray(conversation_log) && conversation_log.length ? { conversation_log } : {}),
     account: account || '',
     region,
     deadline: deadline || null,

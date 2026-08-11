@@ -6,11 +6,7 @@ import { pagesConfig } from './pages.config'
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
-import ProtectedRoute from '@/components/ProtectedRoute';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
+import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import Briefs from './pages/Briefs';
 import SubmitBrief from './pages/SubmitBrief';
 import SubmitBriefBeta from './pages/SubmitBriefBeta';
@@ -30,7 +26,7 @@ import SubmitterLayout from './components/layout/SubmitterLayout';
 import Profile from './pages/Profile';
 import AccessGuide from './pages/AccessGuide';
 import AccessGuideReview from './pages/AccessGuideReview';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -40,30 +36,73 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
   <Layout currentPageName={currentPageName}>{children}</Layout>
   : <>{children}</>;
 
-// Routes available once the visitor is authenticated. Role decides which set:
-// reviewers get the SME portal only, non-admins get the submitter surface,
-// admins get the full workspace.
-const gatedRoutesForRole = (role) => {
-  if (role === 'reviewer') {
+const AuthenticatedApp = () => {
+  const { user, isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
+  const location = useLocation();
+
+  // Public access guide — reachable without login (e.g. by colleagues who haven't
+  // registered yet). Rendered before any auth gating below.
+  if (location.pathname === '/access' || location.pathname === '/access-review') {
     return (
-      <>
+      <Routes>
+        <Route path="/access" element={<AccessGuide />} />
+        <Route path="/access-review" element={<AccessGuideReview />} />
+      </Routes>
+    );
+  }
+
+  // Show loading spinner while checking app public settings or auth
+  if (isLoadingPublicSettings || isLoadingAuth) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  // Handle authentication errors
+  if (authError) {
+    if (authError.type === 'user_not_registered') {
+      return <UserNotRegisteredError />;
+    } else if (authError.type === 'auth_required') {
+      // Redirect to login automatically
+      navigateToLogin();
+      return null;
+    }
+  }
+
+  // SCENARIO A — role field exists on the user object.
+  // Reviewer role: gated to the SME portal only. All other paths redirect to /review.
+  const isReviewer = user?.role === 'reviewer';
+
+  if (isReviewer) {
+    return (
+      <Routes>
         <Route path="/review" element={<ReviewerLayout><SMEReviewPortal /></ReviewerLayout>} />
         <Route path="*" element={<Navigate to="/review" replace />} />
-      </>
+      </Routes>
     );
   }
 
-  if (role !== 'admin') {
+  // Submitter is the default experience for everyone who is not an admin or reviewer.
+  // Newly invited users land here with role 'user' (or no role yet) — they are
+  // treated as submitters and gated to the Submit Brief page and their own profile.
+  const isAdmin = user?.role === 'admin';
+
+  if (!isAdmin) {
     return (
-      <>
+      <Routes>
+        <Route path="/SubmitBrief" element={<SubmitterLayout><SubmitBrief /></SubmitterLayout>} />
         <Route path="/Profile" element={<SubmitterLayout><Profile /></SubmitterLayout>} />
         <Route path="*" element={<Navigate to="/SubmitBrief" replace />} />
-      </>
+      </Routes>
     );
   }
 
+  // Render the main app
   return (
-    <>
+    <Routes>
+      {/* SME portal — accessible to admins for preview; uses ReviewerLayout, not LayoutWrapper */}
       <Route path="/review" element={<ReviewerLayout><SMEReviewPortal /></ReviewerLayout>} />
       <Route path="/" element={
         <LayoutWrapper currentPageName={mainPageKey}>
@@ -82,6 +121,7 @@ const gatedRoutesForRole = (role) => {
         />
       ))}
       <Route path="/Briefs" element={<LayoutWrapper currentPageName="Briefs"><Briefs /></LayoutWrapper>} />
+      <Route path="/SubmitBrief" element={<SubmitBrief />} />
       <Route path="/SubmitBriefBeta" element={<LayoutWrapper currentPageName="SubmitBriefBeta"><SubmitBriefBeta /></LayoutWrapper>} />
       <Route path="/TrendLibrary" element={<LayoutWrapper currentPageName="TrendLibrary"><TrendLibrary /></LayoutWrapper>} />
       <Route path="/AgentActivity" element={<LayoutWrapper currentPageName="AgentActivity"><AgentActivity /></LayoutWrapper>} />
@@ -99,39 +139,6 @@ const gatedRoutesForRole = (role) => {
       <Route path="/TrendReport" element={<Navigate to="/Reports" replace />} />
       <Route path="/ValidationTracking" element={<Navigate to="/ReviewQueue" replace />} />
       <Route path="*" element={<PageNotFound />} />
-    </>
-  );
-};
-
-const AuthenticatedApp = () => {
-  const { user, isLoadingPublicSettings } = useAuth();
-
-  // Wait for app settings; ProtectedRoute handles the auth loading state itself.
-  if (isLoadingPublicSettings) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-800 rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  return (
-    <Routes>
-      {/* Auth pages */}
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
-      <Route path="/forgot-password" element={<ForgotPassword />} />
-      <Route path="/reset-password" element={<ResetPassword />} />
-
-      {/* Public pages — reachable without a login */}
-      <Route path="/access" element={<AccessGuide />} />
-      <Route path="/access-review" element={<AccessGuideReview />} />
-      <Route path="/SubmitBrief" element={<SubmitBrief />} />
-
-      {/* Everything else requires authentication */}
-      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
-        {gatedRoutesForRole(user?.role)}
-      </Route>
     </Routes>
   );
 };
