@@ -80,6 +80,17 @@ const AuthenticatedApp = () => {
     }
   }
 
+  // Public app, no logged-in visitor — only Submit Brief is available, rendered
+  // bare (no app chrome), since there is no user to build navigation for.
+  if (!user) {
+    return (
+      <Routes>
+        <Route path="/SubmitBrief" element={<SubmitBrief />} />
+        <Route path="*" element={<Navigate to="/SubmitBrief" replace />} />
+      </Routes>
+    );
+  }
+
   // SCENARIO A — role field exists on the user object.
   // Reviewer role: gated to the SME portal only. All other paths redirect to /review.
   const isReviewer = user?.role === 'reviewer';
