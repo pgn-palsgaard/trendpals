@@ -59,13 +59,30 @@ const FINDING_SCHEMA = {
   },
 };
 
-const SOURCE_KINDS = ['trade_press', 'regulatory', 'company_pr', 'retail_news', 'industry_association', 'supplier_news', 'research', 'other'];
+const SOURCE_KINDS = ['trade_press', 'regulatory', 'company_pr', 'retail_news', 'industry_association', 'supplier_news', 'research', 'competitor', 'other'];
+
+// Rival ingredient suppliers. Their trend material is inside-out sales collateral,
+// not market evidence — it is stored for awareness and kept out of the evidence layer.
+export const COMPETITOR_SUPPLIERS = 'IFF, Kerry, dsm-firmenich, DSM, Firmenich, Corbion, Cargill, ADM, Ingredion, Tate & Lyle, Givaudan, Symrise, BASF, Bunge, AAK, Roquette, Ashland, CP Kelco, Glanbia, Novonesis (Novozymes/Chr. Hansen), Puratos, Zeelandia, Beneo, Sensient';
 const SIGNAL_TYPES = ['consumer_driver', 'category_movement', 'regional_expression', 'competitive_activity', 'other'];
 const REGION_CODES = ['ASPAC', 'AMERICAS', 'EMEC', 'IMEA', 'Global'];
 
 function normalizeUrl(url) {
   if (!url) return '';
   return String(url).trim().replace(/[#?].*$/, '').replace(/\/+$/, '').toLowerCase();
+}
+
+// Echo-dedup key. Strips the publisher/section prefixes outlets bolt onto a
+// rewritten press release ("Exclusive: ", "FoodNavigator | ") plus punctuation,
+// so the same story from five outlets collapses to one key. Deliberately exact
+// (not fuzzy) after normalisation, so distinct stories are never merged.
+function normalizeTitle(title) {
+  return String(title || '')
+    .toLowerCase()
+    .replace(/^[^:|–—-]{0,28}[:|]\s*/, '')
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function pick(value, allowed, fallback) {
@@ -264,7 +281,9 @@ For EACH finding (by its number) decide exactly one disposition:
 - "noise": advertising, thin content, off-topic, or not a market signal.
 
 Be conservative: prefer confirms_trend over new_signal whenever an existing trend plausibly covers the movement.
-For new_signal, also propose a short trend_name (max 8 words, outside-in, no supplier or ingredient names).`,
+For new_signal, also propose a short trend_name (max 8 words, outside-in, no supplier or ingredient names).
+
+ALSO set is_competitor_content=true for any finding that is trend, marketing or thought-leadership material PUBLISHED BY a competing ingredient supplier (${COMPETITOR_SUPPLIERS}, or any comparable ingredient/flavour/emulsifier supplier). That is inside-out sales collateral, not a market signal: it is kept for competitive awareness only and must never enter the trend taxonomy. A news article merely MENTIONING such a company is NOT competitor content — only material the supplier itself published. When is_competitor_content is true, still give your best disposition, but it will be filed separately regardless.`,
       model: 'claude_sonnet_4_6',
       response_json_schema: {
         type: 'object',
@@ -276,6 +295,7 @@ For new_signal, also propose a short trend_name (max 8 words, outside-in, no sup
               properties: {
                 index: { type: 'number' },
                 disposition: { type: 'string' },
+                is_competitor_content: { type: 'boolean' },
                 trend_id: { type: 'string' },
                 proposed_trend_name: { type: 'string' },
                 reasoning: { type: 'string' },
@@ -299,6 +319,7 @@ For new_signal, also propose a short trend_name (max 8 words, outside-in, no sup
       return {
         ...f,
         disposition,
+        is_competitor_content: d.is_competitor_content === true,
         linked_trend_id: disposition === 'confirms_trend' && trend ? trend.id : '',
         linked_trend_name: disposition === 'confirms_trend' && trend ? trend.trend_name : '',
         proposed_trend_name: String(d.proposed_trend_name || '').slice(0, 120),
@@ -306,7 +327,7 @@ For new_signal, also propose a short trend_name (max 8 words, outside-in, no sup
       };
     });
   } catch {
-    return findings.map(f => ({ ...f, disposition: 'new_angle', linked_trend_id: '', linked_trend_name: '', proposed_trend_name: '', disposition_reasoning: 'Cross-check unavailable — filed as a candidate for manual review.' }));
+    return findings.map(f => ({ ...f, disposition: 'new_angle', is_competitor_content: false, linked_trend_id: '', linked_trend_name: '', proposed_trend_name: '', disposition_reasoning: 'Cross-check unavailable — filed as a candidate for manual review.' }));
   }
 }
 
@@ -319,12 +340,18 @@ For new_signal, also propose a short trend_name (max 8 words, outside-in, no sup
  */
 export async function persistFindings(base44, { classified, category, runId }) {
   const now = new Date().toISOString();
-  const summary = { stored: 0, trend_citations: 0, trend_proposals: 0, candidates: 0, noise: 0, duplicates: 0 };
+  const summary = { stored: 0, trend_citations: 0, trend_proposals: 0, candidates: 0, noise: 0, duplicates: 0, competitor_content: 0, echoes_merged: 0 };
 
   // Dedup against what the scout already knows.
   const existing = await base44.asServiceRole.entities.WebSignal.filter({ category }, '-created_date', 500);
   const knownUrls = new Set(existing.map(s => normalizeUrl(s.url)).filter(Boolean));
-  const knownTitles = new Set(existing.map(s => String(s.title || '').toLowerCase().trim()));
+  // Echo index: normalized title -> the stored record that owns that story.
+  const byTitle = {};
+  for (const s of existing) {
+    const key = normalizeTitle(s.title);
+    if (key && !byTitle[key]) byTitle[key] = s;
+  }
+  const echoUpdates = {}; // record id -> { record, outlets }
 
   const trendCitations = {}; // trend_id -> citations to append
   const toStore = [];
@@ -334,12 +361,27 @@ export async function persistFindings(base44, { classified, category, runId }) {
   for (const f of classified) {
     if (f.disposition === 'noise') { summary.noise += 1; continue; }
     const urlKey = normalizeUrl(f.url);
-    const titleKey = String(f.title).toLowerCase().trim();
-    if ((urlKey && knownUrls.has(urlKey)) || knownTitles.has(titleKey)) { summary.duplicates += 1; continue; }
-    if (urlKey) knownUrls.add(urlKey);
-    knownTitles.add(titleKey);
+    const titleKey = normalizeTitle(f.title);
+    if (urlKey && knownUrls.has(urlKey)) { summary.duplicates += 1; continue; }
 
-    toStore.push({
+    // Echo: the same story already on file from another outlet. Count the outlet,
+    // never store a second record — republication is not breadth of evidence.
+    const owner = titleKey ? byTitle[titleKey] : null;
+    if (owner) {
+      if (urlKey) knownUrls.add(urlKey);
+      if (owner.id) {
+        if (!echoUpdates[owner.id]) echoUpdates[owner.id] = { record: owner, outlets: [] };
+        echoUpdates[owner.id].outlets.push({ publisher: f.publisher || '', url: f.url || '' });
+      }
+      summary.echoes_merged += 1;
+      continue;
+    }
+    if (urlKey) knownUrls.add(urlKey);
+
+    const isCompetitor = f.is_competitor_content === true;
+    if (isCompetitor) summary.competitor_content += 1;
+
+    const stored = {
       title: f.title,
       url: f.url,
       publisher: f.publisher,
@@ -349,18 +391,29 @@ export async function persistFindings(base44, { classified, category, runId }) {
       category,
       region: f.region,
       angle: f.discovered_via_query.split('·')[1]?.trim() || 'other',
-      source_kind: f.source_kind,
+      source_kind: isCompetitor ? 'competitor' : f.source_kind,
       signal_type: f.signal_type,
       relevance_score: f.relevance_score,
       disposition: f.disposition,
-      linked_trend_id: f.linked_trend_id,
-      linked_trend_name: f.linked_trend_name,
+      linked_trend_id: isCompetitor ? '' : f.linked_trend_id,
+      linked_trend_name: isCompetitor ? '' : f.linked_trend_name,
       disposition_reasoning: f.disposition_reasoning,
       discovered_via_query: f.discovered_via_query,
+      is_competitor_content: isCompetitor,
+      carried_by_count: 1,
+      echo_outlets: [],
       run_id: runId || '',
       discovered_at: now,
       review_status: 'pending',
-    });
+    };
+    toStore.push(stored);
+    if (titleKey) byTitle[titleKey] = { ...stored, id: null };
+
+    // Competitor collateral is stored for awareness only — it never becomes a
+    // trend citation, a proposed trend or a candidate cluster.
+    if (isCompetitor) {
+      continue;
+    }
 
     if (f.disposition === 'confirms_trend' && f.linked_trend_id) {
       if (!trendCitations[f.linked_trend_id]) trendCitations[f.linked_trend_id] = [];
@@ -388,6 +441,19 @@ export async function persistFindings(base44, { classified, category, runId }) {
   if (toStore.length > 0) {
     await base44.asServiceRole.entities.WebSignal.bulkCreate(toStore);
     summary.stored = toStore.length;
+  }
+
+  // Record the echo: one story, several outlets.
+  for (const { record, outlets } of Object.values(echoUpdates)) {
+    try {
+      const have = new Set((record.echo_outlets || []).map(o => normalizeUrl(o.url)).filter(Boolean));
+      const fresh = outlets.filter(o => !o.url || !have.has(normalizeUrl(o.url)));
+      if (fresh.length === 0) continue;
+      await base44.asServiceRole.entities.WebSignal.update(record.id, {
+        echo_outlets: [...(record.echo_outlets || []), ...fresh],
+        carried_by_count: (record.carried_by_count || 1) + fresh.length,
+      });
+    } catch { /* skip */ }
   }
 
   // Append pending citations to the trends they support.

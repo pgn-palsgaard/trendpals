@@ -6,7 +6,9 @@
 // sharpen the framing and recency of a slide, but never replace Mintel/GNPD
 // evidence and never become product examples.
 function buildWebSignalBlock(evidence) {
-  const signals = (evidence?.web_signals || []).slice(0, 12);
+  const signals = (evidence?.web_signals || [])
+    .filter(s => s.is_competitor_content !== true)
+    .slice(0, 12);
   if (signals.length === 0) return '';
 
   const lines = signals.map(s =>

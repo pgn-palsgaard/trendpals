@@ -69,9 +69,35 @@
         "industry_association",
         "supplier_news",
         "research",
+        "competitor",
         "other"
       ],
-      "description": "Source-type diversity bucket the item fills"
+      "description": "Source-type diversity bucket the item fills. competitor = trend/marketing content published by a rival ingredient supplier; inside-out sales collateral, never market evidence."
+    },
+    "is_competitor_content": {
+      "type": "boolean",
+      "default": false,
+      "description": "True when the item is trend or marketing material published by a competing ingredient supplier (IFF, Kerry, dsm-firmenich, Corbion, Cargill, ADM, Ingredion and comparable). Stored for competitive awareness only \u2014 never enters the evidence layer, never cited on a trend, never fed to report generation."
+    },
+    "carried_by_count": {
+      "type": "number",
+      "default": 1,
+      "description": "How many distinct outlets carried this same story. Republication is echo, not breadth of evidence \u2014 incremented instead of storing a duplicate record."
+    },
+    "echo_outlets": {
+      "type": "array",
+      "description": "The other outlets that republished this same story, collapsed into this record by echo-dedup.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "publisher": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      }
     },
     "signal_type": {
       "type": "string",

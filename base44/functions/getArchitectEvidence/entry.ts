@@ -136,6 +136,8 @@ export default async function (req) {
       );
       const usable = signals
         .filter(s => s.review_status !== 'rejected')
+        // Competitor collateral is stored for awareness only — never evidence.
+        .filter(s => s.is_competitor_content !== true)
         .filter(s => !s.discovered_at || new Date(s.discovered_at) >= webCutoff)
         .filter(s => !region || region === 'Global' || !s.region || s.region === 'Global' || s.region === region)
         .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
