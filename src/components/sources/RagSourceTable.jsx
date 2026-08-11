@@ -93,12 +93,13 @@ export default function RagSourceTable({
     queryFn: async () => {
       // ONE request for all requested source types. Four parallel 2000-row reads of
       // full Source records (excerpts + chunks inline) blew the read traffic limit.
-      const FETCH_LIMIT = 600;
+      const FETCH_LIMIT = 250;
       const q = Array.isArray(sourceTypeFilter)
         ? { source_type: { $in: sourceTypeFilter } }
         : sourceTypeFilter ? { source_type: sourceTypeFilter } : {};
       return await base44.entities.Source.filter(q, '-created_date', FETCH_LIMIT);
     },
+    retry: false,
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
