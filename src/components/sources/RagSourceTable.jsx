@@ -91,17 +91,18 @@ export default function RagSourceTable({
   const { data: sources = [], isLoading, refetch } = useQuery({
     queryKey,
     queryFn: async () => {
-      const FETCH_LIMIT = 2000;
-      if (Array.isArray(sourceTypeFilter)) {
-        const results = await Promise.all(
-          sourceTypeFilter.map(t => base44.entities.Source.filter({ source_type: t }, '-created_date', FETCH_LIMIT))
-        );
-        return results.flat();
-      }
-      const q = sourceTypeFilter ? { source_type: sourceTypeFilter } : {};
+      // ONE request for all requested source types. Four parallel 2000-row reads of
+      // full Source records (excerpts + chunks inline) blew the read traffic limit.
+      const FETCH_LIMIT = 600;
+      const q = Array.isArray(sourceTypeFilter)
+        ? { source_type: { $in: sourceTypeFilter } }
+        : sourceTypeFilter ? { source_type: sourceTypeFilter } : {};
       return await base44.entities.Source.filter(q, '-created_date', FETCH_LIMIT);
     },
-    refetchInterval: processing.active ? 15000 : false,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    refetchInterval: processing.active ? 30000 : false,
   });
 
   const handleRefresh = () => queryClient.invalidateQueries({ queryKey });
