@@ -38,7 +38,11 @@ const EXTRACTING_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
 // skipped_low_value transition is conditional on the prior stage being one of
 // these — never a blind flip. Confirmed against the current normal-path
 // eligibility (review_status approved + verified + pipeline_stage in this set).
-const PRE_GATE_ELIGIBLE_STAGES = ['uploaded', 'metadata_extracted', 'pre_gate_error'];
+const PRE_GATE_ELIGIBLE_STAGES = ['uploaded', 'metadata_extracted', 'pre_gate_error', 'skipped', 'failed'];
+// Stages a source may be re-processed from when explicitly requested/eligible.
+// 'skipped' and 'failed' are included so a source that failed on a transient
+// error (or was skipped on an unreadable read) can be reprocessed.
+const RETRYABLE_STAGES = ['uploaded', 'metadata_extracted', 'pre_gate_error', 'skipped', 'failed'];
 const PRE_GATE_TEXT_CHARS = 2000;
 
 // Cheap single-shot pre-gate. Returns one of:
@@ -226,7 +230,7 @@ Deno.serve(async (req) => {
         // transient pre-gate failure is retried (pre_gate_evaluated stays false).
         const normalPath = s.metadata_extraction?.verified === true &&
           s.review_status === 'approved' &&
-          ['uploaded', 'metadata_extracted', 'pre_gate_error'].includes(s.pipeline_stage);
+          RETRYABLE_STAGES.includes(s.pipeline_stage);
         // Branch B: stuck-extracting recovery (no verification requirement)
         const recoveryPath = isEligibleForStuckRecovery(s);
         return normalPath || recoveryPath;
@@ -245,7 +249,7 @@ Deno.serve(async (req) => {
         if (s.excerpts?.length > 0) return false;
         const normalPath = s.metadata_extraction?.verified === true &&
           s.review_status === 'approved' &&
-          ['uploaded', 'metadata_extracted', 'pre_gate_error'].includes(s.pipeline_stage);
+          RETRYABLE_STAGES.includes(s.pipeline_stage);
         const recoveryPath = isEligibleForStuckRecovery(s);
         return normalPath || recoveryPath;
       });
@@ -399,7 +403,7 @@ Deno.serve(async (req) => {
         // empty (verified separately just below via re-fetch) to stay hermetic.
         const claimableStages = isRecovery
           ? ['extracting', 'uploaded', 'metadata_extracted', 'failed']
-          : ['uploaded', 'metadata_extracted', 'pre_gate_error'];
+          : RETRYABLE_STAGES;
         const claimRes = await db.entities.Source.updateMany(
           { id: source.id, pipeline_stage: { $in: claimableStages } },
           { $set: { pipeline_stage: 'extracting', processing_started_at: new Date().toISOString() } }
@@ -497,24 +501,36 @@ Return ONLY a JSON object with this structure:
   "ai_summary": "2-3 sentence summary of the document's key market intelligence insights"
 }`;
 
-          const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
-            method: 'POST',
-            headers: {
-              'x-api-key': Deno.env.get('ANTHROPIC_API_KEY'),
-              'anthropic-version': '2023-06-01',
-              'content-type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'claude-sonnet-4-5',
-              max_tokens: 8192,
-              messages: [{ role: 'user', content: prompt }],
-            }),
-          });
-          if (!anthropicRes.ok) {
+          // Gateway timeouts (524/529/overloaded) are transient on long documents —
+          // retry with a progressively shorter prompt instead of failing the source.
+          let anthropicData = null;
+          let lastErr = null;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            const shrink = attempt === 0 ? 1 : (attempt === 1 ? 0.6 : 0.35);
+            const attemptPrompt = shrink === 1
+              ? prompt
+              : prompt.replace(contentForLLM, contentForLLM.slice(0, Math.floor(contentForLLM.length * shrink)));
+            const anthropicRes = await fetch('https://api.anthropic.com/v1/messages', {
+              method: 'POST',
+              headers: {
+                'x-api-key': Deno.env.get('ANTHROPIC_API_KEY'),
+                'anthropic-version': '2023-06-01',
+                'content-type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'claude-sonnet-4-5',
+                max_tokens: 8192,
+                messages: [{ role: 'user', content: attemptPrompt }],
+              }),
+            });
+            if (anthropicRes.ok) { anthropicData = await anthropicRes.json(); break; }
             const errText = await anthropicRes.text();
-            throw new Error(`Anthropic API error ${anthropicRes.status}: ${errText}`);
+            lastErr = new Error(`Anthropic API error ${anthropicRes.status}: ${errText.slice(0, 200)}`);
+            if (![429, 500, 502, 503, 524, 529].includes(anthropicRes.status)) throw lastErr;
+            console.warn(`[processSourceQueue] Anthropic ${anthropicRes.status} — retry ${attempt + 2}/3 with shorter prompt`);
+            await sleep(4000);
           }
-          const anthropicData = await anthropicRes.json();
+          if (!anthropicData) throw lastErr;
           const rawText = anthropicData.content?.[0]?.text || '';
           const jsonMatch = rawText.match(/\{[\s\S]*\}/);
           if (!jsonMatch) throw new Error('No JSON found in Anthropic response');
