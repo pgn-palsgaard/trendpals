@@ -2,11 +2,31 @@
 // grounded context block the architect must build from, and reads the chosen
 // GNPD record ids back out of the finished deck.
 
+// Fresh open-web signals found by Market Scout. Supplementary only — they may
+// sharpen the framing and recency of a slide, but never replace Mintel/GNPD
+// evidence and never become product examples.
+function buildWebSignalBlock(evidence) {
+  const signals = (evidence?.web_signals || []).slice(0, 12);
+  if (signals.length === 0) return '';
+
+  const lines = signals.map(s =>
+    `  - ${s.title}${s.publisher ? ` (${s.publisher}` : ''}${s.published_date ? `, ${s.published_date})` : s.publisher ? ')' : ''} [${s.region}]${s.linked_trend_name ? ` → supports: ${s.linked_trend_name}` : ''} — ${String(s.market_signal || '').slice(0, 220)}`
+  );
+
+  return [
+    '### SUPPLEMENTARY: FRESH WEB SIGNALS (Market Scout)',
+    'Recent open-web items, unverified and pending human review. You MAY use them to make the framing more current, and you MUST attribute them to the named publisher when you do. You may NEVER treat them as GNPD product examples, and you may never present them as Mintel data.',
+    lines.join('\n'),
+  ].join('\n');
+}
+
 export function buildEvidenceContext(evidence) {
   const trends = evidence?.trends || [];
   if (trends.length === 0) return null;
 
-  return trends.map(t => {
+  const webBlock = buildWebSignalBlock(evidence);
+
+  const trendBlocks = trends.map(t => {
     const lines = [`### [${t.category}] TREND: ${t.trend_name}`];
     if (t.market_signal) lines.push(`Signal: ${t.market_signal.slice(0, 300)}`);
 
@@ -28,6 +48,8 @@ export function buildEvidenceContext(evidence) {
 
     return lines.join('\n');
   }).join('\n\n');
+
+  return webBlock ? `${trendBlocks}\n\n${webBlock}` : trendBlocks;
 }
 
 // Deck entries are written as "<RECORD_ID> | Product — Brand (Country): why".

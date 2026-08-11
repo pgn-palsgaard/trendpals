@@ -2,6 +2,7 @@ import React from 'react';
 import { CATEGORY_LABELS } from '@/lib/palsgaardCategoryMapping';
 import { Button } from '@/components/ui/button';
 import { FileText, Building2, Layers, Package, ArrowUpRight, X, Clock } from 'lucide-react';
+import WebBadge from '@/components/marketscout/WebBadge';
 
 const SIGNAL_TYPE_LABELS = {
   consumer_driver: 'Consumer driver',
@@ -29,6 +30,7 @@ export default function SignalClusterCard({ cluster, onPromote, onDismiss, onSno
   const excerptCount = cluster.excerpt_refs?.length || 0;
   const gnpdCount = cluster.gnpd_product_ids?.length || 0;
   const badge = GNPD_BADGE[cluster.gnpd_evidence_strength] || GNPD_BADGE.none;
+  const isWebSourced = /market_scout/i.test(cluster.gnpd_reasoning || '');
 
   return (
     <div className="pal-card p-4 flex flex-col gap-3">
@@ -45,6 +47,7 @@ export default function SignalClusterCard({ cluster, onPromote, onDismiss, onSno
         <Chip>{CATEGORY_LABELS[cluster.category] || cluster.category}</Chip>
         <Chip>{SIGNAL_TYPE_LABELS[cluster.signal_type] || cluster.signal_type}</Chip>
         {cluster.driver_hypothesis && <Chip>{cluster.driver_hypothesis}</Chip>}
+        {isWebSourced && <WebBadge />}
       </div>
 
       {/* Evidence strip */}

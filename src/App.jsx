@@ -24,6 +24,7 @@ import ReviewerLayout from './components/layout/ReviewerLayout';
 import SMEReviewPortal from './pages/SMEReviewPortal';
 import SubmitterLayout from './components/layout/SubmitterLayout';
 import Profile from './pages/Profile';
+import MarketScout from './pages/MarketScout';
 import AccessGuide from './pages/AccessGuide';
 import AccessGuideReview from './pages/AccessGuideReview';
 import { Navigate, useLocation } from 'react-router-dom';
@@ -41,14 +42,13 @@ const AuthenticatedApp = () => {
   const location = useLocation();
 
   // Public access guide — reachable without login (e.g. by colleagues who haven't
-  // registered yet). Rendered before any auth gating below.
-  if (location.pathname === '/access' || location.pathname === '/access-review') {
-    return (
-      <Routes>
-        <Route path="/access" element={<AccessGuide />} />
-        <Route path="/access-review" element={<AccessGuideReview />} />
-      </Routes>
-    );
+  // registered yet). Rendered before any auth gating below, and matched
+  // case-insensitively so links like /Access or /AccessGuide also work.
+  const publicPath = location.pathname.toLowerCase().replace(/\/+$/, '');
+  const isAccessGuide = ['/access', '/accessguide'].includes(publicPath);
+  const isAccessGuideReview = ['/access-review', '/accessguidereview'].includes(publicPath);
+  if (isAccessGuide || isAccessGuideReview) {
+    return isAccessGuide ? <AccessGuide /> : <AccessGuideReview />;
   }
 
   // Show loading spinner while checking app public settings or auth
@@ -133,6 +133,7 @@ const AuthenticatedApp = () => {
       <Route path="/ReviewQueue" element={<LayoutWrapper currentPageName="ReviewQueue"><ReviewQueue /></LayoutWrapper>} />
       <Route path="/Reports" element={<LayoutWrapper currentPageName="Reports"><Reports /></LayoutWrapper>} />
       <Route path="/EmergingSignals" element={<LayoutWrapper currentPageName="EmergingSignals"><EmergingSignals /></LayoutWrapper>} />
+      <Route path="/MarketScout" element={<LayoutWrapper currentPageName="MarketScout"><MarketScout /></LayoutWrapper>} />
       <Route path="/Profile" element={<LayoutWrapper currentPageName="Profile"><Profile /></LayoutWrapper>} />
       {/* Redirects for deprecated routes */}
       <Route path="/ChallengeLibrary" element={<Navigate to="/ReviewQueue" replace />} />

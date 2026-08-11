@@ -1,0 +1,141 @@
+{
+  "name": "WebSignal",
+  "type": "object",
+  "description": "A market signal discovered on the open web by the market_scout agent. Distinct from Source (uploaded documents) and GNPDProduct (proprietary Mintel data) \u2014 always treated as supplementary, never as primary evidence.",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Headline of the web item"
+    },
+    "url": {
+      "type": "string",
+      "description": "Canonical URL \u2014 dedup key"
+    },
+    "publisher": {
+      "type": "string",
+      "description": "Publication or organisation behind the item"
+    },
+    "published_date": {
+      "type": "string",
+      "description": "Publication date as reported by the page (free text, may be partial)"
+    },
+    "market_signal": {
+      "type": "string",
+      "description": "The signal written outside-in, 1-2 sentences"
+    },
+    "key_quote": {
+      "type": "string",
+      "description": "Short verbatim quote or statistic from the item"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "bakery",
+        "condiments",
+        "chocolate_confectionery",
+        "dairy",
+        "ice_cream",
+        "meat",
+        "oils_fats",
+        "plant_based",
+        "rutf_rusf",
+        "cross_industry",
+        "needs_human_review"
+      ],
+      "description": "Canonical Palsgaard solution key"
+    },
+    "region": {
+      "type": "string",
+      "enum": [
+        "ASPAC",
+        "AMERICAS",
+        "EMEC",
+        "IMEA",
+        "Global"
+      ],
+      "description": "Canonical Palsgaard sales region this signal relates to"
+    },
+    "angle": {
+      "type": "string",
+      "description": "Which search angle surfaced it (consumer_demand, ingredient_innovation, regulatory_claims, competitive_launches, supply_chain_cost, other)"
+    },
+    "source_kind": {
+      "type": "string",
+      "enum": [
+        "trade_press",
+        "regulatory",
+        "company_pr",
+        "retail_news",
+        "industry_association",
+        "supplier_news",
+        "research",
+        "other"
+      ],
+      "description": "Source-type diversity bucket the item fills"
+    },
+    "signal_type": {
+      "type": "string",
+      "enum": [
+        "consumer_driver",
+        "category_movement",
+        "regional_expression",
+        "competitive_activity",
+        "other"
+      ],
+      "description": "Same vocabulary as Source excerpts and EmergingSignalCluster"
+    },
+    "relevance_score": {
+      "type": "number",
+      "description": "0-100 commercial market-signal value. Ingredient presence neither raises nor lowers this."
+    },
+    "disposition": {
+      "type": "string",
+      "enum": [
+        "confirms_trend",
+        "new_angle",
+        "new_signal",
+        "noise"
+      ],
+      "description": "Cross-check verdict against the existing trend library"
+    },
+    "linked_trend_id": {
+      "type": "string",
+      "description": "GlobalTrend id this signal confirms or extends"
+    },
+    "linked_trend_name": {
+      "type": "string",
+      "description": "Snapshot of the trend name at discovery time"
+    },
+    "disposition_reasoning": {
+      "type": "string",
+      "description": "Why the scout assigned this disposition"
+    },
+    "discovered_via_query": {
+      "type": "string",
+      "description": "The exact search query that surfaced this item"
+    },
+    "run_id": {
+      "type": "string",
+      "description": "ProcessingRun id of the sweep that found it"
+    },
+    "discovered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "approved",
+        "rejected"
+      ],
+      "default": "pending",
+      "description": "Human review state. Web signals are never auto-approved."
+    }
+  },
+  "required": [
+    "title",
+    "category",
+    "market_signal"
+  ]
+}

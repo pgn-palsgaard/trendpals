@@ -126,10 +126,41 @@ export default async function (req) {
       }
     }
 
+    // --- Fresh web signals from market_scout (supplementary, clearly separated) ---
+    const webCutoff = new Date();
+    webCutoff.setDate(webCutoff.getDate() - 120);
+    const webSignals = [];
+    for (const category of cats) {
+      const signals = await base44.asServiceRole.entities.WebSignal.filter(
+        { category }, '-created_date', 60
+      );
+      const usable = signals
+        .filter(s => s.review_status !== 'rejected')
+        .filter(s => !s.discovered_at || new Date(s.discovered_at) >= webCutoff)
+        .filter(s => !region || region === 'Global' || !s.region || s.region === 'Global' || s.region === region)
+        .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
+        .slice(0, 8);
+      for (const s of usable) {
+        webSignals.push({
+          title: s.title,
+          publisher: s.publisher || '',
+          url: s.url || '',
+          published_date: s.published_date || '',
+          category: s.category,
+          region: s.region || 'Global',
+          market_signal: s.market_signal,
+          key_quote: s.key_quote || '',
+          linked_trend_name: s.linked_trend_name || '',
+          relevance_score: s.relevance_score || 0,
+        });
+      }
+    }
+
     return Response.json({
       success: true,
       region: region || 'Global',
       trends: trendsOut,
+      web_signals: webSignals,
       source_ids: Object.keys(sourcesById),
       products: Object.values(productsById),
     });
