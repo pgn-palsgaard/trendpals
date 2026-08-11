@@ -28,6 +28,10 @@ import MarketScout from './pages/MarketScout';
 import AccessGuide from './pages/AccessGuide';
 import AccessGuideReview from './pages/AccessGuideReview';
 import { Navigate, useLocation } from 'react-router-dom';
+import Login from './pages/Login';
+import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 const { Pages, Layout, mainPage } = pagesConfig;
 const mainPageKey = mainPage ?? Object.keys(Pages)[0];
@@ -50,6 +54,13 @@ const AuthenticatedApp = () => {
   if (isAccessGuide || isAccessGuideReview) {
     return isAccessGuide ? <AccessGuide /> : <AccessGuideReview />;
   }
+
+  // Public auth pages — must render without login (the reviewer access guide and
+  // the password-reset email link both point here).
+  if (publicPath === '/login') return <Login />;
+  if (publicPath === '/register') return <Register />;
+  if (publicPath === '/forgot-password') return <ForgotPassword />;
+  if (publicPath === '/reset-password') return <ResetPassword />;
 
   // Show loading spinner while checking app public settings or auth
   if (isLoadingPublicSettings || isLoadingAuth) {
