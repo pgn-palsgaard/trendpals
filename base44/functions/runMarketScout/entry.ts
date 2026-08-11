@@ -5,7 +5,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { runDeepSweep, classifyFindings, persistFindings, SCOUT_CATEGORIES, SCOUT_REGIONS } from '../../shared/marketScout.ts';
 
-const TIME_BUDGET_MS = 110000;
+const TIME_BUDGET_MS = 240000;
 
 export default async function (req) {
   const started = Date.now();

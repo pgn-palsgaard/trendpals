@@ -126,7 +126,7 @@ ${RULES}`;
  * Run a full deep sweep. Returns raw, de-duplicated findings.
  * `deadline` is an epoch-ms budget — later rounds are skipped if time runs out.
  */
-export async function runDeepSweep(base44, { category, question = '', window = 'the last 3 months', regions = SCOUT_REGIONS, deadline = Date.now() + 150000 }) {
+export async function runDeepSweep(base44, { category, question = '', window = 'the last 3 months', regions = SCOUT_REGIONS, deadline = Date.now() + 240000 }) {
   const queries = [];
   const seen = new Set();
   const findings = [];
@@ -142,34 +142,31 @@ export async function runDeepSweep(base44, { category, question = '', window = '
 
   const timeLeft = () => deadline - Date.now();
 
-  // --- Round 1: multi-query fan-out across angles (global) ---
-  const angleRuns = await Promise.all(
-    ANGLES.map(async (angle) => {
-      const label = `${category} · ${angle.key} · ${window}`;
-      queries.push(label);
-      const list = await search(base44, buildQueryPrompt({ category, question, window, angle }));
-      return { angle, label, list };
-    })
+  // --- Round 1: angle fan-out + region rotation, all fired concurrently ---
+  // These are independent, so running them in one batch keeps the sweep inside
+  // its time budget while still covering every angle and every region.
+  const round1 = [
+    ...ANGLES.map((angle) => ({
+      label: `${category} · ${angle.key} · ${window}`,
+      prompt: buildQueryPrompt({ category, question, window, angle }),
+    })),
+    ...regions.map((region, i) => {
+      const angle = ANGLES[(i + 3) % ANGLES.length];
+      return {
+        label: `${category} · ${region} · ${angle.key}`,
+        prompt: buildQueryPrompt({ category, question, window, angle, region }),
+      };
+    }),
+  ];
+  for (const q of round1) queries.push(q.label);
+  const round1Runs = await Promise.all(
+    round1.map(async (q) => ({ label: q.label, list: await search(base44, q.prompt) }))
   );
-  for (const r of angleRuns) absorb(r.list, r.label);
-
-  // --- Round 2: region rotation ---
-  if (timeLeft() > 45000) {
-    const regionRuns = await Promise.all(
-      regions.map(async (region) => {
-        const angle = ANGLES[(regions.indexOf(region) + 3) % ANGLES.length];
-        const label = `${category} · ${region} · ${angle.key}`;
-        queries.push(label);
-        const list = await search(base44, buildQueryPrompt({ category, question, window, angle, region }));
-        return { label, list };
-      })
-    );
-    for (const r of regionRuns) absorb(r.list, r.label);
-  }
+  for (const r of round1Runs) absorb(r.list, r.label);
 
   // --- Round 3: citation hopping on named entities from earlier rounds ---
   const hops = [...new Set(findings.flatMap(f => (f.entities_to_follow || []).map(e => String(e).trim())).filter(e => e.length > 2))].slice(0, 4);
-  if (hops.length > 0 && timeLeft() > 35000) {
+  if (hops.length > 0 && timeLeft() > 20000) {
     const hopRuns = await Promise.all(
       hops.map(async (entity) => {
         const label = `citation hop · ${entity}`;
@@ -187,7 +184,7 @@ export async function runDeepSweep(base44, { category, question = '', window = '
 
   // --- Round 4: reflection — what did we miss? ---
   let gapNote = '';
-  if (timeLeft() > 25000) {
+  if (timeLeft() > 15000) {
     try {
       const covered = findings.map(f => `- [${f.source_kind || '?'} | ${f.region || '?'}] ${f.title}`).join('\n').slice(0, 6000);
       const reflection = await base44.asServiceRole.integrations.Core.InvokeLLM({
