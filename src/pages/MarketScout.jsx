@@ -7,10 +7,10 @@ import ScoutSidebar from '@/components/marketscout/ScoutSidebar';
 const AGENT = 'market_scout';
 
 const STARTERS = [
-  'Hvad er nyt i plant-based de seneste 3 måneder?',
-  'Kør en dyb ransagning på ice cream — hvilke vinkler mangler vi?',
-  'Hvad rører sig i bakery i ASPAC lige nu?',
-  'Er der nye claims eller regler på vej i dairy?',
+  "What's new in plant-based over the last 3 months?",
+  'Run a deep sweep on ice cream — which angles are we missing?',
+  "What's moving in bakery in ASPAC right now?",
+  'Any new claims or regulations coming in dairy?',
 ];
 
 export default function MarketScout() {
@@ -75,7 +75,7 @@ export default function MarketScout() {
       setMessages(prev => [...prev, { role: 'user', content }]);
       await base44.agents.addMessage(conv, { role: 'user', content });
     } catch (e) {
-      setMessages(prev => [...prev, { role: 'assistant', content: `Der opstod en fejl: ${e.message}` }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: `Something went wrong: ${e.message}` }]);
     }
     setSending(false);
   }
@@ -89,8 +89,8 @@ export default function MarketScout() {
             <h1 className="page-title">Market Scout</h1>
           </div>
           <p className="page-subtitle">
-            Dyb ransagning af det åbne web — multi-vinkel søgning, region-rotation, citation hopping og
-            krydstjek mod trend-biblioteket. Fund gemmes altid som forslag til manuel godkendelse.
+            Deep sweeps of the open web — multi-angle search, region rotation, citation hopping and
+            cross-checking against the trend library. Findings are always stored as proposals for manual approval.
           </p>
         </div>
 
@@ -116,9 +116,9 @@ export default function MarketScout() {
                 {!loadingConv && messages.length === 0 && (
                   <div className="mx-auto max-w-xl py-8 text-center">
                     <Globe className="mx-auto mb-3 w-10 h-10" style={{ color: '#1D428A' }} />
-                    <h2 className="font-heading text-lg font-semibold text-foreground">Hvad skal jeg lede efter?</h2>
+                    <h2 className="font-heading text-lg font-semibold text-foreground">What should I look for?</h2>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      En fuld ransagning tager 30-60 sekunder — den kører flere søgerunder pr. spørgsmål.
+                      A full sweep takes 30-60 seconds — it runs several search rounds per question.
                     </p>
                     <div className="mt-5 grid gap-2 sm:grid-cols-2">
                       {STARTERS.map(s => (
@@ -134,8 +134,8 @@ export default function MarketScout() {
                     <div className="mt-6 flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-left text-xs text-muted-foreground">
                       <Info className="mt-0.5 w-3.5 h-3.5 shrink-0" />
                       <span>
-                        Mintel- og GNPD-data ligger bag betalingsmur og kan ikke nås fra web. Fund herfra er
-                        supplerende signaler — de erstatter ikke den strukturerede evidens.
+                        Mintel and GNPD data sit behind a paywall and cannot be reached from the web. Findings here
+                        are supplementary signals — they do not replace the structured evidence.
                       </span>
                     </div>
                   </div>
@@ -146,7 +146,7 @@ export default function MarketScout() {
                 {(sending || agentBusy) && (
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: '#1D428A' }} />
-                    Ransager web — flere søgerunder i gang, det kan tage op til et minut.
+                    Sweeping the web — several search rounds running, this can take up to a minute.
                   </div>
                 )}
                 <div ref={endRef} />
@@ -161,7 +161,7 @@ export default function MarketScout() {
                       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
                     }}
                     rows={2}
-                    placeholder="Spørg om en kategori, en region eller et konkret signal…"
+                    placeholder="Ask about a category, a region or a specific signal…"
                     className="flex-1 resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2"
                     style={{ '--tw-ring-color': '#1D428A' }}
                   />
