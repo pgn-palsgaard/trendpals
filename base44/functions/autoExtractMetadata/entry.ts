@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.25';
+import { readSourceText } from '../../shared/extractText.ts';
 
 // ── Inline category validator (inlined from lib/palsgaardCategoryMapping.js — no shared imports allowed) ──
 const VALID_CATEGORY_VALUES = ['bakery','condiments','chocolate_confectionery','dairy','ice_cream','meat','oils_fats','plant_based','rutf_rusf','out_of_scope','needs_human_review'];
@@ -177,28 +178,20 @@ Deno.serve(async (req) => {
       return url;
     }
 
-    // Fallback 1 (PDF): pdfjs — for PDFs that ExtractDataFromUploadedFile rejects (e.g. >10MB)
+    // Fallback 1 (PDF): the shared extractor (unpdf). The plain pdfjs-dist build fails
+    // in this runtime with: No such module "pdf.worker.mjs" — which was failing every PDF.
     if (!documentText && source.file_url && (/\.pdf(\?|$)/.test(lowerUrl) || !lowerUrl.includes('.'))) {
       try {
-        const fetchUrl = await getSignedOrDirectUrl(source.file_url);
-        const { getDocument } = await import('npm:pdfjs-dist@4.4.168/legacy/build/pdf.mjs');
-        const res = await fetch(fetchUrl);
-        if (res.ok) {
-          const buf = new Uint8Array(await res.arrayBuffer());
-          const pdf = await getDocument({ data: buf }).promise;
-          const parts = [];
-          const maxPages = Math.min(pdf.numPages, 40);
-          for (let i = 1; i <= maxPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            parts.push(content.items.map(it => it.str).join(' '));
-          }
-          documentText = parts.join('\n');
-          extractionMethod = 'pdfjs_fallback';
-          console.log(`[autoExtractMetadata] pdfjs fallback extracted ${documentText.length} chars`);
+        const read = await readSourceText(base44.asServiceRole, source);
+        if (read?.ok && read.content?.trim()) {
+          documentText = read.content;
+          extractionMethod = 'shared_unpdf';
+          console.log(`[autoExtractMetadata] shared extractor got ${documentText.length} chars`);
+        } else {
+          console.warn(`[autoExtractMetadata] shared extractor returned nothing: ${read?.error || 'empty'}`);
         }
       } catch (e) {
-        console.warn('[autoExtractMetadata] pdfjs fallback failed:', e.message);
+        console.warn('[autoExtractMetadata] shared extractor failed:', e.message);
       }
     }
 
