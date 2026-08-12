@@ -1,3 +1,5 @@
+import React from 'react';
+import { base44 } from '@/api/base44Client';
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
@@ -45,6 +47,20 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 const AuthenticatedApp = () => {
   const { user, isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
   const location = useLocation();
+
+  // Apply the signup role marker set by the public access guide pages
+  // (/access → submitter, /access-review → reviewer) on the user's first login.
+  React.useEffect(() => {
+    if (!user) return;
+    let marker;
+    try { marker = localStorage.getItem('tp_signup_role'); } catch { return; }
+    if (!marker) return;
+    try { localStorage.removeItem('tp_signup_role'); } catch {}
+    if (user.role === 'admin' || user.role === 'reviewer' || user.role === marker) return;
+    base44.functions.invoke('applySignupRole', { role: marker })
+      .then(res => { if (res?.data?.updated) window.location.reload(); })
+      .catch(() => {});
+  }, [user]);
 
   // Public access guide — reachable without login (e.g. by colleagues who haven't
   // registered yet). Rendered before any auth gating below, and matched

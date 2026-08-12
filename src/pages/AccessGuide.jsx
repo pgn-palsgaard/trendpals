@@ -26,6 +26,10 @@ const STEPS = [
 ];
 
 export default function AccessGuide() {
+  React.useEffect(() => {
+    try { localStorage.setItem('tp_signup_role', 'user'); } catch {}
+  }, []);
+
   const handleLogin = () => {
     base44.auth.redirectToLogin(`${window.location.origin}/`);
   };

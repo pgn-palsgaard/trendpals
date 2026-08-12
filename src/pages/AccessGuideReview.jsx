@@ -26,6 +26,10 @@ const STEPS = [
 ];
 
 export default function AccessGuideReview() {
+  React.useEffect(() => {
+    try { localStorage.setItem('tp_signup_role', 'reviewer'); } catch {}
+  }, []);
+
   const handleLogin = () => {
     base44.auth.redirectToLogin(`${window.location.origin}/review`);
   };
