@@ -13,17 +13,20 @@
       "default": "user",
       "description": "App role. 'admin' = full access. 'user' = read-only access to libraries. 'submitter' = Submit Brief page only. 'reviewer' = external SME, gated to the review portal only."
     },
-    "region": {
-      "type": "string",
-      "enum": [
-        "aspac",
-        "europe",
-        "north_america",
-        "latam",
-        "mena",
-        "sub_saharan_africa"
-      ],
-      "description": "Canonical TrendPals region this user (typically a reviewer) belongs to. Matches CANONICAL_REGIONS in src/lib/regions.js."
+    "regions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "aspac",
+          "europe",
+          "north_america",
+          "latam",
+          "mena",
+          "sub_saharan_africa"
+        ]
+      },
+      "description": "Canonical TrendPals regions this user (typically a reviewer) belongs to. Matches CANONICAL_REGIONS in src/lib/regions.js."
     }
   }
 }

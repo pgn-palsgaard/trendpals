@@ -10,18 +10,24 @@ const VERDICT_LABELS = { confirmed: 'Confirmed', needs_refinement: 'Needs refine
 export default function UserDetailDrawer({ row, onClose, onAssign, onRoleChanged }) {
   const { user, assignments } = row;
   const [role, setRole] = useState(user.role || 'user');
-  const [region, setRegion] = useState(user.region || '');
+  const [regions, setRegions] = useState(user.regions || []);
   const [saving, setSaving] = useState(false);
   const [savingRegion, setSavingRegion] = useState(false);
 
-  const saveRegion = async () => {
+  const toggleRegion = (key) => {
+    setRegions(prev => prev.includes(key) ? prev.filter(r => r !== key) : [...prev, key]);
+  };
+
+  const regionsChanged = JSON.stringify([...regions].sort()) !== JSON.stringify([...(user.regions || [])].sort());
+
+  const saveRegions = async () => {
     setSavingRegion(true);
     try {
-      await base44.entities.User.update(user.id, { region: region || null });
-      toast.success(region ? `Region set to ${getRegionLabel(region)}.` : 'Region cleared.');
+      await base44.entities.User.update(user.id, { regions });
+      toast.success(regions.length ? `Regions set: ${regions.map(getRegionLabel).join(', ')}.` : 'Regions cleared.');
       onRoleChanged?.();
     } catch (err) {
-      toast.error(err?.message || 'Could not update region.');
+      toast.error(err?.message || 'Could not update regions.');
     }
     setSavingRegion(false);
   };
@@ -96,32 +102,36 @@ export default function UserDetailDrawer({ row, onClose, onAssign, onRoleChanged
             </p>
           </div>
 
-          {/* Region */}
+          {/* Regions */}
           <div className="mb-6">
-            <p className="section-label mb-2">Region</p>
-            <div className="flex items-center gap-2">
-              <select
-                value={region}
-                onChange={e => setRegion(e.target.value)}
-                className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-card"
-                style={{ color: '#1D2B47' }}
-              >
-                <option value="">No region</option>
-                {CANONICAL_REGIONS.map(r => (
-                  <option key={r.key} value={r.key}>{r.label}</option>
-                ))}
-              </select>
-              <button
-                onClick={saveRegion}
-                disabled={savingRegion || region === (user.region || '')}
-                className="text-sm font-semibold text-white px-4 py-2 rounded-lg disabled:opacity-40"
-                style={{ background: '#1D428A' }}
-              >
-                {savingRegion ? 'Saving…' : 'Save'}
-              </button>
+            <p className="section-label mb-2">Regions</p>
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {CANONICAL_REGIONS.map(r => {
+                const active = regions.includes(r.key);
+                return (
+                  <button
+                    key={r.key}
+                    onClick={() => toggleRegion(r.key)}
+                    className="text-xs font-medium px-2.5 py-1.5 rounded-full border transition-colors"
+                    style={active
+                      ? { background: '#1D428A', color: 'white', borderColor: '#1D428A' }
+                      : { background: 'transparent', color: '#3A4A66', borderColor: 'hsl(var(--border))' }}
+                  >
+                    {r.label}
+                  </button>
+                );
+              })}
             </div>
+            <button
+              onClick={saveRegions}
+              disabled={savingRegion || !regionsChanged}
+              className="text-sm font-semibold text-white px-4 py-2 rounded-lg disabled:opacity-40"
+              style={{ background: '#1D428A' }}
+            >
+              {savingRegion ? 'Saving…' : 'Save regions'}
+            </button>
             <p className="text-xs text-muted-foreground mt-2">
-              The region this user belongs to — used for reviewer coverage.
+              The regions this user belongs to — used for reviewer coverage.
             </p>
           </div>
 

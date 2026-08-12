@@ -52,8 +52,8 @@ export default function UserTable({ rows, sortKey, onSort, onSelect, onAssign })
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs" style={{ color: '#3A4A66' }}>
-                  {row.user.region
-                    ? getRegionLabel(row.user.region)
+                  {row.user.regions?.length
+                    ? row.user.regions.map(getRegionLabel).join(', ')
                     : (row.regions.length ? row.regions.join(', ') : '—')}
                 </td>
                 <td className="px-4 py-3">
