@@ -14,8 +14,11 @@ export function normalizeTitle(t) {
 /**
  * Duplicate detection at upload.
  * Input: { file_hash?, title? }
- * Matches: (a) identical file_hash, (b) normalized title match.
- * Returns { duplicates: [{id, title, pipeline_stage, review_status, source_type, created_date, match_type}] }
+ * Matches: (a) identical file_hash, (b) title match on a small set of candidates.
+ *
+ * IMPORTANT: this must stay cheap. A previous version paginated through up to 5000
+ * FULL Source records (excerpts + mintel_chunks are inline), which blew the worker's
+ * memory limit and made every upload fail. We now only run targeted, indexed lookups.
  */
 Deno.serve(async (req) => {
   try {
@@ -27,41 +30,38 @@ Deno.serve(async (req) => {
     const { file_hash, title } = await req.json();
     const matches = new Map();
 
-    if (file_hash) {
-      const byHash = await base44.asServiceRole.entities.Source.filter({ file_hash }, '-created_date', 10);
-      for (const s of byHash) matches.set(s.id, { source: s, match_type: 'file_hash' });
-    }
-
-    if (title) {
-      const normTarget = normalizeTitle(title);
-      if (normTarget) {
-        // Paginate through titles to compare normalized forms
-        const PAGE = 500;
-        let skip = 0;
-        while (skip < 5000) {
-          const page = await base44.asServiceRole.entities.Source.list('-created_date', PAGE, skip);
-          if (!page.length) break;
-          for (const s of page) {
-            if (matches.has(s.id)) continue;
-            if (normalizeTitle(s.title) === normTarget || normalizeTitle(s.relative_path) === normTarget) {
-              matches.set(s.id, { source: s, match_type: 'title' });
-            }
-          }
-          if (page.length < PAGE) break;
-          skip += PAGE;
-        }
-      }
-    }
-
-    const duplicates = [...matches.values()].map(({ source: s, match_type }) => ({
+    const slim = (s) => ({
       id: s.id,
       title: s.title,
       source_type: s.source_type,
       pipeline_stage: s.pipeline_stage,
       review_status: s.review_status,
       created_date: s.created_date,
-      match_type,
-    }));
+    });
+
+    if (file_hash) {
+      const byHash = await base44.asServiceRole.entities.Source.filter({ file_hash }, '-created_date', 5);
+      for (const s of byHash) matches.set(s.id, { source: slim(s), match_type: 'file_hash' });
+    }
+
+    if (title) {
+      const norm = normalizeTitle(title);
+      // Targeted candidate titles instead of scanning the whole table.
+      const candidates = new Set([title, title.trim(), norm]);
+      const noExt = title.replace(/\.[a-z0-9]+$/i, '');
+      if (noExt !== title) candidates.add(noExt);
+
+      for (const candidate of candidates) {
+        if (!candidate) continue;
+        const found = await base44.asServiceRole.entities.Source.filter({ title: candidate }, '-created_date', 5);
+        for (const s of found) {
+          if (matches.has(s.id)) continue;
+          matches.set(s.id, { source: slim(s), match_type: 'title' });
+        }
+      }
+    }
+
+    const duplicates = [...matches.values()].map(({ source, match_type }) => ({ ...source, match_type }));
 
     return Response.json({ duplicates });
   } catch (error) {

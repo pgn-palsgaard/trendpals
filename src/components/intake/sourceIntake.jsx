@@ -24,8 +24,15 @@ export async function computeFileHash(file) {
 }
 
 export async function checkDuplicate({ fileHash, title }) {
-  const res = await base44.functions.invoke('checkDuplicateSource', { file_hash: fileHash, title });
-  return res.data?.duplicates || [];
+  // Non-blocking: duplicate detection is a convenience check, never a gate that can
+  // break uploads. If the check itself errors out, we let the upload proceed.
+  try {
+    const res = await base44.functions.invoke('checkDuplicateSource', { file_hash: fileHash, title });
+    return res.data?.duplicates || [];
+  } catch (e) {
+    console.warn('Duplicate check unavailable — continuing upload', e);
+    return [];
+  }
 }
 
 export async function linkSourceToProject(projectId, sourceId) {
