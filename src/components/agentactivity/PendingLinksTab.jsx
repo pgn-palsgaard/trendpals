@@ -18,9 +18,63 @@ function ConfidenceBar({ score }) {
   );
 }
 
+const linkKey = (l) => `${l._trend_id}||${l.title}||${l.publisher || ''}`;
+
+const SCORE_OPTIONS = [
+  { value: 70, label: 'HIGH (score ≥ 70)' },
+  { value: 50, label: 'Score ≥ 50' },
+  { value: 40, label: 'MEDIUM+ (score ≥ 40)' },
+];
+
 export default function PendingLinksTab({ pendingLinks, globalTrends, isLoading }) {
   const queryClient = useQueryClient();
   const [bulkPublisher, setBulkPublisher] = useState('');
+  const [selected, setSelected] = useState(() => new Set());
+  const [scoreThreshold, setScoreThreshold] = useState(70);
+
+  const toggleSelected = (key) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const selectAllMatching = () => {
+    setSelected(new Set(
+      pendingLinks
+        .filter(l => (l.confidence_score || 0) >= scoreThreshold)
+        .map(linkKey)
+    ));
+  };
+
+  const approveSelectedMutation = useMutation({
+    mutationFn: async () => {
+      const chosen = pendingLinks.filter(l => selected.has(linkKey(l)));
+      const byTrend = {};
+      chosen.forEach(l => {
+        if (!byTrend[l._trend_id]) byTrend[l._trend_id] = [];
+        byTrend[l._trend_id].push(l);
+      });
+      for (const [trendId, links] of Object.entries(byTrend)) {
+        const trends = await base44.entities.GlobalTrend.filter({ id: trendId });
+        const trend = trends[0];
+        if (!trend) continue;
+        const updatedSources = (trend.sources || []).map(s => {
+          const match = links.find(l => l.title === s.title && (l.publisher || '') === (s.publisher || '') && s.review_status === 'pending');
+          if (match) return { ...s, review_status: 'approved' };
+          return s;
+        });
+        await base44.entities.GlobalTrend.update(trendId, { sources: updatedSources });
+      }
+      return chosen.length;
+    },
+    onSuccess: (count) => {
+      queryClient.invalidateQueries({ queryKey: ['globalTrends'] });
+      toast.success(`Approved ${count} link${count !== 1 ? 's' : ''}`);
+      setSelected(new Set());
+    },
+  });
 
   const updateLinkOnTrend = async (trendId, sourceTitle, publisher, newStatus) => {
     const trends = await base44.entities.GlobalTrend.filter({ id: trendId });
@@ -124,12 +178,56 @@ export default function PendingLinksTab({ pendingLinks, globalTrends, isLoading 
         </div>
       )}
 
+      {/* Confidence-based multi-select bar */}
+      <div className="flex items-center gap-3 mb-5 p-3 bg-white border border-slate-200 rounded-lg flex-wrap">
+        <span className="text-sm text-slate-700 font-medium">Select by confidence:</span>
+        <select
+          value={scoreThreshold}
+          onChange={e => setScoreThreshold(Number(e.target.value))}
+          className="border border-slate-300 bg-white rounded px-2 py-1 text-sm text-slate-700 focus:outline-none"
+        >
+          {SCORE_OPTIONS.map(o => (
+            <option key={o.value} value={o.value}>
+              {o.label} ({pendingLinks.filter(l => (l.confidence_score || 0) >= o.value).length})
+            </option>
+          ))}
+        </select>
+        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={selectAllMatching}>
+          Select all matching
+        </Button>
+        {selected.size > 0 && (
+          <>
+            <Button
+              size="sm"
+              className="h-7 bg-green-600 hover:bg-green-700 text-white text-xs"
+              disabled={approveSelectedMutation.isPending}
+              onClick={() => approveSelectedMutation.mutate()}
+            >
+              <CheckCircle className="w-3 h-3 mr-1" />
+              {approveSelectedMutation.isPending ? 'Approving…' : `Approve selected (${selected.size})`}
+            </Button>
+            <button
+              className="text-xs text-slate-500 hover:text-slate-700 underline"
+              onClick={() => setSelected(new Set())}
+            >
+              Clear selection
+            </button>
+          </>
+        )}
+      </div>
+
       <div className="text-sm text-slate-500 mb-3">{pendingLinks.length} pending link{pendingLinks.length !== 1 ? 's' : ''}</div>
 
       <div className="space-y-3">
         {pendingLinks.map((link, i) => (
-          <div key={i} className="bg-white border border-amber-200 rounded-lg p-4">
+          <div key={i} className={`bg-white border rounded-lg p-4 ${selected.has(linkKey(link)) ? 'border-green-400 ring-1 ring-green-200' : 'border-amber-200'}`}>
             <div className="flex items-start justify-between gap-3 mb-3">
+              <input
+                type="checkbox"
+                checked={selected.has(linkKey(link))}
+                onChange={() => toggleSelected(linkKey(link))}
+                className="mt-1 w-4 h-4 accent-green-600 shrink-0 cursor-pointer"
+              />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
                   <span className="text-xs font-medium px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded border border-amber-200 uppercase tracking-wide">
