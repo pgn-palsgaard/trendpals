@@ -93,8 +93,12 @@ export default function KnowledgeUploadModal({ onClose }) {
       return batch.id;
     },
     onSuccess: (batchId) => {
-      queryClient.invalidateQueries(['knowledgeSources']);
-      queryClient.invalidateQueries(['uploadBatches']);
+      // The source tables (Knowledge + Market Intelligence) read from the 'ragSources'
+      // query with a 5-minute staleTime — without invalidating that key the freshly
+      // uploaded files stay invisible until a hard reload.
+      queryClient.invalidateQueries({ queryKey: ['ragSources'] });
+      queryClient.invalidateQueries({ queryKey: ['knowledgeSources'] });
+      queryClient.invalidateQueries({ queryKey: ['uploadBatches'] });
       toast.success('Bulk upload started', {
         description: 'Files are being processed in the background'
       });
