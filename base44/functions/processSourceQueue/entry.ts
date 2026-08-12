@@ -1,4 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
+import { readSourceText as readText } from '../../shared/extractText.ts';
 
 // ── Inline category validator ──────────────────────────────────────────────
 const VALID_CATEGORY_VALUES = ['bakery','condiments','chocolate_confectionery','dairy','ice_cream','meat','oils_fats','plant_based','rutf_rusf','out_of_scope','needs_human_review'];
@@ -306,25 +307,17 @@ Deno.serve(async (req) => {
         }
 
         // Content read is hoisted to loop scope so the pre-gate and full
-        // extraction share a single readSourceContent call (no double read).
+        // extraction share a single read (no double read). Uses the shared
+        // extractor directly — a cross-function invoke resolved to a stale
+        // deployment and failed every PDF ("No such module pdf.worker.mjs").
         let fileContent = '';
         const readSourceText = async () => {
           if (!(source.file_url || source.url)) return;
           let readData;
           try {
-            const readRes = await base44.asServiceRole.functions.invoke('readSourceContent', { source_id: source.id });
-            readData = readRes?.data ?? readRes;
-          } catch (invokeErr) {
-            console.warn(`[processSourceQueue] asServiceRole invoke failed (${invokeErr.message}) — retrying via direct HTTP`);
-            const fnUrl = `https://base44.app/api/apps/${Deno.env.get('BASE44_APP_ID')}/functions/readSourceContent`;
-            const headers = { 'Content-Type': 'application/json' };
-            for (const h of ['authorization', 'api_key', 'x-api-key', 'cookie']) {
-              const v = req.headers.get(h);
-              if (v) headers[h] = v;
-            }
-            const httpRes = await fetch(fnUrl, { method: 'POST', headers, body: JSON.stringify({ source_id: source.id }) });
-            if (!httpRes.ok) throw new Error(`readSourceContent HTTP ${httpRes.status}: ${(await httpRes.text()).slice(0, 200)}`);
-            readData = await httpRes.json();
+            readData = await readText(base44.asServiceRole, source);
+          } catch (readErr) {
+            readData = { ok: false, error: readErr.message };
           }
           if (readData?.ok) {
             fileContent = readData.content || '';
