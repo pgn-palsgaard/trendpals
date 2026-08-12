@@ -3,14 +3,28 @@ import { base44 } from '@/api/base44Client';
 import { toast } from 'sonner';
 import { X, Send, Info } from 'lucide-react';
 import { ROLES, roleLabel, ROLE_BADGE_CLASS, ACCESS_MAP } from '@/lib/accessMap';
-import { getRegionLabel } from '@/lib/regions';
+import { getRegionLabel, CANONICAL_REGIONS } from '@/lib/regions';
 
 const VERDICT_LABELS = { confirmed: 'Confirmed', needs_refinement: 'Needs refinement', rejected: 'Rejected' };
 
 export default function UserDetailDrawer({ row, onClose, onAssign, onRoleChanged }) {
   const { user, assignments } = row;
   const [role, setRole] = useState(user.role || 'user');
+  const [region, setRegion] = useState(user.region || '');
   const [saving, setSaving] = useState(false);
+  const [savingRegion, setSavingRegion] = useState(false);
+
+  const saveRegion = async () => {
+    setSavingRegion(true);
+    try {
+      await base44.entities.User.update(user.id, { region: region || null });
+      toast.success(region ? `Region set to ${getRegionLabel(region)}.` : 'Region cleared.');
+      onRoleChanged?.();
+    } catch (err) {
+      toast.error(err?.message || 'Could not update region.');
+    }
+    setSavingRegion(false);
+  };
 
   const access = ACCESS_MAP.find(a => a.role === role);
   const responded = assignments.filter(a => a.status === 'responded');
@@ -79,6 +93,35 @@ export default function UserDetailDrawer({ row, onClose, onAssign, onRoleChanged
             <p className="text-xs text-muted-foreground mt-2 flex items-start gap-1.5">
               <Info className="w-3 h-3 mt-0.5 shrink-0" />
               Role changes apply the next time the user logs in.
+            </p>
+          </div>
+
+          {/* Region */}
+          <div className="mb-6">
+            <p className="section-label mb-2">Region</p>
+            <div className="flex items-center gap-2">
+              <select
+                value={region}
+                onChange={e => setRegion(e.target.value)}
+                className="flex-1 text-sm border border-border rounded-lg px-3 py-2 bg-card"
+                style={{ color: '#1D2B47' }}
+              >
+                <option value="">No region</option>
+                {CANONICAL_REGIONS.map(r => (
+                  <option key={r.key} value={r.key}>{r.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={saveRegion}
+                disabled={savingRegion || region === (user.region || '')}
+                className="text-sm font-semibold text-white px-4 py-2 rounded-lg disabled:opacity-40"
+                style={{ background: '#1D428A' }}
+              >
+                {savingRegion ? 'Saving…' : 'Save'}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              The region this user belongs to — used for reviewer coverage.
             </p>
           </div>
 

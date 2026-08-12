@@ -1,5 +1,6 @@
 import React from 'react';
 import { roleLabel, ROLE_BADGE_CLASS } from '@/lib/accessMap';
+import { getRegionLabel } from '@/lib/regions';
 import { ChevronsUpDown, Send } from 'lucide-react';
 
 function SortHeader({ label, active, onClick, className = '' }) {
@@ -51,7 +52,9 @@ export default function UserTable({ rows, sortKey, onSort, onSelect, onAssign })
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs" style={{ color: '#3A4A66' }}>
-                  {row.regions.length ? row.regions.join(', ') : '—'}
+                  {row.user.region
+                    ? getRegionLabel(row.user.region)
+                    : (row.regions.length ? row.regions.join(', ') : '—')}
                 </td>
                 <td className="px-4 py-3">
                   {row.total === 0 ? (
