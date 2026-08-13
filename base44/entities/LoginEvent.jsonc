@@ -1,0 +1,32 @@
+{
+  "name": "LoginEvent",
+  "type": "object",
+  "description": "One lightweight record per user per calendar day the user opened the app. Used only for admin usage overview (total logins, last login).",
+  "properties": {
+    "user_id": {
+      "type": "string",
+      "description": "User id of the person who logged in"
+    },
+    "email": {
+      "type": "string",
+      "description": "Lowercased email of the user, used as the aggregation key"
+    },
+    "full_name": {
+      "type": "string",
+      "description": "Display name snapshot at login time"
+    },
+    "day": {
+      "type": "string",
+      "description": "Calendar day key YYYY-MM-DD, used to debounce to one record per day"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the login was recorded"
+    }
+  },
+  "required": [
+    "email",
+    "day"
+  ]
+}

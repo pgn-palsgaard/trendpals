@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { X, Send, Info } from 'lucide-react';
 import { ROLES, roleLabel, ROLE_BADGE_CLASS, ACCESS_MAP } from '@/lib/accessMap';
 import { getRegionLabel, CANONICAL_REGIONS } from '@/lib/regions';
+import UserUsageSection from '@/components/users/UserUsageSection';
 
 const VERDICT_LABELS = { confirmed: 'Confirmed', needs_refinement: 'Needs refinement', rejected: 'Rejected' };
 
@@ -178,6 +179,8 @@ export default function UserDetailDrawer({ row, onClose, onAssign, onRoleChanged
               </div>
             )}
           </div>
+
+          <UserUsageSection email={user.email} />
         </div>
       </div>
     </div>

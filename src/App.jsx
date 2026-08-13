@@ -33,6 +33,7 @@ import ArchitectSessionDetail from './pages/ArchitectSessionDetail';
 import AccessGuide from './pages/AccessGuide';
 import AccessGuideReview from './pages/AccessGuideReview';
 import { Navigate, useLocation } from 'react-router-dom';
+import { recordLogin } from '@/lib/recordLogin';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -49,6 +50,12 @@ const LayoutWrapper = ({ children, currentPageName }) => Layout ?
 const AuthenticatedApp = () => {
   const { user, isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
   const location = useLocation();
+
+  // Record one login event per user per calendar day (for the admin usage overview).
+  React.useEffect(() => {
+    if (!user) return;
+    recordLogin(user).catch(() => {});
+  }, [user]);
 
   // Apply the signup role marker set by the public access guide pages
   // (/access → submitter, /access-review → reviewer) on the user's first login.
