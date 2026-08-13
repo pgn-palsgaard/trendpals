@@ -32,16 +32,28 @@ export default function Briefs() {
   const [converting, setConverting] = useState(false);
   const [convertResult, setConvertResult] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => { loadBriefs(); }, []);
 
   async function loadBriefs() {
     setLoading(true);
+    setLoadError(null);
     try {
-      const results = await base44.entities.ReportRequest.list('-submitted_at', 100);
+      // Retry once — a transient failure must never look like "no briefs".
+      let results;
+      try {
+        results = await base44.entities.ReportRequest.list('-submitted_at', 100);
+      } catch {
+        await new Promise(r => setTimeout(r, 1200));
+        results = await base44.entities.ReportRequest.list('-submitted_at', 100);
+      }
       setBriefs(results);
       if (results.length > 0 && !selected) setSelected(results[0]);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error(e);
+      setLoadError(e.message || 'Could not load briefs');
+    }
     setLoading(false);
   }
 
@@ -108,6 +120,17 @@ export default function Briefs() {
         <div style={{ overflowY: "auto", flex: 1 }}>
           {loading ? (
             <p style={{ padding: "1rem", color: GREY, fontSize: 13 }}>Loading…</p>
+          ) : loadError ? (
+            <div style={{ padding: "1rem" }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: ORANGE, margin: "0 0 4px" }}>Could not load your briefs</p>
+              <p style={{ fontSize: 12, color: GREY, margin: "0 0 10px", lineHeight: 1.5 }}>
+                Nothing has been deleted — this was a loading problem. Try again.
+              </p>
+              <button onClick={loadBriefs} style={{
+                background: BLUE, color: "white", border: "none", borderRadius: 6,
+                padding: "7px 14px", cursor: "pointer", fontSize: 13, fontFamily: "inherit", fontWeight: 600
+              }}>Retry</button>
+            </div>
           ) : briefs.length === 0 ? (
             <p style={{ padding: "1rem", color: GREY, fontSize: 13 }}>No briefs yet.</p>
           ) : briefs.map(brief => {
