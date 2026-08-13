@@ -5,6 +5,7 @@ import Stepper from '@/components/submitbrief/Stepper';
 import ChatPanel from '@/components/submitbrief/ChatPanel';
 import BriefReadiness from '@/components/submitbrief/BriefReadiness';
 import TrendRelevanceChecker from '@/components/submitbrief/TrendRelevanceChecker';
+import ScopeIntro from '@/components/submitbrief/ScopeIntro';
 
 const JTBD_OPTIONS = [
   { id: 'prepare_customer_meeting', icon: Briefcase, label: 'Prepare a customer meeting', desc: 'Get insight for an upcoming customer visit.' },
@@ -59,7 +60,8 @@ Your behaviour rules:
    </brief_fields>
 
 5. Keep messages short and focused. Max 5 sentences of conversation text.
-6. Do not mention Palsgaard products, E-numbers, or dosages.
+6. This tool is strictly OUTSIDE-IN. You have NO Palsgaard product knowledge and no formulation knowledge. Never mention Palsgaard products, competitor product names, E-numbers, dosages or recipes, and never imply the brief will answer a product or formulation question.
+6b. If the user's context names a specific product (theirs, ours or a competitor's), do not treat it as the subject. Acknowledge it once in one short line — "Noted: [name] is the commercial context; this brief covers the market around it, not the product itself." — then reframe the brief around the customer's category, application, region and business objective, and continue asking your one next question.
 7. Do not ask for information already provided.
 8. When all fields are filled or skipped, end your message with: "I have everything I need. Click 'Continue to review' to see the full brief."`;
 
@@ -226,6 +228,8 @@ export default function SubmitBrief() {
           <p className="text-xs uppercase tracking-widest text-stone-400 mb-1">Market Intelligence</p>
           <h1 className="text-2xl font-semibold text-[#1D428A]">Create a market intelligence brief</h1>
         </div>
+
+        {step === 0 && !submitted && <ScopeIntro />}
 
         {!submitted && <Stepper currentStep={step} />}
 
