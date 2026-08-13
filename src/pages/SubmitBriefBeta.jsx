@@ -5,6 +5,7 @@ import { FlaskConical, CheckCircle2 } from 'lucide-react';
 import ArchitectChat from '@/components/briefbeta/ArchitectChat';
 import ContractPanel from '@/components/briefbeta/ContractPanel';
 import SimilarReportsPanel from '@/components/reports/SimilarReportsPanel';
+import ScopeIntro from '@/components/submitbrief/ScopeIntro';
 import DeckPreview from '@/components/briefbeta/DeckPreview';
 import GammaExportPanel from '@/components/briefbeta/GammaExportPanel';
 import ClaudePptxPanel from '@/components/briefbeta/ClaudePptxPanel';
@@ -235,6 +236,8 @@ export default function SubmitBriefBeta() {
             </p>
           </div>
         </div>
+
+        {messages.filter(m => m.role === 'user').length === 0 && <ScopeIntro />}
 
         <div className="flex flex-col lg:flex-row gap-5">
           {/* Chat */}
