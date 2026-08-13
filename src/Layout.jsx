@@ -5,7 +5,7 @@ import { base44 } from '@/api/base44Client';
 import {
   LogOut, FolderOpen, FileText, BarChart2, TrendingUp, Zap, BookOpen, CheckSquare,
   Palette, LayoutGrid, Library, Database, Grid, Activity, ChevronLeft, ChevronRight, Menu, X, ClipboardList,
-  ListChecks, FileBarChart2, UserCircle, Sparkles, FlaskConical, Globe, Users
+  ListChecks, FileBarChart2, UserCircle, Sparkles, FlaskConical, Globe, Users, History
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
@@ -20,6 +20,7 @@ const ADMIN_NAV = [
       { label: 'Briefs', to: '/Briefs', icon: FileText, pages: ['Briefs'], badge: true },
       { label: 'Reports', to: createPageUrl('ReportsLibrary'), icon: BarChart2, pages: ['ReportsLibrary'] },
       { label: 'Architect (Beta)', to: '/SubmitBriefBeta', icon: FlaskConical, pages: ['SubmitBriefBeta'] },
+      { label: 'Architect history', to: '/ArchitectHistory', icon: History, pages: ['ArchitectHistory'] },
     ],
   },
   {

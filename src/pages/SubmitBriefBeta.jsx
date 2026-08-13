@@ -10,6 +10,8 @@ import ClaudePptxPanel from '@/components/briefbeta/ClaudePptxPanel';
 import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbeta/architectPrompt';
 import { buildEvidenceContext, extractRecordIds } from '@/components/briefbeta/evidenceContext';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
+import { useAuth } from '@/lib/AuthContext';
+import useArchitectSession from '@/hooks/useArchitectSession';
 
 const OPENER = {
   role: 'assistant',
@@ -35,6 +37,16 @@ export default function SubmitBriefBeta() {
   const [saving, setSaving] = useState(false);
   const [savedReport, setSavedReport] = useState(null);
   const sessionStart = useRef(new Date().toISOString());
+  const { user } = useAuth();
+
+  // Every session is auto-saved to the Architect history as the conversation runs.
+  const { markConverted } = useArchitectSession({
+    messages,
+    contract,
+    slides,
+    sessionStart: sessionStart.current,
+    user,
+  });
 
   // Retrieval works exactly like the manual workflow: verified trends first, then
   // the Source records behind them and the real GNPD products that support them.
@@ -59,7 +71,7 @@ export default function SubmitBriefBeta() {
 
   async function sendMessage() {
     if (!inputText.trim() || loading) return;
-    const userMsg = { role: 'user', content: inputText.trim() };
+    const userMsg = { role: 'user', content: inputText.trim(), timestamp: new Date().toISOString() };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInputText('');
@@ -108,7 +120,7 @@ export default function SubmitBriefBeta() {
         .replace(/<contract>[\s\S]*?<\/contract>/, '')
         .replace(/<slides>[\s\S]*?<\/slides>/, '')
         .trim();
-      setMessages(prev => [...prev, { role: 'assistant', content: visible || 'Deck built — review the slides on the right.' }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: visible || 'Deck built — review the slides on the right.', timestamp: new Date().toISOString() }]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong reaching the architect. Please try again.' }]);
     }
@@ -201,6 +213,7 @@ export default function SubmitBriefBeta() {
         version: 1,
       });
       setSavedReport(report);
+      markConverted(report.id, project.id);
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Saving failed: ${e.message}` }]);
     }

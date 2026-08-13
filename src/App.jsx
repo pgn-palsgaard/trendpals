@@ -28,6 +28,8 @@ import SubmitterLayout from './components/layout/SubmitterLayout';
 import Profile from './pages/Profile';
 import MarketScout from './pages/MarketScout';
 import Users from './pages/Users';
+import ArchitectHistory from './pages/ArchitectHistory';
+import ArchitectSessionDetail from './pages/ArchitectSessionDetail';
 import AccessGuide from './pages/AccessGuide';
 import AccessGuideReview from './pages/AccessGuideReview';
 import { Navigate, useLocation } from 'react-router-dom';
@@ -164,6 +166,8 @@ const AuthenticatedApp = () => {
       <Route path="/MarketScout" element={<LayoutWrapper currentPageName="MarketScout"><MarketScout /></LayoutWrapper>} />
       <Route path="/Profile" element={<LayoutWrapper currentPageName="Profile"><Profile /></LayoutWrapper>} />
       <Route path="/Users" element={<LayoutWrapper currentPageName="Users"><Users /></LayoutWrapper>} />
+      <Route path="/ArchitectHistory" element={<LayoutWrapper currentPageName="ArchitectHistory"><ArchitectHistory /></LayoutWrapper>} />
+      <Route path="/ArchitectHistory/:sessionId" element={<LayoutWrapper currentPageName="ArchitectHistory"><ArchitectSessionDetail /></LayoutWrapper>} />
       {/* Redirects for deprecated routes */}
       <Route path="/ChallengeLibrary" element={<Navigate to="/ReviewQueue" replace />} />
       <Route path="/TrendReport" element={<Navigate to="/Reports" replace />} />

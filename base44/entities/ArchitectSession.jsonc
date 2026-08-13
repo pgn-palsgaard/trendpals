@@ -1,0 +1,130 @@
+{
+  "name": "ArchitectSession",
+  "type": "object",
+  "description": "A persisted Report Architect (Beta) chat session \u2014 full transcript, the derived contract, the built slide deck, and a link to the saved report if the session was converted. Auto-saved while the user chats so nothing is lost on refresh.",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "description": "Email of the user who ran this session. Used for owner-scoped access."
+    },
+    "owner_name": {
+      "type": "string",
+      "description": "Display name of the user who ran this session."
+    },
+    "session_started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the chat session began (client-side session start)."
+    },
+    "last_message_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Timestamp of the most recent message in the transcript."
+    },
+    "messages": {
+      "type": "array",
+      "description": "The chat transcript. Capped to the most recent messages, with long message bodies truncated, to stay within entity field size limits.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ]
+          },
+          "content": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
+    "message_count": {
+      "type": "number",
+      "description": "Number of messages stored in the transcript."
+    },
+    "contract": {
+      "type": "object",
+      "description": "The brief contract the architect derived during the conversation (categories, objective, audience, core hypothesis, region).",
+      "additionalProperties": true
+    },
+    "slides": {
+      "type": "array",
+      "description": "Snapshot of the slide deck the architect built, as last seen in the session.",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable session title, derived from the contract's core hypothesis or objective."
+    },
+    "category": {
+      "type": "string",
+      "description": "Primary canonical Palsgaard solution key from the contract."
+    },
+    "region": {
+      "type": "string",
+      "description": "Canonical region code from the contract."
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "converted"
+      ],
+      "default": "active",
+      "description": "active = session in progress or never saved. converted = the user saved the deck as a Report."
+    },
+    "linked_report_id": {
+      "type": "string",
+      "description": "Report id created when the user saved the deck. Null unless status=converted."
+    },
+    "linked_project_id": {
+      "type": "string",
+      "description": "Project id created alongside the saved report. Null unless status=converted."
+    }
+  },
+  "required": [
+    "owner_email",
+    "session_started_at"
+  ],
+  "rls": {
+    "read": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "create": {
+      "created_by_id": "{{user.id}}"
+    },
+    "update": {
+      "created_by_id": "{{user.id}}"
+    },
+    "delete": {
+      "$or": [
+        {
+          "created_by_id": "{{user.id}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    }
+  }
+}
