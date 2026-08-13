@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { FlaskConical, CheckCircle2 } from 'lucide-react';
 import ArchitectChat from '@/components/briefbeta/ArchitectChat';
 import ContractPanel from '@/components/briefbeta/ContractPanel';
+import SimilarReportsPanel from '@/components/reports/SimilarReportsPanel';
 import DeckPreview from '@/components/briefbeta/DeckPreview';
 import GammaExportPanel from '@/components/briefbeta/GammaExportPanel';
 import ClaudePptxPanel from '@/components/briefbeta/ClaudePptxPanel';
@@ -252,6 +253,15 @@ export default function SubmitBriefBeta() {
           {/* Contract + slides */}
           <div className={`space-y-4 ${slides ? 'lg:w-3/5' : 'lg:w-2/5'}`}>
             <ContractPanel contract={contract} trendCount={trends?.length || 0} />
+
+            {!savedReport && (
+              <SimilarReportsPanel query={{
+                category: Array.isArray(contract?.categories) ? contract.categories.join(' ') : contract?.categories,
+                region: contract?.region,
+                objective: contract?.objective || contract?.core_hypothesis,
+                audience: contract?.audience,
+              }} />
+            )}
 
             {slides && !savedReport && (
               <DeckPreview

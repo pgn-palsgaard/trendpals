@@ -6,6 +6,7 @@ import ChatPanel from '@/components/submitbrief/ChatPanel';
 import BriefReadiness from '@/components/submitbrief/BriefReadiness';
 import TrendRelevanceChecker from '@/components/submitbrief/TrendRelevanceChecker';
 import ScopeIntro from '@/components/submitbrief/ScopeIntro';
+import SimilarReportsPanel from '@/components/reports/SimilarReportsPanel';
 
 const JTBD_OPTIONS = [
   { id: 'prepare_customer_meeting', icon: Briefcase, label: 'Prepare a customer meeting', desc: 'Get insight for an upcoming customer visit.' },
@@ -282,6 +283,14 @@ export default function SubmitBrief() {
                 onChangeType={() => setStep(0)}
                 onContinue={() => setStep(3)}
               />
+              <div className="mt-4">
+                <SimilarReportsPanel query={{
+                  category: fields.category,
+                  region: fields.region,
+                  objective: fields.objective,
+                  audience: fields.customer_audience,
+                }} />
+              </div>
             </div>
           </div>
         )}
