@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ImageOff, RefreshCw } from 'lucide-react';
+import PackshotUploader from '@/components/gnpd/PackshotUploader';
 
 const BLUE = '#1D428A';
 
@@ -44,6 +45,14 @@ export default function ImageCoveragePanel() {
 
   return (
     <div style={{ padding: '24px 28px' }}>
+      <div style={{ background: 'white', border: '1px solid #d8d3c8', borderRadius: 8, padding: '1.25rem', marginBottom: 16 }}>
+        <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1D2B47' }}>Add pack shots</p>
+        <p style={{ margin: '2px 0 12px', fontSize: 12, color: '#6B7280' }}>
+          Upload images named after their GNPD Record ID — they are attached to the matching products.
+        </p>
+        <PackshotUploader onDone={() => { if (data) run(); }} />
+      </div>
+
       <div style={{ background: 'white', border: '1px solid #d8d3c8', borderRadius: 8, padding: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <div>

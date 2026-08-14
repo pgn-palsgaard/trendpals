@@ -24,17 +24,39 @@ export default async function (req) {
       )].slice(0, 40);
 
       const missing = [];
+      const missingRecordIds = new Set();
       let matched = 0;
       for (const name of names) {
         const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const hits = await base44.asServiceRole.entities.GNPDProduct.filter(
           { product_name: { $regex: esc, $options: 'i' } }, null, 3
         );
-        if (hits.some(h => h.image_url && String(h.image_url).startsWith('http'))) matched++;
-        else missing.push(name);
+        if (hits.some(h => h.image_url && String(h.image_url).startsWith('http'))) {
+          matched++;
+        } else {
+          missing.push(name);
+          for (const h of hits) if (h.gnpd_record_id) missingRecordIds.add(String(h.gnpd_record_id));
+        }
       }
 
-      return Response.json({ mode: 'report', total: names.length, matched, missing });
+      // Also cover Record IDs carried directly on the report's product shortlist.
+      for (const p of (report.product_shortlist || [])) {
+        const rid = p?.gnpd_record_id || p?.record_id;
+        if (!rid) continue;
+        const hits = await base44.asServiceRole.entities.GNPDProduct.filter(
+          { gnpd_record_id: String(rid) }, null, 2
+        );
+        const hasImage = hits.some(h => h.image_url && String(h.image_url).startsWith('http'));
+        if (!hasImage) missingRecordIds.add(String(rid));
+      }
+
+      return Response.json({
+        mode: 'report',
+        total: names.length,
+        matched,
+        missing,
+        missing_record_ids: [...missingRecordIds],
+      });
     }
 
     // ── Mode B: database-wide coverage per Palsgaard category
