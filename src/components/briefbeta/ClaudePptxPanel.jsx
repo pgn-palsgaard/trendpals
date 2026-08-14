@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Download, AlertCircle, Wand2 } from 'lucide-react';
+import ImagePreflight from '@/components/briefbeta/ImagePreflight';
 
 // Builds the PPTX with the custom Palsgaard PowerPoint skill via Claude,
 // as a CVI-true alternative to the Gamma export. Polls the Report record.
@@ -114,6 +115,7 @@ export default function ClaudePptxPanel({ report, slideCount }) {
       <p className="text-xs text-muted-foreground mb-4">
         Generates the .pptx directly with your own Claude PowerPoint skill — exact CVI template, no Gamma.
       </p>
+      <ImagePreflight reportId={report.id} />
       {phase === 'failed' && (
         <div className="flex items-start gap-2 rounded-lg p-3 mb-3" style={{ background: '#FAE9E5' }}>
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#C15338' }} />
