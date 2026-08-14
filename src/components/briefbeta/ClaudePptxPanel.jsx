@@ -14,32 +14,49 @@ export default function ClaudePptxPanel({ report, slideCount }) {
 
   useEffect(() => () => { clearInterval(pollRef.current); clearInterval(tickRef.current); }, []);
 
+  // Poll the backend, which advances the Anthropic batch and stores the file.
+  function beginPolling() {
+    clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      try {
+        const res = await base44.functions.invoke('checkClaudePptxExport', { report_id: report.id });
+        const d = res.data || {};
+        if (d.status === 'ready') {
+          clearInterval(pollRef.current);
+          clearInterval(tickRef.current);
+          setPptxUrl(d.pptx_url);
+          setPhase('ready');
+        } else if (d.status === 'failed' || d.error) {
+          clearInterval(pollRef.current);
+          clearInterval(tickRef.current);
+          setError(d.error || 'The skill could not build the deck.');
+          setPhase('failed');
+        }
+      } catch { /* transient — keep polling */ }
+    }, 10000);
+  }
+
+  // Resume an export that was already running when this view opened.
+  useEffect(() => {
+    if (report?.claude_export_status !== 'generating') return;
+    setPhase('running');
+    const started = report.claude_export_started_at ? new Date(report.claude_export_started_at).getTime() : Date.now();
+    setElapsed(Math.max(0, Math.round((Date.now() - started) / 1000)));
+    tickRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    beginPolling();
+  }, [report?.id]);
+
   async function startExport() {
     setPhase('running');
     setError(null);
     setElapsed(0);
+    clearInterval(tickRef.current);
     tickRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
 
     try {
       const res = await base44.functions.invoke('startClaudePptxExport', { report_id: report.id });
       if (res.data?.error) throw new Error(res.data.error);
-
-      pollRef.current = setInterval(async () => {
-        try {
-          const fresh = await base44.entities.Report.get(report.id);
-          if (fresh.claude_export_status === 'ready') {
-            clearInterval(pollRef.current);
-            clearInterval(tickRef.current);
-            setPptxUrl(fresh.claude_pptx_url);
-            setPhase('ready');
-          } else if (fresh.claude_export_status === 'failed') {
-            clearInterval(pollRef.current);
-            clearInterval(tickRef.current);
-            setError(fresh.claude_export_error || 'The skill could not build the deck.');
-            setPhase('failed');
-          }
-        } catch { /* transient — keep polling */ }
-      }, 6000);
+      beginPolling();
     } catch (e) {
       clearInterval(tickRef.current);
       setError(e.message);

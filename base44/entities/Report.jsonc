@@ -252,6 +252,17 @@
       "format": "date-time",
       "description": "When the current Claude-skill export job was started."
     },
+    "claude_batch_id": {
+      "type": "string",
+      "description": "Anthropic Message Batch id for the running Claude-skill PPTX export. Polled by checkClaudePptxExport; the batch decouples the long skill run from the request lifetime."
+    },
+    "claude_uploaded_file_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Anthropic Files API ids of the pack-shot images uploaded for the current export run. Used to tell input files apart from the generated .pptx in the batch result."
+    },
     "final_pptx_url": {
       "type": "string"
     },
