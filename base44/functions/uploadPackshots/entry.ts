@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import JSZip from 'npm:jszip@3.10.1';
-import { recordIdFromFilename, isImageName } from '../../shared/packshotIds.ts';
+import { recordIdFromFilename, isImageName, pickPrimaryShots } from '../../shared/packshotIds.ts';
 
 // Matches uploaded pack shot images to GNPD products by Record ID in the filename
 // and stores the image on GNPDProduct.image_url.
@@ -13,6 +13,7 @@ export default async function (req) {
 
     const body = await req.json().catch(() => ({}));
     const items = Array.isArray(body.files) ? body.files.filter(f => f && f.file_url && f.name) : [];
+    const results0 = [];
 
     // Expand a zip archive into individual uploaded images.
     if (body.zip_url) {
@@ -22,7 +23,15 @@ export default async function (req) {
       const entries = Object.values(zip.files).filter(
         (e) => !e.dir && isImageName(e.name) && !e.name.split('/').pop().startsWith('.')
       );
-      for (const entry of entries.slice(0, 200)) {
+      // A GNPD export contains several shots per record ("14291314-0.jpg" …
+      // "-8.jpg"). Only the first shot per record is uploaded — otherwise the
+      // later ones just overwrite it, at the cost of one upload each.
+      const { primary, extras } = pickPrimaryShots(entries.map(e => e.name));
+      const keep = new Set(primary);
+      for (const name of extras) {
+        results0.push({ name: name.split('/').pop(), status: 'skipped', reason: 'additional shot for the same Record ID' });
+      }
+      for (const entry of entries.filter(e => keep.has(e.name)).slice(0, 300)) {
         const bytes = await entry.async('uint8array');
         const fileName = entry.name.split('/').pop();
         const up = await base44.asServiceRole.integrations.Core.UploadFile({
@@ -32,7 +41,7 @@ export default async function (req) {
       }
     }
 
-    const results = [];
+    const results = [...results0];
     const updates = [];
 
     for (const item of items) {

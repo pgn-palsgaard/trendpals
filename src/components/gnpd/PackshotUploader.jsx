@@ -61,7 +61,8 @@ export default function PackshotUploader({ onDone, compact = false }) {
               Drop pack shots here, or click to choose files
             </p>
             <p style={{ margin: '3px 0 0', fontSize: 11, color: '#9CA3AF' }}>
-              JPG, PNG, WEBP or a .zip — each file must be named after its GNPD Record ID (e.g. 14535734.jpg)
+              JPG, PNG, WEBP or a GNPD .zip — filenames must carry the Record ID (14535734.jpg or 14535734-0.jpg).
+              Where a record has several shots, the first one is used.
             </p>
           </>
         )}
