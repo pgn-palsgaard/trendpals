@@ -84,6 +84,10 @@ export default async function (req) {
 
     return Response.json({ status: 'ready', pptx_url: fileUrl });
   } catch (error) {
-    return Response.json({ error: error.message }, { status: 500 });
+    // A poll must never 500 silently — that left the UI spinning forever while the
+    // real reason (file fetch / storage failure) stayed invisible. Log it and report
+    // it as a transient stage so the next poll can still succeed.
+    console.error('checkClaudePptxExport failed:', error?.stack || error?.message || error);
+    return Response.json({ status: 'generating', stage: 'retrying', last_error: String(error?.message || error) });
   }
 }
