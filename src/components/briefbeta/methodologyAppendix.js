@@ -24,7 +24,27 @@ export function buildMethodologySlide({ gate, contract, exclusions, validatorFla
   const lines = [];
   lines.push(`Brief as received — region: "${gate.region_text || '—'}" | formats: ${(gate.sub_categories || []).join(', ') || 'all'} | audience: ${contract?.audience || '—'} | read-across: ${contract?.read_across || 'strict_region'} | intended use: ${contract?.intended_use || '—'}`);
   lines.push(`Resolved country allow-list (${(gate.country_allow_list || []).length} markets): ${(gate.country_allow_list || []).join(', ') || 'global scope'}`);
-  lines.push(`Eligible GNPD pool — after region gate: ${gate.after_region_gate} | after format gate: ${gate.after_category_gate}`);
+  // Sequential funnel — each step counted on the base entering it, so the numbers balance.
+  const excl0 = gate.excluded_by_reason || {};
+  lines.push(
+    `Evidence funnel — category population: ${gate.population_total}`
+    + ` → after region gate: ${gate.after_region_gate} (excluded ${excl0.out_of_region || 0})`
+    + ` → after format gate: ${gate.after_category_gate} (excluded ${excl0.out_of_category || 0})`
+    + (gate.after_recency_gate !== undefined
+      ? ` → after ${gate.recency_months || 30}-month recency window: ${gate.after_recency_gate} (excluded ${excl0.out_of_window || 0})`
+      : '')
+  );
+  lines.push(`Launch window — only products launched within the last ${gate.recency_months || 30} months were considered. The window is fixed and does not widen when the pool is thin.`);
+  for (const [label, count] of Object.entries(gate.secondary_counts || {})) {
+    lines.push(`Secondary figure (not part of the funnel above) — ${label}: ${count}`);
+  }
+  for (const t of gate.trend_truncation || []) {
+    if (t.omitted > 0) {
+      lines.push(`Trend coverage — ${t.active_total} active trends in ${t.category}, ${t.evaluated} assessed, ${t.omitted} omitted: ${t.omitted_names.join('; ')}`);
+    } else {
+      lines.push(`Trend coverage — all ${t.active_total} active trends in ${t.category} were assessed.`);
+    }
+  }
 
   const subCounts = Object.entries(gate.per_subregion_counts || {});
   if (subCounts.length) {
@@ -34,7 +54,7 @@ export function buildMethodologySlide({ gate, contract, exclusions, validatorFla
   }
 
   const excl = gate.excluded_by_reason || {};
-  lines.push(`Records excluded — outside the region allow-list: ${excl.out_of_region || 0} | outside the selected formats: ${excl.out_of_category || 0}. Excluded records were never shown to the report generator.`);
+  lines.push(`Records excluded — outside the region allow-list: ${excl.out_of_region || 0} | outside the selected formats: ${excl.out_of_category || 0} | outside the launch window or undated: ${excl.out_of_window || 0}. Excluded records were never shown to the report generator.`);
 
   if ((gate.downgraded_trends || []).length) {
     lines.push(`Downgraded to "Signal — not yet evidenced at regional level": ${gate.downgraded_trends.map(t => `${t.trend_name} (${t.record_count} record${t.record_count === 1 ? '' : 's'})`).join('; ')}`);

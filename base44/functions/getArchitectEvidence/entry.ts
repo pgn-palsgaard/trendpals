@@ -17,6 +17,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 const RECENCY_MONTHS = 30;
 const PAGE = 500;
 const FULL_EVIDENCE_MIN = 3;
+const TRENDS_EVALUATED = 8;
+// Safety ceiling only. Hitting it is a loud failure, never a silent truncation —
+// a pool that is quietly cut is the same defect as a region that is quietly widened.
+const SAFETY_CAP = 40000;
 
 const COUNTRY_GROUPS = {
   europe: ['UK', 'Germany', 'France', 'Italy', 'Spain', 'Poland', 'Netherlands', 'Belgium', 'Denmark', 'Sweden', 'Norway', 'Finland', 'Ireland', 'Portugal', 'Austria', 'Switzerland', 'Greece', 'Czech Republic', 'Slovakia', 'Hungary', 'Romania', 'Bulgaria', 'Croatia', 'Slovenia', 'Serbia', 'Estonia', 'Latvia', 'Lithuania', 'Iceland', 'Luxembourg', 'Malta', 'Cyprus', 'Bosnia and Herzegovina', 'North Macedonia', 'Albania', 'Montenegro'],
@@ -66,17 +70,48 @@ function productText(p) {
   ].filter(Boolean).join(' ').toLowerCase();
 }
 
-async function paginate(base44, query, cap) {
-  const out = [];
+// Stable pagination. '-launch_date' is NOT a unique ordering: many records share a
+// launch date, so skip-based paging over it overlapped and skipped pages — a pool
+// that both double-counted and dropped rows. 'id' is unique, so the order is total
+// and every page is disjoint. Recency is applied in JS afterwards, so nothing
+// depends on launch-date ordering here.
+// Returns { rows, duplicates } — rows are id-unique; duplicates is a defect counter
+// that must stay 0.
+async function paginate(base44, query) {
+  const seen = new Set();
+  const rows = [];
+  let duplicates = 0;
   let skip = 0;
-  while (out.length < cap) {
-    const page = await base44.asServiceRole.entities.GNPDProduct.filter(query, '-launch_date', PAGE, skip);
+  while (true) {
+    const page = await base44.asServiceRole.entities.GNPDProduct.filter(query, 'id', PAGE, skip);
     if (!page || page.length === 0) break;
-    out.push(...page);
+    for (const r of page) {
+      if (seen.has(r.id)) { duplicates++; continue; }
+      seen.add(r.id);
+      rows.push(r);
+    }
     skip += page.length;
     if (page.length < PAGE) break;
+    if (rows.length >= SAFETY_CAP) {
+      throw new Error(`pool_cap_exceeded: more than ${SAFETY_CAP} records matched ${JSON.stringify(query)}. The pool was NOT truncated silently — narrow the brief or raise the ceiling deliberately.`);
+    }
   }
-  return out;
+  return { rows, duplicates };
+}
+
+// Counts a query without holding the rows. Same stable ordering.
+async function countRows(base44, query) {
+  const seen = new Set();
+  let skip = 0;
+  while (true) {
+    const page = await base44.asServiceRole.entities.GNPDProduct.filter(query, 'id', PAGE, skip);
+    if (!page || page.length === 0) break;
+    for (const r of page) seen.add(r.id);
+    skip += page.length;
+    if (page.length < PAGE) break;
+    if (seen.size >= SAFETY_CAP) throw new Error(`count_cap_exceeded: ${JSON.stringify(query)}`);
+  }
+  return seen.size;
 }
 
 export default async function (req) {
@@ -106,15 +141,24 @@ export default async function (req) {
     const sourcesById = {};
     const productsById = {};
     const exclusions = [];
+    // Sequential funnel. Every step is counted on the base that enters it, so
+    // population − out_of_region = after_region_gate, and so on. Secondary figures
+    // live in secondary_counts and are never comparable to the funnel steps.
     const gate = {
       region_text: scope.region_text || region_text || '',
       region_scope: scope.scope,
       country_allow_list: scope.countries,
       sub_categories: subs,
-      per_subregion_counts: {},
+      recency_months: RECENCY_MONTHS,
+      population_total: 0,
       after_region_gate: 0,
       after_category_gate: 0,
-      excluded_by_reason: { out_of_region: 0, out_of_category: 0 },
+      after_recency_gate: 0,
+      per_subregion_counts: {},
+      excluded_by_reason: { out_of_region: 0, out_of_category: 0, out_of_window: 0 },
+      secondary_counts: {},
+      trend_truncation: [],
+      pagination_duplicates_dropped: 0,
       dropped_trends: [],
       downgraded_trends: [],
     };
@@ -124,27 +168,47 @@ export default async function (req) {
       // Region-gated pool (country filter only — region/region_code are too coarse).
       let regionPass;
       if (Array.isArray(test_pool)) {
+        gate.population_total += test_pool.length;
         regionPass = test_pool.filter(inRegion);
-        for (const p of test_pool.filter(p => !inRegion(p))) {
+        const regionFail = test_pool.filter(p => !inRegion(p));
+        gate.excluded_by_reason.out_of_region += regionFail.length;
+        for (const p of regionFail) {
           exclusions.push({ gnpd_record_id: p.gnpd_record_id, country: p.country, sub_category: p.sub_category, reason: 'out_of_region' });
-          gate.excluded_by_reason.out_of_region++;
         }
       } else {
-        regionPass = scope.scope === 'global'
-          ? await paginate(base44, { palsgaard_category: category }, 4000)
-          : await paginate(base44, { palsgaard_category: category, country: { $in: scope.countries } }, 8000);
+        // Step 1 — region gate, counted against the full category population.
+        const pool = await paginate(base44, scope.scope === 'global'
+          ? { palsgaard_category: category }
+          : { palsgaard_category: category, country: { $in: scope.countries } });
+        gate.pagination_duplicates_dropped += pool.duplicates;
+        regionPass = pool.rows;
 
-        // Category-eligible records that the region gate threw out — logged, never returned.
-        if (subs.length > 0 && scope.scope !== 'global') {
-          const regionFail = await paginate(
-            base44,
-            { palsgaard_category: category, sub_category: { $in: subs }, country: { $nin: scope.countries } },
-            5000
+        const population = scope.scope === 'global'
+          ? regionPass.length
+          : await countRows(base44, { palsgaard_category: category });
+        gate.population_total += population;
+        gate.excluded_by_reason.out_of_region += population - regionPass.length;
+
+        if (scope.scope !== 'global') {
+          const sample = await base44.asServiceRole.entities.GNPDProduct.filter(
+            subs.length > 0
+              ? { palsgaard_category: category, sub_category: { $in: subs }, country: { $nin: scope.countries } }
+              : { palsgaard_category: category, country: { $nin: scope.countries } },
+            'id', 20, 0
           );
-          gate.excluded_by_reason.out_of_region += regionFail.length;
-          for (const p of regionFail.slice(0, 50)) {
+          for (const p of sample) {
             exclusions.push({ gnpd_record_id: p.gnpd_record_id, country: p.country, sub_category: p.sub_category, reason: 'out_of_region' });
           }
+        }
+
+        // SECONDARY figure — answers "how much would read-across bring in?".
+        // Deliberately kept out of the funnel: it is not complementary to any step.
+        if (subs.length > 0 && scope.scope !== 'global') {
+          const readAcross = await countRows(base44, {
+            palsgaard_category: category, sub_category: { $in: subs }, country: { $nin: scope.countries },
+          });
+          const label = `${subs.join(' / ')} records outside the region allow-list (read-across potential, NOT part of the funnel)`;
+          gate.secondary_counts[label] = (gate.secondary_counts[label] || 0) + readAcross;
         }
       }
       gate.after_region_gate += regionPass.length;
@@ -157,17 +221,37 @@ export default async function (req) {
       }
       gate.after_category_gate += eligible.length;
 
-      for (const [key, list] of Object.entries(scope.subregions || {})) {
-        gate.per_subregion_counts[key] += eligible.filter(p => list.includes(String(p.country || '').trim())).length;
+      // Step 3 — recency gate. Applied ALWAYS: no record count reopens the window.
+      // A thin pool is a thin-evidence signal and must reach the full/signal_only/
+      // dropped mechanic, not quietly widen the window. A record with no launch date
+      // cannot be shown to fall inside the window, so it is excluded and logged.
+      const inWindow = eligible.filter(p => p.launch_date && new Date(p.launch_date) >= cutoff);
+      gate.excluded_by_reason.out_of_window += eligible.length - inWindow.length;
+      gate.after_recency_gate += inWindow.length;
+      for (const p of eligible.filter(p => !inWindow.includes(p)).slice(0, 20)) {
+        exclusions.push({ gnpd_record_id: p.gnpd_record_id, country: p.country, sub_category: p.sub_category, reason: 'out_of_window' });
       }
 
-      const trends = await base44.asServiceRole.entities.GlobalTrend.filter(
-        { category, is_active: true }, '-updated_date', 8
-      );
+      for (const [key, list] of Object.entries(scope.subregions || {})) {
+        gate.per_subregion_counts[key] += inWindow.filter(p => list.includes(String(p.country || '').trim())).length;
+      }
+
+      // Trend cap kept, but ordered by name — '-updated_date' made inclusion depend
+      // on which trend was last edited, so editing trend A could silently remove
+      // trend B from a report. The truncation is now logged instead of hidden.
+      // Relevance ranking is a separate audit (carried open item).
+      const allTrends = await base44.asServiceRole.entities.GlobalTrend.filter({ category, is_active: true }, 'trend_name');
+      const trends = allTrends.slice(0, TRENDS_EVALUATED);
+      gate.trend_truncation.push({
+        category,
+        active_total: allTrends.length,
+        evaluated: trends.length,
+        omitted: Math.max(0, allTrends.length - trends.length),
+        omitted_names: allTrends.slice(TRENDS_EVALUATED).map(t => t.trend_name),
+      });
       if (trends.length === 0) continue;
 
-      const recent = eligible.filter(p => !p.launch_date || new Date(p.launch_date) >= cutoff);
-      const searchable = (recent.length >= 20 ? recent : eligible).map(p => ({ p, text: productText(p) }));
+      const searchable = inWindow.map(p => ({ p, text: productText(p) }));
       const consumed = new Set(); // Phase 4.2 — one record backs exactly one trend
 
       for (const t of trends) {
