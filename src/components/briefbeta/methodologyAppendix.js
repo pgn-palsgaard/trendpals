@@ -56,11 +56,43 @@ export function buildMethodologySlide({ gate, contract, exclusions, validatorFla
     }
   }
 
-  const subCounts = Object.entries(gate.per_subregion_counts || {});
-  if (subCounts.length) {
-    lines.push(`Records by sub-region: ${subCounts.map(([k, v]) => `${SUBREGION_LABELS[k] || k}: ${v}`).join(' | ')}`);
-    const zero = subCounts.filter(([, v]) => v === 0).map(([k]) => SUBREGION_LABELS[k] || k);
-    if (zero.length) lines.push(`${zero.join(' and ')} contributed 0 records — the evidence in this report is drawn from the remaining markets only.`);
+  // Phase 2 — eligible vs rendered, per sub-region. Zero contribution has two
+  // distinct causes and they are never merged into one sentence: a market with no
+  // records in the data is a coverage gap; a market with records that matched no
+  // trend is a matching gap. They call for different follow-up.
+  const diag = gate.subregion_diagnosis || [];
+  if (diag.length) {
+    lines.push(`Records by sub-region (eligible → rendered in this report): ${diag.map(d => `${SUBREGION_LABELS[d.subregion] || d.subregion}: ${d.eligible} → ${d.rendered}`).join(' | ')}`);
+    for (const d of diag) {
+      const label = SUBREGION_LABELS[d.subregion] || d.subregion;
+      if (d.kind === 'no_data') {
+        lines.push(`${label} — no records in the data: 0 records survived the region and format gates, so this market is absent from the report entirely. This is a data coverage gap, not a finding about the market.`);
+      } else if (d.kind === 'no_trend_match') {
+        lines.push(`${label} — ${d.eligible} eligible record${d.eligible === 1 ? '' : 's'}, 0 matched a trend: the market IS represented in the data, but none of its records matched any assessed trend, so none reached the report. This is a matching gap, not an absence of local activity.`);
+      }
+    }
+    const contributing = diag.filter(d => d.rendered > 0);
+    if (diag.length > 1 && contributing.length === 1) {
+      lines.push(`Scope caveat — although the brief covers ${diag.length} sub-regions, all rendered product evidence comes from ${SUBREGION_LABELS[contributing[0].subregion] || contributing[0].subregion} alone. Read the report as evidence from that market, not from the full brief scope.`);
+    }
+  } else {
+    const subCounts = Object.entries(gate.per_subregion_counts || {});
+    if (subCounts.length) lines.push(`Records by sub-region: ${subCounts.map(([k, v]) => `${SUBREGION_LABELS[k] || k}: ${v}`).join(' | ')}`);
+  }
+
+  // Phase 4 — web signals pass the same region gate as product evidence.
+  const wsg = gate.web_signal_gate;
+  if (wsg && (wsg.before_region_filter || 0) > 0) {
+    lines.push(`Open-web signals — ${wsg.before_region_filter} found, ${wsg.after_region_filter} retained after the same region gate (${wsg.excluded_out_of_region} excluded as out-of-region${wsg.kept_with_scope_label ? `, ${wsg.kept_with_scope_label} retained only with an explicit "region undetermined" label` : ''}). Web signals are supplementary framing, never product evidence.`);
+  }
+
+  // Phase 8 — B2B / semi-finished bucket mixed with consumer buckets.
+  const subs = gate.sub_categories || [];
+  if (subs.includes('Baking Ingredients & Mixes')) {
+    const consumerSubs = subs.filter(s => s !== 'Baking Ingredients & Mixes');
+    lines.push(consumerSubs.length
+      ? `Mixed launch types — "Baking Ingredients & Mixes" holds B2B and semi-finished products (mixes, bases, improvers) sold to bakers and manufacturers, while ${consumerSubs.join(', ')} hold finished consumer launches. Both are included here and counted in the same pool: a claim on a mix is a claim to a baker, not a claim to a shopper, so do not read the two as one consumer signal.`
+      : `Launch type — "Baking Ingredients & Mixes" holds B2B and semi-finished products (mixes, bases, improvers) sold to bakers and manufacturers, not finished consumer launches. Claims here address a professional buyer, not a shopper.`);
   }
 
   const excl = gate.excluded_by_reason || {};

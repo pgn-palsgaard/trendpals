@@ -31,6 +31,14 @@ const COUNTRY_GROUPS = {
   imea: ['UAE', 'Saudi Arabia', 'Kuwait', 'Qatar', 'Oman', 'Jordan', 'Lebanon', 'Israel', 'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa'],
 };
 
+// WebSignal.region is a coarse 4-value commercial enum, so the brief's country
+// allow-list is collapsed to those codes purely to gate web signals. Never used for
+// product evidence — products are gated on country.
+const GROUP_TO_REGION_CODE = {
+  europe: 'EMEC', turkey: 'EMEC', cis: 'EMEC',
+  aspac: 'ASPAC', americas: 'AMERICAS', imea: 'IMEA', named_countries: 'Global',
+};
+
 const REGION_TERMS = [
   { match: /\b(cis|commonwealth of independent states)\b/i, groups: ['cis'] },
   { match: /\b(turkey|türkiye|turkiye)\b/i, groups: ['turkey'] },
@@ -155,6 +163,13 @@ export default async function (req) {
       after_category_gate: 0,
       after_recency_gate: 0,
       per_subregion_counts: {},
+      // Phase 2 — what actually reached the deck, which is NOT the same as what was
+      // eligible. "0 eligible" and "eligible but nothing matched a trend" are two
+      // different facts about a market and are reported as two different statements.
+      rendered_by_country: {},
+      rendered_per_subregion: {},
+      subregion_diagnosis: [],
+      web_signal_gate: { before_region_filter: 0, after_region_filter: 0, excluded_out_of_region: 0, kept_with_scope_label: 0 },
       excluded_by_reason: { out_of_region: 0, out_of_category: 0, out_of_window: 0 },
       secondary_counts: {},
       trend_truncation: [],
@@ -362,6 +377,29 @@ export default async function (req) {
       }
     }
 
+    // ── Phase 2 — render-level contribution, counted on the products that actually
+    // reached the deck (productsById holds exactly the picked records). Eligibility
+    // is not contribution: a market can be fully in scope and still contribute nothing.
+    for (const p of Object.values(productsById)) {
+      const c = String(p.country || '').trim() || 'unknown';
+      gate.rendered_by_country[c] = (gate.rendered_by_country[c] || 0) + 1;
+    }
+    for (const [key, list] of Object.entries(scope.subregions || {})) {
+      gate.rendered_per_subregion[key] = Object.entries(gate.rendered_by_country)
+        .filter(([c]) => list.includes(c))
+        .reduce((n, [, v]) => n + v, 0);
+    }
+    for (const [key, eligible] of Object.entries(gate.per_subregion_counts || {})) {
+      const rendered = gate.rendered_per_subregion[key] || 0;
+      gate.subregion_diagnosis.push({
+        subregion: key,
+        eligible,
+        rendered,
+        // Deliberately distinct wordings — conflating them hides which problem it is.
+        kind: eligible === 0 ? 'no_data' : rendered === 0 ? 'no_trend_match' : 'contributed',
+      });
+    }
+
     // Phase 4.3 — pool exhaustion is a valid outcome, never a reason to widen gates.
     if (!trendsOut.some(t => t.evidence_status === 'full')) {
       return Response.json({
@@ -376,6 +414,14 @@ export default async function (req) {
     // --- Fresh web signals (supplementary, clearly separated) ---
     const webCutoff = new Date();
     webCutoff.setDate(webCutoff.getDate() - 120);
+    // Phase 4 — web signals pass the SAME region gate as product evidence. A signal
+    // about another region is not regional evidence, and a signal whose region cannot
+    // be determined may only travel with an explicit scope label.
+    const briefCodes = new Set(
+      scope.scope === 'global'
+        ? ['EMEC', 'ASPAC', 'AMERICAS', 'IMEA', 'Global']
+        : Object.keys(scope.subregions || {}).map(g => GROUP_TO_REGION_CODE[g]).filter(Boolean)
+    );
     const webSignals = [];
     if (!Array.isArray(test_pool)) {
       for (const category of cats) {
@@ -386,15 +432,29 @@ export default async function (req) {
           .filter(s => !s.discovered_at || new Date(s.discovered_at) >= webCutoff)
           .sort((a, b) => (b.relevance_score || 0) - (a.relevance_score || 0))
           .slice(0, 8);
+        gate.web_signal_gate.before_region_filter += usable.length;
         for (const s of usable) {
+          const sigRegion = String(s.region || '').trim();
+          const undetermined = !sigRegion || sigRegion === 'Global';
+          if (!undetermined && !briefCodes.has(sigRegion) && scope.scope !== 'global') {
+            gate.web_signal_gate.excluded_out_of_region++;
+            continue;
+          }
+          if (undetermined) gate.web_signal_gate.kept_with_scope_label++;
           webSignals.push({
             title: s.title, publisher: s.publisher || '', url: s.url || '',
             published_date: s.published_date || '', category: s.category,
-            region: s.region || 'Global', market_signal: s.market_signal,
+            region: sigRegion || 'Global', market_signal: s.market_signal,
             key_quote: s.key_quote || '', linked_trend_name: s.linked_trend_name || '',
             relevance_score: s.relevance_score || 0,
+            // Carried into the prompt so an unscoped signal can never be presented
+            // as regional evidence.
+            scope_label: undetermined
+              ? '(Note: source region could not be determined — not regional evidence for this brief)'
+              : '',
           });
         }
+        gate.web_signal_gate.after_region_filter = webSignals.length;
       }
     }
 

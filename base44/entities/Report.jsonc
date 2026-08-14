@@ -16,7 +16,11 @@
     },
     "region": {
       "type": "string",
-      "description": "Region (copied from project)"
+      "description": "Coarse commercial region code (EMEC/ASPAC/AMERICAS/IMEA). NULL when the brief spans more than one code \u2014 a mixed scope is never labelled 'Global', because 'Global' reads as worldwide coverage the report does not have. NEVER use this field as a filter for evidence scoping; the authoritative scope is evidence_gate.country_allow_list."
+    },
+    "region_display_label": {
+      "type": "string",
+      "description": "Human-readable scope label for headers and exports, e.g. 'Europe, Turkey, CIS countries (49 markets)'. DISPLAY ONLY \u2014 free text, never a query value, never parsed. Anything that needs the real scope must read evidence_gate.country_allow_list."
     },
     "generated_by": {
       "type": "string",
@@ -212,7 +216,84 @@
     "evidence_gate": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Snapshot of the evidence gate that produced this report (beta architect only): resolved country allow-list, pool sizes after each gate, per-sub-region counts, exclusion counts by reason, dropped and downgraded trends. Feeds the methodology appendix and makes the report auditable."
+      "description": "Snapshot of the evidence gate that produced this report (beta architect only): resolved country allow-list, sequential funnel counts, actual data window, per-sub-region eligible AND rendered counts, web-signal region filter counts, exclusion counts by reason, dropped and downgraded trends. Feeds the methodology appendix and makes the report auditable. This is the authoritative scope of the report."
+    },
+    "validator_log": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Phase 7 \u2014 write-time output-validation record for this report. An EMPTY log is a valid, meaningful state: it means the deck passed with nothing rejected. Shape: { validated_at, rewrite_attempted, rewrite_succeeded, rejections: [{rule, field, why, text, phase, timestamp}], flags: [{rule, field, why, text}], rule_fire_counts: {RULE_ID: n} }.",
+      "properties": {
+        "validated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rewrite_attempted": {
+          "type": "boolean"
+        },
+        "rewrite_succeeded": {
+          "type": "boolean"
+        },
+        "rejections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule": {
+                "type": "string",
+                "description": "Rule ID that fired, e.g. FIG-1, ADJ-2, PRE-1, PUB-3"
+              },
+              "field": {
+                "type": "string",
+                "description": "Slide and field path the rejected string sat in"
+              },
+              "why": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string",
+                "description": "The rejected string, stored verbatim so the decision is auditable"
+              },
+              "phase": {
+                "type": "string",
+                "enum": [
+                  "first_pass",
+                  "after_rewrite"
+                ],
+                "description": "first_pass = fired on the architect's original deck. after_rewrite = still firing after the single rewrite attempt, i.e. the save was blocked."
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        },
+        "flags": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule": {
+                "type": "string"
+              },
+              "field": {
+                "type": "string"
+              },
+              "why": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "rule_fire_counts": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Per-rule fire counts for this report, so drift can be aggregated across runs without re-parsing the entries."
+        }
+      }
     },
     "gamma_url": {
       "type": "string"
@@ -336,7 +417,6 @@
   "required": [
     "project_id",
     "title",
-    "category",
-    "region"
+    "category"
   ]
 }

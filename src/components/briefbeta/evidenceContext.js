@@ -12,12 +12,12 @@ function buildWebSignalBlock(evidence) {
   if (signals.length === 0) return '';
 
   const lines = signals.map(s =>
-    `  - ${s.title}${s.publisher ? ` (${s.publisher}` : ''}${s.published_date ? `, ${s.published_date})` : s.publisher ? ')' : ''} [${s.region}]${s.linked_trend_name ? ` → supports: ${s.linked_trend_name}` : ''} — ${String(s.market_signal || '').slice(0, 220)}`
+    `  - ${s.title}${s.publisher ? ` (${s.publisher}` : ''}${s.published_date ? `, ${s.published_date})` : s.publisher ? ')' : ''} [${s.region}]${s.scope_label ? ` ${s.scope_label}` : ''}${s.linked_trend_name ? ` → supports: ${s.linked_trend_name}` : ''} — ${String(s.market_signal || '').slice(0, 220)}`
   );
 
   return [
     '### SUPPLEMENTARY: FRESH WEB SIGNALS (Market Scout)',
-    'Recent open-web items, unverified and pending human review. You MAY use them to make the framing more current, and you MUST attribute them to the named publisher when you do. You may NEVER treat them as GNPD product examples, and you may never present them as Mintel data.',
+    'Recent open-web items, unverified and pending human review. You MAY use them to make the framing more current, and you MUST attribute them to the named publisher when you do. You may NEVER treat them as GNPD product examples, and you may never present them as Mintel data. Any item carrying a "(Note: source region could not be determined …)" label may NOT be presented as evidence about the brief region — if you use it, you must reproduce that label inline.',
     lines.join('\n'),
   ].join('\n');
 }

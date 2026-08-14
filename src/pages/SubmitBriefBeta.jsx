@@ -15,6 +15,7 @@ import { resolveRegionScope } from '@/components/briefbeta/regionScope';
 import { validateSlides } from '@/components/briefbeta/outputValidator';
 import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
 import GateNotice from '@/components/briefbeta/GateNotice';
+import SubregionNotice from '@/components/briefbeta/SubregionNotice';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
 import { useAuth } from '@/lib/AuthContext';
 import useArchitectSession from '@/hooks/useArchitectSession';
@@ -30,11 +31,20 @@ const OPENER = {
 // Report.evidence_gate — this code is a display label only, never a filter.
 const GROUP_TO_CODE = { europe: 'EMEC', turkey: 'EMEC', cis: 'EMEC', aspac: 'ASPAC', americas: 'AMERICAS', imea: 'IMEA' };
 
-function regionLabelFor(scope) {
+// Phase 5 — a mixed scope resolves to NULL, never 'Global'. 'Global' reads as
+// worldwide coverage, which is the opposite of what a two-region brief has.
+function regionCodeFor(scope) {
   if (!scope?.ok) return null;
   if (scope.scope === 'global') return 'Global';
   const codes = [...new Set(Object.keys(scope.subregions || {}).map(g => GROUP_TO_CODE[g]).filter(Boolean))];
-  return codes.length === 1 ? codes[0] : 'Global';
+  return codes.length === 1 ? codes[0] : null;
+}
+
+// Display only — free text for headers and exports. Never parsed, never a filter.
+function regionDisplayLabel(scope) {
+  if (!scope?.ok) return '';
+  if (scope.scope === 'global') return 'Global';
+  return `${scope.region_text || 'Selected markets'} (${scope.countries.length} markets)`;
 }
 
 export default function SubmitBriefBeta() {
@@ -206,6 +216,10 @@ export default function SubmitBriefBeta() {
   async function saveAsReport() {
     if (!slides || saving) return;
     setSaving(true);
+    // Phase 6 — the rewrite budget belongs to THIS deck generation, not to the
+    // session. Session scoping meant a second build inherited the first build's
+    // spent attempt and was blocked without ever being offered a rewrite.
+    rewriteAttempted.current = false;
     try {
       const cats = (Array.isArray(contract.categories) ? contract.categories : [contract.categories])
         .filter(c => CANONICAL_CATEGORIES.includes(c));
@@ -216,11 +230,19 @@ export default function SubmitBriefBeta() {
         setSaving(false);
         return;
       }
-      const regionCode = regionLabelFor(scope);
+      const regionCode = regionCodeFor(scope);
+      const displayLabel = regionDisplayLabel(scope);
 
       // Write-time validation. One rewrite attempt, then a loud failure.
+      // Phase 7 — every rejection is recorded with its rule id and the verbatim
+      // string, in both passes, so a blocked save is auditable afterwards.
+      const now = new Date().toISOString();
       let deck = slides;
       let verdict = validateSlides(deck, category);
+      const logEntries = verdict.rejections.map(r => ({
+        rule: r.rule, field: r.field, why: r.why, text: r.text, phase: 'first_pass', timestamp: now,
+      }));
+      let rewriteSucceeded = false;
       if (!verdict.ok && !rewriteAttempted.current) {
         rewriteAttempted.current = true;
         const rewritten = await requestRewrite(verdict.rejections);
@@ -228,8 +250,25 @@ export default function SubmitBriefBeta() {
           deck = rewritten;
           setSlides(rewritten);
           verdict = validateSlides(deck, category);
+          rewriteSucceeded = verdict.ok;
+          logEntries.push(...verdict.rejections.map(r => ({
+            rule: r.rule, field: r.field, why: r.why, text: r.text,
+            phase: 'after_rewrite', timestamp: new Date().toISOString(),
+          })));
         }
       }
+      const ruleFireCounts = {};
+      for (const e of logEntries) ruleFireCounts[e.rule] = (ruleFireCounts[e.rule] || 0) + 1;
+      for (const f of verdict.flags || []) ruleFireCounts[f.rule] = (ruleFireCounts[f.rule] || 0) + 1;
+      // An empty log is a valid state: it means the deck passed with nothing rejected.
+      const validatorLog = {
+        validated_at: now,
+        rewrite_attempted: rewriteAttempted.current,
+        rewrite_succeeded: rewriteSucceeded,
+        rejections: logEntries,
+        flags: (verdict.flags || []).map(f => ({ rule: f.rule, field: f.field, why: f.why, text: f.text })),
+        rule_fire_counts: ruleFireCounts,
+      };
       if (!verdict.ok) {
         const log = verdict.rejections.slice(0, 8)
           .map(r => `• [${r.rule}] ${r.field}: ${r.why}\n  "${r.text}"`).join('\n');
@@ -257,6 +296,12 @@ export default function SubmitBriefBeta() {
         generated_by: 'architect',
         selected_source_ids: sourceIds,
       });
+      if (regionCode === null) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: 'Note: this brief spans more than one commercial region, so the report carries no single region code — it is labelled by its actual market scope instead. "Global" would have been wrong.',
+        }]);
+      }
 
       const disclaimerSlide = {
         slide_number: 0,
@@ -302,6 +347,8 @@ export default function SubmitBriefBeta() {
         title,
         category,
         region: regionCode,
+        region_display_label: displayLabel,
+        validator_log: validatorLog,
         analysis_mode: 'standard',
         generated_by: 'architect',
         slides: finalSlides,
@@ -354,6 +401,7 @@ export default function SubmitBriefBeta() {
           <div className={`space-y-4 ${slides ? 'lg:w-3/5' : 'lg:w-2/5'}`}>
             <ContractPanel contract={contract} trendCount={trends?.length || 0} />
             <GateNotice notice={gateNotice} />
+            <SubregionNotice gate={evidence?.gate} />
 
             {!savedReport && (
               <SimilarReportsPanel query={{

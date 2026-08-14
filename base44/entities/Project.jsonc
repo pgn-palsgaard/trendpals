@@ -35,7 +35,7 @@
         "IMEA",
         "Global"
       ],
-      "description": "Canonical region code"
+      "description": "Coarse commercial region code. NULL when the scope spans more than one code \u2014 a mixed scope is never labelled 'Global'. Not a scope of evidence: for architect-built projects the authoritative scope is the linked Report's evidence_gate.country_allow_list."
     },
     "generated_by": {
       "type": "string",
@@ -136,7 +136,6 @@
   "required": [
     "name",
     "category",
-    "region_code",
     "objective"
   ]
 }

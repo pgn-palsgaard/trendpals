@@ -15,6 +15,7 @@ import ExecutiveSummaryCard from '@/components/report/ExecutiveSummaryCard';
 import BriefingContextSlide from '@/components/report/BriefingContextSlide';
 import AIDisclaimer from '@/components/report/AIDisclaimer';
 import ProductShortlistSection from '@/components/report/ProductShortlistSection';
+import SlidesSection from '@/components/report/SlidesSection';
 
 export default function ReportView() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -232,7 +233,9 @@ export default function ReportView() {
                 <div className="flex flex-wrap gap-2 text-sm text-slate-600">
                   <span>{report.category}</span>
                   <span>•</span>
-                  <span>{report.region}</span>
+                  {/* Display label only. A mixed-scope report has region = null on
+                      purpose — it is never labelled "Global". */}
+                  <span>{report.region_display_label || report.region || 'Mixed scope — see methodology'}</span>
                   <span>•</span>
                   <span>{report.slides?.length || 0} slides</span>
                 </div>
@@ -272,6 +275,10 @@ export default function ReportView() {
 
         {/* Product Shortlist with images */}
         <ProductShortlistSection report={report} />
+
+        {/* Full deck content — why it may matter, formulation questions, SIGNAL
+            section and the methodology slide, all rendered inline in deck order. */}
+        <SlidesSection slides={report.slides} />
 
 
       </div>
