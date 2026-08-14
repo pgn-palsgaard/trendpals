@@ -158,6 +158,11 @@ export default async function (req) {
       excluded_by_reason: { out_of_region: 0, out_of_category: 0, out_of_window: 0 },
       secondary_counts: {},
       trend_truncation: [],
+      // The actual launch-date span of the pool that reached matching. Distinct from
+      // recency_months: the window says what was ALLOWED in, this says what is
+      // ACTUALLY there. A pool spanning one period cannot evidence change over time,
+      // however wide the window is.
+      data_window: { earliest_launch: null, latest_launch: null, months_spanned: 0 },
       pagination_duplicates_dropped: 0,
       dropped_trends: [],
       downgraded_trends: [],
@@ -234,6 +239,18 @@ export default async function (req) {
 
       for (const [key, list] of Object.entries(scope.subregions || {})) {
         gate.per_subregion_counts[key] += inWindow.filter(p => list.includes(String(p.country || '').trim())).length;
+      }
+
+      // Record the real temporal span of the pool, accumulated across categories.
+      for (const p of inWindow) {
+        const d = String(p.launch_date).slice(0, 10);
+        if (!gate.data_window.earliest_launch || d < gate.data_window.earliest_launch) gate.data_window.earliest_launch = d;
+        if (!gate.data_window.latest_launch || d > gate.data_window.latest_launch) gate.data_window.latest_launch = d;
+      }
+      if (gate.data_window.earliest_launch && gate.data_window.latest_launch) {
+        const a = new Date(gate.data_window.earliest_launch);
+        const b = new Date(gate.data_window.latest_launch);
+        gate.data_window.months_spanned = Math.round(((b - a) / (1000 * 60 * 60 * 24 * 30.44)) * 10) / 10;
       }
 
       // Trend cap kept, but ordered by name — '-updated_date' made inclusion depend
