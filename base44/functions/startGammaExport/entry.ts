@@ -1,7 +1,8 @@
 // Starts a Gamma PPTX export for a saved report, styled to the Palsgaard CVI.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { secrets } from 'base44:runtime';
-import { buildDeckMarkdown, productNameFromExample } from '../../shared/buildDeckMarkdown.ts';
+import { buildDeckMarkdown } from '../../shared/buildDeckMarkdown.ts';
+import { resolveDeckProducts, imageMapFrom } from '../../shared/deckImages.ts';
 
 export default async function (req) {
   try {
@@ -20,24 +21,7 @@ export default async function (req) {
 
     // Resolve GNPD product images for every product referenced in the deck, so the
     // exported PPTX shows real pack shots next to the market evidence.
-    const productNames = [...new Set(
-      (report.slides || [])
-        .flatMap(s => s.gnpd_examples || [])
-        .map(productNameFromExample)
-        .filter(n => n.length >= 4)
-    )].slice(0, 40);
-
-    const imageMap = {};
-    for (const name of productNames) {
-      try {
-        const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const hits = await base44.asServiceRole.entities.GNPDProduct.filter(
-          { product_name: { $regex: esc, $options: 'i' } }, null, 3
-        );
-        const withImage = hits.find(h => h.image_url && String(h.image_url).startsWith('http'));
-        if (withImage) imageMap[name.toLowerCase()] = withImage.image_url;
-      } catch { /* skip unresolvable product names */ }
-    }
+    const imageMap = imageMapFrom(await resolveDeckProducts(base44, report, 40));
 
     const inputText = buildDeckMarkdown(report, imageMap);
 

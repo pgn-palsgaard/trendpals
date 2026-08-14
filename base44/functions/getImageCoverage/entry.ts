@@ -1,5 +1,5 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { productNameFromExample } from '../../shared/productNames.ts';
+import { resolveDeckProducts } from '../../shared/deckImages.ts';
 
 const PAGE = 500;
 
@@ -16,26 +16,17 @@ export default async function (req) {
       const report = await base44.asServiceRole.entities.Report.get(report_id);
       if (!report) return Response.json({ error: 'Report not found' }, { status: 404 });
 
-      const names = [...new Set(
-        (report.slides || [])
-          .flatMap(s => s.gnpd_examples || [])
-          .map(productNameFromExample)
-          .filter(n => n.length >= 4)
-      )].slice(0, 40);
+      const resolved = await resolveDeckProducts(base44, report, 40);
 
       const missing = [];
       const missingRecordIds = new Set();
       let matched = 0;
-      for (const name of names) {
-        const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const hits = await base44.asServiceRole.entities.GNPDProduct.filter(
-          { product_name: { $regex: esc, $options: 'i' } }, null, 3
-        );
-        if (hits.some(h => h.image_url && String(h.image_url).startsWith('http'))) {
+      for (const r of resolved) {
+        if (r.image_url) {
           matched++;
         } else {
-          missing.push(name);
-          for (const h of hits) if (h.gnpd_record_id) missingRecordIds.add(String(h.gnpd_record_id));
+          missing.push(r.label || r.record_id || r.example);
+          if (r.record_id) missingRecordIds.add(String(r.record_id));
         }
       }
 
@@ -52,7 +43,7 @@ export default async function (req) {
 
       return Response.json({
         mode: 'report',
-        total: names.length,
+        total: resolved.length,
         matched,
         missing,
         missing_record_ids: [...missingRecordIds],

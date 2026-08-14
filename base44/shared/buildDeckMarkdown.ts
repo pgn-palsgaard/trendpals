@@ -1,8 +1,8 @@
 // Turns a saved Report's slide array into deck markdown.
 // One "---" separated block per slide, so exports keep a 1:1 slide mapping.
 // imageMap: { [lowercased product name]: image_url } resolved from GNPDProduct.
-export { productNameFromExample } from './productNames.ts';
-import { productNameFromExample } from './productNames.ts';
+export { productNameFromExample, recordIdFromExample } from './productNames.ts';
+import { productNameFromExample, recordIdFromExample } from './productNames.ts';
 
 export function buildDeckMarkdown(report, imageMap = {}) {
   const parts = [];
@@ -50,7 +50,9 @@ export function buildDeckMarkdown(report, imageMap = {}) {
       s += `**Market evidence (Mintel GNPD)**\n\n`;
       for (const g of slide.gnpd_examples) {
         s += `- ${g}\n`;
-        const url = imageMap[productNameFromExample(g).toLowerCase()];
+        // Record ID first — it is the key the resolver is confident about.
+        const rid = recordIdFromExample(g);
+        const url = (rid && imageMap[rid]) || imageMap[productNameFromExample(g).toLowerCase()];
         if (url) s += `\n  ![${productNameFromExample(g)}](${url})\n\n`;
       }
       s += `\n`;

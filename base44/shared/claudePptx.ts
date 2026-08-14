@@ -2,7 +2,8 @@
 // Used by startClaudePptxExport (submits a Message Batch) and
 // checkClaudePptxExport (polls the batch and stores the .pptx).
 import { secrets } from 'base44:runtime';
-import { buildDeckMarkdown, productNameFromExample } from './buildDeckMarkdown.ts';
+import { buildDeckMarkdown } from './buildDeckMarkdown.ts';
+import { resolveDeckProducts } from './deckImages.ts';
 
 export const SKILL_ID = 'skill_01X6Ebs4KnmYNkUivvifnrpo';
 export const API = 'https://api.anthropic.com';
@@ -20,23 +21,13 @@ export function anthropicHeaders(extra = {}) {
 // Resolves GNPD pack shots for the deck and uploads them to Anthropic's Files
 // API so they are reachable inside the (internet-less) code-execution container.
 export async function uploadPackshotImages(base44, report) {
-  const productNames = [...new Set(
-    (report.slides || [])
-      .flatMap(s => s.gnpd_examples || [])
-      .map(productNameFromExample)
-      .filter(n => n.length >= 4)
-  )].slice(0, 15);
+  const resolved = (await resolveDeckProducts(base44, report, 15)).filter(r => r.image_url);
 
   const uploads = [];
-  for (const name of productNames) {
+  for (const r of resolved) {
+    const name = r.label || r.name;
     try {
-      const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const hits = await base44.asServiceRole.entities.GNPDProduct.filter(
-        { product_name: { $regex: esc, $options: 'i' } }, null, 3
-      );
-      const withImage = hits.find(h => h.image_url && String(h.image_url).startsWith('http'));
-      if (!withImage) continue;
-      const imgRes = await fetch(withImage.image_url);
+      const imgRes = await fetch(r.image_url);
       if (!imgRes.ok) continue;
       const bytes = await imgRes.arrayBuffer();
       if (bytes.byteLength > 4_000_000) continue;
