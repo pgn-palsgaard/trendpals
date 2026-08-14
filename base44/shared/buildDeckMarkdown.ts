@@ -30,6 +30,16 @@ export function buildDeckMarkdown(report, imageMap = {}) {
       s += `\n`;
     }
 
+    if (slide.why_it_may_matter) {
+      s += `**Why it may matter**\n\n${slide.why_it_may_matter}\n\n`;
+    }
+
+    if ((slide.formulation_questions || []).length > 0) {
+      s += `**Formulation and application questions it raises**\n\n`;
+      for (const q of slide.formulation_questions) s += `- ${q}\n`;
+      s += `\n`;
+    }
+
     if ((slide.customer_pains || []).length > 0) {
       s += `**What this creates for manufacturers**\n\n`;
       for (const p of slide.customer_pains) s += `- ${p.pain || p}\n`;

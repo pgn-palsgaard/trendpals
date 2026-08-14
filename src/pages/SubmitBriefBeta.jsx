@@ -11,6 +11,10 @@ import GammaExportPanel from '@/components/briefbeta/GammaExportPanel';
 import ClaudePptxPanel from '@/components/briefbeta/ClaudePptxPanel';
 import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbeta/architectPrompt';
 import { buildEvidenceContext, extractRecordIds } from '@/components/briefbeta/evidenceContext';
+import { resolveRegionScope } from '@/components/briefbeta/regionScope';
+import { validateSlides } from '@/components/briefbeta/outputValidator';
+import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
+import GateNotice from '@/components/briefbeta/GateNotice';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
 import { useAuth } from '@/lib/AuthContext';
 import useArchitectSession from '@/hooks/useArchitectSession';
@@ -20,11 +24,17 @@ const OPENER = {
   content: "I'm the Report Architect (BETA). Tell me what report you need — paste an email, a meeting note, or just describe it. I'll structure the brief with you, then build the full slide deck for your review before anything is saved.",
 };
 
-const REGION_CODES = ['ASPAC', 'AMERICAS', 'EMEC', 'IMEA', 'Global'];
+// Project.region_code / Report.region are a 4-value commercial enum, far coarser
+// than the brief's actual country scope. The authoritative scope is the resolved
+// country allow-list, recorded verbatim on the methodology slide and in
+// Report.evidence_gate — this code is a display label only, never a filter.
+const GROUP_TO_CODE = { europe: 'EMEC', turkey: 'EMEC', cis: 'EMEC', aspac: 'ASPAC', americas: 'AMERICAS', imea: 'IMEA' };
 
-function toRegionCode(raw) {
-  const upper = String(raw || '').toUpperCase();
-  return REGION_CODES.find(r => upper.includes(r)) || 'Global';
+function regionLabelFor(scope) {
+  if (!scope?.ok) return null;
+  if (scope.scope === 'global') return 'Global';
+  const codes = [...new Set(Object.keys(scope.subregions || {}).map(g => GROUP_TO_CODE[g]).filter(Boolean))];
+  return codes.length === 1 ? codes[0] : 'Global';
 }
 
 export default function SubmitBriefBeta() {
@@ -38,6 +48,8 @@ export default function SubmitBriefBeta() {
   const [feedbackGiven, setFeedbackGiven] = useState({});
   const [saving, setSaving] = useState(false);
   const [savedReport, setSavedReport] = useState(null);
+  const [gateNotice, setGateNotice] = useState(null);
+  const rewriteAttempted = useRef(false);
   const sessionStart = useRef(new Date().toISOString());
   const { user } = useAuth();
 
@@ -50,19 +62,41 @@ export default function SubmitBriefBeta() {
     user,
   });
 
-  // Retrieval works exactly like the manual workflow: verified trends first, then
-  // the Source records behind them and the real GNPD products that support them.
-  async function loadEvidenceFor(categories, region) {
+  // Retrieval applies the brief's region and format constraints as HARD GATES
+  // before any narrative exists. An unresolvable region fails loudly — it never
+  // falls back to global scope.
+  async function loadEvidenceFor(categories, regionText, subCategories) {
     const valid = (Array.isArray(categories) ? categories : [categories])
       .filter(c => CANONICAL_CATEGORIES.includes(c));
     if (valid.length === 0) return null;
+
+    const scope = resolveRegionScope(regionText);
+    if (!scope.ok) {
+      setGateNotice({ type: 'region_unresolved', message: scope.error });
+      setEvidence(null);
+      setTrends(null);
+      return null;
+    }
+
     try {
       const res = await base44.functions.invoke('getArchitectEvidence', {
         categories: valid,
-        region: toRegionCode(region),
+        region_text: regionText,
+        sub_categories: Array.isArray(subCategories) ? subCategories : [],
       });
       const data = res?.data;
+      if (data?.result === 'insufficient_regional_evidence') {
+        setGateNotice({ type: 'insufficient_regional_evidence', message: data.message, gate: data.gate });
+        setEvidence(null);
+        setTrends(null);
+        return null;
+      }
+      if (data?.error) {
+        setGateNotice({ type: data.error, message: data.message || data.error });
+        return null;
+      }
       if (!data?.trends) return null;
+      setGateNotice(null);
       setEvidence(data);
       setTrends(data.trends);
       return data;
@@ -100,9 +134,14 @@ export default function SubmitBriefBeta() {
             for (const [k, v] of Object.entries(parsed)) {
               if (v !== null && v !== 'null' && String(v).trim()) next[k] = v;
             }
-            // Lazy-load trends + their sources and GNPD evidence once the categories resolve
-            if (next.categories && JSON.stringify(next.categories) !== JSON.stringify(prev.categories)) {
-              loadEvidenceFor(next.categories, next.region);
+            // Re-run the gates whenever the binding constraints change — categories,
+            // formats or region text. Evidence is never retrieved without them.
+            const bindingChanged =
+              JSON.stringify(next.categories) !== JSON.stringify(prev.categories) ||
+              JSON.stringify(next.sub_categories) !== JSON.stringify(prev.sub_categories) ||
+              next.region !== prev.region;
+            if (next.categories && next.region && bindingChanged) {
+              loadEvidenceFor(next.categories, next.region, next.sub_categories);
             }
             return next;
           });
@@ -139,6 +178,27 @@ export default function SubmitBriefBeta() {
     }).catch(() => {});
   }
 
+  // One rewrite attempt when the deck fails validation — the architect is told
+  // exactly which rule each string broke.
+  async function requestRewrite(rejections) {
+    const log = rejections.slice(0, 10).map(r => `- [${r.rule}] ${r.field}: ${r.why} → "${r.text}"`).join('\n');
+    const transcript = messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
+      + `\n\nUser: The deck was rejected by evidence-integrity validation. Rewrite the offending strings and re-emit the COMPLETE deck in a <slides> block. Change nothing else.\n${log}`;
+    try {
+      const reply = await base44.integrations.Core.InvokeLLM({
+        prompt: buildArchitectPrompt(transcript, buildEvidenceContext(evidence)),
+        model: 'claude_sonnet_4_6',
+      });
+      const raw = typeof reply === 'string' ? reply : (reply?.content || '');
+      const m = raw.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
+      if (!m) return null;
+      const parsed = JSON.parse(m[1].trim());
+      return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+
   function updateSlide(index, updated) {
     setSlides(prev => prev.map((s, i) => (i === index ? updated : s)));
   }
@@ -150,7 +210,36 @@ export default function SubmitBriefBeta() {
       const cats = (Array.isArray(contract.categories) ? contract.categories : [contract.categories])
         .filter(c => CANONICAL_CATEGORIES.includes(c));
       const category = cats[0] || 'needs_human_review';
-      const regionCode = toRegionCode(contract.region);
+      const scope = resolveRegionScope(contract.region);
+      if (!scope.ok) {
+        setMessages(prev => [...prev, { role: 'assistant', content: `Cannot save: ${scope.error}` }]);
+        setSaving(false);
+        return;
+      }
+      const regionCode = regionLabelFor(scope);
+
+      // Write-time validation. One rewrite attempt, then a loud failure.
+      let deck = slides;
+      let verdict = validateSlides(deck, category);
+      if (!verdict.ok && !rewriteAttempted.current) {
+        rewriteAttempted.current = true;
+        const rewritten = await requestRewrite(verdict.rejections);
+        if (rewritten) {
+          deck = rewritten;
+          setSlides(rewritten);
+          verdict = validateSlides(deck, category);
+        }
+      }
+      if (!verdict.ok) {
+        const log = verdict.rejections.slice(0, 8)
+          .map(r => `• [${r.rule}] ${r.field}: ${r.why}\n  "${r.text}"`).join('\n');
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Nothing was saved — the deck failed evidence-integrity validation ${rewriteAttempted.current ? 'twice' : ''}:\n\n${log}`,
+        }]);
+        setSaving(false);
+        return;
+      }
       const title = `[BETA] ${contract.core_hypothesis || contract.objective || 'Architect draft'}`.slice(0, 120);
 
       // The trends the architect worked from carry the market-intel sources behind
@@ -175,11 +264,18 @@ export default function SubmitBriefBeta() {
         title: 'About this report',
         market_signal: AI_DISCLAIMER_FULL,
       };
-      const finalSlides = [disclaimerSlide, ...slides.map((s, i) => ({ ...s, slide_number: i + 1 }))];
+      const methodologySlide = buildMethodologySlide({
+        gate: evidence?.gate,
+        contract,
+        exclusions: evidence?.exclusions,
+        validatorFlags: verdict.flags,
+      });
+      const finalSlides = [disclaimerSlide, ...deck.map((s, i) => ({ ...s, slide_number: i + 1 }))];
+      if (methodologySlide) finalSlides.push({ ...methodologySlide, slide_number: finalSlides.length });
 
       // The deck cites products by their exact GNPD Record ID, so the shortlist is
       // built straight from the retrieved evidence — no name guessing.
-      const recordIds = extractRecordIds(slides);
+      const recordIds = extractRecordIds(deck);
       const evidenceById = {};
       for (const p of evidence?.products || []) evidenceById[p.gnpd_record_id] = p;
       const shortlist = recordIds
@@ -211,6 +307,7 @@ export default function SubmitBriefBeta() {
         slides: finalSlides,
         product_shortlist: shortlist,
         selected_trends: usedTrends.map(t => t.trend_name),
+        evidence_gate: evidence?.gate || null,
         status: 'draft',
         version: 1,
       });
@@ -256,6 +353,7 @@ export default function SubmitBriefBeta() {
           {/* Contract + slides */}
           <div className={`space-y-4 ${slides ? 'lg:w-3/5' : 'lg:w-2/5'}`}>
             <ContractPanel contract={contract} trendCount={trends?.length || 0} />
+            <GateNotice notice={gateNotice} />
 
             {!savedReport && (
               <SimilarReportsPanel query={{

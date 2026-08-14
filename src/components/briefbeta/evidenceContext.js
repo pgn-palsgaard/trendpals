@@ -30,6 +30,9 @@ export function buildEvidenceContext(evidence) {
 
   const trendBlocks = trends.map(t => {
     const lines = [`### [${t.category}] TREND: ${t.trend_name}`];
+    lines.push(t.evidence_status === 'signal_only'
+      ? `EVIDENCE STATUS: SIGNAL ONLY — ${t.record_count} eligible regional launch${t.record_count === 1 ? '' : 'es'} on record. This trend belongs in the "Signal — not yet evidenced at regional level" section and its slide must state the record count.`
+      : `EVIDENCE STATUS: FULL — ${t.record_count} eligible regional launches on record.`);
     if (t.market_signal) lines.push(`Signal: ${t.market_signal.slice(0, 300)}`);
 
     const cites = [

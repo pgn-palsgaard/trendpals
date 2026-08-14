@@ -47,6 +47,10 @@
           "slide_name": {
             "type": "string"
           },
+          "slide_type": {
+            "type": "string",
+            "description": "Rendering hint: content, section_header, briefing_context, methodology, product_export."
+          },
           "title": {
             "type": "string"
           },
@@ -56,6 +60,17 @@
           "market_signal": {
             "type": "string",
             "description": "What is happening in the market \u2014 1-2 sentences, external signals only"
+          },
+          "why_it_may_matter": {
+            "type": "string",
+            "description": "The commercial implication of the observation for a manufacturer deciding now. Observation framing, never prescription."
+          },
+          "formulation_questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The technical / application questions the market observation raises (dough rheology, hydration balance, gluten dilution, staling, mouthfeel and similar). Turns a market observation into a technical conversation."
           },
           "customer_pains": {
             "type": "array",
@@ -193,6 +208,11 @@
     "executive_summary": {
       "type": "string",
       "description": "AI-generated executive summary of the report"
+    },
+    "evidence_gate": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Snapshot of the evidence gate that produced this report (beta architect only): resolved country allow-list, pool sizes after each gate, per-sub-region counts, exclusion counts by reason, dropped and downgraded trends. Feeds the methodology appendix and makes the report auditable."
     },
     "gamma_url": {
       "type": "string"

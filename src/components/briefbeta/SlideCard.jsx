@@ -33,6 +33,20 @@ export default function SlideCard({ slide, onChange }) {
           <p className="font-semibold text-foreground text-sm">{slide.title}</p>
           {slide.subtitle && <p className="text-xs text-muted-foreground mt-0.5">{slide.subtitle}</p>}
           {slide.market_signal && <p className="text-sm text-foreground/80 mt-2 leading-relaxed">{slide.market_signal}</p>}
+          {slide.why_it_may_matter && (
+            <div className="mt-2">
+              <p className="section-label mb-0.5">Why it may matter</p>
+              <p className="text-sm text-foreground/80 leading-relaxed">{slide.why_it_may_matter}</p>
+            </div>
+          )}
+          {(slide.formulation_questions || []).length > 0 && (
+            <div className="mt-2">
+              <p className="section-label mb-0.5">Formulation questions it raises</p>
+              {slide.formulation_questions.map((q, i) => (
+                <p key={i} className="text-xs text-foreground/70">• {q}</p>
+              ))}
+            </div>
+          )}
           {(slide.supporting_data || []).length > 0 && (
             <ul className="mt-2 space-y-1">
               {slide.supporting_data.map((d, i) => (
