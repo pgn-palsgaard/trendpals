@@ -17,7 +17,7 @@ export default function SimilarReportsPanel({ query }) {
       findSimilarReports(query)
         .then(res => { if (alive) setMatches(res); })
         .catch(() => { if (alive) setMatches([]); });
-    }, 600);
+    }, 1200);
     return () => { alive = false; clearTimeout(timer); };
   }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -38,7 +38,7 @@ export default function SimilarReportsPanel({ query }) {
       </div>
 
       <div className="space-y-2">
-        {matches.map(({ report, score }) => (
+        {matches.map(({ report, reason }) => (
           <Link
             key={report.id}
             to={`/ReportView?id=${report.id}`}
@@ -47,10 +47,13 @@ export default function SimilarReportsPanel({ query }) {
           >
             <div className="flex items-start justify-between gap-2">
               <span className="text-xs font-semibold leading-snug" style={{ color: '#1D2B47' }}>{report.title}</span>
-              <span className="text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded" style={{ background: '#EBF0F8', color: '#1D428A' }}>
-                {score}% match
+              <span className="text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded" style={{ background: '#EEF1EC', color: '#4A6040' }}>
+                Likely covers this
               </span>
             </div>
+            {reason && (
+              <p className="text-[11px] mt-1 leading-snug" style={{ color: '#6B7280' }}>{reason}</p>
+            )}
             <p className="text-[11px] mt-1 flex items-center gap-1" style={{ color: '#969696' }}>
               {[report.category, report.region].filter(Boolean).join(' · ')}
               {report.created_date ? ` · ${new Date(report.created_date).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}` : ''}
