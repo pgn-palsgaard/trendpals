@@ -1,3 +1,5 @@
+import { SUPPRESSED_PUBLISHERS } from './outputValidator';
+
 // Turns the deterministic evidence payload from getArchitectEvidence into the
 // grounded context block the architect must build from, and reads the chosen
 // GNPD record ids back out of the finished deck.
@@ -5,9 +7,20 @@
 // Fresh open-web signals found by Market Scout. Supplementary only — they may
 // sharpen the framing and recency of a slide, but never replace Mintel/GNPD
 // evidence and never become product examples.
+// A citation the output validator would reject outright (competitor / ingredient
+// supplier) must never reach the architect — otherwise it builds a deck that is
+// guaranteed to fail validation. Filtered at context-build time, on publisher AND
+// title, because is_competitor_content is not reliably set on older records.
+function isSuppressed(...parts) {
+  const s = parts.filter(Boolean).join(' ');
+  return SUPPRESSED_PUBLISHERS.some(p =>
+    new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s)
+  );
+}
+
 function buildWebSignalBlock(evidence) {
   const signals = (evidence?.web_signals || [])
-    .filter(s => s.is_competitor_content !== true)
+    .filter(s => s.is_competitor_content !== true && !isSuppressed(s.publisher, s.title))
     .slice(0, 12);
   if (signals.length === 0) return '';
 
@@ -36,11 +49,11 @@ export function buildEvidenceContext(evidence) {
     if (t.market_signal) lines.push(`Signal: ${t.market_signal.slice(0, 300)}`);
 
     const cites = [
-      ...(t.sources || []).map(s => {
+      ...(t.sources || []).filter(s => !isSuppressed(s.publisher, s.title)).map(s => {
         const finding = (s.key_findings || [])[0];
         return `  - ${s.title}${s.publisher ? ` (${s.publisher}` : ''}${s.date_published ? `, ${s.date_published})` : s.publisher ? ')' : ''}${finding ? ` — ${finding.slice(0, 220)}` : ''}`;
       }),
-      ...(t.inline_citations || []).map(c =>
+      ...(t.inline_citations || []).filter(c => !isSuppressed(c.publisher, c.title)).map(c =>
         `  - ${c.title}${c.publisher ? ` (${c.publisher})` : ''}${c.key_finding ? ` — ${c.key_finding.slice(0, 220)}` : ''}`
       ),
     ];
