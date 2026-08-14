@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
 import { FlaskConical, CheckCircle2 } from 'lucide-react';
@@ -63,6 +63,29 @@ export default function SubmitBriefBeta() {
   const sessionStart = useRef(new Date().toISOString());
   const { user } = useAuth();
 
+  // Resuming a session from the Architect history: ?session=<id>
+  const resumeId = new URLSearchParams(window.location.search).get('session');
+  const [resuming, setResuming] = useState(!!resumeId);
+
+  useEffect(() => {
+    if (!resumeId) return;
+    let cancelled = false;
+    base44.entities.ArchitectSession.get(resumeId).then(s => {
+      if (cancelled || !s) return;
+      if (Array.isArray(s.messages) && s.messages.length > 0) setMessages(s.messages);
+      if (s.contract) setContract(s.contract);
+      if (Array.isArray(s.slides) && s.slides.length > 0) setSlides(s.slides);
+      if (s.session_started_at) sessionStart.current = s.session_started_at;
+      // Evidence is not stored on the session — re-run the gates so the architect
+      // keeps working from real, verified evidence.
+      if (s.contract?.categories && s.contract?.region) {
+        loadEvidenceFor(s.contract.categories, s.contract.region, s.contract.sub_categories);
+      }
+      setResuming(false);
+    }).catch(() => setResuming(false));
+    return () => { cancelled = true; };
+  }, [resumeId]);
+
   // Every session is auto-saved to the Architect history as the conversation runs.
   const { markConverted } = useArchitectSession({
     messages,
@@ -70,6 +93,7 @@ export default function SubmitBriefBeta() {
     slides,
     sessionStart: sessionStart.current,
     user,
+    initialSessionId: resumeId || undefined,
   });
 
   // Retrieval applies the brief's region and format constraints as HARD GATES
@@ -381,7 +405,10 @@ export default function SubmitBriefBeta() {
           </div>
         </div>
 
-        {messages.filter(m => m.role === 'user').length === 0 && <ScopeIntro />}
+        {resuming && (
+          <p className="text-sm text-muted-foreground mb-4">Restoring your saved chat…</p>
+        )}
+        {!resuming && messages.filter(m => m.role === 'user').length === 0 && <ScopeIntro />}
 
         <div className="flex flex-col lg:flex-row gap-5">
           {/* Chat */}

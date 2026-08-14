@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import ContractPanel from '@/components/briefbeta/ContractPanel';
 import TranscriptView from '@/components/architecthistory/TranscriptView';
 import SessionSlides from '@/components/architecthistory/SessionSlides';
+import ResumeSessionButton from '@/components/architecthistory/ResumeSessionButton';
 
 export default function ArchitectSessionDetail() {
   const { sessionId } = useParams();
@@ -65,6 +66,8 @@ export default function ArchitectSessionDetail() {
             </p>
           </div>
 
+          <div className="flex items-center gap-2 shrink-0">
+          <ResumeSessionButton sessionId={session.id} />
           {session.status === 'converted' && session.linked_report_id && (
             <Link
               to={`/ReportView?id=${session.linked_report_id}`}
@@ -74,6 +77,7 @@ export default function ArchitectSessionDetail() {
               Open report <ExternalLink className="w-4 h-4" />
             </Link>
           )}
+          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-5">

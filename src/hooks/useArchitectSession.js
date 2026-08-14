@@ -39,8 +39,10 @@ function firstCategory(contract) {
  * Returns a ref holding the session id, plus a helper to mark it converted
  * once the deck has been saved as a Report.
  */
-export default function useArchitectSession({ messages, contract, slides, sessionStart, user }) {
-  const sessionIdRef = useRef(null);
+export default function useArchitectSession({ messages, contract, slides, sessionStart, user, initialSessionId }) {
+  // When resuming from history, keep writing to the SAME record instead of
+  // creating a duplicate session.
+  const sessionIdRef = useRef(initialSessionId || null);
   // Serialise writes so a change during an in-flight save is still persisted
   // (and so the create never races into two records).
   const queueRef = useRef(Promise.resolve());
