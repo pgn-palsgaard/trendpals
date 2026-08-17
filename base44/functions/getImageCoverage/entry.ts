@@ -2,7 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { resolveDeckProducts } from '../../shared/deckImages.ts';
 
 const PAGE = 500;
-const MAX_PAGES_PER_CALL = 16;
+const MAX_PAGES_PER_CALL = 8;
 
 export default async function (req) {
   try {

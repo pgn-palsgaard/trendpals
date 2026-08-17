@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
 import { ImageOff, RefreshCw } from 'lucide-react';
 import PackshotUploader from '@/components/gnpd/PackshotUploader';
+import MissingPackshotList from '@/components/gnpd/MissingPackshotList';
 
 const BLUE = '#1D428A';
 
@@ -108,6 +109,8 @@ export default function ImageCoveragePanel() {
           </>
         )}
       </div>
+
+      <MissingPackshotList />
     </div>
   );
 }
