@@ -75,6 +75,11 @@ export function buildMethodologySlide({ gate, contract, exclusions, validatorFla
     if (diag.length > 1 && contributing.length === 1) {
       lines.push(`Scope caveat — although the brief covers ${diag.length} sub-regions, all rendered product evidence comes from ${SUBREGION_LABELS[contributing[0].subregion] || contributing[0].subregion} alone. Read the report as evidence from that market, not from the full brief scope.`);
     }
+    // Phase 2 — headers carry the covered scope; this is the one place the
+    // requested-vs-covered gap is stated.
+    if (contributing.length > 0 && contributing.length < diag.length) {
+      lines.push(`Region labelling — the brief requested "${gate.region_text || '—'}"; rendered evidence covers ${contributing.map(d => SUBREGION_LABELS[d.subregion] || d.subregion).join(', ')} only, so all headers in this report carry the covered scope. This slide is the only place the requested-vs-covered gap is stated.`);
+    }
   } else {
     const subCounts = Object.entries(gate.per_subregion_counts || {});
     if (subCounts.length) lines.push(`Records by sub-region: ${subCounts.map(([k, v]) => `${SUBREGION_LABELS[k] || k}: ${v}`).join(' | ')}`);

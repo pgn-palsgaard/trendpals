@@ -1,4 +1,5 @@
 import { SUPPRESSED_PUBLISHERS } from './outputValidator';
+import { coveredRegionLabel } from './coveredRegion';
 
 // Turns the deterministic evidence payload from getArchitectEvidence into the
 // grounded context block the architect must build from, and reads the chosen
@@ -35,10 +36,28 @@ function buildWebSignalBlock(evidence) {
   ].join('\n');
 }
 
+// Phase 2 — headers must carry the covered scope, not the requested one.
+// The gap itself is stated only on the methodology slide (added by the system).
+function buildRegionLabelBlock(evidence) {
+  const gate = evidence?.gate;
+  if (!gate || gate.region_scope === 'global') return '';
+  const covered = coveredRegionLabel(gate);
+  if (!covered) return '';
+  const diag = gate.subregion_diagnosis || [];
+  const hasGap = diag.some(d => d.rendered === 0);
+  return [
+    '### REGION LABELLING (hard rule)',
+    `Rendered product evidence covers: ${covered}.`
+      + (hasGap && gate.region_text ? ` The brief requested "${gate.region_text}", but the other sub-regions contributed zero rendered records.` : ''),
+    `Every title, subtitle and section header that names a geography must say "${covered}" — never the requested scope when the two differ. Do NOT state the requested-vs-covered gap on content slides; the system states it once, on the methodology slide.`,
+  ].join('\n');
+}
+
 export function buildEvidenceContext(evidence) {
   const trends = evidence?.trends || [];
   if (trends.length === 0) return null;
 
+  const regionBlock = buildRegionLabelBlock(evidence);
   const webBlock = buildWebSignalBlock(evidence);
 
   const trendBlocks = trends.map(t => {
@@ -67,7 +86,7 @@ export function buildEvidenceContext(evidence) {
     return lines.join('\n');
   }).join('\n\n');
 
-  return webBlock ? `${trendBlocks}\n\n${webBlock}` : trendBlocks;
+  return [regionBlock, trendBlocks, webBlock].filter(Boolean).join('\n\n');
 }
 
 // Deck entries are written as "<RECORD_ID> | Product — Brand (Country): why".

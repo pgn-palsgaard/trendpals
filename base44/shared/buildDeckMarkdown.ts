@@ -11,7 +11,7 @@ export function buildDeckMarkdown(report, imageMap = {}) {
   // prefixes consume front-page title budget (see skill Content Budgets).
   const preHeader = report.generated_by === 'architect' ? 'BETA — draft for review\n\n' : '';
   parts.push(
-    `${preHeader}# ${report.title}\n## ${report.category || ''} market intelligence | ${report.region || ''}\n*Prepared by Palsgaard*`
+    `${preHeader}# ${report.title}\n## ${report.category || ''} market intelligence | ${report.region_display_label || report.region || ''}\n*Prepared by Palsgaard*`
   );
 
   for (const slide of report.slides || []) {

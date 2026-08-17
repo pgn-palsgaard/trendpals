@@ -12,6 +12,7 @@ import ClaudePptxPanel from '@/components/briefbeta/ClaudePptxPanel';
 import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbeta/architectPrompt';
 import { buildEvidenceContext, extractRecordIds } from '@/components/briefbeta/evidenceContext';
 import { resolveRegionScope } from '@/components/briefbeta/regionScope';
+import { coveredRegionLabel } from '@/components/briefbeta/coveredRegion';
 import { validateSlides } from '@/components/briefbeta/outputValidator';
 import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
 import GateNotice from '@/components/briefbeta/GateNotice';
@@ -268,7 +269,10 @@ export default function SubmitBriefBeta() {
         return;
       }
       const regionCode = regionCodeFor(scope);
-      const displayLabel = regionDisplayLabel(scope);
+      // Phase 2 — the display label reflects what the evidence actually covers,
+      // never the requested scope. The requested-vs-covered gap is stated once,
+      // on the methodology slide.
+      const displayLabel = coveredRegionLabel(evidence?.gate) || regionDisplayLabel(scope);
 
       // Write-time validation. One rewrite attempt, then a loud failure.
       // Phase 7 — every rejection is recorded with its rule id and the verbatim
