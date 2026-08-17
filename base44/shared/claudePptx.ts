@@ -39,16 +39,27 @@ export async function uploadPackshotImages(base44, report) {
       const up = await fetch(`${API}/v1/files`, { method: 'POST', headers: anthropicHeaders(), body: form });
       if (!up.ok) continue;
       const meta = await up.json();
-      uploads.push({ file_id: meta.id, filename: fname, product: name });
+      uploads.push({ file_id: meta.id, filename: fname, product: name, record_id: r.record_id || null });
     } catch { /* skip unresolvable images */ }
   }
   return uploads;
 }
 
+// Phase 5 — the slot contract: each uploaded pack shot is addressed by filename
+// under the exact evidence bullet it belongs to, keyed on record id and name.
+function slotMapFrom(uploads) {
+  const map = {};
+  for (const u of uploads) {
+    if (u.record_id) map[u.record_id] = u.filename;
+    if (u.product) map[String(u.product).toLowerCase()] = u.filename;
+  }
+  return map;
+}
+
 export function buildSkillPrompt(report, uploads) {
-  const deckMarkdown = buildDeckMarkdown(report, {});
+  const deckMarkdown = buildDeckMarkdown(report, slotMapFrom(uploads));
   const imageNote = uploads.length
-    ? `\n\nPRODUCT PACK-SHOT IMAGES are available as uploaded files in your working directory:\n${uploads.map(u => `- ${u.filename} = "${u.product}"`).join('\n')}\nPlace each image as a SMALL thumbnail next to its product's evidence bullet. Never enlarge or distort them. Skip any image that fails to open.`
+    ? `\n\nPRODUCT PACK-SHOT IMAGES are available as uploaded files in your working directory:\n${uploads.map(u => `- ${u.filename} = "${u.product}"`).join('\n')}\nIMAGE SLOT CONTRACT: the deck content marks each pack shot's position as "[IMAGE SLOT: <filename>]" directly under the evidence bullet it belongs to. Place that file as a SMALL thumbnail in that slot only — never on another bullet, another slide, or as a background. Remove the marker text itself from the slide. Never enlarge or distort a pack shot. If a file fails to open, drop it silently and leave the bullet without an image. Never place an image that has no slot marker.`
     : '';
 
   return `Use the Palsgaard PowerPoint skill to build a complete .pptx presentation from the deck content below.

@@ -71,7 +71,11 @@ export function buildDeckMarkdown(report, imageMap = {}) {
         // Record ID first — it is the key the resolver is confident about.
         const rid = recordIdFromExample(g);
         const url = (rid && imageMap[rid]) || imageMap[productNameFromExample(g).toLowerCase()];
-        if (url) s += `\n  ![${productNameFromExample(g)}](${url})\n\n`;
+        // Phase 5 — explicit image-to-slot contract. A http value is an inline
+        // image (Gamma). A bare filename is an uploaded pack shot that must be
+        // placed in THIS bullet's slot and nowhere else (Claude skill).
+        if (url && String(url).startsWith('http')) s += `\n  ![${productNameFromExample(g)}](${url})\n\n`;
+        else if (url) s += `  [IMAGE SLOT: ${url}]\n`;
       }
       s += `\n`;
     }
