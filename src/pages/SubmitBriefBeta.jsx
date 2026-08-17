@@ -371,23 +371,43 @@ export default function SubmitBriefBeta() {
       const recordIds = extractRecordIds(deck);
       const evidenceById = {};
       for (const p of evidence?.products || []) evidenceById[p.gnpd_record_id] = p;
-      const shortlist = recordIds
+      // Phase 4 — the reference list must be ID-equal to what the deck actually
+      // renders. An id cited on a slide that is not in the retrieved evidence is
+      // not a reference, it is a defect: it is kept out of the export list and
+      // recorded as a flag instead of silently shipping an unresolvable id.
+      const resolvedIds = recordIds.filter(id => evidenceById[id]);
+      const unresolvedIds = recordIds.filter(id => !evidenceById[id]);
+      for (const id of unresolvedIds) {
+        validatorLog.flags.push({
+          rule: 'REF-1',
+          field: 'gnpd_examples',
+          why: 'Record ID cited on a slide is not in the retrieved evidence set — excluded from the reference list',
+          text: id,
+        });
+        validatorLog.rule_fire_counts['REF-1'] = (validatorLog.rule_fire_counts['REF-1'] || 0) + 1;
+      }
+      const shortlist = resolvedIds
         .map(id => evidenceById[id])
-        .filter(Boolean)
         .map(p => ({
           ...p,
           supporting_trends: usedTrends
             .filter(t => (t.products || []).some(tp => tp.gnpd_record_id === p.gnpd_record_id))
             .map(t => t.trend_name),
         }));
-      if (recordIds.length > 0) {
+      if (resolvedIds.length > 0) {
         finalSlides.push({
           slide_number: finalSlides.length,
           slide_name: 'Product Export IDs',
           title: 'GNPD Product Record IDs',
-          subtitle: 'All products referenced in this report — paste into Mintel GNPD search',
-          market_signal: [...new Set(recordIds)].join(' OR '),
+          subtitle: `${resolvedIds.length} products referenced in this report — paste into Mintel GNPD search`,
+          market_signal: [...new Set(resolvedIds)].join(' OR '),
         });
+      }
+      if (unresolvedIds.length > 0) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Note: ${unresolvedIds.length} product record ID${unresolvedIds.length === 1 ? '' : 's'} cited on the slides could not be matched to the retrieved evidence and were left out of the reference list: ${unresolvedIds.join(', ')}.`,
+        }]);
       }
 
       const report = await base44.entities.Report.create({
