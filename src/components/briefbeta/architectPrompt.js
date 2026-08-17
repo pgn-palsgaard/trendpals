@@ -42,6 +42,7 @@ BANNED LANGUAGE (a deck containing any of these is rejected automatically and mu
 - Region-adjacency claims: "EMEC-adjacent", "-adjacent proposition", "adjacent to the region", "read-across from". A product evidences ONLY the country it launched in.
 - Prescription: "manufacturers should", "brands should", "you should", "we recommend", "must launch", "best positioned to capture", "will define the next generation", "act first will". Write observation, never instruction.
 - Citing a source about another category (e.g. an ice cream article on a bakery slide), or supplier/competitor content (Puratos, Délifrance, Lesaffre, Zeelandia, CSM, Bakels, AB Mauri, Glanbia, IFF, Kerry, Cargill, ADM, Ingredion, Corbion, dsm-firmenich).
+- These publisher rules apply to SLIDE PROSE exactly as they apply to citations: never name a supplier or competitor inside market_signal, why_it_may_matter, a formulation question or a product line, and never state a US or global figure in prose without the same inline scope label.
 - Consultancy / market-report vendors (GreyB, Future Market Insights, Grand View, MarketsandMarkets, Mordor, AMF) may only be cited with an inline scope label "(Note: source data is US / global — regional figures not available in this source)" and never as the only support for a number.
 
 PHASE 1 — BRIEF CONTRACT:
