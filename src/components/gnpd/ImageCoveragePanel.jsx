@@ -28,13 +28,29 @@ export default function ImageCoveragePanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
+  // The scan runs in resumable chunks — a single full-database request times out
+  // at the gateway. Each chunk's counts are merged as it arrives, so the bars
+  // fill in progressively.
   async function run() {
     setLoading(true);
     setError(null);
+    const acc = { total: 0, with_image: 0, by_category: {} };
+    let skip = 0;
     try {
-      const res = await base44.functions.invoke('getImageCoverage', {});
-      if (res.data?.error) throw new Error(res.data.error);
-      setData(res.data);
+      while (true) {
+        const res = await base44.functions.invoke('getImageCoverage', { skip });
+        if (res.data?.error) throw new Error(res.data.error);
+        acc.total += res.data.total;
+        acc.with_image += res.data.with_image;
+        for (const [cat, s] of Object.entries(res.data.by_category || {})) {
+          if (!acc.by_category[cat]) acc.by_category[cat] = { total: 0, with_image: 0 };
+          acc.by_category[cat].total += s.total;
+          acc.by_category[cat].with_image += s.with_image;
+        }
+        setData({ ...acc, by_category: { ...acc.by_category } });
+        if (!res.data.next_skip) break;
+        skip = res.data.next_skip;
+      }
     } catch (e) {
       setError(e.message);
     }

@@ -2,6 +2,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { resolveDeckProducts } from '../../shared/deckImages.ts';
 
 const PAGE = 500;
+const MAX_PAGES_PER_CALL = 16;
 
 export default async function (req) {
   try {
@@ -9,7 +10,8 @@ export default async function (req) {
     const user = await base44.auth.me();
     if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const { report_id } = await req.json().catch(() => ({}));
+    const body = await req.json().catch(() => ({}));
+    const { report_id } = body;
 
     // ── Mode A: preflight for one report — which referenced products have pack shots
     if (report_id) {
@@ -50,13 +52,16 @@ export default async function (req) {
       });
     }
 
-    // ── Mode B: database-wide coverage per Palsgaard category
+    // ── Mode B: database-wide coverage per Palsgaard category.
+    // Scanned in resumable chunks — a full 31k-record sweep in one request
+    // exceeds the gateway timeout and the caller sees a 500.
     const byCategory = {};
-    let skip = 0;
+    let skip = Number(body.skip) || 0;
     let total = 0;
     let withImage = 0;
+    let pages = 0;
 
-    while (true) {
+    while (pages < MAX_PAGES_PER_CALL) {
       const page = await base44.asServiceRole.entities.GNPDProduct.list('created_date', PAGE, skip);
       if (!page || page.length === 0) break;
 
@@ -72,11 +77,13 @@ export default async function (req) {
       }
 
       skip += page.length;
-      if (page.length < PAGE) break;
-      if (skip >= 40000) break;
+      pages++;
+      if (page.length < PAGE) {
+        return Response.json({ mode: 'database', total, with_image: withImage, by_category: byCategory, next_skip: null });
+      }
     }
 
-    return Response.json({ mode: 'database', total, with_image: withImage, by_category: byCategory });
+    return Response.json({ mode: 'database', total, with_image: withImage, by_category: byCategory, next_skip: skip });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
