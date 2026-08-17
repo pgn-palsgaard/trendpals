@@ -100,7 +100,8 @@ export default function ClaudePptxPanel({ report, slideCount }) {
         </div>
         <p className="text-xs text-muted-foreground">
           Your Palsgaard skill is laying out {slideCount} slides with the CVI template and product pack-shots.
-          This usually takes 5–20 minutes. You can leave this page — the build continues, and the download
+          The job sits in Anthropic's queue first, so it can take anywhere from 5 minutes to an hour.
+          You can leave this page — the build continues, and the download
           appears here when you come back.
         </p>
       </div>

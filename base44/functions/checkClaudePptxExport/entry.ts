@@ -3,7 +3,10 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { API, anthropicHeaders, storeGeneratedPptx } from '../../shared/claudePptx.ts';
 
-const STALE_MINUTES = 40;
+// Anthropic's batch queue can hold a request far longer than the skill itself
+// takes to run, so the give-up window has to be generous — 40 minutes was killing
+// runs that were still legitimately queued.
+const STALE_MINUTES = 180;
 
 function minutesSince(iso) {
   if (!iso) return 0;
