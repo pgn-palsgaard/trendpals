@@ -21,6 +21,21 @@ export function buildDeckMarkdown(report, imageMap = {}) {
       continue;
     }
 
+    // Methodology is a real slide, not an appendix: its market_signal holds one
+    // statement per line — rendered as bullets so the skill builds a dense list
+    // slide instead of compressing a wall of text.
+    if (slide.slide_type === 'methodology') {
+      let m = `## ${slide.title || 'How this report was evidenced'}\n`;
+      if (slide.subtitle) m += `### ${slide.subtitle}\n\n`;
+      m += `**Methodology — render every line below, no summarisation**\n\n`;
+      for (const line of String(slide.market_signal || '').split('\n').filter(Boolean)) {
+        m += `- ${line}\n`;
+      }
+      for (const g of slide.gnpd_examples || []) m += `- ${g}\n`;
+      parts.push(m.trim());
+      continue;
+    }
+
     let s = `## ${slide.title || slide.slide_name || 'Slide'}\n`;
     if (slide.subtitle) s += `### ${slide.subtitle}\n\n`;
     if (slide.market_signal) s += `${slide.market_signal}\n\n`;

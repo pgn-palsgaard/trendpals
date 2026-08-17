@@ -57,6 +57,8 @@ RULES:
 - Follow the skill's Palsgaard CVI template exactly (colors, fonts, layouts).
 - Keep every fact, number and product name EXACTLY as written — never invent or embellish data.
 - One slide per "---" separated block. Blocks containing only headings are full-bleed section divider slides.
+- COMPLETENESS IS MANDATORY: every bold section present in a block ("Why it may matter", "Formulation and application questions it raises", "Supporting data", "Market evidence (Mintel GNPD)", "Conversation openers") must appear on that slide. Omitting a section that exists in the deck content is a build failure, not an editorial choice. These layers also fill the lower half of the slide — never leave a full-page slide with content only in the top third.
+- The methodology block ("How this report was evidenced") is a real slide, not an appendix: render EVERY bullet, verbatim, on a dense full-page layout. Never summarise or drop lines from it.
 - Produce exactly ONE .pptx file as the final output.${imageNote}
 
 DECK CONTENT:
