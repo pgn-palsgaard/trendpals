@@ -7,8 +7,11 @@ import { productNameFromExample, recordIdFromExample } from './productNames.ts';
 export function buildDeckMarkdown(report, imageMap = {}) {
   const parts = [];
 
+  // BETA marker renders as a pre-header line, never inside the title string —
+  // prefixes consume front-page title budget (see skill Content Budgets).
+  const preHeader = report.generated_by === 'architect' ? 'BETA — draft for review\n\n' : '';
   parts.push(
-    `# ${report.title}\n## ${report.category || ''} market intelligence | ${report.region || ''}\n*Prepared by Palsgaard*`
+    `${preHeader}# ${report.title}\n## ${report.category || ''} market intelligence | ${report.region || ''}\n*Prepared by Palsgaard*`
   );
 
   for (const slide of report.slides || []) {

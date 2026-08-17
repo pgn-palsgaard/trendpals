@@ -6,6 +6,8 @@
 //
 // Pure functions only. No I/O.
 
+import { BUDGETS } from './contentBudgets';
+
 const FIGURE_RULES = [
   { id: 'FIG-1', re: /(USD|EUR|GBP|€|\$|£)\s?[\d.,]+\s?(m|bn|k|million|billion|trillion)\b/i, why: 'currency plus magnitude (market sizing)' },
   { id: 'FIG-2', re: /\bCAGR\b/i, why: 'CAGR figure' },
@@ -98,12 +100,76 @@ export function validateCitation(citation, briefCategory) {
   return { ok: true, flags: [...flags, ...plausibilityFlags(stat)] };
 }
 
+// LEN-* rules — calibrated character budgets from contentBudgets.js.
+// Overflow is a build failure, not a formatting choice: the template never
+// autofits, so an over-budget string renders clipped or collides.
+function len(s) { return String(s || '').trim().length; }
+
+function budgetRejections(slides, reportTitle) {
+  const rejections = [];
+
+  if (reportTitle != null && len(reportTitle) > BUDGETS.FRONT_PAGE_TITLE) {
+    rejections.push({
+      rule: 'LEN-1', field: 'report.title',
+      why: `front page title must be ≤ ${BUDGETS.FRONT_PAGE_TITLE} characters (currently ${len(reportTitle)}) — the placeholder holds exactly 2 lines at 36pt and never autofits`,
+      text: String(reportTitle).slice(0, 300),
+    });
+  }
+
+  (slides || []).forEach((slide, i) => {
+    const where = `slide ${slide.slide_number ?? i + 1}`;
+    const isSection = slide.slide_type === 'section_header';
+
+    const titleBudget = isSection ? BUDGETS.BREAKING_HEADLINE : BUDGETS.CONTENT_TITLE;
+    if (len(slide.title) > titleBudget) {
+      rejections.push({
+        rule: 'LEN-2', field: `${where}.title`,
+        why: `${isSection ? 'section divider headline' : 'slide title'} must be ≤ ${titleBudget} characters on a single line (currently ${len(slide.title)})`,
+        text: String(slide.title).slice(0, 300),
+      });
+    }
+
+    const subBudget = isSection ? BUDGETS.BREAKING_SUBLINE : BUDGETS.PRE_HEADER;
+    if (len(slide.subtitle) > subBudget) {
+      rejections.push({
+        rule: 'LEN-4', field: `${where}.subtitle`,
+        why: `${isSection ? 'section divider subtitle' : 'slide subtitle (pre-header)'} must be ≤ ${subBudget} characters on one line (currently ${len(slide.subtitle)})`,
+        text: String(slide.subtitle).slice(0, 300),
+      });
+    }
+
+    if (isSection) return;
+
+    // Body budget depends on layout: slides carrying packshots use the
+    // narrower text column beside the image slots.
+    const bodyParts = [
+      slide.market_signal, slide.why_it_may_matter,
+      ...(slide.formulation_questions || []),
+      ...(slide.conversation_openers || []),
+      ...(slide.gnpd_examples || []),
+      ...((slide.supporting_data || []).map(d => `${d.stat || ''} ${d.source || ''}`)),
+      ...((slide.customer_pains || []).map(p => p.pain || p)),
+    ];
+    const total = bodyParts.reduce((n, t) => n + len(t), 0);
+    const bodyBudget = (slide.gnpd_examples || []).length > 0 ? BUDGETS.BODY_BESIDE_IMAGES : BUDGETS.BODY_FULL;
+    if (total > bodyBudget) {
+      rejections.push({
+        rule: 'LEN-3', field: `${where}.body`,
+        why: `total body content must be ≤ ${bodyBudget} characters for this layout (currently ${total}) — shorten the content or split the trend across two slides`,
+        text: `(${total} chars across ${bodyParts.length} body elements)`,
+      });
+    }
+  });
+
+  return rejections;
+}
+
 const TEXT_FIELDS = ['title', 'subtitle', 'market_signal', 'why_it_may_matter'];
 const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_examples'];
 
 // Validates a whole deck. Returns { ok, rejections[], flags[] }.
-export function validateSlides(slides, briefCategory) {
-  const rejections = [];
+export function validateSlides(slides, briefCategory, reportTitle = null) {
+  const rejections = [...budgetRejections(slides, reportTitle)];
   const flags = [];
 
   (slides || []).forEach((slide, i) => {

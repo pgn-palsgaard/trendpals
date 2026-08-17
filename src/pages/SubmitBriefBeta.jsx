@@ -217,17 +217,30 @@ export default function SubmitBriefBeta() {
   async function requestRewrite(rejections) {
     const log = rejections.slice(0, 10).map(r => `- [${r.rule}] ${r.field}: ${r.why} → "${r.text}"`).join('\n');
     const transcript = messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
-      + `\n\nUser: The deck was rejected by evidence-integrity validation. Rewrite the offending strings and re-emit the COMPLETE deck in a <slides> block. Change nothing else.\n${log}`;
+      + `\n\nUser: The deck was rejected by evidence-integrity validation. Rewrite the offending strings and re-emit the COMPLETE deck in a <slides> block. LEN-* rejections are hard character budgets — shorten to within the stated limit, never truncate mid-word. If report.title was rejected (LEN-1), also re-emit the <contract> block with a report_title of at most 47 characters. Change nothing else.\n${log}`;
     try {
       const reply = await base44.integrations.Core.InvokeLLM({
         prompt: buildArchitectPrompt(transcript, buildEvidenceContext(evidence)),
         model: 'claude_sonnet_4_6',
       });
       const raw = typeof reply === 'string' ? reply : (reply?.content || '');
+      let newSlides = null;
       const m = raw.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
-      if (!m) return null;
-      const parsed = JSON.parse(m[1].trim());
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : null;
+      if (m) {
+        try {
+          const parsed = JSON.parse(m[1].trim());
+          if (Array.isArray(parsed) && parsed.length > 0) newSlides = parsed;
+        } catch { /* keep null */ }
+      }
+      // A LEN-1 rejection is fixed in the contract (report_title), not in the
+      // slides — capture a re-emitted contract so the shortened title applies.
+      let newContract = null;
+      const cm = raw.match(/<contract>\s*([\s\S]*?)\s*<\/contract>/);
+      if (cm) {
+        try { newContract = JSON.parse(cm[1].trim()); } catch { /* ignore */ }
+      }
+      if (!newSlides && !newContract) return null;
+      return { slides: newSlides, contract: newContract };
     } catch {
       return null;
     }
@@ -261,8 +274,11 @@ export default function SubmitBriefBeta() {
       // Phase 7 — every rejection is recorded with its rule id and the verbatim
       // string, in both passes, so a blocked save is auditable afterwards.
       const now = new Date().toISOString();
+      // [BETA] no longer lives in the title — it renders as a pre-header on the
+      // exported deck instead, so the 47-char front-page budget (LEN-1) stays intact.
+      let title = String(contract.report_title || contract.core_hypothesis || contract.objective || 'Architect draft').slice(0, 120);
       let deck = slides;
-      let verdict = validateSlides(deck, category);
+      let verdict = validateSlides(deck, category, title);
       const logEntries = verdict.rejections.map(r => ({
         rule: r.rule, field: r.field, why: r.why, text: r.text, phase: 'first_pass', timestamp: now,
       }));
@@ -271,9 +287,15 @@ export default function SubmitBriefBeta() {
         rewriteAttempted.current = true;
         const rewritten = await requestRewrite(verdict.rejections);
         if (rewritten) {
-          deck = rewritten;
-          setSlides(rewritten);
-          verdict = validateSlides(deck, category);
+          if (rewritten.slides) {
+            deck = rewritten.slides;
+            setSlides(rewritten.slides);
+          }
+          if (rewritten.contract?.report_title) {
+            title = String(rewritten.contract.report_title).slice(0, 120);
+            setContract(prev => ({ ...prev, report_title: rewritten.contract.report_title }));
+          }
+          verdict = validateSlides(deck, category, title);
           rewriteSucceeded = verdict.ok;
           logEntries.push(...verdict.rejections.map(r => ({
             rule: r.rule, field: r.field, why: r.why, text: r.text,
@@ -303,8 +325,6 @@ export default function SubmitBriefBeta() {
         setSaving(false);
         return;
       }
-      const title = `[BETA] ${contract.core_hypothesis || contract.objective || 'Architect draft'}`.slice(0, 120);
-
       // The trends the architect worked from carry the market-intel sources behind
       // the deck — attach them to the project so the evidence chain stays traceable.
       const usedTrends = (evidence?.trends || []).filter(t => cats.includes(t.category));
