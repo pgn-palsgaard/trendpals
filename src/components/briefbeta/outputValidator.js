@@ -100,6 +100,34 @@ export function validateCitation(citation, briefCategory) {
   return { ok: true, flags: [...flags, ...plausibilityFlags(stat)] };
 }
 
+// Phase 6 — the publisher and scope rules also apply to PROSE, not just to the
+// supporting_data citation list. A competitor named inside market_signal is as
+// customer-facing as one named in a citation, and an unlabelled US figure in
+// prose misrepresents the region just as badly.
+export function validateNarrative(text, field, briefCategory) {
+  const s = String(text || '');
+  if (!s.trim()) return { ok: true, flags: [] };
+
+  const hit = SUPPRESSED_PUBLISHERS.find(p => new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s));
+  if (hit) return { ok: false, rule: 'PUB-1', why: `${hit} is competitor / ingredient-supplier content — never named as evidence in report prose`, field, text: s.slice(0, 300), flags: [] };
+
+  const flags = [];
+  const vendor = LABEL_REQUIRED_PUBLISHERS.find(p => new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(s));
+  if (vendor && !SCOPE_LABEL.test(s)) {
+    flags.push({ rule: 'PUB-2', field, why: `${vendor} is cited in prose without an inline scope label`, text: s.slice(0, 200) });
+  }
+  if (NON_REGIONAL_GEO.test(s) && !SCOPE_LABEL.test(s)) {
+    flags.push({ rule: 'PUB-4', field, why: 'prose carries a geography outside the brief region without a "(Note: source data is …)" label', text: s.slice(0, 200) });
+  }
+  // Cross-category mentions are legitimate context, so PUB-3 only flags prose —
+  // it rejects only in the citation layer, where the claim's support is at stake.
+  const catHit = (OTHER_CATEGORY_TERMS[briefCategory] || []).find(t => new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(s));
+  if (catHit) {
+    flags.push({ rule: 'PUB-3', field, why: `prose leans on ${catHit}, outside the ${briefCategory} brief — confirm it is framed as read-across, not as ${briefCategory} evidence`, text: s.slice(0, 200) });
+  }
+  return { ok: true, flags };
+}
+
 // LEN-* rules — calibrated character budgets from contentBudgets.js.
 // Overflow is a build failure, not a formatting choice: the template never
 // autofits, so an over-budget string renders clipped or collides.
@@ -174,15 +202,16 @@ export function validateSlides(slides, briefCategory, reportTitle = null) {
 
   (slides || []).forEach((slide, i) => {
     const where = `slide ${slide.slide_number ?? i + 1}`;
-    for (const f of TEXT_FIELDS) {
-      const r = validateText(slide[f], `${where}.${f}`);
-      if (!r.ok) rejections.push(r); else flags.push(...r.flags.map(x => ({ ...x, field: `${where}.${f}` })));
-    }
+    const checkProse = (value, path) => {
+      const r = validateText(value, path);
+      if (!r.ok) { rejections.push(r); return; }
+      flags.push(...r.flags.map(x => ({ ...x, field: path })));
+      const n = validateNarrative(value, path, briefCategory);
+      if (!n.ok) rejections.push(n); else flags.push(...n.flags);
+    };
+    for (const f of TEXT_FIELDS) checkProse(slide[f], `${where}.${f}`);
     for (const f of ARRAY_FIELDS) {
-      (slide[f] || []).forEach((v, j) => {
-        const r = validateText(v, `${where}.${f}[${j}]`);
-        if (!r.ok) rejections.push(r); else flags.push(...r.flags.map(x => ({ ...x, field: `${where}.${f}[${j}]` })));
-      });
+      (slide[f] || []).forEach((v, j) => checkProse(v, `${where}.${f}[${j}]`));
     }
     (slide.supporting_data || []).forEach((c, j) => {
       const t = validateText(c.stat, `${where}.supporting_data[${j}].stat`);
