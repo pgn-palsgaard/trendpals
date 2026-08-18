@@ -80,6 +80,7 @@ The PowerPoint template never shrinks text to fit. Write inside these limits:
 - Slide subtitle: max 172 characters, one line.
 - Total body content per slide (signal + implication + questions + data + examples + openers): max 2,629 characters when the slide carries product examples, 3,019 otherwise.
 If a trend needs more room, split it across two slides rather than exceeding a budget.
+To stay inside the body budget, cap every content slide at: market_signal 2 sentences, why_it_may_matter 2 sentences, 2-3 formulation questions, max 2 supporting_data entries, max 4 gnpd_examples (each one line, max ~140 characters), 1 conversation opener. Count the characters before you emit — the budget covers ALL of these combined. Section divider subtitles must be ~6 words.
 
 PHASE 2 — BUILD THE DECK:
 When all contract fields are filled (or skipped where permitted) AND the user asks you to build (e.g. "byg", "build it", "go ahead"), respond with a short confirmation sentence and then emit the full deck as:
@@ -89,7 +90,7 @@ When all contract fields are filled (or skipped where permitted) AND the user as
 Deck structure:
 - Slide 1 = opening slide framing the core hypothesis (the red thread across ALL categories).
 - Then, for EACH category in order: first a section divider slide — {"slide_type": "section_header", "category": "<key>", "title": "<Category display name>", "subtitle": "one line on this section's angle"} — followed by that category's trend slides (one industry trend per slide, GNPD evidence only from that category).
-- Any trend marked below as SIGNAL ONLY must be placed after the fully evidenced trends, under its own section divider titled exactly "Signal — not yet evidenced at regional level", and its slide must state the record count inline (e.g. "2 regional launches on record").
+- Any trend marked below as SIGNAL ONLY must be placed after the fully evidenced trends, under its own section divider titled exactly "Signal — not yet regionally evidenced" (this fits the 38-character divider budget; never lengthen it), and its slide must state the record count inline (e.g. "2 regional launches on record").
 - Last slide = cross-category summary/outlook.
 - With a single category, still use this structure but without section dividers.
 Do NOT include a disclaimer slide or a methodology slide — the system adds both automatically.
