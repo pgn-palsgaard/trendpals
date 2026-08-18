@@ -153,8 +153,25 @@ export default function SubmitBriefBeta() {
         .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
         .join('\n\n');
 
+      // The architect may NEVER build from an empty evidence block — without it it
+      // invents trend names and emits slides with no GNPD examples. If the contract
+      // already names categories + region, the gates are resolved (and awaited) here
+      // before the prompt is sent, and a failed retrieval stops the turn loudly.
+      let ev = evidence;
+      if (!ev && contract.categories && contract.region) {
+        ev = await loadEvidenceFor(contract.categories, contract.region, contract.sub_categories);
+        if (!ev) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'I cannot build without verified evidence — the region/format gates returned nothing usable. See the note on the right, then adjust the region or formats and ask me to build again.',
+          }]);
+          setLoading(false);
+          return;
+        }
+      }
+
       const reply = await base44.integrations.Core.InvokeLLM({
-        prompt: buildArchitectPrompt(transcript, buildEvidenceContext(evidence)),
+        prompt: buildArchitectPrompt(transcript, buildEvidenceContext(ev)),
         model: 'claude_sonnet_4_6',
       });
       const rawText = typeof reply === 'string' ? reply : (reply?.content || '');

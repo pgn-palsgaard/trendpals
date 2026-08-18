@@ -102,6 +102,8 @@ EVIDENCE GROUNDING (absolute — a deck that breaks these is unusable):
 - gnpd_examples may ONLY contain products listed under that same trend, and each entry MUST begin with the product's exact GNPD Record ID followed by " | ". Never invent, rename or reuse a product from another trend. Every listed product has already passed the region and category gates — the list is complete and you may not add to it.
 - supporting_data entries must be traceable to a source listed under that trend (use its publisher or title as "source"). If a trend has no sources listed, leave supporting_data empty rather than inventing a statistic.
 - If a trend has no products listed, write the slide without product examples.
+- If a trend DOES have products listed, its slide MUST carry gnpd_examples — at least 3 for a FULL trend and every listed product for a SIGNAL ONLY trend. A slide built on a trend with available products but no gnpd_examples is unusable.
+- If no "VERIFIED TRENDS" block appears below, you have no evidence: do NOT emit a <slides> block under any circumstances. Say that evidence has not been retrieved yet and keep working on the contract instead.
 ${evidenceContext ? `\n--- VERIFIED TRENDS WITH THEIR SOURCES AND GATED GNPD EVIDENCE ---\n${evidenceContext}\n` : ''}
 Respond in the user's language for conversation text. Slide content is always in English.
 
