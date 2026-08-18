@@ -365,6 +365,13 @@ export default async function (req) {
           trend_id: t.id,
           trend_name: t.trend_name,
           category: t.category,
+          // Observability is honesty about the evidence BASIS, not about strength.
+          // A non-observable trend (e.g. cost reformulation — nobody labels a product
+          // 'value engineered') can be real and well-sourced while being invisible in
+          // product data, so its evidence is narrative and must be labelled as such
+          // rather than presented as observed launches.
+          product_observable: t.product_observable === true,
+          evidence_basis: t.product_observable === true ? 'observed' : 'narrative',
           market_signal: t.market_signal || t.description || '',
           mega_trend: t.mega_trend || '',
           trend_keywords: keywords.slice(0, 10),

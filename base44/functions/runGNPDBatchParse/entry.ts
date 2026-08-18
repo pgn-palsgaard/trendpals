@@ -615,7 +615,14 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
         trend_links: links,
         rejected_link_candidates: rejectedCandidates,
         linked_trend_ids: linkedTrendIds,
-        linked_mega_trend_ids: linkedMegaTrendIds,
+        // MEGA-LINK FREEZE (write-side guard). Mega-links are not written by imports
+        // while the separate mega-trend rebuild is pending — the existing mega-links
+        // carry the same cross-category defect as the global-trend links, so adding
+        // more would deepen a set that has to be rebuilt anyway.
+        // Same freeze in parseGNPDToDatabase/entry.ts — lift both together.
+        // EXPIRY CONDITION: restore `linkedMegaTrendIds` here once the mega-trend
+        // rebuild has shipped and mega-links pass a category gate of their own.
+        linked_mega_trend_ids: [],
         support_label: supportLabel,
         processing_status: (skipTrendLinking || links.some(l => l.review_status === 'pending')) ? 'trend_linking_pending' : 'trend_linked',
         ...(unparsedDate ? { processing_error: `Unparsable launch_date: "${unparsedDate}"` } : {}),

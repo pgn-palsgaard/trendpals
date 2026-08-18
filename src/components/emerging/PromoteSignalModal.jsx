@@ -23,6 +23,11 @@ export default function PromoteSignalModal({ cluster, onClose, onPromoted }) {
     market_signal: cluster.theme_description || '',
     trend_keywords: seededKeywords.join(', '),
     description: cluster.theme_description || '',
+    // Creation guard — deliberately starts unset. A trend created without this flag
+    // would be structurally invisible to the trend-link drain (which treats null as
+    // false) until someone remembered to set it, so the null default has to be a
+    // gate at creation, not a trap discovered later.
+    product_observable: null,
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -31,6 +36,10 @@ export default function PromoteSignalModal({ cluster, onClose, onPromoted }) {
 
   const handleSubmit = async () => {
     if (!form.trend_name.trim()) { setError('Trend name is required.'); return; }
+    if (form.product_observable === null) {
+      setError('Choose whether this trend is observable in GNPD product data. A trend cannot be activated without it — the drain skips unmarked trends.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -52,6 +61,7 @@ export default function PromoteSignalModal({ cluster, onClose, onPromoted }) {
         sources,
         regional_manifestations,
         confidence: 'medium',
+        product_observable: form.product_observable,
         is_active: true,
       });
 
@@ -108,6 +118,25 @@ export default function PromoteSignalModal({ cluster, onClose, onPromoted }) {
           <div>
             <label className="text-xs font-medium text-muted-foreground mb-1 block">Trend keywords (comma-separated)</label>
             <Input value={form.trend_keywords} onChange={e => set('trend_keywords', e.target.value)} />
+          </div>
+
+          <div className="rounded-lg border border-border bg-muted/40 p-3">
+            <label className="text-xs font-medium text-foreground mb-1 block">Observable in GNPD product data?</label>
+            <p className="text-xs text-muted-foreground mb-2">
+              Required. Some trends are real but invisible on packaging — nobody labels a product "value engineered". Unobservable trends are skipped by the trend-link drain and carried as narrative evidence instead of being attempted and returning zero.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-start gap-2 text-xs text-foreground cursor-pointer">
+                <input type="radio" className="mt-0.5" checked={form.product_observable === true}
+                  onChange={() => set('product_observable', true)} />
+                <span><span className="font-medium">Yes</span> — products embodying this trend are identifiable from names, descriptions or claims.</span>
+              </label>
+              <label className="flex items-start gap-2 text-xs text-foreground cursor-pointer">
+                <input type="radio" className="mt-0.5" checked={form.product_observable === false}
+                  onChange={() => set('product_observable', false)} />
+                <span><span className="font-medium">No</span> — narrative trend only; not visible in product data.</span>
+              </label>
+            </div>
           </div>
 
           {cluster.gnpd_product_ids?.length > 0 && (

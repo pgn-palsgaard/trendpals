@@ -8,9 +8,16 @@ import Anthropic from 'npm:@anthropic-ai/sdk@0.27.3';
 //   SUPPORTS <70 / PARTIAL → stays pending WITH the LLM's reasoning
 //   NOT_SUPPORT   → auto-rejected into rejected_link_candidates (never reaches the queue)
 
+// CROSS-REFERENCE — this SYSTEM_PROMPT is duplicated in
+// base44/functions/validateTrendLink/entry.ts (backend functions cannot import from
+// lib/). The CATEGORY CONSTRAINT block below must be kept identical in both files.
 const SYSTEM_PROMPT = `You are validating whether a GNPD product launch is genuine evidence of a market trend, or whether the keyword overlap is incidental.
 
 A product GENUINELY EXPRESSES a trend when the product's positioning, formulation, or claims actively embody what the trend describes — not merely when the same words happen to appear.
+
+HARD RULE — CATEGORY CONSTRAINT:
+The product's category and the trend's category must be the same category. A product from one category is NEVER evidence for a trend belonging to another category, however strong the wording overlap is. A biscuit is not evidence of an ice cream trend; a chocolate bar is not evidence of a dairy trend. If the two categories shown below differ, the verdict is NOT_SUPPORT with a score of 0 — no exceptions, no partial credit.
+(The pipeline gates on category BEFORE calling you, so a category mismatch reaching you is a defect: say so in your reasoning.)
 
 HARD RULE — ingredient presence is NEVER positioning evidence:
 The mere presence of an ingredient does not qualify a product for a positioning trend (plant-based, clean label, premium, free-from, health, sustainability, etc.).
@@ -229,11 +236,17 @@ Deno.serve(async (req) => {
     }
 
     // ── Snapshot product IDs needing triage (stable against status mutations) ─
+    // Phase 6 — the drain is run ONE CATEGORY AT A TIME (body.category, e.g. 'bakery').
+    // A category's drain must not begin until its trends are individually marked
+    // product_observable, so scoping is explicit rather than a whole-database sweep.
+    const scopeCategory = body.category ? String(body.category).trim() : null;
+    const scanQuery = { processing_status: 'trend_linking_pending' };
+    if (scopeCategory) scanQuery.palsgaard_category = scopeCategory;
     const pendingIds = [];
     let scanSkip = 0;
     while (true) {
       const scanBatch = await base44.asServiceRole.entities.GNPDProduct.filter(
-        { processing_status: 'trend_linking_pending' }, 'created_date', 100, scanSkip
+        scanQuery, 'created_date', 100, scanSkip
       );
       if (scanBatch.length === 0) break;
       for (const p of scanBatch) {
@@ -294,6 +307,12 @@ Deno.serve(async (req) => {
     let linksRejected    = existingSummary.links_rejected || 0;
     let linksKeptPending = existingSummary.links_kept_pending || 0;
     let linksErrors      = existingSummary.errors || 0;
+    // Phase 2 / Phase 6 gate counters — reported per batch so a zero-link outcome can
+    // always be attributed to a named gate instead of looking like emptiness.
+    let candidatesGenerated       = existingSummary.candidates_generated || 0;
+    let rejectedByCategoryGate    = existingSummary.rejected_by_category_gate || 0;
+    let skippedNonObservable      = existingSummary.skipped_non_observable || 0;
+    let skippedUnresolvedCategory = existingSummary.skipped_unresolved_category || 0;
     const perTrend       = existingSummary.per_trend || {};
     let processedItems   = job.processed_items || 0;
     let lastCursor       = null;
@@ -306,31 +325,72 @@ Deno.serve(async (req) => {
         links_rejected: linksRejected,
         links_kept_pending: linksKeptPending,
         errors: linksErrors,
+        candidates_generated: candidatesGenerated,
+        rejected_by_category_gate: rejectedByCategoryGate,
+        skipped_non_observable: skippedNonObservable,
+        skipped_unresolved_category: skippedUnresolvedCategory,
         per_trend: perTrend,
       };
     }
 
     // ── Candidate generation for products with no links yet ──────────────────
-    // Two paths into candidacy: (1) ≥2 trend-keyword matches in the product text,
-    // (2) the product matches a Mintel analyst-cited ExpertExample for the trend
-    // (same brand + shared product-name token, or brand + ≥1 keyword). All
-    // candidates then go through the same grounded LLM validation below.
+    // Two paths into candidacy: (1) ≥1 trend-keyword match in the product's
+    // POSITIONING text, (2) the product matches a Mintel analyst-cited ExpertExample
+    // for the trend (same brand + shared product-name token, or brand + ≥1 keyword).
+    // All candidates then go through the same grounded LLM validation below.
+    //
+    // MATCHER TEXT (defined here only — cross-reference for anyone changing it):
+    // product_name + product_description + claims. ingredients and flavours are
+    // DELIBERATELY EXCLUDED — ingredient presence is not positioning (the same HARD
+    // RULE the validator enforces), and including them manufactured false positives
+    // such as 'protein' picked up from an ingredient declaration.
+    // THRESHOLD: ≥1 hit in those positioning fields. It was ≥2 across all fields,
+    // which is why obvious embodiments ('Whole Wheat Sourdough Bread' vs 'Sourdough
+    // as functional platform') generated zero candidates — the diagnosed emptiness root.
     const nameTokens = (s) => String(s || '').toLowerCase().split(/[^a-z0-9]+/).filter(w => w.length > 4);
+    // A product whose Palsgaard category cannot be resolved cannot be category-gated,
+    // so it generates nothing and is logged (fail-closed, never widened).
+    const UNRESOLVED_CATEGORIES = ['out_of_scope', 'needs_human_review'];
 
     async function generateCandidates(product) {
-      const text = [product.product_name, product.product_description, product.ingredients,
-        Array.isArray(product.claims) ? product.claims.join(' ') : product.claims,
-        Array.isArray(product.flavours) ? product.flavours.join(' ') : product.flavours
+      const productCategory = String(product.palsgaard_category || '').trim();
+      if (!productCategory || UNRESOLVED_CATEGORIES.includes(productCategory)) {
+        skippedUnresolvedCategory++;
+        console.log(`[gate] ${product.gnpd_record_id}: zero candidates — palsgaard_category unresolved (${productCategory || 'null'})`);
+        return [];
+      }
+      const text = [product.product_name, product.product_description,
+        Array.isArray(product.claims) ? product.claims.join(' ') : product.claims
       ].filter(Boolean).join(' ').toLowerCase();
       const brand = String(product.brand || '').toLowerCase().trim();
       const pTokens = new Set(nameTokens(product.product_name));
       const now = new Date().toISOString();
       const candidates = [];
       for (const t of globalTrends) {
+        const trendCategory = String(t.category || '').trim();
+        // ── Gate 1 — CATEGORY. Applied before candidacy: a cross-category pair never
+        // becomes a candidate and never reaches the validator. This is the
+        // contamination root (63 cross-category links, confidence 72-88).
+        if (trendCategory !== productCategory) {
+          // Keywords computed for the audit line only — no candidacy follows.
+          const gateKws = (t.trend_keywords || []).map(k => String(k).toLowerCase());
+          const gateMatched = gateKws.filter(kw => kw.length > 3 && text.includes(kw));
+          rejectedByCategoryGate++;
+          console.log(`[gate] category reject — product ${product.gnpd_record_id} (${productCategory}) vs trend "${t.trend_name}" (${trendCategory}); matched_keywords: ${gateMatched.join(', ') || 'none'}`);
+          continue;
+        }
+        // ── Gate 2 — PRODUCT OBSERVABILITY. null and false BOTH skip: an unmarked
+        // trend is an unfinished curation, so it is skipped and logged rather than
+        // attempted and silently producing zero links.
+        if (t.product_observable !== true) {
+          skippedNonObservable++;
+          console.log(`[gate] skipped_non_observable — trend "${t.trend_name}" (${trendCategory}) product_observable=${t.product_observable === false ? 'false' : 'null'}`);
+          continue;
+        }
         const kws = (t.trend_keywords || []).map(k => String(k).toLowerCase());
         const matched = kws.filter(kw => kw.length > 3 && text.includes(kw));
         let expertMatch = false;
-        if (matched.length < 2) {
+        if (matched.length < 1) {
           const examples = await getExpertExamples(t.id);
           expertMatch = examples.some(ex => {
             const exBrand = String(ex.brand || '').toLowerCase().trim();
@@ -339,7 +399,8 @@ Deno.serve(async (req) => {
             return matched.length >= 1 || nameTokens(ex.product_name).some(tok => pTokens.has(tok));
           });
         }
-        if (matched.length >= 2 || expertMatch) {
+        if (matched.length >= 1 || expertMatch) {
+          candidatesGenerated++;
           candidates.push({
             trend_id: t.id, trend_name: t.trend_name, trend_type: 'global',
             confidence: 'low', confidence_score: 0,
@@ -518,7 +579,13 @@ Deno.serve(async (req) => {
     return Response.json({
       job_id: job.id,
       status: timedOut ? 'paused_timeout' : 'completed',
+      scope_category: scopeCategory,
+      products_claimed: pendingIds.length,
       products_processed: processedItems,
+      candidates_generated: candidatesGenerated,
+      rejected_by_category_gate: rejectedByCategoryGate,
+      skipped_non_observable: skippedNonObservable,
+      skipped_unresolved_category: skippedUnresolvedCategory,
       links_revalidated: linksRevalidated,
       links_promoted_to_auto_applied: linksUpgraded,
       links_kept_for_review: linksKeptPending,

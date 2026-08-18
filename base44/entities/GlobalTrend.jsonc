@@ -30,6 +30,11 @@
       "type": "string",
       "description": "Pre-migration category value preserved for audit. Set during Phase 3 data migration."
     },
+    "product_observable": {
+      "type": "boolean",
+      "description": "Whether this trend can be OBSERVED in GNPD product data at all. NULLABLE BY DESIGN \u2014 there is no blanket default, because assuming either value for an uncurated trend is a silent decision. The trend-link drain (revalidatePendingTrendLinks generateCandidates) treats null the same as false: the trend is SKIPPED and logged as skipped_non_observable, never attempted-and-failed. Example of false: 'Permanent bakery cost reformulation' \u2014 manufacturers do not label products 'value engineered', so the trend is real but invisible to GNPD; attempting it only reproduces emptiness. Creation guard: any GlobalTrend creation path (incl. the EmergingSignals promotion flow) must set this explicitly before save, and is_active cannot be true while this is null \u2014 otherwise the null default becomes a trap (trend structurally invisible to the drain until someone remembers) rather than a gate. Downstream, getArchitectEvidence and report generation mark non-observable trends as narrative evidence rather than observed evidence. A category's drain cannot begin until its trends are individually marked; an unmarked trend is an unfinished curation, not a build blocker.",
+      "default": null
+    },
     "mega_trend": {
       "type": "string",
       "description": "Display label of the driver this trend belongs to. Matches MegaTrend.mega_trend_name."

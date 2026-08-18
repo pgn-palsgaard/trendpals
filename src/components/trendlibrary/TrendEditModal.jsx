@@ -43,11 +43,20 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
     description: trend.description || '',
     sources: trend.sources || [],
     is_active: trend.is_active || false,
+    // Nullable by design — see GlobalTrend.product_observable. The trend-link drain
+    // treats null as false (skips the trend), so activation requires an explicit answer.
+    product_observable: typeof trend.product_observable === 'boolean' ? trend.product_observable : null,
   });
+  const [error, setError] = useState(null);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
 
   const handleSave = () => {
+    if (form.is_active && form.product_observable === null) {
+      setError('An active trend must state whether it is observable in GNPD product data. Unmarked trends are skipped by the trend-link drain.');
+      return;
+    }
+    setError(null);
     const payload = {
       ...form,
       whats_changing: form.whats_changing.split('\n').map(s => s.trim()).filter(Boolean),
@@ -136,6 +145,28 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
             </select>
           </div>
 
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <label className="text-xs font-medium text-slate-700 mb-1 block">Observable in GNPD product data?</label>
+            <p className="text-xs text-slate-500 mb-2">
+              Required before a trend can be Active. Some trends are real but invisible on packaging — nobody labels a product "value engineered". Unobservable trends are skipped by the trend-link drain and carried as narrative evidence instead of returning zero links.
+            </p>
+            <div className="flex flex-col gap-1.5">
+              <label className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer">
+                <input type="radio" className="mt-0.5" checked={form.product_observable === true}
+                  onChange={() => set('product_observable', true)} />
+                <span><span className="font-medium">Yes</span> — identifiable from product names, descriptions or claims.</span>
+              </label>
+              <label className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer">
+                <input type="radio" className="mt-0.5" checked={form.product_observable === false}
+                  onChange={() => set('product_observable', false)} />
+                <span><span className="font-medium">No</span> — narrative trend only; not visible in product data.</span>
+              </label>
+            </div>
+            {form.product_observable === null && (
+              <p className="text-xs text-amber-700 mt-2">Not set — this trend is currently skipped by the drain.</p>
+            )}
+          </div>
+
           <TrendSourcesEditor
             sources={form.sources}
             onChange={v => set('sources', v)}
@@ -162,6 +193,7 @@ export default function TrendEditModal({ trend, onSave, onClose, saving }) {
           </div>
         </div>
 
+        {error && <p className="px-5 pb-2 text-xs text-red-600">{error}</p>}
         <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
           <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving}>

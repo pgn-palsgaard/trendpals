@@ -1,9 +1,17 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import Anthropic from 'npm:@anthropic-ai/sdk@0.27.3';
 
+// CROSS-REFERENCE — this SYSTEM_PROMPT is duplicated in
+// base44/functions/revalidatePendingTrendLinks/entry.ts (backend functions cannot
+// import from lib/). The CATEGORY CONSTRAINT block below must be kept identical in
+// both files.
 const SYSTEM_PROMPT = `You are validating whether a GNPD product launch is genuine evidence of a market trend, or whether the keyword overlap is incidental.
 
 A product GENUINELY EXPRESSES a trend when the product's positioning, formulation, or claims actively embody what the trend describes — not merely when the same words happen to appear.
+
+HARD RULE — CATEGORY CONSTRAINT:
+The product's category and the trend's category must be the same category. A product from one category is NEVER evidence for a trend belonging to another category, however strong the wording overlap is. A biscuit is not evidence of an ice cream trend; a chocolate bar is not evidence of a dairy trend. If the two categories shown below differ, the verdict is NOT_SUPPORT with a score of 0 — no exceptions, no partial credit.
+(The pipeline gates on category BEFORE calling you, so a category mismatch reaching you is a defect: say so in your reasoning.)
 
 HARD RULE — ingredient presence is NEVER positioning evidence:
 The mere presence of an ingredient does not qualify a product for a positioning trend (plant-based, clean label, premium, free-from, health, sustainability, etc.).

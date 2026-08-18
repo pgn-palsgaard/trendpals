@@ -341,7 +341,14 @@ Deno.serve(async (req) => {
             : hasPalsgaardRelevance ? 'Trend-linked product' : null,
           trend_links: links,
           linked_trend_ids: linkedTrendIds,
-          linked_mega_trend_ids: linkedMegaTrendIds,
+          // MEGA-LINK FREEZE (write-side guard). Mega-links are not written by imports
+          // while the separate mega-trend rebuild is pending — the existing mega-links
+          // carry the same cross-category defect as the global-trend links, so adding
+          // more would deepen a set that has to be rebuilt anyway.
+          // Same freeze in runGNPDBatchParse/entry.ts — lift both together.
+          // EXPIRY CONDITION: restore `linkedMegaTrendIds` here once the mega-trend
+          // rebuild has shipped and mega-links pass a category gate of their own.
+          linked_mega_trend_ids: [],
           support_label: supportLabel,
           processing_status: links.some(l => l.review_status === 'pending') ? 'trend_linking_pending' : 'trend_linked',
           ...(unparsedDate ? { processing_error: `Unparsable launch_date: "${unparsedDate}"` } : {}),
