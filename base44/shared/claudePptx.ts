@@ -20,8 +20,8 @@ export function anthropicHeaders(extra = {}) {
 
 // Resolves GNPD pack shots for the deck and uploads them to Anthropic's Files
 // API so they are reachable inside the (internet-less) code-execution container.
-export async function uploadPackshotImages(base44, report) {
-  const resolved = (await resolveDeckProducts(base44, report, 15)).filter(r => r.image_url);
+export async function uploadPackshotImages(base44, report, limit = 15) {
+  const resolved = (await resolveDeckProducts(base44, report, limit)).filter(r => r.image_url);
 
   const uploads = [];
   for (const r of resolved) {
