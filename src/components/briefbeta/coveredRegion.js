@@ -8,6 +8,8 @@ const HEADER_LABELS = {
   turkey: 'Turkey',
   cis: 'CIS countries',
   aspac: 'ASPAC',
+  latam: 'Latin America',
+  north_america: 'North America',
   americas: 'Americas',
   imea: 'IMEA',
   named_countries: 'Selected markets',

@@ -30,7 +30,7 @@ const OPENER = {
 // than the brief's actual country scope. The authoritative scope is the resolved
 // country allow-list, recorded verbatim on the methodology slide and in
 // Report.evidence_gate — this code is a display label only, never a filter.
-const GROUP_TO_CODE = { europe: 'EMEC', turkey: 'EMEC', cis: 'EMEC', aspac: 'ASPAC', americas: 'AMERICAS', imea: 'IMEA' };
+const GROUP_TO_CODE = { europe: 'EMEC', turkey: 'EMEC', cis: 'EMEC', aspac: 'ASPAC', latam: 'AMERICAS', north_america: 'AMERICAS', americas: 'AMERICAS', imea: 'IMEA' };
 
 // Phase 5 — a mixed scope resolves to NULL, never 'Global'. 'Global' reads as
 // worldwide coverage, which is the opposite of what a two-region brief has.

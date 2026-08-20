@@ -1,9 +1,9 @@
 // Region resolution for the beta Report Architect.
 //
-// DUPLICATED BY DESIGN — the same country groups and resolver logic are inlined in
-// base44/functions/getArchitectEvidence/entry.ts (backend functions cannot import
-// from src/). If you change a country group or a region term here, change it there
-// too. Same duplication pattern as EMULSIFIER_TERMS.
+// DUPLICATED BY DESIGN — the backend copy of the same country groups and resolver
+// logic lives in base44/shared/regionTaxonomy.ts (frontend must not import backend
+// modules, backend cannot import from src/). If you change a country group or a
+// region term here, change it there too. Same duplication pattern as EMULSIFIER_TERMS.
 //
 // Country strings are spelled EXACTLY as they appear in GNPDProduct.country
 // (verified against the live data, 76 distinct bakery countries).
@@ -30,6 +30,13 @@ export const COUNTRY_GROUPS = {
     'Hong Kong, China', 'New Zealand', 'Sri Lanka', 'Bangladesh', 'Myanmar',
     'Cambodia', 'Laos', 'Pakistan',
   ],
+  // Verbatim copies of LATAM_COUNTRIES / NORTH_AMERICA_COUNTRIES in
+  // base44/shared/regionTaxonomy.ts — two copies by design, change both together.
+  latam: [
+    'Mexico', 'Brazil', 'Argentina', 'Colombia', 'Chile', 'Peru', 'Ecuador',
+    'Puerto Rico', 'Venezuela', 'Guatemala', 'Panama', 'Costa Rica',
+  ],
+  north_america: ['USA', 'Canada'],
   americas: [
     'USA', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Chile', 'Colombia', 'Peru',
     'Ecuador', 'Guatemala', 'Costa Rica', 'Venezuela', 'Puerto Rico', 'Panama',
@@ -47,7 +54,11 @@ const REGION_TERMS = [
   { match: /\b(europe|european|eu|emea)\b/i, groups: ['europe'] },
   { match: /\bemec\b/i, groups: ['europe', 'turkey', 'cis'] },
   { match: /\b(aspac|apac|asia[- ]?pacific|asia)\b/i, groups: ['aspac'] },
-  { match: /\b(americas|america|latam|north america)\b/i, groups: ['americas'] },
+  // Sub-continent terms BEFORE the generic group term — 'South America' must
+  // never widen to the full americas group (USA/Canada leak, Phase 3 fix).
+  { match: /\b(south[ -]?america|latin[ -]?america|central[ -]?america|latam)\b/i, groups: ['latam'] },
+  { match: /\bnorth[ -]?america\b/i, groups: ['north_america'] },
+  { match: /\b(americas|america)\b/i, groups: ['americas'], suppressedBy: ['latam', 'north_america'] },
   { match: /\b(imea|middle east|africa|mena)\b/i, groups: ['imea'] },
 ];
 
@@ -70,7 +81,11 @@ export function resolveRegionScope(text) {
 
   const groups = [];
   for (const term of REGION_TERMS) {
-    if (term.match.test(raw)) for (const g of term.groups) if (!groups.includes(g)) groups.push(g);
+    if (!term.match.test(raw)) continue;
+    // The bare americas rule is suppressed when a more specific americas rule
+    // (latam / north_america) already fired earlier in the list.
+    if (term.suppressedBy && term.suppressedBy.some(g => groups.includes(g))) continue;
+    for (const g of term.groups) if (!groups.includes(g)) groups.push(g);
   }
 
   // Individually named countries, matched against the actual data spellings.

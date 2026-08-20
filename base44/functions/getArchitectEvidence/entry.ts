@@ -9,10 +9,11 @@
 //   4. Threshold     — >=3 records = full slide, 1-2 = "Signal", 0 = dropped.
 // Records failing a gate never enter the scored pool and are never returned.
 //
-// DUPLICATED BY DESIGN — COUNTRY_GROUPS / resolveRegionScope are mirrored in
-// src/components/briefbeta/regionScope.js (backend functions cannot import from
-// src/). Change both together.
+// Region taxonomy lives in ../../shared/regionTaxonomy.ts (single backend copy).
+// The frontend mirror is src/components/briefbeta/regionScope.js (backend
+// functions cannot import from src/). Change both together.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { resolveAllowList } from '../../shared/regionTaxonomy.ts';
 
 const RECENCY_MONTHS = 30;
 const PAGE = 500;
@@ -22,52 +23,14 @@ const TRENDS_EVALUATED = 8;
 // a pool that is quietly cut is the same defect as a region that is quietly widened.
 const SAFETY_CAP = 40000;
 
-const COUNTRY_GROUPS = {
-  europe: ['UK', 'Germany', 'France', 'Italy', 'Spain', 'Poland', 'Netherlands', 'Belgium', 'Denmark', 'Sweden', 'Norway', 'Finland', 'Ireland', 'Portugal', 'Austria', 'Switzerland', 'Greece', 'Czech Republic', 'Slovakia', 'Hungary', 'Romania', 'Bulgaria', 'Croatia', 'Slovenia', 'Serbia', 'Estonia', 'Latvia', 'Lithuania', 'Iceland', 'Luxembourg', 'Malta', 'Cyprus', 'Bosnia and Herzegovina', 'North Macedonia', 'Albania', 'Montenegro'],
-  turkey: ['Turkey'],
-  cis: ['Russia', 'Ukraine', 'Belarus', 'Kazakhstan', 'Uzbekistan', 'Azerbaijan', 'Armenia', 'Georgia', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan', 'Moldova'],
-  aspac: ['China', 'Japan', 'India', 'Indonesia', 'South Korea', 'Australia', 'Thailand', 'Vietnam', 'Malaysia', 'Philippines', 'Singapore', 'Taiwan, China', 'Hong Kong, China', 'New Zealand', 'Sri Lanka', 'Bangladesh', 'Myanmar', 'Cambodia', 'Laos', 'Pakistan'],
-  americas: ['USA', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Chile', 'Colombia', 'Peru', 'Ecuador', 'Guatemala', 'Costa Rica', 'Venezuela', 'Puerto Rico', 'Panama'],
-  imea: ['UAE', 'Saudi Arabia', 'Kuwait', 'Qatar', 'Oman', 'Jordan', 'Lebanon', 'Israel', 'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa'],
-};
-
 // WebSignal.region is a coarse 4-value commercial enum, so the brief's country
 // allow-list is collapsed to those codes purely to gate web signals. Never used for
 // product evidence — products are gated on country.
 const GROUP_TO_REGION_CODE = {
-  europe: 'EMEC', turkey: 'EMEC', cis: 'EMEC',
-  aspac: 'ASPAC', americas: 'AMERICAS', imea: 'IMEA', named_countries: 'Global',
+  europe: 'EMEC', turkey: 'EMEC', cis: 'EMEC', aspac: 'ASPAC',
+  latam: 'AMERICAS', north_america: 'AMERICAS', americas: 'AMERICAS',
+  imea: 'IMEA', named_countries: 'Global',
 };
-
-const REGION_TERMS = [
-  { match: /\b(cis|commonwealth of independent states)\b/i, groups: ['cis'] },
-  { match: /\b(turkey|türkiye|turkiye)\b/i, groups: ['turkey'] },
-  { match: /\b(europe|european|eu|emea)\b/i, groups: ['europe'] },
-  { match: /\bemec\b/i, groups: ['europe', 'turkey', 'cis'] },
-  { match: /\b(aspac|apac|asia[- ]?pacific|asia)\b/i, groups: ['aspac'] },
-  { match: /\b(americas|america|latam|north america)\b/i, groups: ['americas'] },
-  { match: /\b(imea|middle east|africa|mena)\b/i, groups: ['imea'] },
-];
-
-function resolveRegionScope(text) {
-  const raw = String(text || '').trim();
-  if (!raw) return { ok: false, error: 'No region was given. Name the markets in scope or state global scope explicitly.' };
-  if (/\bglobal(ly)?\b|\bworldwide\b|\ball regions\b/i.test(raw)) {
-    return { ok: true, region_text: raw, scope: 'global', countries: [], subregions: {} };
-  }
-  const groups = [];
-  for (const t of REGION_TERMS) if (t.match.test(raw)) for (const g of t.groups) if (!groups.includes(g)) groups.push(g);
-  const all = Object.values(COUNTRY_GROUPS).flat();
-  const named = all.filter(c => new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(raw));
-  if (groups.length === 0 && named.length === 0) {
-    return { ok: false, error: `The region "${raw}" could not be resolved to known markets. Restate it using region names, named countries, or state global scope explicitly.` };
-  }
-  const subregions = {};
-  for (const g of groups) subregions[g] = COUNTRY_GROUPS[g];
-  const loose = named.filter(c => !groups.some(g => COUNTRY_GROUPS[g].includes(c)));
-  if (loose.length) subregions.named_countries = loose;
-  return { ok: true, region_text: raw, scope: 'countries', countries: [...new Set(Object.values(subregions).flat())], subregions };
-}
 
 function productText(p) {
   return [
@@ -134,10 +97,33 @@ export default async function (req) {
     if (cats.length === 0) return Response.json({ error: 'categories is required' }, { status: 400 });
 
     // ── Region gate resolution — fails loudly, never falls back to Global ──
-    const scope = resolveRegionScope(region_text);
-    if (!scope.ok) return Response.json({ error: 'region_unresolved', message: scope.error }, { status: 400 });
-    const allowed = new Set(scope.countries);
-    const inRegion = p => scope.scope === 'global' || allowed.has(String(p.country || '').trim());
+    // excluded_countries is an explicit, fail-closed data field: subtracted from
+    // the allow-list AFTER all other resolution, never inferred from free text.
+    const excludedCountries = (Array.isArray(body.excluded_countries) ? body.excluded_countries : [])
+      .map(c => String(c).trim()).filter(Boolean);
+    const resolved = resolveAllowList(region_text, excludedCountries);
+    if (resolved.scope !== 'global' && resolved.countries.length === 0) {
+      return Response.json({
+        error: 'region_unresolved',
+        message: `The region "${String(region_text || '').trim()}" could not be resolved to known markets (or every resolved market was excluded). Restate it using region names (Europe, Turkey, CIS, ASPAC, LATAM, North America, Americas, IMEA), named countries, or state global scope explicitly.`,
+        resolution_log: resolved.resolution_log,
+      }, { status: 400 });
+    }
+    const scope = {
+      region_text: String(region_text || '').trim(),
+      scope: resolved.scope === 'global' ? 'global' : 'countries',
+      countries: resolved.countries,
+      subregions: resolved.subregions,
+    };
+    // Country matching is case-insensitive: 'USA' in the database matches 'usa'
+    // in the taxonomy or in an exclusion list.
+    const allowedLc = new Set(scope.countries.map(c => c.toLowerCase()));
+    const excludedLc = new Set(excludedCountries.map(c => c.toLowerCase()));
+    const inRegion = p => {
+      const c = String(p.country || '').trim().toLowerCase();
+      if (excludedLc.has(c)) return false;
+      return scope.scope === 'global' ? true : allowedLc.has(c);
+    };
 
     const subs = (Array.isArray(sub_categories) ? sub_categories : []).filter(Boolean);
     const inCategory = p => subs.length === 0 || subs.includes(String(p.sub_category || '').trim());
@@ -156,6 +142,8 @@ export default async function (req) {
       region_text: scope.region_text || region_text || '',
       region_scope: scope.scope,
       country_allow_list: scope.countries,
+      excluded_countries: excludedCountries,
+      resolution_log: resolved.resolution_log,
       sub_categories: subs,
       recency_months: RECENCY_MONTHS,
       population_total: 0,
@@ -198,13 +186,18 @@ export default async function (req) {
       } else {
         // Step 1 — region gate, counted against the full category population.
         const pool = await paginate(base44, scope.scope === 'global'
-          ? { palsgaard_category: category }
+          ? (excludedCountries.length > 0
+              ? { palsgaard_category: category, country: { $nin: excludedCountries } }
+              : { palsgaard_category: category })
           : { palsgaard_category: category, country: { $in: scope.countries } });
         gate.pagination_duplicates_dropped += pool.duplicates;
-        regionPass = pool.rows;
+        // inRegion re-applied in JS: a no-op for regional scope (same list as the
+        // $in query, case-insensitive), and for global scope it enforces the
+        // exclusion list case-insensitively where $nin is exact-case only.
+        regionPass = pool.rows.filter(inRegion);
 
         const population = scope.scope === 'global'
-          ? regionPass.length
+          ? pool.rows.length
           : await countRows(base44, { palsgaard_category: category });
         gate.population_total += population;
         gate.excluded_by_reason.out_of_region += population - regionPass.length;
