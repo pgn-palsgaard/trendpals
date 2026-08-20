@@ -52,7 +52,7 @@ async function measureCeiling(base44, jobId) {
 }
 
 // ---- shared: synchronous skill run ------------------------------------------
-async function runSkill(prompt, uploads, model, useCache) {
+async function runSkill(prompt, uploads, model, useCache, onProgress) {
   const rulesEnd = prompt.indexOf('DECK CONTENT:');
   const staticPart = useCache && rulesEnd > 0 ? prompt.slice(0, rulesEnd) : null;
   const dynamicPart = staticPart ? prompt.slice(rulesEnd) : prompt;
@@ -93,11 +93,22 @@ async function runSkill(prompt, uploads, model, useCache) {
   let usage = null;
   let stopReason = null;
   let lastEventAt = Date.now();
+  const tStream = Date.now();
+  let lastReport = 0;
+  let sawPptx = false;
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     lastEventAt = Date.now();
-    raw += decoder.decode(value, { stream: true });
+    const chunk = decoder.decode(value, { stream: true });
+    raw += chunk;
+    if (/\.pptx/i.test(chunk)) sawPptx = true;
+    const el = Math.round((Date.now() - tStream) / 1000);
+    if (onProgress && el - lastReport >= 15) {
+      lastReport = el;
+      console.log(`[probe:fullload] stream_elapsed=${el}s bytes=${raw.length} pptx_seen=${sawPptx}`);
+      await onProgress({ stream_elapsed: el, stream_bytes: raw.length, pptx_seen: sawPptx });
+    }
     if (raw.length > 2_000_000) raw = raw.slice(-500_000); // bound memory, keep the tail
   }
   for (const m of raw.matchAll(/"usage"\s*:\s*(\{[^}]*\})/g)) {
@@ -134,7 +145,11 @@ async function measureFullLoad(base44, jobId, reportId, model, imageLimit, useCa
   const tUploaded = Date.now();
 
   const prompt = buildSkillPrompt(report, uploads);
-  const run = await runSkill(prompt, uploads, model, useCache);
+  const run = await runSkill(prompt, uploads, model, useCache, (p) =>
+    mark(base44, jobId, 'running', {
+      probe: 'fullload', report_id: reportId, model, slides: (report.slides || []).length,
+      uploaded: uploads.length, upload_seconds: Math.round((tUploaded - tResolved) / 1000), ...p,
+    }));
   const tDone = Date.now();
 
   const summary = {
