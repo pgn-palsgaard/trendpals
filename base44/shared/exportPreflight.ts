@@ -29,8 +29,32 @@ export function runExportPreflight(report: any): {
   const rendered = report?.evidence_gate_rendered_by_country || {};
   const excluded = Array.isArray(report?.excluded_countries) ? report.excluded_countries : [];
 
-  const resolved = resolveAllowList(String(report?.region || ''), excluded);
-  const allowList = resolved.countries;
+  // Scope source, in priority order. evidence_gate.country_allow_list is the
+  // authoritative scope — it is what the gate actually filtered evidence by at
+  // fetch time. report.region is only a coarse code that cannot express a
+  // sub-region scope (a LATAM brief is stored as 'AMERICAS'), so re-resolving
+  // from it would widen the scope and let a real leak through.
+  const gateList: string[] = Array.isArray(report?.evidence_gate?.country_allow_list)
+    ? report.evidence_gate.country_allow_list
+    : [];
+
+  let allowList: string[];
+  let scope: string;
+  if (gateList.length > 0) {
+    // Exclusions still subtract — fail-closed, even off the authoritative list.
+    const exLc = new Set(excluded.map(c => normaliseCountry(c).toLowerCase()));
+    allowList = gateList.filter(c => !exLc.has(normaliseCountry(c).toLowerCase()));
+    scope = 'countries';
+  } else if (excluded.length > 0) {
+    const resolved = resolveAllowList(String(report?.region || ''), excluded);
+    allowList = resolved.countries;
+    scope = resolved.scope;
+  } else {
+    // No authoritative scope and no explicit exclusion — there is nothing to
+    // check against. Skipped rather than re-resolved from the coarse region code,
+    // which would produce a confident answer from an unreliable source.
+    return { ok: true, violations: [], effective_allow_list: [] };
+  }
 
   // Nothing extracted → nothing to verify. Not a pass on the evidence, a pass on
   // the absence of a claim to check.
@@ -49,7 +73,7 @@ export function runExportPreflight(report: any): {
     if (!name) continue;
     const lc = name.toLowerCase();
     const isViolation = excludedLc.has(lc)
-      || (resolved.scope !== 'global' && !allowLc.has(lc));
+      || (scope !== 'global' && !allowLc.has(lc));
     if (isViolation) violations.push({ country: name, count: rendered[key] });
   }
 
