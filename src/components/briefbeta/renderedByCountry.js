@@ -23,28 +23,27 @@ function isEvidenceSlide(slide) {
   return true;
 }
 
-// Noise patterns the parenthesised/trailing slot carries instead of a country:
-// multi-market strings ("UK/France", "Pan-European", "EU-wide"), flavour and
-// positioning tags ("Seasonal, Cobranded", "Social Media"), and curation notes
-// ("analyst-curated", "based development"). These are rejected outright so they
-// are counted as _unresolved rather than invented as countries — a wrong country
-// name in the audit trail is worse than an admitted miss.
-const NOISE_PATTERNS = [
-  /\//,
-  /\bPan-/i,
-  /\bMulti-/i,
-  /\bEU-wide\b/i,
-  /\bPan\s/i,
-  /\bGlobal\b/i,
-  /based development/i,
-  /analyst-curated/i,
-  /\bSeasonal\b/i,
-  /\bCobranded\b/i,
-  /\bSocial Media\b/i,
-];
+// A candidate only becomes a country if it IS one. The parenthesised/trailing
+// slot carries all sorts of things — multi-market strings ("UK/France"),
+// positioning tags ("Seasonal, Cobranded"), editorial qualifiers ("USA,
+// reference benchmark"), curation notes ("analyst-curated") — and no blocklist
+// can anticipate them. Whitelisting against the region taxonomy inverts the
+// default: anything not a known market is admitted as _unresolved rather than
+// invented as coverage.
+//
+// COUNTRY_GROUPS is the frontend mirror of base44/shared/regionTaxonomy.ts
+// (frontend must not import backend modules). Both copies change together.
+import { COUNTRY_GROUPS } from './regionScope';
 
-function isNoise(candidate) {
-  return NOISE_PATTERNS.some(p => p.test(candidate));
+const KNOWN_COUNTRIES = new Map(
+  Object.values(COUNTRY_GROUPS).flat().map(c => [c.toLowerCase(), c])
+);
+
+// Returns the canonical spelling from the taxonomy, or null when the candidate is
+// not a known market. Canonicalising here means the audit trail cannot hold two
+// spellings of the same country.
+function resolveKnownCountry(candidate) {
+  return KNOWN_COUNTRIES.get(String(candidate || '').trim().toLowerCase()) || null;
 }
 
 // Pulls the country out of one gnpd_examples string. Returns null when neither
@@ -58,14 +57,15 @@ export function extractCountry(example) {
   const parens = text.match(/\(([^()]+)\)/g);
   if (parens && parens.length > 0) {
     const inner = parens[parens.length - 1].slice(1, -1).trim();
-    if (inner && !/\d/.test(inner) && inner.length <= 40 && !isNoise(inner)) return inner;
+    const known = resolveKnownCountry(inner);
+    if (known) return known;
   }
 
   // Trailing after an em/en dash or hyphen: "… — Mexico".
   const trailing = text.match(/[—–-]\s*([^—–\-,()]+?)\s*$/);
   if (trailing) {
-    const candidate = trailing[1].trim();
-    if (candidate && !/\d/.test(candidate) && candidate.length <= 40 && !isNoise(candidate)) return candidate;
+    const known = resolveKnownCountry(trailing[1]);
+    if (known) return known;
   }
 
   return null;
