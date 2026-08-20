@@ -15,6 +15,7 @@ import { resolveRegionScope } from '@/components/briefbeta/regionScope';
 import { coveredRegionLabel } from '@/components/briefbeta/coveredRegion';
 import { validateSlides } from '@/components/briefbeta/outputValidator';
 import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
+import { computeRenderedByCountry } from '@/components/briefbeta/renderedByCountry';
 import GateNotice from '@/components/briefbeta/GateNotice';
 import SubregionNotice from '@/components/briefbeta/SubregionNotice';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
@@ -427,6 +428,11 @@ export default function SubmitBriefBeta() {
         }]);
       }
 
+      // Phase 5 — rendered coverage is computed from the deck that is being
+      // saved (finalSlides), so the field always describes the artefact the
+      // reader gets. Counted on the slides, never on the eligibility pool.
+      const renderedByCountry = computeRenderedByCountry(finalSlides);
+
       const report = await base44.entities.Report.create({
         project_id: project.id,
         title,
@@ -440,6 +446,8 @@ export default function SubmitBriefBeta() {
         product_shortlist: shortlist,
         selected_trends: usedTrends.map(t => t.trend_name),
         evidence_gate: evidence?.gate || null,
+        excluded_countries: Array.isArray(contract.excluded_countries) ? contract.excluded_countries : [],
+        evidence_gate_rendered_by_country: renderedByCountry,
         status: 'draft',
         version: 1,
       });
