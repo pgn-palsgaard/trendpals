@@ -67,6 +67,7 @@ async function runSkill(prompt, uploads, model, useCache) {
   const body = {
     model,
     max_tokens: 16000,
+    stream: true, // non-streamed calls are cut with HTTP 524 at ~2 minutes
     container: { skills: [{ type: 'custom', skill_id: SKILL_ID, version: 'latest' }] },
     tools: [{ type: 'code_execution_20250825', name: 'code_execution' }],
     messages: [{
@@ -80,12 +81,45 @@ async function runSkill(prompt, uploads, model, useCache) {
     headers: anthropicHeaders({ 'content-type': 'application/json' }),
     body: JSON.stringify(body),
   });
-  const json = await res.json();
-  return { ok: res.ok, status: res.status, message: json };
+  if (!res.ok) {
+    const text = await res.text();
+    return { ok: false, status: res.status, raw: text.slice(0, 500), usage: null, stopReason: null };
+  }
+
+  // Read the SSE stream to completion, keeping only what the measurement needs.
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let raw = '';
+  let usage = null;
+  let stopReason = null;
+  let lastEventAt = Date.now();
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    lastEventAt = Date.now();
+    raw += decoder.decode(value, { stream: true });
+    if (raw.length > 2_000_000) raw = raw.slice(-500_000); // bound memory, keep the tail
+  }
+  for (const m of raw.matchAll(/"usage"\s*:\s*(\{[^}]*\})/g)) {
+    try { usage = { ...(usage || {}), ...JSON.parse(m[1]) }; } catch { /* partial frame */ }
+  }
+  const stop = [...raw.matchAll(/"stop_reason"\s*:\s*"([a-z_]+)"/g)].pop();
+  if (stop) stopReason = stop[1];
+  const errMatch = raw.match(/"error"\s*:\s*\{[^}]*"message"\s*:\s*"([^"]+)"/);
+
+  return {
+    ok: true,
+    status: res.status,
+    raw,
+    usage,
+    stopReason,
+    streamError: errMatch ? errMatch[1] : null,
+    idleTailMs: Date.now() - lastEventAt,
+  };
 }
 
-function producedPptx(message) {
-  return /\.pptx/i.test(JSON.stringify(message?.content || []));
+function producedPptx(raw) {
+  return /\.pptx/i.test(raw || '');
 }
 
 // ---- mode: fullload ---------------------------------------------------------
@@ -100,7 +134,7 @@ async function measureFullLoad(base44, jobId, reportId, model, imageLimit, useCa
   const tUploaded = Date.now();
 
   const prompt = buildSkillPrompt(report, uploads);
-  const { ok, status, message } = await runSkill(prompt, uploads, model, useCache);
+  const run = await runSkill(prompt, uploads, model, useCache);
   const tDone = Date.now();
 
   const summary = {
@@ -117,14 +151,14 @@ async function measureFullLoad(base44, jobId, reportId, model, imageLimit, useCa
     upload_seconds: Math.round((tUploaded - tResolved) / 1000),
     skill_seconds: Math.round((tDone - tUploaded) / 1000),
     total_seconds: Math.round((tDone - tStart) / 1000),
-    http_ok: ok,
-    http_status: status,
-    stop_reason: message?.stop_reason || null,
-    produced_pptx: producedPptx(message),
-    usage: message?.usage || null,
-    error: message?.error?.message || null,
+    http_ok: run.ok,
+    http_status: run.status,
+    stop_reason: run.stopReason,
+    produced_pptx: producedPptx(run.raw),
+    usage: run.usage,
+    error: run.streamError || (run.ok ? null : run.raw),
   };
-  await mark(base44, jobId, ok ? 'completed' : 'failed', summary);
+  await mark(base44, jobId, run.ok ? 'completed' : 'failed', summary);
   return summary;
 }
 
