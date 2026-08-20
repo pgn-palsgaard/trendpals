@@ -3,6 +3,7 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { secrets } from 'base44:runtime';
 import { buildDeckMarkdown } from '../../shared/buildDeckMarkdown.ts';
 import { resolveDeckProducts, imageMapFrom } from '../../shared/deckImages.ts';
+import { runExportPreflight, recordPreflightFailure } from '../../shared/exportPreflight.ts';
 
 export default async function (req) {
   try {
@@ -18,6 +19,17 @@ export default async function (req) {
     if (!report.slides || report.slides.length === 0) {
       return Response.json({ error: 'This report has no slides to export' }, { status: 400 });
     }
+
+    // Regional containment pre-flight — runs BEFORE anything is sent to Gamma.
+    const preflight = runExportPreflight(report);
+    if (!preflight.ok) {
+      await recordPreflightFailure(base44, report_id, preflight);
+      return Response.json(preflight.payload, { status: 400 });
+    }
+    await base44.asServiceRole.entities.Report.update(report_id, {
+      preflight_failed: false,
+      preflight_error: null,
+    });
 
     // Resolve GNPD product images for every product referenced in the deck, so the
     // exported PPTX shows real pack shots next to the market evidence.

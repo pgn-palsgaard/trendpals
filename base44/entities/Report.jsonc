@@ -36,6 +36,15 @@
       "default": {},
       "description": "Country \u2192 count of rendered gnpd_examples. Written at save time. Never empty on a report with gnpd_examples."
     },
+    "preflight_failed": {
+      "type": "boolean",
+      "default": false,
+      "description": "Phase 6 \u2014 true when the last export attempt was blocked by the regional-containment pre-flight. Set on the report so the UI can state the reason instead of the user meeting a silent failure. Cleared on the next export attempt that passes."
+    },
+    "preflight_error": {
+      "type": "string",
+      "description": "Human-readable reason the export pre-flight blocked this report, including the offending countries and their rendered counts."
+    },
     "generated_by": {
       "type": "string",
       "enum": [

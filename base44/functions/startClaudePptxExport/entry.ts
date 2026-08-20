@@ -7,6 +7,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { waitUntil } from 'base44:runtime';
 import { API, anthropicHeaders, uploadPackshotImages, buildBatchRequest } from '../../shared/claudePptx.ts';
+import { runExportPreflight, recordPreflightFailure } from '../../shared/exportPreflight.ts';
 
 async function submitBatch(base44, report) {
   try {
@@ -47,7 +48,16 @@ export default async function (req) {
       return Response.json({ error: 'This report has no slides to export' }, { status: 400 });
     }
 
+    // Regional containment pre-flight — runs BEFORE anything is sent to Anthropic.
+    const preflight = runExportPreflight(report);
+    if (!preflight.ok) {
+      await recordPreflightFailure(base44, report_id, preflight);
+      return Response.json(preflight.payload, { status: 400 });
+    }
+
     await base44.asServiceRole.entities.Report.update(report_id, {
+      preflight_failed: false,
+      preflight_error: null,
       claude_export_status: 'generating',
       claude_export_error: null,
       claude_pptx_url: null,
