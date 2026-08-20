@@ -22,6 +22,20 @@
       "type": "string",
       "description": "Human-readable scope label for headers and exports, e.g. 'Europe, Turkey, CIS countries (49 markets)'. DISPLAY ONLY \u2014 free text, never a query value, never parsed. Anything that needs the real scope must read evidence_gate.country_allow_list."
     },
+    "excluded_countries": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "default": [],
+      "description": "Countries explicitly excluded from evidence scope. Written by the architect at brief intake. Fail-closed: gate removes these from the allow-list after all other resolution. Never inferred from free text."
+    },
+    "evidence_gate_rendered_by_country": {
+      "type": "object",
+      "additionalProperties": true,
+      "default": {},
+      "description": "Country \u2192 count of rendered gnpd_examples. Written at save time. Never empty on a report with gnpd_examples."
+    },
     "generated_by": {
       "type": "string",
       "enum": [
