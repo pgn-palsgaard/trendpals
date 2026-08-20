@@ -42,8 +42,14 @@ const KNOWN_COUNTRIES = new Map(
 // Returns the canonical spelling from the taxonomy, or null when the candidate is
 // not a known market. Canonicalising here means the audit trail cannot hold two
 // spellings of the same country.
+//
+// The trailing '*' the architect uses as a footnote marker ("USA*") is stripped
+// before lookup — same normalisation exportPreflight applies. Without it a real
+// out-of-scope market resolves to _unresolved, which reads as "unparseable" and
+// lets the export pre-flight pass a deck that is in fact leaking.
 function resolveKnownCountry(candidate) {
-  return KNOWN_COUNTRIES.get(String(candidate || '').trim().toLowerCase()) || null;
+  const cleaned = String(candidate || '').trim().replace(/\*+$/, '').trim();
+  return KNOWN_COUNTRIES.get(cleaned.toLowerCase()) || null;
 }
 
 // Pulls the country out of one gnpd_examples string. Returns null when neither
