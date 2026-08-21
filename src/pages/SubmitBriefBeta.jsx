@@ -16,6 +16,9 @@ import { coveredRegionLabel } from '@/components/briefbeta/coveredRegion';
 import { validateSlides, buildCitationAllowList } from '@/components/briefbeta/outputValidator';
 import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
 import { computeRenderedByCountry } from '@/components/briefbeta/renderedByCountry';
+import { runBuildWithValidation, MAX_BUILD_ATTEMPTS } from '@/components/briefbeta/validationLoop';
+import ValidationBanner from '@/components/briefbeta/ValidationBanner';
+import ValidationStatus from '@/components/briefbeta/ValidationStatus';
 import GateNotice from '@/components/briefbeta/GateNotice';
 import SubregionNotice from '@/components/briefbeta/SubregionNotice';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
@@ -61,7 +64,10 @@ export default function SubmitBriefBeta() {
   const [saving, setSaving] = useState(false);
   const [savedReport, setSavedReport] = useState(null);
   const [gateNotice, setGateNotice] = useState(null);
-  const rewriteAttempted = useRef(false);
+  // Build-loop state: live progress while validating/rewriting, and the outcome
+  // of the last build so the deck can be shown with warnings when it still fails.
+  const [validationStatus, setValidationStatus] = useState(null);
+  const [buildValidation, setBuildValidation] = useState(null);
   const sessionStart = useRef(new Date().toISOString());
   const { user } = useAuth();
 
@@ -178,35 +184,37 @@ export default function SubmitBriefBeta() {
       const rawText = typeof reply === 'string' ? reply : (reply?.content || '');
 
       // Parse contract block
+      let merged = contract;
       const contractMatch = rawText.match(/<contract>\s*([\s\S]*?)\s*<\/contract>/);
       if (contractMatch) {
         try {
           const parsed = JSON.parse(contractMatch[1].trim());
-          setContract(prev => {
-            const next = { ...prev };
-            for (const [k, v] of Object.entries(parsed)) {
-              if (v !== null && v !== 'null' && String(v).trim()) next[k] = v;
-            }
-            // Re-run the gates whenever the binding constraints change — categories,
-            // formats or region text. Evidence is never retrieved without them.
-            const bindingChanged =
-              JSON.stringify(next.categories) !== JSON.stringify(prev.categories) ||
-              JSON.stringify(next.sub_categories) !== JSON.stringify(prev.sub_categories) ||
-              next.region !== prev.region;
-            if (next.categories && next.region && bindingChanged) {
-              loadEvidenceFor(next.categories, next.region, next.sub_categories);
-            }
-            return next;
-          });
+          const next = { ...contract };
+          for (const [k, v] of Object.entries(parsed)) {
+            if (v !== null && v !== 'null' && String(v).trim()) next[k] = v;
+          }
+          merged = next;
+          setContract(next);
+          // Re-run the gates whenever the binding constraints change — categories,
+          // formats or region text. Evidence is never retrieved without them.
+          const bindingChanged =
+            JSON.stringify(next.categories) !== JSON.stringify(contract.categories) ||
+            JSON.stringify(next.sub_categories) !== JSON.stringify(contract.sub_categories) ||
+            next.region !== contract.region;
+          if (next.categories && next.region && bindingChanged) {
+            loadEvidenceFor(next.categories, next.region, next.sub_categories);
+          }
         } catch { /* malformed contract — ignore, next turn re-emits */ }
       }
 
-      // Parse slides block
+      // Parse slides block — validated (and rewritten if needed) BEFORE it is shown.
       const slidesMatch = rawText.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
       if (slidesMatch) {
         try {
           const parsedSlides = JSON.parse(slidesMatch[1].trim());
-          if (Array.isArray(parsedSlides) && parsedSlides.length > 0) setSlides(parsedSlides);
+          if (Array.isArray(parsedSlides) && parsedSlides.length > 0) {
+            await validateAndSetDeck(parsedSlides, merged, ev, transcript);
+          }
         } catch { /* malformed slides — user can ask to rebuild */ }
       }
 
@@ -231,15 +239,16 @@ export default function SubmitBriefBeta() {
     }).catch(() => {});
   }
 
-  // One rewrite attempt when the deck fails validation — the architect is told
-  // exactly which rule each string broke.
-  async function requestRewrite(rejections) {
+  // Rewrite request used by the build loop — the architect is told exactly which
+  // rule each string broke. baseTranscript/ev let the loop pass the live turn's
+  // transcript and evidence instead of the (not yet committed) component state.
+  async function requestRewrite(rejections, baseTranscript = null, ev = null) {
     const log = rejections.slice(0, 10).map(r => `- [${r.rule}] ${r.field}: ${r.why} → "${r.text}"`).join('\n');
-    const transcript = messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
+    const transcript = (baseTranscript || messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n'))
       + `\n\nUser: The deck was rejected by evidence-integrity validation. Rewrite the offending strings and re-emit the COMPLETE deck in a <slides> block. LEN-* rejections are hard character budgets — shorten to within the stated limit, never truncate mid-word. CITE-* rejections mean the citation does not exist in the provided evidence: replace it with a source shown in the evidence, or delete that supporting_data entry entirely — never re-emit or re-word the same untraceable citation. If report.title was rejected (LEN-1), also re-emit the <contract> block with a report_title of at most 47 characters. Change nothing else.\n${log}`;
     try {
       const reply = await base44.integrations.Core.InvokeLLM({
-        prompt: buildArchitectPrompt(transcript, buildEvidenceContext(evidence)),
+        prompt: buildArchitectPrompt(transcript, buildEvidenceContext(ev || evidence)),
         model: 'claude_sonnet_4_6',
       });
       const raw = typeof reply === 'string' ? reply : (reply?.content || '');
@@ -267,15 +276,46 @@ export default function SubmitBriefBeta() {
 
   function updateSlide(index, updated) {
     setSlides(prev => prev.map((s, i) => (i === index ? updated : s)));
+    // A manual edit invalidates the build verdict — save re-validates it anyway.
+    setBuildValidation(null);
+  }
+
+  // The deck is validated (and rewritten up to MAX_BUILD_ATTEMPTS) before it is
+  // ever rendered. If it still fails, it is shown with a warning banner rather
+  // than hidden — the analyst can fix the fields by hand.
+  async function validateAndSetDeck(parsedSlides, activeContract, ev, transcript) {
+    const cats = (Array.isArray(activeContract.categories) ? activeContract.categories : [activeContract.categories])
+      .filter(c => CANONICAL_CATEGORIES.includes(c));
+    const category = cats[0] || 'needs_human_review';
+    const title = String(activeContract.report_title || activeContract.core_hypothesis || activeContract.objective || 'Architect draft').slice(0, 120);
+
+    setValidationStatus({ attempt: 1, total: MAX_BUILD_ATTEMPTS });
+    const result = await runBuildWithValidation({
+      slides: parsedSlides,
+      evidence: ev || evidence,
+      category,
+      title,
+      rewrite: rejections => requestRewrite(rejections, transcript, ev || evidence),
+      onAttempt: (attempt, total) => setValidationStatus({ attempt, total }),
+    });
+    setValidationStatus(null);
+
+    setSlides(result.slides);
+    if (result.contractPatch?.report_title) {
+      setContract(prev => ({ ...prev, report_title: result.contractPatch.report_title }));
+    }
+    setBuildValidation({
+      ok: result.ok,
+      rejections: result.rejections,
+      flags: result.flags,
+      attempts: result.attempts,
+      log: result.log,
+    });
   }
 
   async function saveAsReport() {
     if (!slides || saving) return;
     setSaving(true);
-    // Phase 6 — the rewrite budget belongs to THIS deck generation, not to the
-    // session. Session scoping meant a second build inherited the first build's
-    // spent attempt and was blocked without ever being offered a rewrite.
-    rewriteAttempted.current = false;
     try {
       const cats = (Array.isArray(contract.categories) ? contract.categories : [contract.categories])
         .filter(c => CANONICAL_CATEGORIES.includes(c));
@@ -292,48 +332,35 @@ export default function SubmitBriefBeta() {
       // on the methodology slide.
       const displayLabel = coveredRegionLabel(evidence?.gate) || regionDisplayLabel(scope);
 
-      // Write-time validation. One rewrite attempt, then a loud failure.
-      // Phase 7 — every rejection is recorded with its rule id and the verbatim
-      // string, in both passes, so a blocked save is auditable afterwards.
+      // Save-time validation is now a CONFIRMATION pass only — the rewrite budget
+      // was spent in the build loop, so no rewrite is attempted here. A rejection
+      // at this point means the deck was edited by hand after the build.
       const now = new Date().toISOString();
       // [BETA] no longer lives in the title — it renders as a pre-header on the
       // exported deck instead, so the 47-char front-page budget (LEN-1) stays intact.
       let title = String(contract.report_title || contract.core_hypothesis || contract.objective || 'Architect draft').slice(0, 120);
       let deck = slides;
       const citeAllowList = buildCitationAllowList(evidence);
-      let verdict = validateSlides(deck, category, title, citeAllowList);
-      const logEntries = verdict.rejections.map(r => ({
-        rule: r.rule, field: r.field, why: r.why, text: r.text, phase: 'first_pass', timestamp: now,
-      }));
-      let rewriteSucceeded = false;
-      if (!verdict.ok && !rewriteAttempted.current) {
-        rewriteAttempted.current = true;
-        const rewritten = await requestRewrite(verdict.rejections);
-        if (rewritten) {
-          if (rewritten.slides) {
-            deck = rewritten.slides;
-            setSlides(rewritten.slides);
-          }
-          if (rewritten.contract?.report_title) {
-            title = String(rewritten.contract.report_title).slice(0, 120);
-            setContract(prev => ({ ...prev, report_title: rewritten.contract.report_title }));
-          }
-          verdict = validateSlides(deck, category, title, citeAllowList);
-          rewriteSucceeded = verdict.ok;
-          logEntries.push(...verdict.rejections.map(r => ({
-            rule: r.rule, field: r.field, why: r.why, text: r.text,
-            phase: 'after_rewrite', timestamp: new Date().toISOString(),
-          })));
-        }
-      }
+      const verdict = validateSlides(deck, category, title, citeAllowList);
+      // The build loop's per-attempt log is the audit trail; the confirm pass adds
+      // its own entries so a hand-edited breakage is distinguishable from a
+      // build-time one.
+      const logEntries = [
+        ...(buildValidation?.log || []),
+        ...verdict.rejections.map(r => ({
+          rule: r.rule, field: r.field, why: r.why, text: r.text, phase: 'save_confirm', timestamp: now,
+        })),
+      ];
+      const buildAttempts = buildValidation?.attempts || 1;
       const ruleFireCounts = {};
       for (const e of logEntries) ruleFireCounts[e.rule] = (ruleFireCounts[e.rule] || 0) + 1;
       for (const f of verdict.flags || []) ruleFireCounts[f.rule] = (ruleFireCounts[f.rule] || 0) + 1;
       // An empty log is a valid state: it means the deck passed with nothing rejected.
       const validatorLog = {
         validated_at: now,
-        rewrite_attempted: rewriteAttempted.current,
-        rewrite_succeeded: rewriteSucceeded,
+        rewrite_attempted: buildAttempts > 1,
+        rewrite_succeeded: buildAttempts > 1 && verdict.ok,
+        build_attempts: buildAttempts,
         rejections: logEntries,
         flags: (verdict.flags || []).map(f => ({ rule: f.rule, field: f.field, why: f.why, text: f.text })),
         rule_fire_counts: ruleFireCounts,
@@ -343,7 +370,7 @@ export default function SubmitBriefBeta() {
           .map(r => `• [${r.rule}] ${r.field}: ${r.why}\n  "${r.text}"`).join('\n');
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `Nothing was saved — the deck failed evidence-integrity validation ${rewriteAttempted.current ? 'twice' : ''}:\n\n${log}`,
+          content: `Nothing was saved — the deck still fails evidence-integrity validation after ${buildAttempts} automatic attempt${buildAttempts === 1 ? '' : 's'}. Fix the fields below in the deck editor, or ask me to rebuild:\n\n${log}`,
         }]);
         setSaving(false);
         return;
@@ -507,6 +534,15 @@ export default function SubmitBriefBeta() {
                 objective: contract?.objective || contract?.core_hypothesis,
                 audience: contract?.audience,
               }} />
+            )}
+
+            <ValidationStatus status={validationStatus} />
+
+            {slides && !savedReport && buildValidation && !buildValidation.ok && (
+              <ValidationBanner
+                rejections={buildValidation.rejections}
+                attempts={buildValidation.attempts}
+              />
             )}
 
             {slides && !savedReport && (
