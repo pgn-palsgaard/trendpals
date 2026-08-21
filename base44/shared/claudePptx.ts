@@ -604,37 +604,53 @@ export async function runSkillStream(
       }
       if (evt.type === 'content_block_start') {
         const block = evt.content_block as Record<string, unknown>;
-        if (block?.type === 'tool_use') { codeBlockIndex++; onStageDetail(`Running build step ${codeBlockIndex}`); }
+        const index = Number(evt.index ?? contentBlocks.length);
+        // Server-tool result blocks (code execution) arrive COMPLETE in this
+        // event — including the nested file outputs storeGeneratedPptx needs.
+        contentBlocks[index] = { ...block, index };
+        if (String(block?.type ?? '').includes('tool_use')) { codeBlockIndex++; onStageDetail(`Running build step ${codeBlockIndex}`); }
       }
       if (evt.type === 'content_block_delta') {
         const delta = evt.delta as Record<string, unknown>;
+        const index = Number(evt.index ?? -1);
+        const target = contentBlocks[index] as Record<string, unknown> | undefined;
         if (delta?.type === 'text_delta') {
+          if (target) target.text = String(target.text ?? '') + String(delta.text ?? '');
           const text = String(delta.text ?? '').slice(-120);
           if (text.trim()) onStageDetail(text);
+        } else if (delta?.type === 'input_json_delta') {
+          if (target) target._partial_json = String(target._partial_json ?? '') + String(delta.partial_json ?? '');
         }
       }
       if (evt.type === 'message_delta') {
-        const d = evt.delta as Record<string, unknown>;
         const u = evt.usage as Record<string, number> | undefined;
         if (u) usage.output_tokens = u.output_tokens ?? 0;
       }
       if (evt.type === 'content_block_stop') {
-        // collect block index from stream if available
+        const index = Number(evt.index ?? -1);
+        const target = contentBlocks[index] as Record<string, unknown> | undefined;
+        if (target && typeof target._partial_json === 'string') {
+          try { target.input = JSON.parse(target._partial_json as string); } catch { /* keep raw partial */ }
+          delete target._partial_json;
+        }
       }
     }
   }
 
-  // Reconstruct the message object so storeGeneratedPptx can find the .pptx file_id.
-  // We do a final GET /v1/messages/:id to get the complete content array.
-  const msgRes = await fetch(`${API}/v1/messages/${messageId}`, { headers: anthropicHeaders() });
-  const fullMsg = await msgRes.json();
+  // Accumulate content blocks from the SSE stream directly.
+  // No retrieval endpoint exists for synchronous messages.
+  const fullMessage = {
+    id: messageId,
+    content: contentBlocks.filter(Boolean),
+    usage,
+  };
 
   // Clean up uploaded helper files — pack shots are cleaned up by the caller.
   for (const id of [scriptFileId, dataFileId]) {
     fetch(`${API}/v1/files/${id}`, { method: 'DELETE', headers: anthropicHeaders() }).catch(() => {});
   }
 
-  return { message: fullMsg, usage };
+  return { message: fullMessage, usage };
 }
 
 // Pulls the generated .pptx out of a finished message and stores it on Base44.
@@ -646,22 +662,35 @@ export async function storeGeneratedPptx(
 ): Promise<string> {
   const excluded = new Set(uploadedPackShotIds);
 
-  // Walk content blocks for code_execution_tool_result file outputs.
+  // Walk content blocks for code-execution file outputs. The result blocks are
+  // typed `code_execution_tool_result` / `bash_code_execution_tool_result` (not
+  // plain `tool_result`), and their file outputs sit NESTED (content.content[])
+  // with a file_id but no filename — so file_ids are collected recursively and
+  // the filename fetched from file metadata.
   const content = (message?.content as unknown[]) ?? [];
   const candidates: Array<{ id: string; filename: string }> = [];
 
+  function collectFileIds(node: unknown, into: Set<string>) {
+    if (Array.isArray(node)) { for (const item of node) collectFileIds(item, into); return; }
+    if (node && typeof node === 'object') {
+      const o = node as Record<string, unknown>;
+      if (typeof o.file_id === 'string' && o.file_id) into.add(o.file_id);
+      for (const v of Object.values(o)) collectFileIds(v, into);
+    }
+  }
+
+  const found = new Set<string>();
   for (const block of content) {
     const b = block as Record<string, unknown>;
-    if (b.type !== 'tool_result') continue;
-    const outputs = (b.content as unknown[]) ?? [];
-    for (const out of outputs) {
-      const o = out as Record<string, unknown>;
-      if (o.type === 'document' || o.type === 'file') {
-        const fileId = String((o as Record<string, unknown>).file_id ?? '');
-        const fname  = String((o as Record<string, unknown>).filename ?? (o as Record<string, unknown>).name ?? '');
-        if (fileId && !excluded.has(fileId)) candidates.push({ id: fileId, filename: fname });
-      }
-    }
+    if (!String(b.type ?? '').includes('tool_result')) continue;
+    collectFileIds(b, found);
+  }
+  for (const id of found) {
+    if (excluded.has(id)) continue;
+    const mRes = await fetch(`${API}/v1/files/${id}`, { headers: anthropicHeaders() });
+    if (!mRes.ok) continue;
+    const m = await mRes.json();
+    candidates.push({ id, filename: String(m.filename || '') });
   }
 
   // Fallback: scan all file_id values in stringified content (preserves backward compat).
