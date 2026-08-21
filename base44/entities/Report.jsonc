@@ -376,16 +376,38 @@
       "format": "date-time",
       "description": "When the current Claude-skill export job was started."
     },
+    "claude_export_stage": {
+      "type": "string",
+      "description": "Current stage of the synchronous Claude-skill export, for the UI. Values: uploading_images, building, done. Null when no export is running."
+    },
+    "claude_export_stage_detail": {
+      "type": "string",
+      "description": "One human-readable line shown live in the UI while the export runs."
+    },
+    "claude_export_finished_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Set when claude_export_status becomes ready or failed."
+    },
+    "claude_export_message_id": {
+      "type": "string",
+      "description": "Anthropic message.id of the synchronous export call, for debugging."
+    },
+    "claude_export_usage": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "{ input_tokens, output_tokens } from the completed synchronous export call."
+    },
     "claude_batch_id": {
       "type": "string",
-      "description": "Anthropic Message Batch id for the running Claude-skill PPTX export. Polled by checkClaudePptxExport; the batch decouples the long skill run from the request lifetime."
+      "description": "Deprecated \u2014 Message Batches path removed. Retained for historical records only. Never written by new code."
     },
     "claude_uploaded_file_ids": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "description": "Anthropic Files API ids of the pack-shot images uploaded for the current export run. Used to tell input files apart from the generated .pptx in the batch result."
+      "description": "Deprecated \u2014 pack shots are now cleaned up synchronously. Retained for historical records only."
     },
     "final_pptx_url": {
       "type": "string"

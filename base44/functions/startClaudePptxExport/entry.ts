@@ -1,37 +1,23 @@
-// Kicks off a Palsgaard-branded PPTX build for a saved report using the custom
-// "Palsgaard PowerPoint" Agent Skill on the Anthropic API.
+// Builds a Palsgaard-branded PPTX for a saved report — synchronously.
 //
-// The skill run takes several minutes — longer than a single request may live —
-// so the work is submitted as an Anthropic Message Batch and its id is stored on
-// the Report. checkClaudePptxExport polls the batch and stores the finished file.
+// Architecture (Step 2): the deterministic build_deck.py script + data.json are
+// sent to a single synchronous streaming /v1/messages call. Claude only RUNS the
+// script; it does not author python-pptx code. The whole job fits inside the
+// platform's request ceiling, so there is no batch, no waitUntil, no background
+// work — the HTTP response returns after the deck is built (or after it fails).
+//
+// checkClaudePptxExport is now a pure read of the Report fields this function
+// writes (status / stage / stage_detail), used by the UI to show live progress.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
-import { waitUntil } from 'base44:runtime';
-import { API, anthropicHeaders, uploadPackshotImages, buildBatchRequest } from '../../shared/claudePptx.ts';
+import {
+  API,
+  anthropicHeaders,
+  uploadPackshotImages,
+  buildDataJson,
+  runSkillStream,
+  storeGeneratedPptx,
+} from '../../shared/claudePptx.ts';
 import { runExportPreflight, recordPreflightFailure } from '../../shared/exportPreflight.ts';
-
-async function submitBatch(base44, report) {
-  try {
-    const uploads = await uploadPackshotImages(base44, report);
-
-    const res = await fetch(`${API}/v1/messages/batches`, {
-      method: 'POST',
-      headers: anthropicHeaders({ 'content-type': 'application/json' }),
-      body: JSON.stringify({ requests: [buildBatchRequest(report, uploads)] }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data?.id) throw new Error(data?.error?.message || `Anthropic returned ${res.status}`);
-
-    await base44.asServiceRole.entities.Report.update(report.id, {
-      claude_batch_id: data.id,
-      claude_uploaded_file_ids: uploads.map(u => u.file_id),
-    });
-  } catch (error) {
-    await base44.asServiceRole.entities.Report.update(report.id, {
-      claude_export_status: 'failed',
-      claude_export_error: String(error?.message || error).slice(0, 500),
-    }).catch(() => {});
-  }
-}
 
 export default async function (req) {
   try {
@@ -55,20 +41,83 @@ export default async function (req) {
       return Response.json(preflight.payload, { status: 400 });
     }
 
-    await base44.asServiceRole.entities.Report.update(report_id, {
+    const Reports = base44.asServiceRole.entities.Report;
+
+    await Reports.update(report_id, {
       preflight_failed: false,
       preflight_error: null,
       claude_export_status: 'generating',
+      claude_export_stage: 'uploading_images',
+      claude_export_stage_detail: 'Starting',
       claude_export_error: null,
       claude_pptx_url: null,
-      claude_batch_id: null,
-      claude_uploaded_file_ids: [],
       claude_export_started_at: new Date().toISOString(),
+      claude_export_finished_at: null,
+      claude_export_message_id: null,
+      claude_export_usage: null,
     });
 
-    waitUntil(submitBatch(base44, report));
+    // Everything from here on is the synchronous export itself. Any failure marks
+    // the report failed and returns 500 — there is no background path to recover.
+    let uploads: Array<{ file_id: string; filename: string; product: string; record_id: string | null }> = [];
+    try {
+      uploads = await uploadPackshotImages(base44, report);
 
-    return Response.json({ started: true, slide_count: report.slides.length });
+      await Reports.update(report_id, {
+        claude_export_stage: 'building',
+        claude_export_stage_detail: 'Sending to Claude',
+      });
+
+      const onStageDetail = (detail: string) => {
+        Reports.update(report_id, {
+          claude_export_stage_detail: String(detail).slice(0, 200),
+        }).catch(() => {});
+      };
+
+      const { message, usage } = await runSkillStream(
+        uploads,
+        buildDataJson(report, uploads),
+        onStageDetail,
+      );
+
+      await Reports.update(report_id, {
+        claude_export_message_id: (message as Record<string, unknown>)?.id ?? null,
+        claude_export_usage: usage ?? null,
+      });
+
+      const fileUrl = await storeGeneratedPptx(
+        base44,
+        message as Record<string, unknown>,
+        uploads.map(u => u.file_id),
+      );
+
+      await Reports.update(report_id, {
+        claude_pptx_url: fileUrl,
+        claude_export_status: 'ready',
+        claude_export_stage: 'done',
+        claude_export_stage_detail: 'Your deck is ready',
+        claude_export_finished_at: new Date().toISOString(),
+      });
+
+      // Clean up pack shots from Anthropic Files. Failures ignored — the files
+      // expire server-side anyway; a leftover file must never fail a built deck.
+      for (const u of uploads) {
+        fetch(`${API}/v1/files/${u.file_id}`, { method: 'DELETE', headers: anthropicHeaders() }).catch(() => {});
+      }
+
+      return Response.json({ started: true, slide_count: report.slides.length });
+    } catch (error) {
+      await Reports.update(report_id, {
+        claude_export_status: 'failed',
+        claude_export_error: String(error?.message || error).slice(0, 500),
+        claude_export_stage: null,
+        claude_export_finished_at: new Date().toISOString(),
+      }).catch(() => {});
+      for (const u of uploads) {
+        fetch(`${API}/v1/files/${u.file_id}`, { method: 'DELETE', headers: anthropicHeaders() }).catch(() => {});
+      }
+      return Response.json({ error: String(error?.message || error) }, { status: 500 });
+    }
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }

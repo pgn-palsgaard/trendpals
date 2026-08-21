@@ -10,6 +10,8 @@ export default function ClaudePptxPanel({ report, slideCount }) {
   const [pptxUrl, setPptxUrl] = useState(report?.claude_pptx_url || null);
   const [error, setError] = useState(null);
   const [elapsed, setElapsed] = useState(0);
+  const [stageDetail, setStageDetail] = useState(null);
+  const [stuck, setStuck] = useState(false);
   const pollRef = useRef(null);
   const tickRef = useRef(null);
 
@@ -32,6 +34,9 @@ export default function ClaudePptxPanel({ report, slideCount }) {
           clearInterval(tickRef.current);
           setError(d.error || 'The skill could not build the deck.');
           setPhase('failed');
+        } else {
+          if (d.stage_detail) setStageDetail(d.stage_detail);
+          setStuck(d.status === 'generating' && Number(d.elapsed_seconds) > 600);
         }
       } catch { /* transient — keep polling */ }
     }, 10000);
@@ -51,14 +56,20 @@ export default function ClaudePptxPanel({ report, slideCount }) {
     setPhase('running');
     setError(null);
     setElapsed(0);
+    setStageDetail(null);
+    setStuck(false);
     clearInterval(tickRef.current);
     tickRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+
+    // The export call is synchronous — it returns when the deck is built or
+    // failed — so polling starts immediately to surface live stage detail.
+    beginPolling();
 
     try {
       const res = await base44.functions.invoke('startClaudePptxExport', { report_id: report.id });
       if (res.data?.error) throw new Error(res.data.error);
-      beginPolling();
     } catch (e) {
+      clearInterval(pollRef.current);
       clearInterval(tickRef.current);
       setError(e.message);
       setPhase('failed');
@@ -99,11 +110,27 @@ export default function ClaudePptxPanel({ report, slideCount }) {
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Your Palsgaard skill is laying out {slideCount} slides with the CVI template and product pack-shots.
-          The job sits in Anthropic's queue first, so it can take anywhere from 5 minutes to an hour.
-          You can leave this page — the build continues, and the download
-          appears here when you come back.
+          Building your deck — usually 2 to 4 minutes.
         </p>
+        {stageDetail && (
+          <p className="text-xs mt-2 truncate" style={{ color: '#1D428A' }}>
+            {stageDetail}
+          </p>
+        )}
+        {stuck && (
+          <div className="mt-3 rounded-lg p-3" style={{ background: '#FAE9E5' }}>
+            <p className="text-xs mb-2" style={{ color: '#A33B24' }}>
+              This is taking longer than expected. If it does not finish shortly, try again.
+            </p>
+            <button
+              onClick={startExport}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-white"
+              style={{ background: '#1D428A' }}
+            >
+              Try again
+            </button>
+          </div>
+        )}
       </div>
     );
   }
