@@ -13,7 +13,7 @@ import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbe
 import { buildEvidenceContext, extractRecordIds } from '@/components/briefbeta/evidenceContext';
 import { resolveRegionScope } from '@/components/briefbeta/regionScope';
 import { coveredRegionLabel } from '@/components/briefbeta/coveredRegion';
-import { validateSlides } from '@/components/briefbeta/outputValidator';
+import { validateSlides, buildCitationAllowList } from '@/components/briefbeta/outputValidator';
 import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
 import { computeRenderedByCountry } from '@/components/briefbeta/renderedByCountry';
 import GateNotice from '@/components/briefbeta/GateNotice';
@@ -236,7 +236,7 @@ export default function SubmitBriefBeta() {
   async function requestRewrite(rejections) {
     const log = rejections.slice(0, 10).map(r => `- [${r.rule}] ${r.field}: ${r.why} → "${r.text}"`).join('\n');
     const transcript = messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n')
-      + `\n\nUser: The deck was rejected by evidence-integrity validation. Rewrite the offending strings and re-emit the COMPLETE deck in a <slides> block. LEN-* rejections are hard character budgets — shorten to within the stated limit, never truncate mid-word. If report.title was rejected (LEN-1), also re-emit the <contract> block with a report_title of at most 47 characters. Change nothing else.\n${log}`;
+      + `\n\nUser: The deck was rejected by evidence-integrity validation. Rewrite the offending strings and re-emit the COMPLETE deck in a <slides> block. LEN-* rejections are hard character budgets — shorten to within the stated limit, never truncate mid-word. CITE-* rejections mean the citation does not exist in the provided evidence: replace it with a source shown in the evidence, or delete that supporting_data entry entirely — never re-emit or re-word the same untraceable citation. If report.title was rejected (LEN-1), also re-emit the <contract> block with a report_title of at most 47 characters. Change nothing else.\n${log}`;
     try {
       const reply = await base44.integrations.Core.InvokeLLM({
         prompt: buildArchitectPrompt(transcript, buildEvidenceContext(evidence)),
@@ -300,7 +300,8 @@ export default function SubmitBriefBeta() {
       // exported deck instead, so the 47-char front-page budget (LEN-1) stays intact.
       let title = String(contract.report_title || contract.core_hypothesis || contract.objective || 'Architect draft').slice(0, 120);
       let deck = slides;
-      let verdict = validateSlides(deck, category, title);
+      const citeAllowList = buildCitationAllowList(evidence);
+      let verdict = validateSlides(deck, category, title, citeAllowList);
       const logEntries = verdict.rejections.map(r => ({
         rule: r.rule, field: r.field, why: r.why, text: r.text, phase: 'first_pass', timestamp: now,
       }));
@@ -317,7 +318,7 @@ export default function SubmitBriefBeta() {
             title = String(rewritten.contract.report_title).slice(0, 120);
             setContract(prev => ({ ...prev, report_title: rewritten.contract.report_title }));
           }
-          verdict = validateSlides(deck, category, title);
+          verdict = validateSlides(deck, category, title, citeAllowList);
           rewriteSucceeded = verdict.ok;
           logEntries.push(...verdict.rejections.map(r => ({
             rule: r.rule, field: r.field, why: r.why, text: r.text,

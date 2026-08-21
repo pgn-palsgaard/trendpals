@@ -8,6 +8,42 @@
 
 import { BUDGETS } from './contentBudgets';
 
+// Normalizes a publisher/title string for allow-list comparison: lowercase,
+// strip everything but letters, digits and single spaces.
+function normalizeCite(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// Builds the citation allow-list from a getArchitectEvidence result: the titles
+// and publishers of every source, inline citation and web signal that actually
+// reached this brief. A supporting_data citation that matches none of these is
+// not traceable to the retrieved evidence.
+//
+// available=false means "no evidence in scope" — the caller must then SKIP the
+// citation-traceability check, never reject every citation on an empty list.
+export function buildCitationAllowList(evidence) {
+  const titles = new Set();
+  const publishers = new Set();
+  const add = (t, p) => {
+    const nt = normalizeCite(t); if (nt.length >= 4) titles.add(nt);
+    const np = normalizeCite(p); if (np.length >= 2) publishers.add(np);
+  };
+  for (const tr of (evidence?.trends || [])) {
+    for (const s of (tr.sources || [])) add(s.title, s.publisher);
+    for (const c of (tr.inline_citations || [])) add(c.title, c.publisher);
+  }
+  for (const w of (evidence?.web_signals || [])) add(w.title, w.publisher);
+  return {
+    titles: [...titles],
+    publishers: [...publishers],
+    available: (titles.size + publishers.size) > 0,
+  };
+}
+
 const FIGURE_RULES = [
   { id: 'FIG-1', re: /(USD|EUR|GBP|€|\$|£)\s?[\d.,]+\s?(m|bn|k|million|billion|trillion)\b/i, why: 'currency plus magnitude (market sizing)' },
   { id: 'FIG-2', re: /\bCAGR\b/i, why: 'CAGR figure' },
@@ -76,20 +112,45 @@ export function validateText(text, field = 'text') {
   return { ok: true, flags: plausibilityFlags(s) };
 }
 
-// Validates one supporting_data citation string against the publisher rules.
-export function validateCitation(citation, briefCategory) {
+// Validates one supporting_data citation against the publisher rules and, when an
+// allow-list is supplied, against the retrieved evidence.
+export function validateCitation(citation, briefCategory, allowList = null) {
   const s = String(citation?.source || '');
   const stat = String(citation?.stat || '');
   if (!s.trim()) return { ok: true, flags: [] };
 
+  // PUB-1 — competitor / ingredient-supplier content, rejected outright.
   const hit = SUPPRESSED_PUBLISHERS.find(p => new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s));
   if (hit) return { ok: false, rule: 'PUB-1', why: `${hit} is competitor / ingredient-supplier content — never customer-facing evidence`, text: s, flags: [] };
 
+  // PUB-3 — a citation about another category cannot support this claim.
   const otherCats = OTHER_CATEGORY_TERMS[briefCategory] || [];
   const catHit = otherCats.find(t => new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(s));
   if (catHit) return { ok: false, rule: 'PUB-3', why: `citation is about ${catHit}, not ${briefCategory} — cannot support this claim`, text: s, flags: [] };
 
+  // CITE-1 — the citation must trace to a source that actually reached this brief.
+  // A fabricated citation names a real-sounding publisher or title that is not in
+  // the retrieved evidence. This is the failure PUB-3 only catches when the
+  // fabrication is off-category; CITE-1 catches the on-category case too.
+  // GNPD product evidence is the base layer and is always allowed.
+  const norm = normalizeCite(s);
+  const isGnpd = /\b(mintel )?gnpd\b/.test(norm);
+  let citeFlag = null;
+  if (allowList && allowList.available && !isGnpd) {
+    const titleHit = allowList.titles.some(t => t && (norm.includes(t) || t.includes(norm)));
+    const pubHit = allowList.publishers.some(p => p && new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(norm));
+    if (!titleHit && !pubHit) {
+      return { ok: false, rule: 'CITE-1', why: `citation traces to no source in the retrieved evidence for this brief — it cannot be verified and may be fabricated`, text: s, flags: [] };
+    }
+    if (!titleHit && pubHit) {
+      citeFlag = { rule: 'CITE-2', why: `publisher appears in the evidence pool but this exact title does not — confirm the citation is real, not reconstructed`, text: s };
+    }
+  }
+
+  // Non-blocking flags: CITE-2 (above), vendor scope label (PUB-2), geography
+  // label (PUB-4), and cohort plausibility (NUM-1).
   const flags = [];
+  if (citeFlag) flags.push(citeFlag);
   const vendor = LABEL_REQUIRED_PUBLISHERS.find(p => new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(s));
   if (vendor && !SCOPE_LABEL.test(stat)) {
     flags.push({ rule: 'PUB-2', why: `${vendor} is a consultancy / market-report vendor — needs an inline scope label and a second source`, text: s });
@@ -196,7 +257,7 @@ const TEXT_FIELDS = ['title', 'subtitle', 'market_signal', 'why_it_may_matter'];
 const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_examples'];
 
 // Validates a whole deck. Returns { ok, rejections[], flags[] }.
-export function validateSlides(slides, briefCategory, reportTitle = null) {
+export function validateSlides(slides, briefCategory, reportTitle = null, allowList = null) {
   const rejections = [...budgetRejections(slides, reportTitle)];
   const flags = [];
 
@@ -217,7 +278,7 @@ export function validateSlides(slides, briefCategory, reportTitle = null) {
       const t = validateText(c.stat, `${where}.supporting_data[${j}].stat`);
       if (!t.ok) { rejections.push(t); return; }
       flags.push(...t.flags.map(x => ({ ...x, field: `${where}.supporting_data[${j}].stat` })));
-      const r = validateCitation(c, briefCategory);
+      const r = validateCitation(c, briefCategory, allowList);
       if (!r.ok) rejections.push({ ...r, field: `${where}.supporting_data[${j}].source` });
       else flags.push(...r.flags.map(x => ({ ...x, field: `${where}.supporting_data[${j}].source` })));
     });
