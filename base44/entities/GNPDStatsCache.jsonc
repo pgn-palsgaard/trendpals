@@ -1,0 +1,28 @@
+{
+  "name": "GNPDStatsCache",
+  "type": "object",
+  "description": "Cached aggregate counts from getGNPDStats. The aggregation scans every GNPDProduct record, so it must never run on every page load \u2014 that exhausts the app's entity read traffic budget. One row per filter combination, refreshed on demand or when stale.",
+  "properties": {
+    "filter_key": {
+      "type": "string",
+      "description": "Cache key: '<category>|<region_code>' of the request that produced these counts. Empty parts mean unfiltered."
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "The full counts payload: total, with_image, with_emulsifier, trend_linked, pending_review, by_category, by_region, by_source."
+    },
+    "computed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the underlying scan ran. Freshness is judged against this, never against updated_date."
+    },
+    "records_scanned": {
+      "type": "number",
+      "description": "How many GNPDProduct records the scan read, for cost visibility."
+    }
+  },
+  "required": [
+    "filter_key"
+  ]
+}

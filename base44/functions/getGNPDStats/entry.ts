@@ -12,6 +12,27 @@ Deno.serve(async (req) => {
     const catFilter = (body.category || '').toLowerCase();
     const regionFilter = body.region_code && body.region_code !== 'Global' ? body.region_code : null;
 
+    // This aggregation reads EVERY GNPDProduct record. At 28k+ records that is far
+    // too expensive to run per page load — doing so exhausted the app's entity read
+    // traffic budget. The counts are therefore served from a cache and only
+    // recomputed when explicitly forced or when the cached snapshot is stale.
+    const CACHE_TTL_MINUTES = 30;
+    const filterKey = `${catFilter}|${regionFilter || ''}`;
+    const force = body.force === true;
+
+    let cacheRow = null;
+    try {
+      const rows = await base44.asServiceRole.entities.GNPDStatsCache.filter({ filter_key: filterKey }, '-computed_at', 1);
+      cacheRow = rows?.[0] || null;
+    } catch (_) { /* cache miss is never fatal */ }
+
+    if (!force && cacheRow?.stats && cacheRow.computed_at) {
+      const ageMinutes = (Date.now() - new Date(cacheRow.computed_at).getTime()) / 60000;
+      if (ageMinutes < CACHE_TTL_MINUTES) {
+        return Response.json({ ...cacheRow.stats, cached: true, computed_at: cacheRow.computed_at });
+      }
+    }
+
     // Paginate through ALL GNPDProduct records accumulating counts
     const PAGE = 500;
     let skip = 0;
