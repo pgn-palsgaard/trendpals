@@ -1,11 +1,13 @@
 import React from 'react';
 import { annotationForSlide } from './trendStatus';
+import ImplicationsCanvas from './ImplicationsCanvas';
 
 // One slide rendered as a presentation-style 16:9 canvas.
 export default function SlideCanvas({ slide, trendStatus }) {
   // Build B — computed render-state. Derived from the frozen trend status, never
   // from slide prose; the architect no longer writes record counts.
   const signalLine = annotationForSlide(slide, trendStatus);
+  if (slide.slide_type === 'implications') return <ImplicationsCanvas slide={slide} />;
   return (
     <div className="w-full bg-card border border-border rounded-xl shadow-panel overflow-hidden">
       <div className="aspect-[16/9] w-full overflow-y-auto p-8 flex flex-col">

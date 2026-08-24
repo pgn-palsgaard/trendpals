@@ -542,7 +542,9 @@ def build(data,template_path,out_path,workdir):
     kind=entry.get('slide_type')
     if kind=='section_header':
       render_breaking(prs,entry,section_index,report); section_index+=1; continue
-    if kind=='methodology':
+    if kind=='implications':
+      made=render_implications(prs,entry,preheader,report); last_layout='Full page content and preheader'
+    elif kind=='methodology':
       made=render_methodology(prs,entry,preheader,report); last_layout='Full page content and preheader'
     else:
       layout_name=next((n for n in CONTENT_LAYOUTS if n!=last_layout),CONTENT_LAYOUTS[0])
