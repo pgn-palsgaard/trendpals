@@ -299,27 +299,37 @@ function budgetRejections(slides, reportTitle) {
 // not carry a regional one. Decided from the FROZEN bindings, so it cannot be
 // talked around in prose. Source / inline / web citations are class-neutral (a
 // trend's sources back both tiers) and are not checked here.
+// Every id a slide cites, with the field path it sits in. Shared by TIER-1,
+// XTREND-1 and the UNRES-1 gate so the three can never disagree about what
+// counts as a cited datapoint.
+export function citedIds(slide, index = 0) {
+  const where = `slide ${slide?.slide_number ?? index + 1}`;
+  const cited = [];
+  (slide?.gnpd_examples || []).forEach((ex, j) => {
+    const m = String(ex || '').match(/^\s*([A-Za-z0-9._-]{4,})\s*\|/);
+    if (m) cited.push({ id: m[1], field: `${where}.gnpd_examples[${j}]`, text: String(ex).slice(0, 300) });
+  });
+  (slide?.supporting_data || []).forEach((d, j) => {
+    const raw = String(d?.source_id || '').trim();
+    if (raw) cited.push({ id: raw, field: `${where}.supporting_data[${j}].source`, text: raw });
+  });
+  return cited;
+}
+
+function isContentSlide(slide) {
+  return slide?.slide_type !== 'section_header' && slide?.slide_type !== 'methodology';
+}
+
 function tierRejections(slides, bindings) {
   const map = bindings && typeof bindings === 'object' ? bindings : null;
   if (!map || Object.keys(map).length === 0) return [];
   const rejections = [];
 
   (slides || []).forEach((slide, i) => {
-    if (slide.slide_type === 'section_header' || slide.slide_type === 'methodology') return;
-    const where = `slide ${slide.slide_number ?? i + 1}`;
+    if (!isContentSlide(slide)) return;
     const slideClass = String(slide.evidence_class || 'regional') === 'read_across' ? 'read_across' : 'regional';
 
-    const cited = [];
-    (slide.gnpd_examples || []).forEach((ex, j) => {
-      const m = String(ex || '').match(/^\s*([A-Za-z0-9._-]{4,})\s*\|/);
-      if (m) cited.push({ id: m[1], field: `${where}.gnpd_examples[${j}]`, text: String(ex).slice(0, 300) });
-    });
-    (slide.supporting_data || []).forEach((d, j) => {
-      const raw = String(d?.source_id || '').trim();
-      if (raw) cited.push({ id: raw, field: `${where}.supporting_data[${j}].source`, text: raw });
-    });
-
-    for (const c of cited) {
+    for (const c of citedIds(slide, i)) {
       const hit = resolveBinding(c.id, map);
       if (!hit || hit.kind !== 'gnpd') continue;
       const recordClass = hit.read_across === true ? 'read_across' : 'regional';
@@ -337,6 +347,80 @@ function tierRejections(slides, bindings) {
   return rejections;
 }
 
+// XTREND-1 — trend containment at the save wall (Build B).
+//
+// A slide is built on ONE verified trend. Every source, inline citation and GNPD
+// record it cites must be bound to that same trend, otherwise the slide borrows
+// another trend's evidence to support its own claim. Decided from the frozen
+// bindings, so it is deterministic and cannot be argued away in prose.
+//
+// BM-1: web-signal bindings carry no trend_id (a web signal is linked to a
+// category, not a trend), so they are exempt — comparing them would reject every
+// deck that cites a web signal.
+function xtrendRejections(slides, bindings) {
+  const map = bindings && typeof bindings === 'object' ? bindings : null;
+  if (!map || Object.keys(map).length === 0) return [];
+  const rejections = [];
+
+  (slides || []).forEach((slide, i) => {
+    if (!isContentSlide(slide)) return;
+    const slideTrend = String(slide.trend_id || '').trim();
+    if (!slideTrend) return;
+
+    for (const c of citedIds(slide, i)) {
+      const hit = resolveBinding(c.id, map);
+      if (!hit || hit.kind === 'web') continue;
+      const boundTrend = String(hit.trend_id || '').trim();
+      if (!boundTrend || boundTrend === slideTrend) continue;
+      rejections.push({
+        rule: 'XTREND-1', field: c.field,
+        why: `this slide cites ${c.id}, which is bound to trend ${boundTrend}, but the slide is built on trend ${slideTrend} — a slide may only cite its own trend's evidence`,
+        text: c.text,
+      });
+    }
+  });
+
+  return rejections;
+}
+
+// UNRES-1 — the global unresolvable gate (Build B).
+//
+// A's per-datapoint drop keeps a single bad id from rendering a fabricated
+// citation, but it is silent: a deck can lose most of its evidence and still look
+// complete. Measured over the deck AS EMITTED (before resolution drops anything),
+// because the dropped datapoints are exactly what is being counted.
+export const UNRESOLVABLE_THRESHOLD = 0.40;
+
+export function unresolvableGate(slides, bindings, threshold = UNRESOLVABLE_THRESHOLD) {
+  const map = bindings && typeof bindings === 'object' ? bindings : {};
+  let total = 0;
+  const unresolved = [];
+
+  (slides || []).forEach((slide, i) => {
+    if (!isContentSlide(slide)) return;
+    for (const c of citedIds(slide, i)) {
+      total++;
+      if (!resolveBinding(c.id, map)) unresolved.push(c);
+    }
+  });
+
+  const ratio = total > 0 ? unresolved.length / total : 0;
+  const over = total > 0 && ratio > threshold;
+  return {
+    total,
+    unresolved_count: unresolved.length,
+    ratio: Number(ratio.toFixed(4)),
+    threshold,
+    ok: !over,
+    rejection: over ? {
+      rule: 'UNRES-1',
+      field: 'deck.citations',
+      why: `${unresolved.length} of ${total} cited datapoints (${Math.round(ratio * 100)}%) resolve to nothing in the evidence this deck was built from — above the ${Math.round(threshold * 100)}% ceiling. This is not an honestly thin deck, it is a deck not built on the evidence.`,
+      text: unresolved.slice(0, 8).map(c => `${c.field}: ${c.id}`).join(' | '),
+    } : null,
+  };
+}
+
 const TEXT_FIELDS = ['title', 'subtitle', 'market_signal', 'why_it_may_matter'];
 const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_examples'];
 
@@ -345,6 +429,7 @@ export function validateSlides(slides, briefCategory, reportTitle = null, allowL
   const rejections = [
     ...budgetRejections(slides, reportTitle),
     ...tierRejections(slides, allowList?.bindings || null),
+    ...xtrendRejections(slides, allowList?.bindings || null),
   ];
   const flags = [];
 

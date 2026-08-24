@@ -1,6 +1,6 @@
 import { coveredRegionLabel } from './coveredRegion';
 import { collectCitations } from './citationMap';
-import { CROSS_REGION_DIVIDER_TITLE } from './readAcross';
+import { CROSS_REGION_DIVIDER_TITLE, SIGNAL_DIVIDER_TITLE } from './readAcross';
 
 // Turns the deterministic evidence payload from getArchitectEvidence into the
 // grounded context block the architect must build from, and reads the chosen
@@ -54,9 +54,12 @@ export function buildEvidenceContext(evidence) {
   const trendBlocks = trends.map(t => {
     const lines = [`### [${t.category}] TREND: ${t.trend_name}`];
     lines.push(`TREND ID (copy into every slide built on this trend): ${t.trend_id}`);
+    // Build B — the status is shown so the architect knows which TIER the trend
+    // belongs to (placement stays architect-owned). The record count is NOT its
+    // to write: the renderer stamps that annotation from the frozen trend status.
     lines.push(t.evidence_status === 'signal_only'
-      ? `EVIDENCE STATUS: SIGNAL ONLY — ${t.record_count} eligible regional launch${t.record_count === 1 ? '' : 'es'} on record. This trend belongs in the "Signal — not yet evidenced at regional level" section and its slide must state the record count.`
-      : `EVIDENCE STATUS: FULL — ${t.record_count} eligible regional launches on record.`);
+      ? `EVIDENCE STATUS: SIGNAL ONLY — this trend belongs in the "${SIGNAL_DIVIDER_TITLE}" section. Never state the launch count in the slide text; the system stamps it.`
+      : 'EVIDENCE STATUS: FULL.');
     if (t.market_signal) lines.push(`Signal: ${t.market_signal.slice(0, 300)}`);
 
     const cites = [

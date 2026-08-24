@@ -68,10 +68,31 @@ export default async function (req) {
         claude_export_stage_detail: 'Sending to Claude',
       });
 
+      // Build B — DEBOUNCED progress writes. The stream fires this callback on every
+      // non-empty text delta (hundreds per export). Writing per delta created
+      // hundreds of concurrent unawaited DB writes and killed the function with
+      // exceededMemory. Now: keep the latest string in memory, write at most once
+      // every 4 seconds, await each write, and never overlap two.
+      const FLUSH_MS = 4000;
+      let pendingDetail: string | null = null;
+      let lastFlush = 0;
+      let flushing = false;
+
+      const flushDetail = async () => {
+        if (pendingDetail === null || flushing) return;
+        flushing = true;
+        const detail = pendingDetail;
+        pendingDetail = null;
+        lastFlush = Date.now();
+        try {
+          await Reports.update(report_id, { claude_export_stage_detail: detail.slice(0, 200) });
+        } catch { /* progress text is cosmetic — never fail an export on it */ }
+        flushing = false;
+      };
+
       const onStageDetail = (detail: string) => {
-        Reports.update(report_id, {
-          claude_export_stage_detail: String(detail).slice(0, 200),
-        }).catch(() => {});
+        pendingDetail = String(detail);
+        if (!flushing && Date.now() - lastFlush >= FLUSH_MS) void flushDetail();
       };
 
       const { message, usage } = await runSkillStream(
@@ -79,6 +100,9 @@ export default async function (req) {
         buildDataJson(report, uploads),
         onStageDetail,
       );
+
+      // The last detail is never lost: one final awaited flush after the stream.
+      await flushDetail();
 
       await Reports.update(report_id, {
         claude_export_message_id: (message as Record<string, unknown>)?.id ?? null,

@@ -13,7 +13,8 @@ import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbe
 import { buildEvidenceContext, extractRecordIds } from '@/components/briefbeta/evidenceContext';
 import { resolveRegionScope } from '@/components/briefbeta/regionScope';
 import { coveredRegionLabel } from '@/components/briefbeta/coveredRegion';
-import { validateSlides, allowListFromBindings } from '@/components/briefbeta/outputValidator';
+import { validateSlides, allowListFromBindings, unresolvableGate } from '@/components/briefbeta/outputValidator';
+import { buildTrendStatus } from '@/components/briefbeta/trendStatus';
 import { buildCitationMap, resolveSupportingData } from '@/components/briefbeta/citationMap';
 import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
 import { computeRenderedSplit } from '@/components/briefbeta/renderedByCountry';
@@ -72,6 +73,10 @@ export default function SubmitBriefBeta() {
   // the architect never saw (TOCTOU). null = the deck is unbound and cannot be saved.
   const [frozenEvidence, setFrozenEvidence] = useState(null);
   const [bindings, setBindings] = useState(null);
+  // Build B — per-trend evidence status, frozen beside the bindings. The preview
+  // and the export renderer stamp record counts from this; the architect does not
+  // write them.
+  const [trendStatus, setTrendStatus] = useState(null);
   // Build-loop state: live progress while validating/rewriting, and the outcome
   // of the last build so the deck can be shown with warnings when it still fails.
   const [validationStatus, setValidationStatus] = useState(null);
@@ -229,6 +234,7 @@ export default function SubmitBriefBeta() {
             setSlides(null);
             setFrozenEvidence(null);
             setBindings(null);
+            setTrendStatus(null);
             setBuildValidation(null);
             setMessages(prev => [...prev, {
               role: 'assistant',
@@ -325,6 +331,7 @@ export default function SubmitBriefBeta() {
     const bindingMap = buildCitationMap(snapshot);
     setFrozenEvidence(snapshot);
     setBindings(bindingMap);
+    setTrendStatus(buildTrendStatus(snapshot));
 
     setValidationStatus({ attempt: 1, total: MAX_BUILD_ATTEMPTS });
     const result = await runBuildWithValidation({
@@ -419,8 +426,11 @@ export default function SubmitBriefBeta() {
           }
         });
       });
+      // Build B — the global unresolvable gate. Measured on the deck AS EMITTED,
+      // because the resolved deck no longer contains the dropped datapoints.
+      const unres = unresolvableGate(slides, bindingMap);
       const verdict = validateSlides(deck, category, title, allowListFromBindings(bindingMap));
-      verdict.rejections = [...dropped, ...verdict.rejections];
+      verdict.rejections = [...dropped, ...(unres.rejection ? [unres.rejection] : []), ...verdict.rejections];
       verdict.ok = verdict.rejections.length === 0;
       // The build loop's per-attempt log is the audit trail; the confirm pass adds
       // its own entries so a hand-edited breakage is distinguishable from a
@@ -438,6 +448,12 @@ export default function SubmitBriefBeta() {
       // An empty log is a valid state: it means the deck passed with nothing rejected.
       const validatorLog = {
         validated_at: now,
+        unresolvable: {
+          total_cited: unres.total,
+          unresolved: unres.unresolved_count,
+          ratio: unres.ratio,
+          threshold: unres.threshold,
+        },
         rewrite_attempted: buildAttempts > 1,
         rewrite_succeeded: buildAttempts > 1 && verdict.ok,
         build_attempts: buildAttempts,
@@ -570,6 +586,7 @@ export default function SubmitBriefBeta() {
         selected_trends: usedTrends.map(t => t.trend_name),
         evidence_gate: gateWithReadAcross,
         evidence_bindings: bindingMap,
+        trend_status: trendStatus || buildTrendStatus(snap),
         excluded_countries: Array.isArray(contract.excluded_countries) ? contract.excluded_countries : [],
         evidence_gate_rendered_by_country: renderedByCountry,
         status: 'draft',
@@ -645,6 +662,7 @@ export default function SubmitBriefBeta() {
               <DeckPreview
                 slides={slides}
                 bindings={bindings}
+                trendStatus={trendStatus}
                 onSlideChange={updateSlide}
                 onSave={saveAsReport}
                 saving={saving}

@@ -1,7 +1,11 @@
 import React from 'react';
+import { annotationForSlide } from './trendStatus';
 
 // One slide rendered as a presentation-style 16:9 canvas.
-export default function SlideCanvas({ slide }) {
+export default function SlideCanvas({ slide, trendStatus }) {
+  // Build B — computed render-state. Derived from the frozen trend status, never
+  // from slide prose; the architect no longer writes record counts.
+  const signalLine = annotationForSlide(slide, trendStatus);
   return (
     <div className="w-full bg-card border border-border rounded-xl shadow-panel overflow-hidden">
       <div className="aspect-[16/9] w-full overflow-y-auto p-8 flex flex-col">
@@ -16,6 +20,9 @@ export default function SlideCanvas({ slide }) {
           <p className="text-xs mt-2 rounded-md px-2.5 py-1.5 font-medium" style={{ background: '#FAE9E5', color: '#A33B24' }}>
             {slide.provenance_label}
           </p>
+        )}
+        {signalLine && (
+          <p className="text-xs italic mt-2" style={{ color: '#62837F' }}>{signalLine}</p>
         )}
 
         <div className="grid md:grid-cols-2 gap-6 mt-5 flex-1">

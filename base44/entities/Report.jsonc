@@ -40,7 +40,13 @@
       "type": "object",
       "additionalProperties": true,
       "default": {},
-      "description": "Frozen at build, persisted at save. Maps every cited id to its resolved evidence: { <id>: { canonical_string, trend_id, kind } } where kind is one of 'source' | 'inline' | 'web' | 'gnpd'. A cross-region (Build C) GNPD entry additionally carries read_across: true and original_country \u2014 the per-datapoint marker the tier-match validator and the export pre-flight key off. The renderer and export resolve against THIS map, never against live retrieval. This is what makes a saved deck self-verifying and TOCTOU-proof."
+      "description": "Frozen at build, persisted at save. Maps every cited id to its resolved evidence: { <id>: { canonical_string, trend_id, kind } } where kind is one of 'source' | 'inline' | 'web' | 'gnpd'. A cross-region (Build C) GNPD entry additionally carries read_across: true and original_country. The trend_id is what the Build B XTREND-1 rule compares against the slide's own trend_id; web-kind bindings carry an empty trend_id by design and are exempt. The renderer and export resolve against THIS map, never against live retrieval."
+    },
+    "trend_status": {
+      "type": "object",
+      "additionalProperties": true,
+      "default": {},
+      "description": "Per-trend evidence status snapshot, frozen at save from the build evidence: { <trend_id>: { evidence_status, record_count, read_across_status, read_across_count } }. The export renderer stamps signal annotations and record counts from this, never from slide prose."
     },
     "preflight_failed": {
       "type": "boolean",
@@ -86,7 +92,7 @@
           },
           "trend_id": {
             "type": "string",
-            "description": "The verified trend this content slide is built on. Emitted by the architect from the evidence. Basis for citation resolution and (Build B) render-state."
+            "description": "The verified trend this content slide is built on. Emitted by the architect from the evidence. Basis for citation resolution, XTREND-1 trend containment, and the computed evidence-status annotation."
           },
           "evidence_class": {
             "type": "string",
@@ -120,7 +126,7 @@
             "items": {
               "type": "string"
             },
-            "description": "The technical / application questions the market observation raises (dough rheology, hydration balance, gluten dilution, staling, mouthfeel and similar). Turns a market observation into a technical conversation."
+            "description": "The technical / application questions the market observation raises (dough rheology, hydration balance, gluten dilution, staling, mouthfeel and similar)."
           },
           "customer_pains": {
             "type": "array",
@@ -272,7 +278,7 @@
     "validator_log": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Phase 7 \u2014 write-time output-validation record for this report. An EMPTY log is a valid, meaningful state: it means the deck passed with nothing rejected. Shape: { validated_at, rewrite_attempted, rewrite_succeeded, rejections: [{rule, field, why, text, phase, timestamp}], flags: [{rule, field, why, text}], rule_fire_counts: {RULE_ID: n} }.",
+      "description": "Phase 7 \u2014 write-time output-validation record for this report. An EMPTY log is a valid, meaningful state: it means the deck passed with nothing rejected. Shape: { validated_at, rewrite_attempted, rewrite_succeeded, unresolvable: {total_cited, unresolved, ratio, threshold}, rejections: [{rule, field, why, text, phase, timestamp}], flags: [...], rule_fire_counts: {RULE_ID: n} }.",
       "properties": {
         "validated_at": {
           "type": "string",
@@ -284,6 +290,11 @@
         "rewrite_succeeded": {
           "type": "boolean"
         },
+        "unresolvable": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Build B UNRES-1 accounting for this save: total cited datapoints, how many resolved to nothing, the ratio, and the ceiling in force. Recorded on every save, whether or not the gate fired."
+        },
         "rejections": {
           "type": "array",
           "items": {
@@ -291,7 +302,7 @@
             "properties": {
               "rule": {
                 "type": "string",
-                "description": "Rule ID that fired, e.g. FIG-1, ADJ-2, PRE-1, PUB-3, TIER-1"
+                "description": "Rule ID that fired, e.g. FIG-1, ADJ-2, PRE-1, PUB-3, TIER-1, XTREND-1, UNRES-1"
               },
               "field": {
                 "type": "string",
@@ -308,9 +319,10 @@
                 "type": "string",
                 "enum": [
                   "first_pass",
-                  "after_rewrite"
+                  "after_rewrite",
+                  "save_confirm"
                 ],
-                "description": "first_pass = fired on the architect's original deck. after_rewrite = still firing after the single rewrite attempt, i.e. the save was blocked."
+                "description": "first_pass = fired on the architect's original deck. after_rewrite = still firing after the build loop's rewrite attempts. save_confirm = fired on the confirmation pass at save, i.e. the deck was edited by hand after the build."
               },
               "timestamp": {
                 "type": "string",
@@ -393,7 +405,7 @@
         "ready",
         "failed"
       ],
-      "description": "Lifecycle of the Claude-skill PPTX export for this report."
+      "description": "Lifecycle of the Claude-skill PPTX export for this report. A run stuck in 'generating' for more than 5 minutes is recovered to 'failed' by checkClaudePptxExport \u2014 a platform kill leaves no code running to do it from inside."
     },
     "claude_export_error": {
       "type": "string",
@@ -402,7 +414,7 @@
     "claude_export_started_at": {
       "type": "string",
       "format": "date-time",
-      "description": "When the current Claude-skill export job was started."
+      "description": "When the current Claude-skill export job was started. Basis for the stale-state recovery in checkClaudePptxExport."
     },
     "claude_export_stage": {
       "type": "string",
@@ -410,7 +422,7 @@
     },
     "claude_export_stage_detail": {
       "type": "string",
-      "description": "One human-readable line shown live in the UI while the export runs."
+      "description": "One human-readable line shown live in the UI while the export runs. Written at most once every 4 seconds (debounced) \u2014 a per-token write rate exhausted the function's memory."
     },
     "claude_export_finished_at": {
       "type": "string",

@@ -4,7 +4,7 @@ import SlideCanvas from './SlideCanvas';
 import SlideCard from './SlideCard';
 import { resolveSupportingData } from './citationMap';
 
-export default function DeckPreview({ slides, onSlideChange, onSave, saving, bindings, saveDisabledReason }) {
+export default function DeckPreview({ slides, onSlideChange, onSave, saving, bindings, trendStatus, saveDisabledReason }) {
   const [index, setIndex] = useState(0);
   const [editing, setEditing] = useState(false);
   const raw = slides[Math.min(index, slides.length - 1)];
@@ -56,7 +56,7 @@ export default function DeckPreview({ slides, onSlideChange, onSave, saving, bin
       {editing ? (
         <SlideCard slide={current} onChange={updated => onSlideChange(index, updated)} />
       ) : (
-        <SlideCanvas slide={current} />
+        <SlideCanvas slide={current} trendStatus={trendStatus} />
       )}
 
       <div className="flex gap-2 overflow-x-auto pb-1">

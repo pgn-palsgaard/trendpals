@@ -15,6 +15,11 @@
 export const CROSS_REGION_DIVIDER_TITLE = 'Cross-region reference';
 export const CROSS_REGION_DIVIDER_SUBTITLE = 'Launches from other markets';
 
+// Build B (BM-3) — the SIGNAL tier divider, defined ONCE. The prompt and the
+// evidence context had drifted to two different strings, one of them 44 chars and
+// therefore over the 38-char divider budget. Both now import this.
+export const SIGNAL_DIVIDER_TITLE = 'Signal — not yet regionally evidenced';
+
 // One line, deterministic. `regionLabel` is the report's display label (what the
 // evidence actually covers), never a query value.
 export function provenanceLabel(regionLabel) {

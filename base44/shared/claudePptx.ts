@@ -113,6 +113,9 @@ export function buildDataJson(report, uploads: Array<{ file_id: string; filename
     // Frozen citation map. supporting_data cites a source by id; the renderer
     // resolves it here and drops anything that does not resolve. Never re-derived.
     bindings:    report.evidence_bindings || {},
+    // Build B — computed render-states. Per-trend evidence status frozen at save;
+    // the renderer stamps signal annotations from THIS, never from slide prose.
+    trend_status: report.trend_status || {},
     images,
   });
 }
@@ -156,6 +159,7 @@ BODY_IDX={'Full page content and preheader':18,
   'Full page content and preheader, dark colours':1}
 DARK_LAYOUTS={'Full page content and preheader, dark colours'}
 BINDINGS={}
+TREND_STATUS={}
 THUMB_LEFT_IN=9.15; THUMB_BOX_W_IN=3.29; THUMB_BOX_H_IN=1.55
 THUMB_TOPS_IN=[1.60,3.35,5.10]
 
@@ -310,6 +314,17 @@ def stat_text(entry):
     return f'{stat}  ({", ".join(parts)})' if parts else stat
   return str(entry)
 
+def signal_annotation(slide):
+  """Build B — computed render-state. The record count is stamped from the frozen
+  trend status, never read from slide prose. A cross-region slide already carries
+  the provenance label and gets no second stamp."""
+  if str(slide.get('evidence_class') or '')=='read_across': return ''
+  st=TREND_STATUS.get(str(slide.get('trend_id') or ''))
+  if not isinstance(st,dict): return ''
+  if str(st.get('evidence_status') or '')!='signal_only': return ''
+  n=int(st.get('record_count') or 0)
+  return 'Signal \\u2014 %d regional launch%s on record'%(n,'' if n==1 else 'es')
+
 def image_key_candidates(example):
   text=str(example); keys=[]
   match=re.search(r'\\b(\\d{6,9})\\b',text)
@@ -328,6 +343,9 @@ def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE):
   prov=(slide.get('provenance_label') or '').strip()
   if prov and str(slide.get('evidence_class') or '')=='read_across':
     blocks.append(Block([{'text':prov,'bold':True,'size':size,'color':ORANGE}]))
+  sig=signal_annotation(slide)
+  if sig:
+    blocks.append(Block([{'text':sig,'size':size,'color':TEAL}]))
   signal=(slide.get('market_signal') or '').strip()
   if signal:
     paras=[{'text':line,'size':size,'color':text_colour,'space_before':gap if i==0 else 0}
@@ -476,8 +494,9 @@ def build(data,template_path,out_path,workdir):
   patched=patch_template(template_path,workdir)
   prs=Presentation(patched)
   if len(prs.slides)!=0: raise RuntimeError(f'Patched template has {len(prs.slides)} artefact slides.')
-  global BINDINGS
+  global BINDINGS,TREND_STATUS
   BINDINGS={str(k):v for k,v in (data.get('bindings') or {}).items() if isinstance(v,dict)}
+  TREND_STATUS={str(k):v for k,v in (data.get('trend_status') or {}).items() if isinstance(v,dict)}
   images={str(k).lower():v for k,v in (data.get('images') or {}).items()}
   preheader=data.get('preheader') or ''; slides=data.get('slides') or []
   report['slides_in']=len(slides); render_front_page(prs,data,report)

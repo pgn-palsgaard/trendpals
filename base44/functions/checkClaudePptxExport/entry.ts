@@ -21,6 +21,32 @@ export default async function (req) {
     ? new Date(report.claude_export_started_at).getTime()
     : null;
 
+  // Build B — stale-state recovery. A platform kill (exceededMemory, timeout,
+  // crash) terminates the export process, so NO catch block inside it ever runs
+  // and the report stays 'generating' forever. Only an outside observer can clean
+  // that up, and this poll is the observer. It detects the SYMPTOM (stuck too
+  // long), so it works regardless of cause. Typical export: 28-31s; platform
+  // ceiling: 293s — nothing still running after 5 minutes is going to finish.
+  const STALE_MS = 5 * 60 * 1000;
+  if (report.claude_export_status === 'generating' && startedAt && Date.now() - startedAt > STALE_MS) {
+    const error = 'The export timed out — please try again.';
+    await base44.asServiceRole.entities.Report.update(report_id, {
+      claude_export_status: 'failed',
+      claude_export_error: error,
+      claude_export_stage: null,
+      claude_export_finished_at: new Date().toISOString(),
+    });
+    return Response.json({
+      status: 'failed',
+      stage: null,
+      stage_detail: report.claude_export_stage_detail ?? null,
+      pptx_url: null,
+      error,
+      stale_recovered: true,
+      elapsed_seconds: Math.round((Date.now() - startedAt) / 1000),
+    });
+  }
+
   return Response.json({
     status: report.claude_export_status ?? 'idle',
     stage: report.claude_export_stage ?? null,
