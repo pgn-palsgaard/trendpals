@@ -150,10 +150,11 @@ BUDGET_IMPLICATIONS_TITLE=110
 BODY_HEIGHT_IN=4.93; BODY_WIDTH_IN=11.86; BODY_WIDTH_WITH_IMAGES_IN=8.00
 CHARS_PER_LINE={14:108,13:118,12:128,11:140,10:154}
 LINE_HEIGHT_IN={14:0.245,13:0.228,12:0.210,11:0.194,10:0.177}
-# One consistent look across the whole deck: every section divider uses the same
-# Palsgaard blue, and every content slide uses the same light layout. Alternating
-# colours and a dark variant made one deck look like three different documents.
-BREAKING_COLOURS=['Breaking slide Palsgaard blue']
+# One Palsgaard identity, with rhythm. Section dividers rotate through three
+# brand accents in a fixed order, and the accent is carried into the content
+# slides that follow it — so slides differ, but the deck reads as one document.
+BREAKING_COLOURS=['Breaking slide Palsgaard blue','Breaking slide sage','Breaking slide dark blue']
+SECTION_ACCENTS=[RGBColor(0x1D,0x42,0x8A),RGBColor(0x6F,0x82,0x63),RGBColor(0x5A,0x36,0x1F)]
 CONTENT_LAYOUTS=['Full page content and preheader']
 PREHEADER_IDX={'Full page content and preheader':16,
   'Full page content and preheader, dark colours':39}
@@ -486,9 +487,10 @@ def render_implications(prs,slide_data,preheader,report):
   drop_empty_placeholders(slide)
   return [slide]
 
-def render_content(prs,slide_data,preheader,layout_name,images,report):
+def render_content(prs,slide_data,preheader,layout_name,images,report,accent=None):
   dark=layout_name in DARK_LAYOUTS
-  text_colour=LGOLD if dark else DKBLUE; header_colour=SAGE_LIGHT if dark else BLUE
+  text_colour=LGOLD if dark else DKBLUE
+  header_colour=SAGE_LIGHT if dark else (accent or BLUE)
   width=BODY_WIDTH_IN; probe,thumbs=build_blocks(slide_data,images,12,text_colour,header_colour)
   if thumbs: width=BODY_WIDTH_WITH_IMAGES_IN
   size=pick_body_size(probe,width); blocks,thumbs=build_blocks(slide_data,images,size,text_colour,header_colour)
@@ -548,7 +550,10 @@ def build(data,template_path,out_path,workdir):
       made=render_methodology(prs,entry,preheader,report); last_layout='Full page content and preheader'
     else:
       layout_name=next((n for n in CONTENT_LAYOUTS if n!=last_layout),CONTENT_LAYOUTS[0])
-      made=render_content(prs,entry,preheader,layout_name,images,report); last_layout=layout_name
+      # The accent of the divider this slide sits under, so the section's colour
+      # carries into its content. Before any divider, the deck opens on blue.
+      accent=SECTION_ACCENTS[(section_index-1)%len(SECTION_ACCENTS)] if section_index else BLUE
+      made=render_content(prs,entry,preheader,layout_name,images,report,accent); last_layout=layout_name
     report['slides_out']+=len(made); report['continuations']+=max(0,len(made)-1)
     for field in ('market_signal','why_it_may_matter','supporting_data','formulation_questions',
                   'gnpd_examples','conversation_openers','customer_pains'):
