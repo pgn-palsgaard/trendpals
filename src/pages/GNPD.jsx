@@ -86,9 +86,13 @@ function UploadsTab() {
   }, [Object.keys(detectingTimers).length]);
 
   // Live product counts per source — canonical, derived from GNPDProduct records
+  // Shares the ['gnpdStats'] cache with the Products tab — the aggregation scans
+  // every product record, so it must be fetched once per session, not per tab.
   const { data: productStats } = useQuery({
     queryKey: ['gnpdStats'],
     queryFn: async () => (await base44.functions.invoke('getGNPDStats', {})).data,
+    staleTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 
   const stats = useMemo(() => ({
@@ -360,24 +364,32 @@ function ProductsTab({ onNavigateToReviewQueue }) {
   const [sortBy, setSortBy]         = useState("newest"); // 'newest' | 'score'
   const [searchInput, setSearchInput] = useState("");
   const [selected, setSelected]     = useState(null);
-  const [stats, setStats]           = useState(null);
-  const [statsLoading, setStatsLoading] = useState(true);
   const searchTimeoutRef = React.useRef(null);
+  const queryClient = useQueryClient();
 
   // Category dropdown is driven by the fixed canonical taxonomy (palsgaard_category),
   // NOT by the stats aggregation — so it is always populated and independent of getGNPDStats.
   const allCategories = CANONICAL_KEYS;
 
-  // Load stats once on mount
-  useEffect(() => { loadStats(); }, []);
+  // Same shared cache as the Uploads tab. The backend serves a cached snapshot;
+  // "Refresh stats" is the only path that forces a full re-scan.
+  const [refreshingStats, setRefreshingStats] = useState(false);
+  const { data: stats, isFetching: statsFetching } = useQuery({
+    queryKey: ['gnpdStats'],
+    queryFn: async () => (await base44.functions.invoke('getGNPDStats', {})).data,
+    staleTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const statsLoading = statsFetching || refreshingStats;
 
   async function loadStats() {
-    setStatsLoading(true);
+    setRefreshingStats(true);
     try {
-      const res = await base44.functions.invoke('getGNPDStats', {});
-      setStats(res.data);
+      const res = await base44.functions.invoke('getGNPDStats', { force: true });
+      queryClient.setQueryData(['gnpdStats'], res.data);
     } catch (e) { console.error(e); }
-    setStatsLoading(false);
+    setRefreshingStats(false);
   }
 
   // Reload from scratch when filters or sort change

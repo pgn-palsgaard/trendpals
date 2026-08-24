@@ -60,9 +60,11 @@ Deno.serve(async (req) => {
       }
     }
 
+    let scanned = 0;
     while (true) {
       const page = await fetchPage(skip);
       if (!page || page.length === 0) break;
+      scanned += page.length;
 
       for (const p of page) {
         if (catFilter) {
@@ -92,7 +94,19 @@ Deno.serve(async (req) => {
       await sleep(250); // gentle pacing to stay under the platform rate limit
     }
 
-    return Response.json({ total, with_image, with_emulsifier, trend_linked, pending_review, by_category, by_region, by_source });
+    const stats = { total, with_image, with_emulsifier, trend_linked, pending_review, by_category, by_region, by_source };
+    const computedAt = new Date().toISOString();
+
+    // Persist the snapshot so the next page load costs one read instead of 28k.
+    try {
+      if (cacheRow) {
+        await base44.asServiceRole.entities.GNPDStatsCache.update(cacheRow.id, { stats, computed_at: computedAt, records_scanned: scanned });
+      } else {
+        await base44.asServiceRole.entities.GNPDStatsCache.create({ filter_key: filterKey, stats, computed_at: computedAt, records_scanned: scanned });
+      }
+    } catch (_) { /* a failed cache write must not fail the request */ }
+
+    return Response.json({ ...stats, cached: false, computed_at: computedAt });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
   }
