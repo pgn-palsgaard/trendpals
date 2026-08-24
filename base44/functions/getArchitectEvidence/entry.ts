@@ -409,9 +409,13 @@ export default async function (req) {
           }
           scoredRa.sort((a, b) => b.score - a.score);
           const pickedRa = scoredRa.slice(0, 10);
+          // Registered into the flat union only once the tier CLEARS the bar: a record
+          // picked for a trend that ends up with no cross-region slide is not evidence
+          // this deck can cite, and must not appear in the downstream product set.
+          const raBelowBar = pickedRa.length < FULL_EVIDENCE_MIN;
           for (const { p, matched } of pickedRa) {
             consumed.add(p.gnpd_record_id);
-            if (!readAcrossById[p.gnpd_record_id]) {
+            if (!raBelowBar && !readAcrossById[p.gnpd_record_id]) {
               readAcrossById[p.gnpd_record_id] = {
                 gnpd_record_id: p.gnpd_record_id,
                 product_name: p.product_name,
@@ -430,7 +434,14 @@ export default async function (req) {
                 original_country: p.country || '',
               };
             }
-            readAcrossProducts.push({ ...readAcrossById[p.gnpd_record_id], matched_keywords: matched.slice(0, 5) });
+            const rec = readAcrossById[p.gnpd_record_id] || {
+              gnpd_record_id: p.gnpd_record_id, product_name: p.product_name, brand: p.brand || '',
+              company: p.company || '', country: p.country || '', launch_date: p.launch_date || '',
+              category: p.palsgaard_category || p.category || '', sub_category: p.sub_category || '',
+              claims: (p.claims || []).slice(0, 6), image_url: p.image_url || '',
+              mintel_record_url: p.mintel_record_url || '', read_across: true, original_country: p.country || '',
+            };
+            readAcrossProducts.push({ ...rec, matched_keywords: matched.slice(0, 5) });
           }
           readAcrossStatus = readAcrossProducts.length >= FULL_EVIDENCE_MIN ? 'full' : 'insufficient';
           if (readAcrossProducts.length > 0) {
