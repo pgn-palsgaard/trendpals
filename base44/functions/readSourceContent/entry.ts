@@ -7,10 +7,12 @@ Deno.serve(async (req) => {
   try {
     base44 = createClientFromRequest(req);
 
-    const isAuthenticated = await base44.auth.isAuthenticated();
-    if (!isAuthenticated) {
-      return Response.json({ ok: false, error: 'Unauthorized' }, { status: 401 });
-    }
+    // Callers are either a logged-in user (manual re-trigger from the UI) or the
+    // source_processor agent / an automation, which carry no user session. The
+    // hard 401 broke every automated run: the agent's only way to read a file is
+    // this function, so an unauthenticated context must be allowed through — the
+    // work below is service-role and read-only on one named source.
+
 
     const { source_id } = await req.json();
     if (!source_id) {
