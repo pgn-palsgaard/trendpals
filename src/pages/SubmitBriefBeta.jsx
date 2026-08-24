@@ -383,10 +383,35 @@ export default function SubmitBriefBeta() {
       // [BETA] no longer lives in the title — it renders as a pre-header on the
       // exported deck instead, so the 47-char front-page budget (LEN-1) stays intact.
       let title = String(contract.report_title || contract.core_hypothesis || contract.objective || 'Architect draft').slice(0, 120);
-      let deck = slides;
-      // The frozen binding map IS the allow-list: a cited id either resolves in the
-      // evidence this deck was built from, or the save is rejected (CITE-1).
+      // ORDER MATTERS: resolve citations BEFORE validating. The character budgets are
+      // a hard wall against a template that never autofits, so LEN-3 must measure the
+      // strings the reader actually gets — validating the pre-resolution deck measures
+      // empty citation strings and lets a deck within ~70 chars of the ceiling through
+      // to clip in front of a customer.
+      let deck = slides.map(s => Array.isArray(s.supporting_data)
+        ? { ...s, supporting_data: resolveSupportingData(s.supporting_data, bindingMap) }
+        : s);
+      // Resolution DROPS unresolvable ids, so CITE-1 can no longer be observed by
+      // validating the resolved deck — the dropped entries are recovered here and
+      // rejected explicitly. A cited id either resolves in the evidence this deck was
+      // built from, or the save is blocked.
+      const dropped = [];
+      slides.forEach((s, i) => {
+        const kept = new Set((deck[i].supporting_data || []).map(d => d.source_id).filter(Boolean));
+        (s.supporting_data || []).forEach((d, j) => {
+          if (d.source_id && !kept.has(d.source_id)) {
+            dropped.push({
+              rule: 'CITE-1',
+              field: `slide ${s.slide_number ?? i + 1}.supporting_data[${j}].source`,
+              why: `source_id "${d.source_id}" resolves to nothing in the evidence this deck was built from — the citation cannot be rendered and may be fabricated`,
+              text: String(d.source_id),
+            });
+          }
+        });
+      });
       const verdict = validateSlides(deck, category, title, allowListFromBindings(bindingMap));
+      verdict.rejections = [...dropped, ...verdict.rejections];
+      verdict.ok = verdict.rejections.length === 0;
       // The build loop's per-attempt log is the audit trail; the confirm pass adds
       // its own entries so a hand-edited breakage is distinguishable from a
       // build-time one.
@@ -454,17 +479,9 @@ export default function SubmitBriefBeta() {
         exclusions: snap.exclusions,
         validatorFlags: verdict.flags,
       });
-      // Citations are resolved from the frozen map and stored as strings alongside
-      // their ids, so a saved deck renders standalone. Anything unresolvable is
-      // dropped rather than rendered as a raw id (the save-time CITE-1 wall above
-      // means a dropped entry here is a defect, not the normal path).
-      const finalSlides = [disclaimerSlide, ...deck.map((s, i) => ({
-        ...s,
-        slide_number: i + 1,
-        ...(Array.isArray(s.supporting_data)
-          ? { supporting_data: resolveSupportingData(s.supporting_data, bindingMap) }
-          : {}),
-      }))];
+      // deck is already citation-resolved (above) and was validated in that state,
+      // so what is persisted is exactly what LEN measured.
+      const finalSlides = [disclaimerSlide, ...deck.map((s, i) => ({ ...s, slide_number: i + 1 }))];
       if (methodologySlide) finalSlides.push({ ...methodologySlide, slide_number: finalSlides.length });
 
       // The deck cites products by their exact GNPD Record ID, so the shortlist is
