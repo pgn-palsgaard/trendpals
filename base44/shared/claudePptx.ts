@@ -135,6 +135,7 @@ import argparse, html, json, math, os, re, shutil, sys, zipfile
 from lxml import etree
 from pptx import Presentation
 from pptx.dml.color import RGBColor
+from pptx.enum.shapes import MSO_SHAPE
 from pptx.oxml.ns import qn
 from pptx.util import Emu, Inches, Pt
 
@@ -145,6 +146,7 @@ TEAL=RGBColor(0x22,0x56,0x6E); GREY=RGBColor(0x96,0x96,0x96)
 SAGE_LIGHT=RGBColor(0xAC,0xCE,0xAE)
 TEMPLATE_NAME='Palsgaard_PP_Template.potx'
 BUDGET_FRONT_TITLE=47; BUDGET_CONTENT_TITLE=75; BUDGET_BREAKING_HEADLINE=38
+BUDGET_IMPLICATIONS_TITLE=110
 BODY_HEIGHT_IN=4.93; BODY_WIDTH_IN=11.86; BODY_WIDTH_WITH_IMAGES_IN=8.00
 CHARS_PER_LINE={14:108,13:118,12:128,11:140,10:154}
 LINE_HEIGHT_IN={14:0.245,13:0.228,12:0.210,11:0.194,10:0.177}
@@ -447,6 +449,41 @@ def render_methodology(prs,slide_data,preheader,report):
   paras=[{'text':f'\\u2022  {l}','size':size,'color':DKBLUE} for l in lines]
   set_ph_structured(slide,BODY_IDX[layout_name],paras)
   report['methodology_lines']=len(lines); drop_empty_placeholders(slide)
+  return [slide]
+
+def render_implications(prs,slide_data,preheader,report):
+  """Strategic implications slide: big insight title, a light-gold 'So what for
+  manufacturers?' box and a sage 'Where Palsgaard supports' box. No body text,
+  no product examples \\u2014 it interprets the trend slide before it."""
+  layout_name='Full page content and preheader'
+  slide=prs.slides.add_slide(get_layout(prs,layout_name))
+  head=str(slide_data.get('preheader') or preheader or '').strip()
+  if head: set_ph_simple(slide,PREHEADER_IDX[layout_name],head,size=11,bold=True,color=BLUE)
+  title=str(slide_data.get('title') or 'Strategic implications').strip()
+  if len(title)>BUDGET_IMPLICATIONS_TITLE:
+    report['warnings'].append(f'Implications title {len(title)} chars (budget {BUDGET_IMPLICATIONS_TITLE}).')
+  reposition_placeholder(slide,0,0.89,0.95,11.86,1.45)
+  set_ph_simple(slide,0,title,size=title_size(title,BUDGET_IMPLICATIONS_TITLE,26,18),color=DKBLUE)
+  boxes=[('So what for manufacturers?',as_list(slide_data.get('strategic_implications')),LGOLD,ORANGE,'\\u2192  '),
+         ('Where Palsgaard supports',as_list(slide_data.get('palsgaard_support')),SAGE_LIGHT,BLUE,'\\u2713  ')]
+  top=2.55
+  for header,items,fill,hdr_colour,prefix in boxes:
+    rows=[str(i).strip() for i in items if str(i).strip()]
+    if not rows: continue
+    height=0.62+0.36*len(rows)
+    box=slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,Inches(0.89),Inches(top),Inches(11.86),Inches(height))
+    box.fill.solid(); box.fill.fore_color.rgb=fill; box.line.fill.background()
+    try: box.shadow.inherit=False
+    except Exception: pass
+    tb=slide.shapes.add_textbox(Inches(1.14),Inches(top+0.14),Inches(11.36),Inches(height-0.20))
+    tb.text_frame.word_wrap=True; body=tb.text_frame._txBody
+    for p in body.findall(qn('a:p')): body.remove(p)
+    body.append(make_para(header,bold=True,size_pt=12,color=hdr_colour))
+    for row in rows: body.append(make_para(prefix+row,size_pt=11,color=DKBLUE,space_before_pt=7))
+    top+=height+0.24
+  footer=str(slide_data.get('evidence_footer') or '').strip()
+  if footer: add_footnote(slide,f'Sources: {footer}')
+  drop_empty_placeholders(slide)
   return [slide]
 
 def render_content(prs,slide_data,preheader,layout_name,images,report):

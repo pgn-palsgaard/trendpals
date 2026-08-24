@@ -247,6 +247,45 @@ function budgetRejections(slides, reportTitle) {
   (slides || []).forEach((slide, i) => {
     const where = `slide ${slide.slide_number ?? i + 1}`;
     const isSection = slide.slide_type === 'section_header';
+    const isImplications = slide.slide_type === 'implications';
+
+    // Strategic-implications slide: its own budgets. Two boxed lists, no body text.
+    if (isImplications) {
+      if (len(slide.title) > BUDGETS.IMPLICATIONS_TITLE) {
+        rejections.push({
+          rule: 'LEN-2', field: `${where}.title`,
+          why: `implications title must be ≤ ${BUDGETS.IMPLICATIONS_TITLE} characters (currently ${len(slide.title)}) — it holds exactly 2 lines at 26pt`,
+          text: String(slide.title).slice(0, 300),
+        });
+      }
+      if (len(slide.preheader) > BUDGETS.PRE_HEADER) {
+        rejections.push({
+          rule: 'LEN-4', field: `${where}.preheader`,
+          why: `pre-header must be ≤ ${BUDGETS.PRE_HEADER} characters on one line (currently ${len(slide.preheader)})`,
+          text: String(slide.preheader).slice(0, 300),
+        });
+      }
+      [['strategic_implications', 4], ['palsgaard_support', 3]].forEach(([field, max]) => {
+        const rows = slide[field] || [];
+        if (rows.length > max) {
+          rejections.push({
+            rule: 'LEN-5', field: `${where}.${field}`,
+            why: `max ${max} lines in this box (currently ${rows.length}) — the box overflows the slide beyond that`,
+            text: `(${rows.length} lines)`,
+          });
+        }
+        rows.forEach((row, j) => {
+          if (len(row) > BUDGETS.IMPLICATION_LINE) {
+            rejections.push({
+              rule: 'LEN-5', field: `${where}.${field}[${j}]`,
+              why: `each line must be ≤ ${BUDGETS.IMPLICATION_LINE} characters (currently ${len(row)}) — it renders on a single line`,
+              text: String(row).slice(0, 300),
+            });
+          }
+        });
+      });
+      return;
+    }
 
     const titleBudget = isSection ? BUDGETS.BREAKING_HEADLINE : BUDGETS.CONTENT_TITLE;
     if (len(slide.title) > titleBudget) {
@@ -422,7 +461,7 @@ export function unresolvableGate(slides, bindings, threshold = UNRESOLVABLE_THRE
 }
 
 const TEXT_FIELDS = ['title', 'subtitle', 'market_signal', 'why_it_may_matter'];
-const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_examples'];
+const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_examples', 'strategic_implications'];
 
 // Validates a whole deck. Returns { ok, rejections[], flags[] }.
 export function validateSlides(slides, briefCategory, reportTitle = null, allowList = null) {

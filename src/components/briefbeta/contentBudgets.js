@@ -20,4 +20,8 @@ export const BUDGETS = {
   BODY_BESIDE_IMAGES: 2629,  // text column W=8.60" beside packshot column
   BREAKING_HEADLINE: 38,     // L54 idx29, 32pt bold, 1 line
   BREAKING_SUBLINE: 50,      // L54 idx30, 18pt, 1 line
+  // Strategic-implications slide: the title placeholder is repositioned by the
+  // renderer to 1.45" and set at 26pt, so it holds exactly 2 lines.
+  IMPLICATIONS_TITLE: 110,
+  IMPLICATION_LINE: 130,     // one arrow / tick line, 11pt, single line in the box
 };
