@@ -110,6 +110,9 @@ export function buildDataJson(report, uploads: Array<{ file_id: string; filename
     prepared_by: 'Prepared by Palsgaard',
     beta:        report.generated_by === 'architect',
     slides:      report.slides || [],
+    // Frozen citation map. supporting_data cites a source by id; the renderer
+    // resolves it here and drops anything that does not resolve. Never re-derived.
+    bindings:    report.evidence_bindings || {},
     images,
   });
 }
@@ -152,6 +155,7 @@ PREHEADER_IDX={'Full page content and preheader':16,
 BODY_IDX={'Full page content and preheader':18,
   'Full page content and preheader, dark colours':1}
 DARK_LAYOUTS={'Full page content and preheader, dark colours'}
+BINDINGS={}
 THUMB_LEFT_IN=9.15; THUMB_BOX_W_IN=3.29; THUMB_BOX_H_IN=1.55
 THUMB_TOPS_IN=[1.60,3.35,5.10]
 
@@ -286,9 +290,22 @@ def as_list(value):
   if isinstance(value,list): return value
   return [value]
 
+def resolve_source(entry):
+  """Returns the human-readable source, or None when a cited id does not resolve.
+  None means DROP the datapoint: never render a raw id, an empty citation, or a
+  reconstructed string."""
+  raw=str(entry.get('source_id') or '').strip()
+  if not raw: return str(entry.get('source') or '').strip()
+  key=raw if raw.startswith('[') else '[SRC:'+raw+']'
+  hit=BINDINGS.get(key) or BINDINGS.get(raw)
+  if not hit: return None
+  return str(hit.get('canonical_string') or '').strip()
+
 def stat_text(entry):
   if isinstance(entry,dict):
-    stat=str(entry.get('stat','')).strip(); source=str(entry.get('source') or '').strip()
+    stat=str(entry.get('stat','')).strip()
+    source=resolve_source(entry)
+    if source is None: return ''
     geo=str(entry.get('geography') or '').strip(); parts=[p for p in (source,geo) if p]
     return f'{stat}  ({", ".join(parts)})' if parts else stat
   return str(entry)
@@ -454,6 +471,8 @@ def build(data,template_path,out_path,workdir):
   patched=patch_template(template_path,workdir)
   prs=Presentation(patched)
   if len(prs.slides)!=0: raise RuntimeError(f'Patched template has {len(prs.slides)} artefact slides.')
+  global BINDINGS
+  BINDINGS={str(k):v for k,v in (data.get('bindings') or {}).items() if isinstance(v,dict)}
   images={str(k).lower():v for k,v in (data.get('images') or {}).items()}
   preheader=data.get('preheader') or ''; slides=data.get('slides') or []
   report['slides_in']=len(slides); render_front_page(prs,data,report)

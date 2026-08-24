@@ -2,11 +2,17 @@ import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Pencil, Check, Save } from 'lucide-react';
 import SlideCanvas from './SlideCanvas';
 import SlideCard from './SlideCard';
+import { resolveSupportingData } from './citationMap';
 
-export default function DeckPreview({ slides, onSlideChange, onSave, saving }) {
+export default function DeckPreview({ slides, onSlideChange, onSave, saving, bindings, saveDisabledReason }) {
   const [index, setIndex] = useState(0);
   const [editing, setEditing] = useState(false);
-  const current = slides[Math.min(index, slides.length - 1)];
+  const raw = slides[Math.min(index, slides.length - 1)];
+  // Citations are resolved from the frozen map for display; an id that resolves to
+  // nothing is dropped, never shown as a raw id or an empty citation.
+  const current = Array.isArray(raw?.supporting_data)
+    ? { ...raw, supporting_data: resolveSupportingData(raw.supporting_data, bindings) }
+    : raw;
 
   const go = (delta) => {
     setEditing(false);
@@ -32,13 +38,20 @@ export default function DeckPreview({ slides, onSlideChange, onSave, saving }) {
             {editing ? 'Done editing' : 'Edit slide'}
           </button>
         </div>
-        <button onClick={onSave} disabled={saving}
+        <button onClick={onSave} disabled={saving || !!saveDisabledReason}
+          title={saveDisabledReason || undefined}
           className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
           style={{ background: '#1D428A' }}>
           <Save className="w-4 h-4" />
           {saving ? 'Saving…' : 'Save as beta report'}
         </button>
       </div>
+
+      {saveDisabledReason && (
+        <p className="text-xs rounded-md px-3 py-2" style={{ background: '#FAE9E5', color: '#A33B24' }}>
+          {saveDisabledReason}
+        </p>
+      )}
 
       {editing ? (
         <SlideCard slide={current} onChange={updated => onSlideChange(index, updated)} />

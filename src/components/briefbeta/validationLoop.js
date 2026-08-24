@@ -5,7 +5,7 @@
 // up to MAX_BUILD_ATTEMPTS total (1 original + 2 rewrites). The analyst only
 // ever sees a deck that either passed, or that carries an explicit warning of
 // what is still wrong. Budgets are never relaxed to make a deck pass.
-import { validateSlides, buildCitationAllowList } from './outputValidator';
+import { validateSlides, buildCitationAllowList, allowListFromBindings } from './outputValidator';
 
 export const MAX_BUILD_ATTEMPTS = 3;
 
@@ -20,9 +20,11 @@ function logEntries(rejections, attempt) {
 // rewrite(rejections) → { slides, contract } | null
 // onAttempt(attempt, total) → progress indicator hook
 export async function runBuildWithValidation({
-  slides, evidence, category, title, rewrite, onAttempt,
+  slides, evidence, bindings, category, title, rewrite, onAttempt,
 }) {
-  const allowList = buildCitationAllowList(evidence);
+  // The frozen binding map IS the allow-list: keyed by resolvable id, strictly
+  // stronger than the legacy title/publisher list (which stays for legacy decks).
+  const allowList = bindings ? allowListFromBindings(bindings) : buildCitationAllowList(evidence);
   let deck = slides;
   let currentTitle = title;
   let contractPatch = null;

@@ -13,7 +13,8 @@ import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbe
 import { buildEvidenceContext, extractRecordIds } from '@/components/briefbeta/evidenceContext';
 import { resolveRegionScope } from '@/components/briefbeta/regionScope';
 import { coveredRegionLabel } from '@/components/briefbeta/coveredRegion';
-import { validateSlides, buildCitationAllowList } from '@/components/briefbeta/outputValidator';
+import { validateSlides, allowListFromBindings } from '@/components/briefbeta/outputValidator';
+import { buildCitationMap, resolveSupportingData } from '@/components/briefbeta/citationMap';
 import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
 import { computeRenderedByCountry } from '@/components/briefbeta/renderedByCountry';
 import { runBuildWithValidation, MAX_BUILD_ATTEMPTS } from '@/components/briefbeta/validationLoop';
@@ -64,6 +65,12 @@ export default function SubmitBriefBeta() {
   const [saving, setSaving] = useState(false);
   const [savedReport, setSavedReport] = useState(null);
   const [gateNotice, setGateNotice] = useState(null);
+  // The evidence snapshot the CURRENT deck was built from, frozen at build time and
+  // never overwritten by a later retrieval. Binding, validation and save read this,
+  // never the shared `evidence` state — otherwise a deck could be bound to evidence
+  // the architect never saw (TOCTOU). null = the deck is unbound and cannot be saved.
+  const [frozenEvidence, setFrozenEvidence] = useState(null);
+  const [bindings, setBindings] = useState(null);
   // Build-loop state: live progress while validating/rewriting, and the outcome
   // of the last build so the deck can be shown with warnings when it still fails.
   const [validationStatus, setValidationStatus] = useState(null);
@@ -82,6 +89,9 @@ export default function SubmitBriefBeta() {
       if (cancelled || !s) return;
       if (Array.isArray(s.messages) && s.messages.length > 0) setMessages(s.messages);
       if (s.contract) setContract(s.contract);
+      // A resumed deck is UNBOUND: the slides come from the saved session while the
+      // evidence is retrieved fresh below, so nothing guarantees the two match. It is
+      // shown for reading, but must be rebuilt before it can be saved.
       if (Array.isArray(s.slides) && s.slides.length > 0) setSlides(s.slides);
       if (s.session_started_at) sessionStart.current = s.session_started_at;
       // Evidence is not stored on the session — re-run the gates so the architect
@@ -200,9 +210,23 @@ export default function SubmitBriefBeta() {
           const bindingChanged =
             JSON.stringify(next.categories) !== JSON.stringify(contract.categories) ||
             JSON.stringify(next.sub_categories) !== JSON.stringify(contract.sub_categories) ||
+            JSON.stringify(next.excluded_countries) !== JSON.stringify(contract.excluded_countries) ||
             next.region !== contract.region;
           if (next.categories && next.region && bindingChanged) {
             loadEvidenceFor(next.categories, next.region, next.sub_categories);
+          }
+          // A binding field changed after a deck was built: the built slides were
+          // grounded in the previous evidence, so the deck is stale and must be
+          // rebuilt — exactly as a manual slide edit invalidates the build verdict.
+          if (bindingChanged && slides) {
+            setSlides(null);
+            setFrozenEvidence(null);
+            setBindings(null);
+            setBuildValidation(null);
+            setMessages(prev => [...prev, {
+              role: 'assistant',
+              content: 'The brief scope changed, so the deck built on the previous evidence has been discarded. Ask me to build again and it will be grounded in the new evidence.',
+            }]);
           }
         } catch { /* malformed contract — ignore, next turn re-emits */ }
       }
@@ -289,10 +313,17 @@ export default function SubmitBriefBeta() {
     const category = cats[0] || 'needs_human_review';
     const title = String(activeContract.report_title || activeContract.core_hypothesis || activeContract.objective || 'Architect draft').slice(0, 120);
 
+    // Freeze the snapshot the moment the deck is built, beside the slides.
+    const snapshot = ev || evidence;
+    const bindingMap = buildCitationMap(snapshot);
+    setFrozenEvidence(snapshot);
+    setBindings(bindingMap);
+
     setValidationStatus({ attempt: 1, total: MAX_BUILD_ATTEMPTS });
     const result = await runBuildWithValidation({
       slides: parsedSlides,
-      evidence: ev || evidence,
+      evidence: snapshot,
+      bindings: bindingMap,
       category,
       title,
       rewrite: rejections => requestRewrite(rejections, transcript, ev || evidence),
@@ -317,6 +348,19 @@ export default function SubmitBriefBeta() {
     if (!slides || saving) return;
     setSaving(true);
     try {
+      // Save binds the deck to the snapshot it was BUILT from — never to a fresh
+      // retrieval. No frozen snapshot means the deck is unbound (resumed session, or
+      // scope changed after the build): it must be rebuilt, not saved.
+      const snap = frozenEvidence;
+      if (!snap) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: 'Nothing was saved — this deck is not bound to an evidence snapshot (it was restored from history, or the brief scope changed after it was built). Ask me to build it again and it will be saved with its evidence.',
+        }]);
+        setSaving(false);
+        return;
+      }
+      const bindingMap = bindings || buildCitationMap(snap);
       const cats = (Array.isArray(contract.categories) ? contract.categories : [contract.categories])
         .filter(c => CANONICAL_CATEGORIES.includes(c));
       const category = cats[0] || 'needs_human_review';
@@ -330,7 +374,7 @@ export default function SubmitBriefBeta() {
       // Phase 2 — the display label reflects what the evidence actually covers,
       // never the requested scope. The requested-vs-covered gap is stated once,
       // on the methodology slide.
-      const displayLabel = coveredRegionLabel(evidence?.gate) || regionDisplayLabel(scope);
+      const displayLabel = coveredRegionLabel(snap.gate) || regionDisplayLabel(scope);
 
       // Save-time validation is now a CONFIRMATION pass only — the rewrite budget
       // was spent in the build loop, so no rewrite is attempted here. A rejection
@@ -340,8 +384,9 @@ export default function SubmitBriefBeta() {
       // exported deck instead, so the 47-char front-page budget (LEN-1) stays intact.
       let title = String(contract.report_title || contract.core_hypothesis || contract.objective || 'Architect draft').slice(0, 120);
       let deck = slides;
-      const citeAllowList = buildCitationAllowList(evidence);
-      const verdict = validateSlides(deck, category, title, citeAllowList);
+      // The frozen binding map IS the allow-list: a cited id either resolves in the
+      // evidence this deck was built from, or the save is rejected (CITE-1).
+      const verdict = validateSlides(deck, category, title, allowListFromBindings(bindingMap));
       // The build loop's per-attempt log is the audit trail; the confirm pass adds
       // its own entries so a hand-edited breakage is distinguishable from a
       // build-time one.
@@ -377,7 +422,7 @@ export default function SubmitBriefBeta() {
       }
       // The trends the architect worked from carry the market-intel sources behind
       // the deck — attach them to the project so the evidence chain stays traceable.
-      const usedTrends = (evidence?.trends || []).filter(t => cats.includes(t.category));
+      const usedTrends = (snap.trends || []).filter(t => cats.includes(t.category));
       const sourceIds = [...new Set(usedTrends.flatMap(t => (t.sources || []).map(s => s.id)).filter(Boolean))];
 
       const project = await base44.entities.Project.create({
@@ -404,19 +449,29 @@ export default function SubmitBriefBeta() {
         market_signal: AI_DISCLAIMER_FULL,
       };
       const methodologySlide = buildMethodologySlide({
-        gate: evidence?.gate,
+        gate: snap.gate,
         contract,
-        exclusions: evidence?.exclusions,
+        exclusions: snap.exclusions,
         validatorFlags: verdict.flags,
       });
-      const finalSlides = [disclaimerSlide, ...deck.map((s, i) => ({ ...s, slide_number: i + 1 }))];
+      // Citations are resolved from the frozen map and stored as strings alongside
+      // their ids, so a saved deck renders standalone. Anything unresolvable is
+      // dropped rather than rendered as a raw id (the save-time CITE-1 wall above
+      // means a dropped entry here is a defect, not the normal path).
+      const finalSlides = [disclaimerSlide, ...deck.map((s, i) => ({
+        ...s,
+        slide_number: i + 1,
+        ...(Array.isArray(s.supporting_data)
+          ? { supporting_data: resolveSupportingData(s.supporting_data, bindingMap) }
+          : {}),
+      }))];
       if (methodologySlide) finalSlides.push({ ...methodologySlide, slide_number: finalSlides.length });
 
       // The deck cites products by their exact GNPD Record ID, so the shortlist is
       // built straight from the retrieved evidence — no name guessing.
       const recordIds = extractRecordIds(deck);
       const evidenceById = {};
-      for (const p of evidence?.products || []) evidenceById[p.gnpd_record_id] = p;
+      for (const p of snap.products || []) evidenceById[p.gnpd_record_id] = p;
       // Phase 4 — the reference list must be ID-equal to what the deck actually
       // renders. An id cited on a slide that is not in the retrieved evidence is
       // not a reference, it is a defect: it is kept out of the export list and
@@ -473,7 +528,8 @@ export default function SubmitBriefBeta() {
         slides: finalSlides,
         product_shortlist: shortlist,
         selected_trends: usedTrends.map(t => t.trend_name),
-        evidence_gate: evidence?.gate || null,
+        evidence_gate: snap.gate || null,
+        evidence_bindings: bindingMap,
         excluded_countries: Array.isArray(contract.excluded_countries) ? contract.excluded_countries : [],
         evidence_gate_rendered_by_country: renderedByCountry,
         status: 'draft',
@@ -548,9 +604,11 @@ export default function SubmitBriefBeta() {
             {slides && !savedReport && (
               <DeckPreview
                 slides={slides}
+                bindings={bindings}
                 onSlideChange={updateSlide}
                 onSave={saveAsReport}
                 saving={saving}
+                saveDisabledReason={frozenEvidence ? null : 'This deck is not bound to an evidence snapshot (restored from history, or the scope changed after it was built). Ask the architect to build it again before saving.'}
               />
             )}
 

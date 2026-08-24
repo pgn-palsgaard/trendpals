@@ -36,6 +36,12 @@
       "default": {},
       "description": "Country \u2192 count of rendered gnpd_examples. Written at save time. Never empty on a report with gnpd_examples."
     },
+    "evidence_bindings": {
+      "type": "object",
+      "additionalProperties": true,
+      "default": {},
+      "description": "Frozen at build, persisted at save. Maps every cited id to its resolved evidence: { <id>: { canonical_string, trend_id, kind } } where kind is one of 'source' | 'inline' | 'web' | 'gnpd'. The renderer and export resolve against THIS map, never against live retrieval. This is what makes a saved deck self-verifying and TOCTOU-proof."
+    },
     "preflight_failed": {
       "type": "boolean",
       "default": false,
@@ -77,6 +83,10 @@
           "slide_type": {
             "type": "string",
             "description": "Rendering hint: content, section_header, briefing_context, methodology, product_export."
+          },
+          "trend_id": {
+            "type": "string",
+            "description": "The verified trend this content slide is built on. Emitted by the architect from the evidence. Basis for citation resolution and (Build B) render-state."
           },
           "title": {
             "type": "string"
@@ -138,8 +148,13 @@
                 "stat": {
                   "type": "string"
                 },
+                "source_id": {
+                  "type": "string",
+                  "description": "The [SRC:\u2026] or [WEB:\u2026] id the architect cited. Authoritative. The human-readable `source` is resolved from this at build and stored alongside for standalone rendering."
+                },
                 "source": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "Resolved human-readable citation, written from evidence_bindings \u2014 never architect-authored on an ID-locked deck. Legacy decks carry the original string here."
                 },
                 "geography": {
                   "type": "string"

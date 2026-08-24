@@ -307,10 +307,18 @@ export default async function (req) {
           }
           trendSources.push(sourcesById[sid]);
         }
+        // Inline citations are objects inside GlobalTrend.sources[] — they are not
+        // Source records and have no database id, so a SYNTHETIC id is minted from
+        // the position in the EMITTED (filtered) array. Do NOT "fix" this into a
+        // database id: the resolved citation map is frozen at deck build, so a later
+        // re-order of GlobalTrend.sources[] cannot affect an already-built deck.
         const inlineCitations = (t.sources || [])
           .filter(s => !s.source_id && (s.title || s.publisher))
           .slice(0, 5)
-          .map(s => ({ title: s.title || '', publisher: s.publisher || '', key_finding: s.key_finding || '' }));
+          .map((s, i) => ({
+            id: `INLINE:${t.id}:${i}`,
+            title: s.title || '', publisher: s.publisher || '', key_finding: s.key_finding || '',
+          }));
 
         // --- Eligible GNPD products supporting this trend (region is NOT scored) ---
         const keywords = (t.trend_keywords || []).map(k => String(k).toLowerCase()).filter(k => k.length >= 3);
@@ -442,6 +450,9 @@ export default async function (req) {
           }
           if (undetermined) gate.web_signal_gate.kept_with_scope_label++;
           webSignals.push({
+            // Carried so the architect can cite this signal by id instead of by
+            // free-text title — a citation string it writes itself can be invented.
+            id: s.id,
             title: s.title, publisher: s.publisher || '', url: s.url || '',
             published_date: s.published_date || '', category: s.category,
             region: sigRegion || 'Global', market_signal: s.market_signal,
@@ -465,6 +476,9 @@ export default async function (req) {
       trends: trendsOut,
       web_signals: webSignals,
       source_ids: Object.keys(sourcesById),
+      // Full source records (with id) — the canonical set the frontend freezes into
+      // the deck's citation-resolution map without re-calling retrieval.
+      sources: Object.values(sourcesById),
       products: Object.values(productsById),
     });
   } catch (error) {

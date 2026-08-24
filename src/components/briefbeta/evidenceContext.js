@@ -1,37 +1,27 @@
-import { SUPPRESSED_PUBLISHERS } from './outputValidator';
 import { coveredRegionLabel } from './coveredRegion';
+import { collectCitations } from './citationMap';
 
 // Turns the deterministic evidence payload from getArchitectEvidence into the
 // grounded context block the architect must build from, and reads the chosen
 // GNPD record ids back out of the finished deck.
+//
+// Every citable item is shown with a copyable id tag — [SRC:…] for sources and
+// inline citations, [WEB:…] for web signals — exactly as GNPD products have
+// always been shown with their record id. The architect selects an id from a
+// closed set; it never writes a citation string. Suppression and id minting live
+// in collectCitations() so the shown set and the frozen citation map are the
+// same set (see citationMap.js).
 
-// Fresh open-web signals found by Market Scout. Supplementary only — they may
-// sharpen the framing and recency of a slide, but never replace Mintel/GNPD
-// evidence and never become product examples.
-// A citation the output validator would reject outright (competitor / ingredient
-// supplier) must never reach the architect — otherwise it builds a deck that is
-// guaranteed to fail validation. Filtered at context-build time, on publisher AND
-// title, because is_competitor_content is not reliably set on older records.
-function isSuppressed(...parts) {
-  const s = parts.filter(Boolean).join(' ');
-  return SUPPRESSED_PUBLISHERS.some(p =>
-    new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s)
-  );
-}
+function buildWebSignalBlock(webSignals) {
+  if (webSignals.length === 0) return '';
 
-function buildWebSignalBlock(evidence) {
-  const signals = (evidence?.web_signals || [])
-    .filter(s => s.is_competitor_content !== true && !isSuppressed(s.publisher, s.title))
-    .slice(0, 12);
-  if (signals.length === 0) return '';
-
-  const lines = signals.map(s =>
-    `  - ${s.title}${s.publisher ? ` (${s.publisher}` : ''}${s.published_date ? `, ${s.published_date})` : s.publisher ? ')' : ''} [${s.region}]${s.scope_label ? ` ${s.scope_label}` : ''}${s.linked_trend_name ? ` → supports: ${s.linked_trend_name}` : ''} — ${String(s.market_signal || '').slice(0, 220)}`
+  const lines = webSignals.map(s =>
+    `  - [WEB:${s.id}] ${s.title}${s.publisher ? ` (${s.publisher}` : ''}${s.published_date ? `, ${s.published_date})` : s.publisher ? ')' : ''} [${s.region}]${s.scope_label ? ` ${s.scope_label}` : ''}${s.linked_trend_name ? ` → supports: ${s.linked_trend_name}` : ''} — ${String(s.market_signal || '').slice(0, 220)}`
   );
 
   return [
     '### SUPPLEMENTARY: FRESH WEB SIGNALS (Market Scout)',
-    'Recent open-web items, unverified and pending human review. You MAY use them to make the framing more current, and you MUST attribute them to the named publisher when you do. You may NEVER treat them as GNPD product examples, and you may never present them as Mintel data. Any item carrying a "(Note: source region could not be determined …)" label may NOT be presented as evidence about the brief region — if you use it, you must reproduce that label inline.',
+    'Recent open-web items, unverified and pending human review. You MAY use them to make the framing more current. Cite one only by copying its [WEB:…] tag verbatim into source_id — never write a citation string yourself. You may NEVER treat them as GNPD product examples, and you may never present them as Mintel data. Any item carrying a "(Note: source region could not be determined …)" label may NOT be presented as evidence about the brief region — if you use it, you must reproduce that label inline.',
     lines.join('\n'),
   ].join('\n');
 }
@@ -54,29 +44,32 @@ function buildRegionLabelBlock(evidence) {
 }
 
 export function buildEvidenceContext(evidence) {
-  const trends = evidence?.trends || [];
+  const { trends, webSignals } = collectCitations(evidence);
   if (trends.length === 0) return null;
 
   const regionBlock = buildRegionLabelBlock(evidence);
-  const webBlock = buildWebSignalBlock(evidence);
+  const webBlock = buildWebSignalBlock(webSignals);
 
   const trendBlocks = trends.map(t => {
     const lines = [`### [${t.category}] TREND: ${t.trend_name}`];
+    lines.push(`TREND ID (copy into every slide built on this trend): ${t.trend_id}`);
     lines.push(t.evidence_status === 'signal_only'
       ? `EVIDENCE STATUS: SIGNAL ONLY — ${t.record_count} eligible regional launch${t.record_count === 1 ? '' : 'es'} on record. This trend belongs in the "Signal — not yet evidenced at regional level" section and its slide must state the record count.`
       : `EVIDENCE STATUS: FULL — ${t.record_count} eligible regional launches on record.`);
     if (t.market_signal) lines.push(`Signal: ${t.market_signal.slice(0, 300)}`);
 
     const cites = [
-      ...(t.sources || []).filter(s => !isSuppressed(s.publisher, s.title)).map(s => {
+      ...t.sources.map(s => {
         const finding = (s.key_findings || [])[0];
-        return `  - ${s.title}${s.publisher ? ` (${s.publisher}` : ''}${s.date_published ? `, ${s.date_published})` : s.publisher ? ')' : ''}${finding ? ` — ${finding.slice(0, 220)}` : ''}`;
+        return `  - [SRC:${s.id}] ${s.title}${s.publisher ? ` (${s.publisher}` : ''}${s.date_published ? `, ${s.date_published})` : s.publisher ? ')' : ''}${finding ? ` — ${finding.slice(0, 220)}` : ''}`;
       }),
-      ...(t.inline_citations || []).filter(c => !isSuppressed(c.publisher, c.title)).map(c =>
-        `  - ${c.title}${c.publisher ? ` (${c.publisher})` : ''}${c.key_finding ? ` — ${c.key_finding.slice(0, 220)}` : ''}`
+      ...t.inline_citations.map(c =>
+        `  - [SRC:${c.id}] ${c.title}${c.publisher ? ` (${c.publisher})` : ''}${c.key_finding ? ` — ${c.key_finding.slice(0, 220)}` : ''}`
       ),
     ];
-    lines.push(cites.length ? `Sources you may cite:\n${cites.join('\n')}` : 'Sources you may cite: none on record — do not invent any.');
+    lines.push(cites.length
+      ? `Sources you may cite — cite one ONLY by copying its [SRC:…] tag verbatim into source_id, and never write a citation string yourself:\n${cites.join('\n')}`
+      : 'Sources you may cite: none on record — do not invent any.');
 
     const prods = (t.products || []).map(p =>
       `  - ${p.gnpd_record_id} | ${p.product_name}${p.brand ? ` — ${p.brand}` : ''}${p.country ? ` (${p.country})` : ''}${p.launch_date ? `, ${p.launch_date}` : ''}${p.claims?.length ? ` | Claims: ${p.claims.join(', ')}` : ''}`

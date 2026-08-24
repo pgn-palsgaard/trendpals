@@ -7,6 +7,7 @@
 // Pure functions only. No I/O.
 
 import { BUDGETS } from './contentBudgets';
+import { resolveBinding } from './citationKey';
 
 // Normalizes a publisher/title string for allow-list comparison: lowercase,
 // strip everything but letters, digits and single spaces.
@@ -42,6 +43,15 @@ export function buildCitationAllowList(evidence) {
     publishers: [...publishers],
     available: (titles.size + publishers.size) > 0,
   };
+}
+
+// Build A — the frozen citation map used as the allow-list. Keyed by resolvable
+// id, so a citation either resolves to real evidence or it does not exist. This
+// replaces the title/publisher list for every ID-locked deck; buildCitationAllowList
+// above stays in use for legacy decks whose citations are strings.
+export function allowListFromBindings(bindings) {
+  const b = bindings && typeof bindings === 'object' ? bindings : {};
+  return { bindings: b, titles: [], publishers: [], available: Object.keys(b).length > 0 };
 }
 
 const FIGURE_RULES = [
@@ -115,8 +125,29 @@ export function validateText(text, field = 'text') {
 // Validates one supporting_data citation against the publisher rules and, when an
 // allow-list is supplied, against the retrieved evidence.
 export function validateCitation(citation, briefCategory, allowList = null) {
-  const s = String(citation?.source || '');
   const stat = String(citation?.stat || '');
+  const rawId = String(citation?.source_id || '').trim();
+  const bindings = allowList?.bindings || null;
+
+  // ID-locked citation (Build A). The id must resolve in the frozen snapshot the
+  // deck was built from — otherwise the renderer would drop it and the reader
+  // would silently lose the support for a claim. Rejected, and logged.
+  let resolved = '';
+  if (rawId && bindings) {
+    const hit = resolveBinding(rawId, bindings);
+    if (!hit) {
+      return {
+        ok: false, rule: 'CITE-1',
+        why: `source_id "${rawId}" resolves to nothing in the evidence this deck was built from — the citation cannot be rendered and may be fabricated`,
+        text: rawId, flags: [],
+      };
+    }
+    resolved = String(hit.canonical_string || '');
+  }
+
+  // The publisher / category rules run on the resolved string for an ID-locked
+  // citation, and on the stored string for a legacy one.
+  const s = rawId ? (resolved || String(citation?.source || '')) : String(citation?.source || '');
   if (!s.trim()) return { ok: true, flags: [] };
 
   // PUB-1 — competitor / ingredient-supplier content, rejected outright.
@@ -136,7 +167,9 @@ export function validateCitation(citation, briefCategory, allowList = null) {
   const norm = normalizeCite(s);
   const isGnpd = /\b(mintel )?gnpd\b/.test(norm);
   let citeFlag = null;
-  if (allowList && allowList.available && !isGnpd) {
+  // Legacy string path only — an ID-locked citation was already resolved above,
+  // and its resolved string is evidence by construction.
+  if (!rawId && allowList && allowList.available && (allowList.titles || []).length > 0 && !isGnpd) {
     const titleHit = allowList.titles.some(t => t && (norm.includes(t) || t.includes(norm)));
     const pubHit = allowList.publishers.some(p => p && new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(norm));
     if (!titleHit && !pubHit) {
