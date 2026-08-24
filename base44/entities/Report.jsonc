@@ -88,7 +88,7 @@
           },
           "slide_type": {
             "type": "string",
-            "description": "Rendering hint: content, section_header, briefing_context, methodology, product_export."
+            "description": "Rendering hint: content, section_header, briefing_context, methodology, implications, product_export."
           },
           "trend_id": {
             "type": "string",
@@ -112,6 +112,24 @@
           },
           "subtitle": {
             "type": "string"
+          },
+          "preheader": {
+            "type": "string",
+            "description": "Implications slides only \u2014 the one-line pre-header above the title, e.g. 'TREND 01 | <trend name> | STRATEGIC IMPLICATIONS'."
+          },
+          "strategic_implications": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Implications slides only \u2014 max 4 one-line 'so what for manufacturers' bullets, each grounded in the preceding trend slide's evidence."
+          },
+          "palsgaard_support": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Implications slides only \u2014 max 3 one-line capability-angle bullets. Observation framing, no product names or dosages."
           },
           "market_signal": {
             "type": "string",
