@@ -365,6 +365,15 @@ ${items}`,
     // never authored by the architect. Stamping here means the preview shows exactly
     // what the export will.
     setSlides(stampProvenance(result.slides, coveredRegionLabel(snapshot?.gate) || ''));
+    // Citations that did not belong on their slide were dropped, not blocked —
+    // the deck still builds, and the analyst is told what was removed.
+    const droppedCites = result.dropped_citations || [];
+    if (droppedCites.length > 0) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `Note: I removed ${droppedCites.length} reference${droppedCites.length === 1 ? '' : 's'} that did not resolve to this brief's evidence (or belonged to another trend or market), so the deck stays evidence-true:\n\n${droppedCites.slice(0, 8).map(d => `• ${d.field}: ${d.id} — ${d.why}`).join('\n')}`,
+      }]);
+    }
     if (result.contractPatch?.report_title) {
       setContract(prev => ({ ...prev, report_title: result.contractPatch.report_title }));
     }

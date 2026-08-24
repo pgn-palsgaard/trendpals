@@ -12,6 +12,7 @@
 import { validateSlides, buildCitationAllowList, allowListFromBindings } from './outputValidator';
 import { resolveCitation } from './citationMap';
 import { buildSurgicalPayload, applyCorrections, splitVerdict } from './surgicalRewrite';
+import { pruneCitations } from './pruneCitations';
 
 export const MAX_BUILD_ATTEMPTS = 3;      // 1 first pass + 2 surgical rewrites
 export const MAX_SURGICAL_REWRITES = MAX_BUILD_ATTEMPTS - 1;
@@ -49,7 +50,11 @@ export async function runBuildWithValidation({
   // The frozen binding map IS the allow-list: keyed by resolvable id, strictly
   // stronger than the legacy title/publisher list (which stays for legacy decks).
   const allowList = bindings ? allowListFromBindings(bindings) : buildCitationAllowList(evidence);
-  let deck = slides;
+  // Citations that do not belong on their slide are DROPPED here, before any
+  // validation runs — a single bad reference must never hard-block the build.
+  const firstPrune = pruneCitations(slides, bindings);
+  let deck = firstPrune.slides;
+  const droppedCitations = [...firstPrune.dropped];
   let currentTitle = title;
   let contractPatch = null;
   let rewriteAttempts = 0;
@@ -73,7 +78,9 @@ export async function runBuildWithValidation({
     if (!corrections || corrections.length === 0) break;
 
     const applied = applyCorrections(deck, currentTitle, corrections);
-    deck = applied.slides;
+    const pruned = pruneCitations(applied.slides, bindings);
+    deck = pruned.slides;
+    droppedCitations.push(...pruned.dropped);
     if (applied.title !== currentTitle) {
       currentTitle = applied.title;
       contractPatch = { ...(contractPatch || {}), report_title: currentTitle };
@@ -97,6 +104,7 @@ export async function runBuildWithValidation({
     len_warnings: split.len_warnings,
     integrity_rejections: split.integrity_rejections,
     flags: verdict.flags || [],
+    dropped_citations: droppedCitations,
     rewrite_attempts: rewriteAttempts,
     attempts: rewriteAttempts + 1,
     log,
