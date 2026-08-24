@@ -150,11 +150,11 @@ BUDGET_IMPLICATIONS_TITLE=110
 BODY_HEIGHT_IN=4.93; BODY_WIDTH_IN=11.86; BODY_WIDTH_WITH_IMAGES_IN=8.00
 CHARS_PER_LINE={14:108,13:118,12:128,11:140,10:154}
 LINE_HEIGHT_IN={14:0.245,13:0.228,12:0.210,11:0.194,10:0.177}
-BREAKING_COLOURS=['Breaking slide dark blue','Breaking slide Palsgaard blue',
-  'Breaking slide sage','Breaking slide dark green','Breaking slide light gold']
-CONTENT_LAYOUTS=['Full page content and preheader',
-  'Full page content and preheader',
-  'Full page content and preheader, dark colours']
+# One consistent look across the whole deck: every section divider uses the same
+# Palsgaard blue, and every content slide uses the same light layout. Alternating
+# colours and a dark variant made one deck look like three different documents.
+BREAKING_COLOURS=['Breaking slide Palsgaard blue']
+CONTENT_LAYOUTS=['Full page content and preheader']
 PREHEADER_IDX={'Full page content and preheader':16,
   'Full page content and preheader, dark colours':39}
 BODY_IDX={'Full page content and preheader':18,
