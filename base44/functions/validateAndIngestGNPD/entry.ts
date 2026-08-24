@@ -233,13 +233,22 @@ Deno.serve(async (req) => {
       fetchUrl = signed.signed_url;
     }
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
-    let fileResponse;
-    try {
-      fileResponse = await fetch(fetchUrl, { signal: controller.signal });
-    } finally {
-      clearTimeout(timeout);
+    const fetchWithTimeout = async (url) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 60000);
+      try {
+        return await fetch(url, { signal: controller.signal });
+      } finally {
+        clearTimeout(timeout);
+      }
+    };
+
+    let fileResponse = await fetchWithTimeout(fetchUrl);
+    // The UploadFile URL can sit in a bucket the service role cannot read directly.
+    // A 403 is not a real failure — sign the file_url once and retry.
+    if (fileResponse.status === 403) {
+      const signed = await base44.asServiceRole.integrations.Core.CreateFileSignedUrl({ file_uri: fileUrl, expires_in: 300 });
+      fileResponse = await fetchWithTimeout(signed.signed_url);
     }
     if (!fileResponse.ok) throw new Error(`Failed to fetch file: ${fileResponse.status} ${fileResponse.statusText}`);
 
