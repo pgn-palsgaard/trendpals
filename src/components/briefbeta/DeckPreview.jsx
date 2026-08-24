@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Pencil, Check, Save } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Pencil, Check, Save, AlertTriangle } from 'lucide-react';
 import SlideCanvas from './SlideCanvas';
 import SlideCard from './SlideCard';
 import { resolveSupportingData } from './citationMap';
 
-export default function DeckPreview({ slides, onSlideChange, onSave, saving, bindings, trendStatus, saveDisabledReason }) {
+export default function DeckPreview({ slides, onSlideChange, onSave, saving, bindings, trendStatus, saveDisabledReason, saveWarning }) {
   const [index, setIndex] = useState(0);
   const [editing, setEditing] = useState(false);
   const raw = slides[Math.min(index, slides.length - 1)];
@@ -38,18 +38,25 @@ export default function DeckPreview({ slides, onSlideChange, onSave, saving, bin
             {editing ? 'Done editing' : 'Edit slide'}
           </button>
         </div>
+        {/* Build D — amber save state: the evidence is sound, some text is too long
+            for the template. Distinct from disabled, which is integrity only. */}
         <button onClick={onSave} disabled={saving || !!saveDisabledReason}
-          title={saveDisabledReason || undefined}
+          title={saveDisabledReason || saveWarning || undefined}
           className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
-          style={{ background: '#1D428A' }}>
-          <Save className="w-4 h-4" />
-          {saving ? 'Saving…' : 'Save as beta report'}
+          style={{ background: saveWarning && !saveDisabledReason ? '#C15338' : '#1D428A' }}>
+          {saveWarning && !saveDisabledReason ? <AlertTriangle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+          {saving ? 'Saving…' : (saveWarning && !saveDisabledReason ? 'Save anyway' : 'Save as beta report')}
         </button>
       </div>
 
       {saveDisabledReason && (
         <p className="text-xs rounded-md px-3 py-2" style={{ background: '#FAE9E5', color: '#A33B24' }}>
           {saveDisabledReason}
+        </p>
+      )}
+      {!saveDisabledReason && saveWarning && (
+        <p className="text-xs rounded-md px-3 py-2" style={{ background: '#FDF6E3', color: '#92600A' }}>
+          {saveWarning}
         </p>
       )}
 

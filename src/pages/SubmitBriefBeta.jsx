@@ -20,6 +20,7 @@ import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendi
 import { computeRenderedSplit } from '@/components/briefbeta/renderedByCountry';
 import { stampProvenance } from '@/components/briefbeta/readAcross';
 import { runBuildWithValidation, MAX_BUILD_ATTEMPTS } from '@/components/briefbeta/validationLoop';
+import { splitVerdict } from '@/components/briefbeta/surgicalRewrite';
 import ValidationBanner from '@/components/briefbeta/ValidationBanner';
 import ValidationStatus from '@/components/briefbeta/ValidationStatus';
 import GateNotice from '@/components/briefbeta/GateNotice';
@@ -276,36 +277,51 @@ export default function SubmitBriefBeta() {
     }).catch(() => {});
   }
 
-  // Rewrite request used by the build loop — the architect is told exactly which
-  // rule each string broke. baseTranscript/ev let the loop pass the live turn's
-  // transcript and evidence instead of the (not yet committed) component state.
-  async function requestRewrite(rejections, baseTranscript = null, ev = null) {
-    const log = rejections.slice(0, 10).map(r => `- [${r.rule}] ${r.field}: ${r.why} → "${r.text}"`).join('\n');
-    const transcript = (baseTranscript || messages.map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`).join('\n\n'))
-      + `\n\nUser: The deck was rejected by evidence-integrity validation. Rewrite the offending strings and re-emit the COMPLETE deck in a <slides> block. LEN-* rejections are hard character budgets — shorten to within the stated limit, never truncate mid-word. CITE-* rejections mean the citation does not exist in the provided evidence: replace it with a source shown in the evidence, or delete that supporting_data entry entirely — never re-emit or re-word the same untraceable citation. If report.title was rejected (LEN-1), also re-emit the <contract> block with a report_title of at most 47 characters. Change nothing else.\n${log}`;
+  // Build D — the SURGICAL rewrite. A short, stateless string-shortening call: it
+  // carries only the offending strings and their budgets, never the conversation,
+  // never the evidence context, never the rest of the deck. The old full-deck
+  // re-roll is gone — it reintroduced new overruns and new fabrications on slides
+  // that were already clean, so the rewrite budget never converged.
+  async function requestSurgicalRewrite(payload) {
+    const items = payload
+      .map((p, i) => `${i}. rule=${p.rule} budget=${p.budget} current_length=${p.current.length}\n   "${p.current}"`)
+      .join('\n');
     try {
       const reply = await base44.integrations.Core.InvokeLLM({
-        prompt: buildArchitectPrompt(transcript, buildEvidenceContext(ev || evidence)),
-        model: 'claude_sonnet_4_6',
+        prompt: `These strings exceed their hard character budgets in a PowerPoint template that never autofits text — anything over the budget renders clipped.
+
+Rewrite each one to fit its stated budget. Keep the same meaning and the same language. Do not add new content, new figures, new claims, new sources or new place names. Do not truncate mid-word. Do not add ellipses. Return the corrected string for every item, referenced by its index.
+
+${items}`,
+        response_json_schema: {
+          type: 'object',
+          properties: {
+            corrections: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  index: { type: 'number' },
+                  corrected: { type: 'string' },
+                },
+                required: ['index', 'corrected'],
+              },
+            },
+          },
+          required: ['corrections'],
+        },
+        model: 'gpt_5_mini',
       });
-      const raw = typeof reply === 'string' ? reply : (reply?.content || '');
-      let newSlides = null;
-      const m = raw.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
-      if (m) {
-        try {
-          const parsed = JSON.parse(m[1].trim());
-          if (Array.isArray(parsed) && parsed.length > 0) newSlides = parsed;
-        } catch { /* keep null */ }
-      }
-      // A LEN-1 rejection is fixed in the contract (report_title), not in the
-      // slides — capture a re-emitted contract so the shortened title applies.
-      let newContract = null;
-      const cm = raw.match(/<contract>\s*([\s\S]*?)\s*<\/contract>/);
-      if (cm) {
-        try { newContract = JSON.parse(cm[1].trim()); } catch { /* ignore */ }
-      }
-      if (!newSlides && !newContract) return null;
-      return { slides: newSlides, contract: newContract };
+      const list = Array.isArray(reply?.corrections) ? reply.corrections : [];
+      // The correction is bound back to the payload entry by index, so the model
+      // cannot choose which slide or field gets written.
+      return list
+        .map(c => {
+          const p = payload[Number(c?.index)];
+          if (!p || !String(c?.corrected || '').trim()) return null;
+          return { slide_number: p.slide_number, field: p.field, corrected: String(c.corrected).trim() };
+        })
+        .filter(Boolean);
     } catch {
       return null;
     }
@@ -340,7 +356,7 @@ export default function SubmitBriefBeta() {
       bindings: bindingMap,
       category,
       title,
-      rewrite: rejections => requestRewrite(rejections, transcript, ev || evidence),
+      rewrite: payload => requestSurgicalRewrite(payload),
       onAttempt: (attempt, total) => setValidationStatus({ attempt, total }),
     });
     setValidationStatus(null);
@@ -354,9 +370,13 @@ export default function SubmitBriefBeta() {
     }
     setBuildValidation({
       ok: result.ok,
+      verdict: result.verdict,
       rejections: result.rejections,
+      len_warnings: result.len_warnings,
+      integrity_rejections: result.integrity_rejections,
       flags: result.flags,
       attempts: result.attempts,
+      rewrite_attempts: result.rewrite_attempts,
       log: result.log,
     });
   }
@@ -432,6 +452,12 @@ export default function SubmitBriefBeta() {
       const verdict = validateSlides(deck, category, title, allowListFromBindings(bindingMap));
       verdict.rejections = [...dropped, ...(unres.rejection ? [unres.rejection] : []), ...verdict.rejections];
       verdict.ok = verdict.rejections.length === 0;
+      // Build D — the two-layer split at the save wall. A LEN overrun is cosmetic
+      // and reversible (the analyst shortens it in preview), so it is advisory and
+      // saved with its warning recorded. Everything else is an integrity failure —
+      // a citation that traces to nothing, a competitor source, another trend's or
+      // another market's evidence — and stays a hard wall with no override.
+      const saveSplit = splitVerdict(verdict.rejections);
       // The build loop's per-attempt log is the audit trail; the confirm pass adds
       // its own entries so a hand-edited breakage is distinguishable from a
       // build-time one.
@@ -442,6 +468,7 @@ export default function SubmitBriefBeta() {
         })),
       ];
       const buildAttempts = buildValidation?.attempts || 1;
+      const rewriteAttempts = buildValidation?.rewrite_attempts ?? 0;
       const ruleFireCounts = {};
       for (const e of logEntries) ruleFireCounts[e.rule] = (ruleFireCounts[e.rule] || 0) + 1;
       for (const f of verdict.flags || []) ruleFireCounts[f.rule] = (ruleFireCounts[f.rule] || 0) + 1;
@@ -454,22 +481,31 @@ export default function SubmitBriefBeta() {
           ratio: unres.ratio,
           threshold: unres.threshold,
         },
-        rewrite_attempted: buildAttempts > 1,
-        rewrite_succeeded: buildAttempts > 1 && verdict.ok,
-        build_attempts: buildAttempts,
+        verdict: saveSplit.verdict,
+        rewrite_attempts: rewriteAttempts,
+        rewrite_attempted: rewriteAttempts > 0,
+        rewrite_succeeded: rewriteAttempts > 0 && verdict.ok,
         rejections: logEntries,
         flags: (verdict.flags || []).map(f => ({ rule: f.rule, field: f.field, why: f.why, text: f.text })),
         rule_fire_counts: ruleFireCounts,
       };
-      if (!verdict.ok) {
-        const log = verdict.rejections.slice(0, 8)
+      if (saveSplit.integrity_rejections.length > 0) {
+        const log = saveSplit.integrity_rejections.slice(0, 8)
           .map(r => `• [${r.rule}] ${r.field}: ${r.why}\n  "${r.text}"`).join('\n');
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `Nothing was saved — the deck still fails evidence-integrity validation after ${buildAttempts} automatic attempt${buildAttempts === 1 ? '' : 's'}. Fix the fields below in the deck editor, or ask me to rebuild:\n\n${log}`,
+          content: `Nothing was saved — the deck breaks evidence integrity, and that cannot be overridden. Fix the fields below in the deck editor, or ask me to rebuild:\n\n${log}`,
         }]);
         setSaving(false);
         return;
+      }
+      if (saveSplit.len_warnings.length > 0) {
+        const log = saveSplit.len_warnings.slice(0, 8)
+          .map(r => `• [${r.rule}] ${r.field}: ${r.why}`).join('\n');
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Saving with ${saveSplit.len_warnings.length} text-length warning${saveSplit.len_warnings.length === 1 ? '' : 's'} — the evidence is sound, but this text will be clipped in the export until you shorten it:\n\n${log}`,
+        }]);
       }
       // The trends the architect worked from carry the market-intel sources behind
       // the deck — attach them to the project so the evidence chain stays traceable.
@@ -653,8 +689,11 @@ export default function SubmitBriefBeta() {
 
             {slides && !savedReport && buildValidation && !buildValidation.ok && (
               <ValidationBanner
-                rejections={buildValidation.rejections}
+                rejections={buildValidation.verdict === 'blocked'
+                  ? buildValidation.integrity_rejections
+                  : buildValidation.len_warnings}
                 attempts={buildValidation.attempts}
+                verdict={buildValidation.verdict}
               />
             )}
 
@@ -666,7 +705,19 @@ export default function SubmitBriefBeta() {
                 onSlideChange={updateSlide}
                 onSave={saveAsReport}
                 saving={saving}
-                saveDisabledReason={frozenEvidence ? null : 'This deck is not bound to an evidence snapshot (restored from history, or the scope changed after it was built). Ask the architect to build it again before saving.'}
+                // Build D — one disabling mechanism, two reasons: an unbound deck,
+                // or a surviving integrity violation. A LEN overrun never disables
+                // save; it turns the button amber instead.
+                saveDisabledReason={
+                  !frozenEvidence
+                    ? 'This deck is not bound to an evidence snapshot (restored from history, or the scope changed after it was built). Ask the architect to build it again before saving.'
+                    : buildValidation?.verdict === 'blocked'
+                      ? 'This deck breaks evidence integrity — a citation traces to nothing, or belongs to another trend or market. That cannot be overridden: fix the flagged fields or ask the architect to rebuild.'
+                      : null
+                }
+                saveWarning={buildValidation?.verdict === 'warnings_only'
+                  ? `${buildValidation.len_warnings.length} field${buildValidation.len_warnings.length === 1 ? '' : 's'} too long for the template — save anyway and shorten later`
+                  : null}
               />
             )}
 

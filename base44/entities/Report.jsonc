@@ -278,11 +278,24 @@
     "validator_log": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Phase 7 \u2014 write-time output-validation record for this report. An EMPTY log is a valid, meaningful state: it means the deck passed with nothing rejected. Shape: { validated_at, rewrite_attempted, rewrite_succeeded, unresolvable: {total_cited, unresolved, ratio, threshold}, rejections: [{rule, field, why, text, phase, timestamp}], flags: [...], rule_fire_counts: {RULE_ID: n} }.",
+      "description": "Phase 7 \u2014 write-time output-validation record for this report. An EMPTY log is a valid, meaningful state: it means the deck passed with nothing rejected. Shape: { validated_at, verdict, rewrite_attempts, rewrite_attempted, rewrite_succeeded, unresolvable: {total_cited, unresolved, ratio, threshold}, rejections: [{rule, field, why, text, phase, timestamp}], flags: [...], rule_fire_counts: {RULE_ID: n} }.",
       "properties": {
         "validated_at": {
           "type": "string",
           "format": "date-time"
+        },
+        "verdict": {
+          "type": "string",
+          "enum": [
+            "passed",
+            "warnings_only",
+            "blocked"
+          ],
+          "description": "Build D two-layer outcome at save. passed = nothing left. warnings_only = only LEN character-budget overruns remain; the analyst saved knowingly and the export will clip that text. blocked = an integrity violation remained, in which case nothing is saved at all \u2014 so this value never appears on the save that created a report."
+        },
+        "rewrite_attempts": {
+          "type": "number",
+          "description": "Build D \u2014 how many SURGICAL rewrites the build loop spent (0, 1 or 2). 0 means the deck either passed first pass or carried only violations a rewrite cannot fix. Replaces the earlier undeclared build_attempts, which counted validation passes rather than rewrites."
         },
         "rewrite_attempted": {
           "type": "boolean"
@@ -302,7 +315,7 @@
             "properties": {
               "rule": {
                 "type": "string",
-                "description": "Rule ID that fired, e.g. FIG-1, ADJ-2, PRE-1, PUB-3, TIER-1, XTREND-1, UNRES-1"
+                "description": "Rule ID that fired, e.g. FIG-1, ADJ-2, PRE-1, PUB-3, TIER-1, XTREND-1, UNRES-1, LEN-2"
               },
               "field": {
                 "type": "string",
@@ -319,10 +332,11 @@
                 "type": "string",
                 "enum": [
                   "first_pass",
-                  "after_rewrite",
+                  "after_rewrite_1",
+                  "after_rewrite_2",
                   "save_confirm"
                 ],
-                "description": "first_pass = fired on the architect's original deck. after_rewrite = still firing after the build loop's rewrite attempts. save_confirm = fired on the confirmation pass at save, i.e. the deck was edited by hand after the build."
+                "description": "first_pass = fired on the architect's original deck. after_rewrite_1 / after_rewrite_2 = still firing after the first / second SURGICAL rewrite, so churn is visible per attempt. save_confirm = fired on the confirmation pass at save, i.e. the deck was edited by hand after the build."
               },
               "timestamp": {
                 "type": "string",
