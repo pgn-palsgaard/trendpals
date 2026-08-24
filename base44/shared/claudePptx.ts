@@ -323,6 +323,11 @@ def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE):
   subtitle=(slide.get('subtitle') or '').strip()
   if subtitle:
     blocks.append(Block([{'text':subtitle,'bold':True,'size':size,'color':header_colour}]))
+  # Build C — render-owned provenance banner. Shown ONLY on a cross-region slide,
+  # and only from the label the renderer stamped: the architect never writes it.
+  prov=(slide.get('provenance_label') or '').strip()
+  if prov and str(slide.get('evidence_class') or '')=='read_across':
+    blocks.append(Block([{'text':prov,'bold':True,'size':size,'color':ORANGE}]))
   signal=(slide.get('market_signal') or '').strip()
   if signal:
     paras=[{'text':line,'size':size,'color':text_colour,'space_before':gap if i==0 else 0}

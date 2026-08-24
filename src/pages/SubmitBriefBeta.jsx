@@ -16,7 +16,8 @@ import { coveredRegionLabel } from '@/components/briefbeta/coveredRegion';
 import { validateSlides, allowListFromBindings } from '@/components/briefbeta/outputValidator';
 import { buildCitationMap, resolveSupportingData } from '@/components/briefbeta/citationMap';
 import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
-import { computeRenderedByCountry } from '@/components/briefbeta/renderedByCountry';
+import { computeRenderedSplit } from '@/components/briefbeta/renderedByCountry';
+import { stampProvenance } from '@/components/briefbeta/readAcross';
 import { runBuildWithValidation, MAX_BUILD_ATTEMPTS } from '@/components/briefbeta/validationLoop';
 import ValidationBanner from '@/components/briefbeta/ValidationBanner';
 import ValidationStatus from '@/components/briefbeta/ValidationStatus';
@@ -97,7 +98,7 @@ export default function SubmitBriefBeta() {
       // Evidence is not stored on the session — re-run the gates so the architect
       // keeps working from real, verified evidence.
       if (s.contract?.categories && s.contract?.region) {
-        loadEvidenceFor(s.contract.categories, s.contract.region, s.contract.sub_categories);
+        loadEvidenceFor(s.contract.categories, s.contract.region, s.contract.sub_categories, s.contract.read_across, s.contract.excluded_countries);
       }
       setResuming(false);
     }).catch(() => setResuming(false));
@@ -117,7 +118,10 @@ export default function SubmitBriefBeta() {
   // Retrieval applies the brief's region and format constraints as HARD GATES
   // before any narrative exists. An unresolvable region fails loudly — it never
   // falls back to global scope.
-  async function loadEvidenceFor(categories, regionText, subCategories) {
+  // read_across and excluded_countries live in the contract and must REACH retrieval:
+  // read-across cannot fire without the first, and cannot honour exclusions without
+  // the second (which also revives the regional exclusion list — it never arrived).
+  async function loadEvidenceFor(categories, regionText, subCategories, readAcross, excludedCountries) {
     const valid = (Array.isArray(categories) ? categories : [categories])
       .filter(c => CANONICAL_CATEGORIES.includes(c));
     if (valid.length === 0) return null;
@@ -135,6 +139,8 @@ export default function SubmitBriefBeta() {
         categories: valid,
         region_text: regionText,
         sub_categories: Array.isArray(subCategories) ? subCategories : [],
+        read_across: readAcross || 'strict_region',
+        excluded_countries: Array.isArray(excludedCountries) ? excludedCountries : [],
       });
       const data = res?.data;
       if (data?.result === 'insufficient_regional_evidence') {
@@ -176,7 +182,7 @@ export default function SubmitBriefBeta() {
       // before the prompt is sent, and a failed retrieval stops the turn loudly.
       let ev = evidence;
       if (!ev && contract.categories && contract.region) {
-        ev = await loadEvidenceFor(contract.categories, contract.region, contract.sub_categories);
+        ev = await loadEvidenceFor(contract.categories, contract.region, contract.sub_categories, contract.read_across, contract.excluded_countries);
         if (!ev) {
           setMessages(prev => [...prev, {
             role: 'assistant',
@@ -211,9 +217,10 @@ export default function SubmitBriefBeta() {
             JSON.stringify(next.categories) !== JSON.stringify(contract.categories) ||
             JSON.stringify(next.sub_categories) !== JSON.stringify(contract.sub_categories) ||
             JSON.stringify(next.excluded_countries) !== JSON.stringify(contract.excluded_countries) ||
+            next.read_across !== contract.read_across ||
             next.region !== contract.region;
           if (next.categories && next.region && bindingChanged) {
-            loadEvidenceFor(next.categories, next.region, next.sub_categories);
+            loadEvidenceFor(next.categories, next.region, next.sub_categories, next.read_across, next.excluded_countries);
           }
           // A binding field changed after a deck was built: the built slides were
           // grounded in the previous evidence, so the deck is stale and must be
@@ -331,7 +338,10 @@ export default function SubmitBriefBeta() {
     });
     setValidationStatus(null);
 
-    setSlides(result.slides);
+    // The provenance line is stamped by the renderer, at build and again at save —
+    // never authored by the architect. Stamping here means the preview shows exactly
+    // what the export will.
+    setSlides(stampProvenance(result.slides, coveredRegionLabel(snapshot?.gate) || ''));
     if (result.contractPatch?.report_title) {
       setContract(prev => ({ ...prev, report_title: result.contractPatch.report_title }));
     }
@@ -388,7 +398,7 @@ export default function SubmitBriefBeta() {
       // strings the reader actually gets — validating the pre-resolution deck measures
       // empty citation strings and lets a deck within ~70 chars of the ceiling through
       // to clip in front of a customer.
-      let deck = slides.map(s => Array.isArray(s.supporting_data)
+      let deck = stampProvenance(slides, displayLabel).map(s => Array.isArray(s.supporting_data)
         ? { ...s, supporting_data: resolveSupportingData(s.supporting_data, bindingMap) }
         : s);
       // Resolution DROPS unresolvable ids, so CITE-1 can no longer be observed by
@@ -489,6 +499,11 @@ export default function SubmitBriefBeta() {
       const recordIds = extractRecordIds(deck);
       const evidenceById = {};
       for (const p of snap.products || []) evidenceById[p.gnpd_record_id] = p;
+      // Cross-region records are real retrieved evidence: they must resolve here too,
+      // or every read_across id would be reported as an unmatched defect and dropped
+      // from the reference list. The per-trend separation is what keeps the tiers
+      // apart; this union exists only for resolution.
+      for (const p of snap.read_across_products || []) evidenceById[p.gnpd_record_id] = { ...p, read_across: true };
       // Phase 4 — the reference list must be ID-equal to what the deck actually
       // renders. An id cited on a slide that is not in the retrieved evidence is
       // not a reference, it is a defect: it is kept out of the export list and
@@ -509,7 +524,8 @@ export default function SubmitBriefBeta() {
         .map(p => ({
           ...p,
           supporting_trends: usedTrends
-            .filter(t => (t.products || []).some(tp => tp.gnpd_record_id === p.gnpd_record_id))
+            .filter(t => [...(t.products || []), ...(t.read_across_products || [])]
+              .some(tp => tp.gnpd_record_id === p.gnpd_record_id))
             .map(t => t.trend_name),
         }));
       if (resolvedIds.length > 0) {
@@ -531,7 +547,14 @@ export default function SubmitBriefBeta() {
       // Phase 5 — rendered coverage is computed from the deck that is being
       // saved (finalSlides), so the field always describes the artefact the
       // reader gets. Counted on the slides, never on the eligibility pool.
-      const renderedByCountry = computeRenderedByCountry(finalSlides);
+      // Build C — split per datapoint against the frozen bindings. Only REGIONAL
+      // examples enter the containment field; cross-region ones are recorded in the
+      // gate for audit. Fail-closed: an unresolvable id counts as regional.
+      const renderedSplit = computeRenderedSplit(finalSlides, bindingMap);
+      const renderedByCountry = renderedSplit.regional;
+      const gateWithReadAcross = snap.gate
+        ? { ...snap.gate, read_across: { ...(snap.gate.read_across || {}), rendered_by_country: renderedSplit.read_across } }
+        : null;
 
       const report = await base44.entities.Report.create({
         project_id: project.id,
@@ -545,7 +568,7 @@ export default function SubmitBriefBeta() {
         slides: finalSlides,
         product_shortlist: shortlist,
         selected_trends: usedTrends.map(t => t.trend_name),
-        evidence_gate: snap.gate || null,
+        evidence_gate: gateWithReadAcross,
         evidence_bindings: bindingMap,
         excluded_countries: Array.isArray(contract.excluded_countries) ? contract.excluded_countries : [],
         evidence_gate_rendered_by_country: renderedByCountry,

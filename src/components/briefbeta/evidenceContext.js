@@ -1,5 +1,6 @@
 import { coveredRegionLabel } from './coveredRegion';
 import { collectCitations } from './citationMap';
+import { CROSS_REGION_DIVIDER_TITLE } from './readAcross';
 
 // Turns the deterministic evidence payload from getArchitectEvidence into the
 // grounded context block the architect must build from, and reads the chosen
@@ -76,10 +77,30 @@ export function buildEvidenceContext(evidence) {
     );
     lines.push(prods.length ? `GNPD products that support this trend (the ONLY products allowed on its slides):\n${prods.join('\n')}` : 'GNPD products: none found — do not put product examples on this trend\'s slides.');
 
+    // Build C — cross-region reference tier, shown as its OWN block after the
+    // regional one. Never inside the regional product list: the reader (and the
+    // architect) must always know which evidence class they are looking at.
+    if (t.read_across_status === 'full' && (t.read_across_products || []).length > 0) {
+      const ra = t.read_across_products.map(p =>
+        `  - ${p.gnpd_record_id} | ${p.product_name}${p.brand ? ` — ${p.brand}` : ''}${p.country ? ` (${p.country})` : ''}${p.launch_date ? `, ${p.launch_date}` : ''}${p.claims?.length ? ` | Claims: ${p.claims.join(', ')}` : ''}`
+      );
+      lines.push([
+        `CROSS-REGION REFERENCE for this trend (NOT ${coveredRegionLabel(evidence?.gate) || 'brief-region'} evidence). A slide using these MUST set evidence_class: "read_across" and may carry NO regional examples. Each is a real launch from another market:`,
+        ra.join('\n'),
+      ].join('\n'));
+    }
+
     return lines.join('\n');
   }).join('\n\n');
 
-  return [regionBlock, trendBlocks, webBlock].filter(Boolean).join('\n\n');
+  const hasReadAcross = trends.some(t => t.read_across_status === 'full' && (t.read_across_products || []).length > 0);
+  const readAcrossRules = hasReadAcross ? [
+    '### CROSS-REGION REFERENCE (hard rules)',
+    `A slide is EITHER regional OR cross-region — never both. Cross-region products may appear ONLY on a slide with "evidence_class": "read_across", and such a slide may carry NO regional examples; a regional slide may carry no cross-region products. Cross-region slides belong in their own section at the end of the category, under a divider titled exactly "${CROSS_REGION_DIVIDER_TITLE}".`,
+    'Do NOT write a cross-region, read-across or provenance sentence anywhere in the slide text: the system stamps that label itself. Set the flag and write the observation.',
+  ].join('\n') : '';
+
+  return [regionBlock, trendBlocks, readAcrossRules, webBlock].filter(Boolean).join('\n\n');
 }
 
 // Deck entries are written as "<RECORD_ID> | Product — Brand (Country): why".

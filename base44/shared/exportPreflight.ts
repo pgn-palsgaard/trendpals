@@ -67,6 +67,15 @@ export function runExportPreflight(report: any): {
   const allowLc = new Set(allowList.map(c => c.toLowerCase()));
   const excludedLc = new Set(excluded.map(c => normaliseCountry(c).toLowerCase()));
 
+  // Build C — cross-region reference evidence is out-of-region by design and is
+  // EXEMPT. The exemption is decided per datapoint at save time (each rendered
+  // example is resolved against the frozen bindings, and only non-read_across
+  // examples enter evidence_gate_rendered_by_country), so this check still sees
+  // every REGIONAL example. A read-across deck exports; a regional example in the
+  // wrong market still blocks.
+  const readAcrossRendered = report?.evidence_gate?.read_across?.rendered_by_country || {};
+  const exemptCountries = Object.keys(readAcrossRendered).filter(k => k !== '_unresolved');
+
   const violations: Array<{ country: string; count: number }> = [];
   for (const key of keys) {
     const name = normaliseCountry(key);
@@ -90,7 +99,12 @@ export function runExportPreflight(report: any): {
       reason: 'gnpd_evidence_out_of_scope',
       violations,
       effective_allow_list: allowList,
-      message: 'This report contains GNPD evidence from countries outside its regional scope. Regenerate the report before exporting.',
+      cross_region_exempted: exemptCountries,
+      // The two classes are named separately so a genuine containment leak can never
+      // be read as "that is just the read-across tier".
+      message: exemptCountries.length > 0
+        ? `This report contains REGIONAL GNPD evidence from countries outside its regional scope (${violations.map(v => v.country).join(', ')}). Its cross-region reference tier (${exemptCountries.join(', ')}) is exempt and is NOT the problem. Regenerate the report before exporting.`
+        : 'This report contains GNPD evidence from countries outside its regional scope. Regenerate the report before exporting.',
     },
   };
 }

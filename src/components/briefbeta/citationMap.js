@@ -81,6 +81,20 @@ export function buildCitationMap(evidence) {
         kind: 'gnpd',
       };
     }
+    // Build C — cross-region records enter the SAME map, in the same pass, carrying
+    // the structural marker. That marker is what lets the tier-match validator and
+    // the export pre-flight tell the two classes apart per datapoint, without
+    // anything having to re-derive the class from a country string.
+    for (const p of t.read_across_products || []) {
+      if (!p.gnpd_record_id) continue;
+      map[p.gnpd_record_id] = {
+        canonical_string: canonicalProduct(p),
+        trend_id: t.trend_id || '',
+        kind: 'gnpd',
+        read_across: true,
+        original_country: p.country || p.original_country || '',
+      };
+    }
   }
 
   for (const w of webSignals) {

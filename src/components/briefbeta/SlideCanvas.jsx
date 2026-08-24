@@ -10,6 +10,13 @@ export default function SlideCanvas({ slide }) {
         {slide.subtitle && (
           <p className="text-sm mt-1.5" style={{ color: '#1D428A' }}>{slide.subtitle}</p>
         )}
+        {/* Build C — render-owned provenance banner. Shown from the stamped label
+            only; the architect never writes this line. */}
+        {slide.evidence_class === 'read_across' && slide.provenance_label && (
+          <p className="text-xs mt-2 rounded-md px-2.5 py-1.5 font-medium" style={{ background: '#FAE9E5', color: '#A33B24' }}>
+            {slide.provenance_label}
+          </p>
+        )}
 
         <div className="grid md:grid-cols-2 gap-6 mt-5 flex-1">
           <div>

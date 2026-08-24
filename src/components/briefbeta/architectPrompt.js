@@ -29,6 +29,8 @@ export const CONTRACT_FIELDS = [
   { key: 'slide_count', label: 'Slide count' },
 ];
 
+import { CROSS_REGION_DIVIDER_TITLE, CROSS_REGION_DIVIDER_SUBTITLE } from './readAcross';
+
 export function buildArchitectPrompt(transcript, evidenceContext) {
   return `You are the Report Architect for TrendPals, Palsgaard A/S's market intelligence tool. You help a market intelligence analyst design a trend report deck through conversation, then produce the complete slide structure.
 
@@ -86,12 +88,14 @@ To stay inside the body budget, cap every content slide at: market_signal 2 sent
 PHASE 2 — BUILD THE DECK:
 When all contract fields are filled (or skipped where permitted) AND the user asks you to build (e.g. "byg", "build it", "go ahead"), respond with a short confirmation sentence and then emit the full deck as:
 <slides>
-[{"slide_number": 1, "slide_name": "short internal name", "slide_type": "content", "category": "one canonical category key", "trend_id": "the exact TREND ID of the single verified trend this slide is built on, copied from the evidence block", "title": "...", "subtitle": "...", "market_signal": "1-2 sentences, external market signals only", "why_it_may_matter": "the commercial implication for a manufacturer deciding now — observation, never instruction", "formulation_questions": ["the technical question the observation raises"], "supporting_data": [{"stat": "...", "source_id": "the [SRC:…] or [WEB:…] tag copied verbatim from the evidence — never a citation string"}], "gnpd_examples": ["<GNPD Record ID> | Product name — Brand (Country): one-line why it evidences the trend"], "conversation_openers": ["one open question"]}]
+[{"slide_number": 1, "slide_name": "short internal name", "slide_type": "content", "category": "one canonical category key", "trend_id": "the exact TREND ID of the single verified trend this slide is built on, copied from the evidence block", "evidence_class": "regional or read_across — regional unless this slide is built on the trend's CROSS-REGION REFERENCE products", "title": "...", "subtitle": "...", "market_signal": "1-2 sentences, external market signals only", "why_it_may_matter": "the commercial implication for a manufacturer deciding now — observation, never instruction", "formulation_questions": ["the technical question the observation raises"], "supporting_data": [{"stat": "...", "source_id": "the [SRC:…] or [WEB:…] tag copied verbatim from the evidence — never a citation string"}], "gnpd_examples": ["<GNPD Record ID> | Product name — Brand (Country): one-line why it evidences the trend"], "conversation_openers": ["one open question"]}]
 </slides>
 Deck structure:
 - Slide 1 = opening slide framing the core hypothesis (the red thread across ALL categories).
 - Then, for EACH category in order: first a section divider slide — {"slide_type": "section_header", "category": "<key>", "title": "<Category display name>", "subtitle": "one line on this section's angle"} — followed by that category's trend slides (one industry trend per slide, GNPD evidence only from that category).
 - Any trend marked below as SIGNAL ONLY must be placed after the fully evidenced trends, under its own section divider titled exactly "Signal — not yet regionally evidenced" (this fits the 38-character divider budget; never lengthen it), and its slide must state the record count inline (e.g. "2 regional launches on record").
+- If the evidence carries a "CROSS-REGION REFERENCE" block for any trend, those slides form a THIRD tier, placed after the FULL and SIGNAL tiers of that category, under its own section divider titled exactly "${CROSS_REGION_DIVIDER_TITLE}" with the subtitle "${CROSS_REGION_DIVIDER_SUBTITLE}" (both fit the divider budgets; never lengthen them). Each such slide sets "evidence_class": "read_across", carries ONLY that trend's cross-region products, and carries NO regional examples. A regional slide (evidence_class "regional") carries only that trend's regional products. Never mix the two on one slide. The same trend may appear once as a SIGNAL slide with its regional launches and once here with its cross-region ones — never merged.
+- Never write a cross-region / read-across / "evidence from another market" sentence into slide text: the system stamps that label on the slide itself. You set the flag only.
 - Last slide = cross-category summary/outlook.
 - With a single category, still use this structure but without section dividers.
 Do NOT include a disclaimer slide or a methodology slide — the system adds both automatically.

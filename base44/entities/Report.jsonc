@@ -34,13 +34,13 @@
       "type": "object",
       "additionalProperties": true,
       "default": {},
-      "description": "Country \u2192 count of rendered gnpd_examples. Written at save time. Never empty on a report with gnpd_examples."
+      "description": "Country \u2192 count of rendered REGIONAL gnpd_examples. Written at save time, per datapoint, by resolving each rendered example against the frozen bindings. Cross-region (Build C) examples are counted in evidence_gate.read_across.rendered_by_country instead, never here \u2014 they are out-of-region by design and exempt from the containment pre-flight. Fail-closed: an example whose id does not resolve to a read_across binding is counted as regional."
     },
     "evidence_bindings": {
       "type": "object",
       "additionalProperties": true,
       "default": {},
-      "description": "Frozen at build, persisted at save. Maps every cited id to its resolved evidence: { <id>: { canonical_string, trend_id, kind } } where kind is one of 'source' | 'inline' | 'web' | 'gnpd'. The renderer and export resolve against THIS map, never against live retrieval. This is what makes a saved deck self-verifying and TOCTOU-proof."
+      "description": "Frozen at build, persisted at save. Maps every cited id to its resolved evidence: { <id>: { canonical_string, trend_id, kind } } where kind is one of 'source' | 'inline' | 'web' | 'gnpd'. A cross-region (Build C) GNPD entry additionally carries read_across: true and original_country \u2014 the per-datapoint marker the tier-match validator and the export pre-flight key off. The renderer and export resolve against THIS map, never against live retrieval. This is what makes a saved deck self-verifying and TOCTOU-proof."
     },
     "preflight_failed": {
       "type": "boolean",
@@ -87,6 +87,19 @@
           "trend_id": {
             "type": "string",
             "description": "The verified trend this content slide is built on. Emitted by the architect from the evidence. Basis for citation resolution and (Build B) render-state."
+          },
+          "evidence_class": {
+            "type": "string",
+            "enum": [
+              "regional",
+              "read_across"
+            ],
+            "default": "regional",
+            "description": "Which evidence tier this slide is built on. Regional = in-region launches only. read_across = cross-region reference only. Never mixed. Emitted by the architect, validated against the frozen bindings at save."
+          },
+          "provenance_label": {
+            "type": "string",
+            "description": "Render-owned. The deterministic cross-region honesty line, written by the renderer for read_across slides. Never authored by the architect."
           },
           "title": {
             "type": "string"
@@ -254,7 +267,7 @@
     "evidence_gate": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Snapshot of the evidence gate that produced this report (beta architect only): resolved country allow-list, sequential funnel counts, actual data window, per-sub-region eligible AND rendered counts, web-signal region filter counts, exclusion counts by reason, dropped and downgraded trends. Feeds the methodology appendix and makes the report auditable. This is the authoritative scope of the report."
+      "description": "Snapshot of the evidence gate that produced this report (beta architect only): resolved country allow-list, sequential funnel counts, actual data window, per-sub-region eligible AND rendered counts, web-signal region filter counts, exclusion counts by reason, dropped and downgraded trends, and the Build C read_across block (requested, total_records, by_country, per_trend, rendered_by_country). Feeds the methodology appendix and makes the report auditable. This is the authoritative scope of the report."
     },
     "validator_log": {
       "type": "object",
@@ -278,7 +291,7 @@
             "properties": {
               "rule": {
                 "type": "string",
-                "description": "Rule ID that fired, e.g. FIG-1, ADJ-2, PRE-1, PUB-3"
+                "description": "Rule ID that fired, e.g. FIG-1, ADJ-2, PRE-1, PUB-3, TIER-1"
               },
               "field": {
                 "type": "string",

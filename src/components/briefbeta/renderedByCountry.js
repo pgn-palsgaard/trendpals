@@ -77,6 +77,47 @@ export function extractCountry(example) {
   return null;
 }
 
+// Build C — per-DATAPOINT accounting, split by evidence class.
+//
+// The regional-containment check must not see cross-region reference examples: they
+// are out-of-region BY DESIGN. But it must still see every regional example, so the
+// split is decided per (slide, example) pair from the FROZEN bindings — not from the
+// slide's own claim about itself, and never from the country string.
+//
+// Fail-closed: an example whose record id does not resolve to a read_across binding
+// counts as REGIONAL. A missing marker can therefore only make the check stricter,
+// never looser.
+export function computeRenderedSplit(slides, bindings) {
+  const map = bindings && typeof bindings === 'object' ? bindings : {};
+  const regional = {};
+  const readAcross = {};
+  let regionalUnresolved = 0;
+  let regionalTotal = 0;
+
+  for (const slide of Array.isArray(slides) ? slides : []) {
+    if (!isEvidenceSlide(slide)) continue;
+    for (const example of Array.isArray(slide?.gnpd_examples) ? slide.gnpd_examples : []) {
+      const text = String(example || '').trim();
+      if (!text) continue;
+      const idMatch = text.match(/^\s*([A-Za-z0-9._-]{4,})\s*\|/);
+      const binding = idMatch ? (map[idMatch[1]] || map[`[SRC:${idMatch[1]}]`]) : null;
+      const country = extractCountry(text);
+      if (binding && binding.read_across === true) {
+        const key = country || '_unresolved';
+        readAcross[key] = (readAcross[key] || 0) + 1;
+        continue;
+      }
+      regionalTotal++;
+      if (country) regional[country] = (regional[country] || 0) + 1;
+      else regionalUnresolved++;
+    }
+  }
+
+  if (regionalUnresolved > 0) regional._unresolved = regionalUnresolved;
+  if (regionalTotal > 0 && Object.keys(regional).length === 0) regional._unresolved = regionalTotal;
+  return { regional, read_across: readAcross };
+}
+
 // Country → count of rendered gnpd_examples across the deck's evidence slides.
 // Never returns {} when examples exist: unparseable strings are counted under
 // '_unresolved' so an empty field always means "no examples", never "we lost them".

@@ -112,11 +112,17 @@ function plausibilityFlags(text) {
 }
 
 // Validates a single free-text field. Returns { ok, rule, why, flags }.
+// Build C — the render-owned provenance line is the SYSTEM's own honesty label, so
+// the adjacency rules must not fire on it. Exempted by field, not by content, so a
+// later re-wording of the label cannot silently start tripping the validator.
+const ADJ_EXEMPT_FIELD = /provenance_label$/;
+
 export function validateText(text, field = 'text') {
   const s = String(text || '');
   if (!s.trim()) return { ok: true, flags: [] };
 
-  for (const r of [...FIGURE_RULES, ...ADJACENCY_RULES, ...PRESCRIPTION_RULES]) {
+  const adjacency = ADJ_EXEMPT_FIELD.test(String(field)) ? [] : ADJACENCY_RULES;
+  for (const r of [...FIGURE_RULES, ...adjacency, ...PRESCRIPTION_RULES]) {
     if (has(s, r.re)) return { ok: false, rule: r.id, why: r.why, field, text: s.slice(0, 300), flags: [] };
   }
   return { ok: true, flags: plausibilityFlags(s) };
@@ -286,12 +292,60 @@ function budgetRejections(slides, reportTitle) {
   return rejections;
 }
 
+// TIER-1 — containment at the save wall (Build C).
+//
+// Every GNPD id a slide cites must belong to the slide's own evidence class: a
+// regional slide may not carry a cross-region record, and a cross-region slide may
+// not carry a regional one. Decided from the FROZEN bindings, so it cannot be
+// talked around in prose. Source / inline / web citations are class-neutral (a
+// trend's sources back both tiers) and are not checked here.
+function tierRejections(slides, bindings) {
+  const map = bindings && typeof bindings === 'object' ? bindings : null;
+  if (!map || Object.keys(map).length === 0) return [];
+  const rejections = [];
+
+  (slides || []).forEach((slide, i) => {
+    if (slide.slide_type === 'section_header' || slide.slide_type === 'methodology') return;
+    const where = `slide ${slide.slide_number ?? i + 1}`;
+    const slideClass = String(slide.evidence_class || 'regional') === 'read_across' ? 'read_across' : 'regional';
+
+    const cited = [];
+    (slide.gnpd_examples || []).forEach((ex, j) => {
+      const m = String(ex || '').match(/^\s*([A-Za-z0-9._-]{4,})\s*\|/);
+      if (m) cited.push({ id: m[1], field: `${where}.gnpd_examples[${j}]`, text: String(ex).slice(0, 300) });
+    });
+    (slide.supporting_data || []).forEach((d, j) => {
+      const raw = String(d?.source_id || '').trim();
+      if (raw) cited.push({ id: raw, field: `${where}.supporting_data[${j}].source`, text: raw });
+    });
+
+    for (const c of cited) {
+      const hit = resolveBinding(c.id, map);
+      if (!hit || hit.kind !== 'gnpd') continue;
+      const recordClass = hit.read_across === true ? 'read_across' : 'regional';
+      if (recordClass === slideClass) continue;
+      rejections.push({
+        rule: 'TIER-1', field: c.field,
+        why: recordClass === 'read_across'
+          ? `this slide is declared "${slideClass}" but cites cross-region record ${c.id} (${hit.original_country || 'another market'}) — regional and cross-region evidence may never share a slide`
+          : `this slide is declared "read_across" but cites regional record ${c.id} — a cross-region slide may carry no in-region examples`,
+        text: c.text,
+      });
+    }
+  });
+
+  return rejections;
+}
+
 const TEXT_FIELDS = ['title', 'subtitle', 'market_signal', 'why_it_may_matter'];
 const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_examples'];
 
 // Validates a whole deck. Returns { ok, rejections[], flags[] }.
 export function validateSlides(slides, briefCategory, reportTitle = null, allowList = null) {
-  const rejections = [...budgetRejections(slides, reportTitle)];
+  const rejections = [
+    ...budgetRejections(slides, reportTitle),
+    ...tierRejections(slides, allowList?.bindings || null),
+  ];
   const flags = [];
 
   (slides || []).forEach((slide, i) => {

@@ -93,6 +93,10 @@ export default async function (req) {
 
     const body = await req.json();
     const { categories, region_text, sub_categories, test_pool } = body;
+    // Build C — read-across is OPT-IN. Anything other than the explicit
+    // 'labelled_read_across' contract value means strict region: no cross-region
+    // retrieval happens at all.
+    const readAcrossOptIn = String(body.read_across || '') === 'labelled_read_across';
     const cats = (Array.isArray(categories) ? categories : [categories]).filter(Boolean).slice(0, 3);
     if (cats.length === 0) return Response.json({ error: 'categories is required' }, { status: 400 });
 
@@ -134,6 +138,10 @@ export default async function (req) {
     const trendsOut = [];
     const sourcesById = {};
     const productsById = {};
+    // Build C — cross-region records live in their OWN flat set. Kept apart from
+    // productsById so nothing regional can be contaminated, and returned at top
+    // level so save-time resolution, the shortlist and pack shots can find them.
+    const readAcrossById = {};
     const exclusions = [];
     // Sequential funnel. Every step is counted on the base that enters it, so
     // population − out_of_region = after_region_gate, and so on. Secondary figures
@@ -160,6 +168,16 @@ export default async function (req) {
       web_signal_gate: { before_region_filter: 0, after_region_filter: 0, excluded_out_of_region: 0, kept_with_scope_label: 0 },
       excluded_by_reason: { out_of_region: 0, out_of_category: 0, out_of_window: 0 },
       secondary_counts: {},
+      // Build C — cross-region evidence, counted SEPARATELY. Never folded into the
+      // funnel or into rendered_by_country: a launch in another market is not
+      // regional coverage, however useful it is as reference.
+      read_across: {
+        requested: readAcrossOptIn,
+        total_records: 0,
+        by_country: {},
+        per_trend: [],
+        rendered_by_country: {},
+      },
       trend_truncation: [],
       // The actual launch-date span of the pool that reached matching. Distinct from
       // recency_months: the window says what was ALLOWED in, this says what is
@@ -279,6 +297,41 @@ export default async function (req) {
       const searchable = inWindow.map(p => ({ p, text: productText(p) }));
       const consumed = new Set(); // Phase 4.2 — one record backs exactly one trend
 
+      // Build C — the out-of-region pool for this category, fetched at most once and
+      // only when read-across was opted into. Rows, not counts (secondary_counts is
+      // a count and holds nothing). The sub_category filter is applied only when the
+      // brief HAS a format scope: a brief without one must still get read-across.
+      let readAcrossPool = null;
+      async function getReadAcrossPool() {
+        if (readAcrossPool) return readAcrossPool;
+        let rows;
+        if (Array.isArray(test_pool)) {
+          rows = test_pool.filter(p => !inRegion(p));
+        } else if (scope.scope === 'global') {
+          rows = []; // a global brief has no "outside the region"
+        } else {
+          const q: Record<string, unknown> = { palsgaard_category: category, country: { $nin: scope.countries } };
+          if (subs.length > 0) q.sub_category = { $in: subs };
+          const res = await paginate(base44, q);
+          gate.pagination_duplicates_dropped += res.duplicates;
+          rows = res.rows;
+        }
+        readAcrossPool = rows
+          // Exclusions bind here exactly as they bind regionally, case-insensitively
+          // ($nin is exact-case only), and an in-region country can never enter this
+          // pool — belt behind the $nin.
+          .filter(p => {
+            const c = String(p.country || '').trim().toLowerCase();
+            return c && !excludedLc.has(c) && !allowedLc.has(c);
+          })
+          .filter(inCategory)
+          // Same recency gate as regional: no launch date = cannot be shown to be
+          // inside the window = excluded.
+          .filter(p => p.launch_date && new Date(p.launch_date) >= cutoff)
+          .map(p => ({ p, text: productText(p) }));
+        return readAcrossPool;
+      }
+
       for (const t of trends) {
         // --- Sources backing this trend ---
         const sourceIds = [...new Set([
@@ -335,9 +388,80 @@ export default async function (req) {
         for (const { p } of picked) consumed.add(p.gnpd_record_id);
 
         const evidenceStatus = picked.length >= FULL_EVIDENCE_MIN ? 'full' : picked.length > 0 ? 'signal_only' : 'dropped';
-        if (evidenceStatus === 'dropped') {
+
+        // ── Build C — read-across: opt-in, and only for a trend that is BELOW full
+        // on in-region evidence. A fully evidenced regional trend never triggers it.
+        // Runs BEFORE the dropped-continue below, because a trend rescued by
+        // cross-region evidence must survive into the output to carry a slide.
+        const readAcrossProducts = [];
+        let readAcrossStatus = 'insufficient';
+        if (readAcrossOptIn && evidenceStatus !== 'full') {
+          const pool = await getReadAcrossPool();
+          const scoredRa = [];
+          for (const { p, text } of pool) {
+            // A record already backing a regional trend cannot also be a
+            // cross-region reference — one record, one role.
+            if (!p.gnpd_record_id || consumed.has(p.gnpd_record_id)) continue;
+            const matched = keywords.filter(k => text.includes(k));
+            const linked = (p.trend_links || []).some(l => l.trend_id === t.id && l.review_status !== 'rejected');
+            if (matched.length === 0 && !linked) continue;
+            scoredRa.push({ p, score: matched.length + (linked ? 6 : 0) + (p.image_url ? 1 : 0), matched });
+          }
+          scoredRa.sort((a, b) => b.score - a.score);
+          const pickedRa = scoredRa.slice(0, 10);
+          for (const { p, matched } of pickedRa) {
+            consumed.add(p.gnpd_record_id);
+            if (!readAcrossById[p.gnpd_record_id]) {
+              readAcrossById[p.gnpd_record_id] = {
+                gnpd_record_id: p.gnpd_record_id,
+                product_name: p.product_name,
+                brand: p.brand || '',
+                company: p.company || '',
+                country: p.country || '',
+                launch_date: p.launch_date || '',
+                category: p.palsgaard_category || p.category || '',
+                sub_category: p.sub_category || '',
+                claims: (p.claims || []).slice(0, 6),
+                image_url: p.image_url || '',
+                mintel_record_url: p.mintel_record_url || '',
+                // Structural tag — this is what the binding map, the validator and
+                // the export pre-flight key off. Never a prose label.
+                read_across: true,
+                original_country: p.country || '',
+              };
+            }
+            readAcrossProducts.push({ ...readAcrossById[p.gnpd_record_id], matched_keywords: matched.slice(0, 5) });
+          }
+          readAcrossStatus = readAcrossProducts.length >= FULL_EVIDENCE_MIN ? 'full' : 'insufficient';
+          if (readAcrossProducts.length > 0) {
+            gate.read_across.per_trend.push({
+              trend_name: t.trend_name,
+              category,
+              regional_status: evidenceStatus,
+              read_across_status: readAcrossStatus,
+              record_count: readAcrossProducts.length,
+              countries: [...new Set(readAcrossProducts.map(p => p.country).filter(Boolean))],
+            });
+            for (const p of readAcrossProducts) {
+              const c = String(p.country || '').trim() || 'unknown';
+              gate.read_across.by_country[c] = (gate.read_across.by_country[c] || 0) + 1;
+            }
+            gate.read_across.total_records += readAcrossProducts.length;
+          }
+        }
+
+        // A trend with no regional evidence AND no cross-region tier is genuinely
+        // empty — dropped, as before. A trend with no regional evidence but a FULL
+        // cross-region tier survives, carrying its regional status untouched.
+        if (evidenceStatus === 'dropped' && readAcrossStatus !== 'full') {
           gate.dropped_trends.push({ trend_name: t.trend_name, category, reason: 'no eligible GNPD records after region and category gates' });
           continue;
+        }
+        if (evidenceStatus === 'dropped') {
+          gate.dropped_trends.push({
+            trend_name: t.trend_name, category,
+            reason: `no eligible regional GNPD records — carried as cross-region reference only (${readAcrossProducts.length} out-of-region launches)`,
+          });
         }
         if (evidenceStatus === 'signal_only') {
           gate.downgraded_trends.push({ trend_name: t.trend_name, category, record_count: picked.length });
@@ -381,6 +505,10 @@ export default async function (req) {
           sources: trendSources,
           inline_citations: inlineCitations,
           products: trendProducts,
+          // Build C — a SEPARATE tier. Never merged into products, never allowed to
+          // change evidence_status above.
+          read_across_status: readAcrossStatus,
+          read_across_products: readAcrossProducts,
         });
       }
     }
@@ -409,7 +537,10 @@ export default async function (req) {
     }
 
     // Phase 4.3 — pool exhaustion is a valid outcome, never a reason to widen gates.
-    if (!trendsOut.some(t => t.evidence_status === 'full')) {
+    // Build C — a brief that opted into read-across and has a FULL cross-region tier
+    // is not an empty brief: it is exactly the thin-regional case read-across exists
+    // for. Without this, the rescued deck would still be refused here.
+    if (!trendsOut.some(t => t.evidence_status === 'full' || t.read_across_status === 'full')) {
       return Response.json({
         success: false,
         result: 'insufficient_regional_evidence',
@@ -480,6 +611,10 @@ export default async function (req) {
       // the deck's citation-resolution map without re-calling retrieval.
       sources: Object.values(sourcesById),
       products: Object.values(productsById),
+      // Flat union member for downstream resolution ONLY (save-time id resolution,
+      // product shortlist, pack shots). The per-trend separation above is the
+      // containment spine; this list is never used as regional evidence.
+      read_across_products: Object.values(readAcrossById),
     });
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });
