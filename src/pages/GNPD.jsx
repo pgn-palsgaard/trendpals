@@ -131,9 +131,20 @@ function UploadsTab() {
     e.stopPropagation();
     setParsing(prev => ({ ...prev, [sourceId]: { status: 'parsing' } }));
     try {
-      const res = await base44.functions.invoke('runGNPDBatchParse', { sourceIds: [sourceId] });
+      // skipTrendLinking: the per-row LLM trend validation is what pushed large
+      // exports past the function timeout, leaving the source stuck mid-ingest.
+      // Products land as trend_linking_pending and the revalidate flow links them.
+      const res = await base44.functions.invoke('runGNPDBatchParse', { sourceIds: [sourceId], skipTrendLinking: true });
       const result = (res.data?.results || [])[0];
       if (result?.status === 'ok' || result?.status === 'skipped') {
+        // A guard-clause skip returns no counts — say why instead of rendering
+        // an empty "  created /   rows" that looks like a hung row.
+        if (result.rows_parsed == null) {
+          setParsing(prev => ({ ...prev, [sourceId]: { status: 'error', error: result.reason || 'Already processed' } }));
+          toast.info(result.reason || 'Nothing to parse');
+          queryClient.invalidateQueries({ queryKey });
+          return;
+        }
         setParsing(prev => ({ ...prev, [sourceId]: { status: 'done', rows: result.rows_parsed, created: result.created } }));
         const created = result.created || 0;
         toast.success(
