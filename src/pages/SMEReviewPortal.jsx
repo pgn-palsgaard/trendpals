@@ -37,7 +37,10 @@ export default function SMEReviewPortal() {
 
   const submitMutation = useMutation({
     mutationFn: (updates) => Promise.all(updates.map(u => base44.entities.ReviewAssignment.update(u.id, u.data))),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['myReviewAssignments', currentUserEmail] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['myReviewAssignments', currentUserEmail] });
+      queryClient.invalidateQueries({ queryKey: ['smeAnnotationAssignments'] });
+    },
   });
 
   const pending = useMemo(() => assignments.filter(a => a.status !== 'responded'), [assignments]);
@@ -70,6 +73,8 @@ export default function SMEReviewPortal() {
         verdict,
         comment: comment || '',
         trend_signal: signal,
+        // Self-declared region, only when the dispatcher left it unset.
+        ...(region ? { reviewer_region: region } : {}),
         responded_at: new Date().toISOString(),
       },
     }));

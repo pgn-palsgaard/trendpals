@@ -2,6 +2,7 @@ import React from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { CheckCircle, XCircle, Pencil, ChevronRight } from 'lucide-react';
+import SMEAnnotationBadge from '@/components/sme/SMEAnnotationBadge';
 
 const CAPABILITY_LABELS = {
   sustainability: 'Sustainability',
@@ -66,6 +67,8 @@ export default function TrendCard({ trend, onActivate, onDeactivate, onArchive, 
             {trend.confidence} confidence
           </span>
         )}
+        {/* Advisory only — SME field verification, never a gate. */}
+        <SMEAnnotationBadge trendId={trend.id} />
       </div>
 
       {trend.market_signal && (

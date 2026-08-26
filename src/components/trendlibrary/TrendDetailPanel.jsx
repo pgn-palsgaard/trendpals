@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { X, CheckCircle, XCircle, Pencil, Trash2 } from 'lucide-react';
 import ExpertExamplesSection from './ExpertExamplesSection';
+import SMEAnnotationBadge from '@/components/sme/SMEAnnotationBadge';
 
 const CAPABILITY_LABELS = {
   sustainability: 'Sustainability',
@@ -58,6 +59,8 @@ export default function TrendDetailPanel({ trend, onClose, onActivate, onDeactiv
                   Active
                 </span>
               )}
+              {/* Advisory only — SME field verification, never a gate. */}
+              <SMEAnnotationBadge trendId={trend.id} />
             </div>
           </div>
           <button onClick={onClose} className="p-1 rounded hover:bg-slate-100 text-slate-500 shrink-0">

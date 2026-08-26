@@ -1,6 +1,7 @@
 import React from 'react';
 import { annotationForSlide } from './trendStatus';
 import ImplicationsCanvas from './ImplicationsCanvas';
+import SMEAnnotationBadge from '@/components/sme/SMEAnnotationBadge';
 
 // One slide rendered as a presentation-style 16:9 canvas.
 export default function SlideCanvas({ slide, trendStatus }) {
@@ -25,6 +26,12 @@ export default function SlideCanvas({ slide, trendStatus }) {
         )}
         {signalLine && (
           <p className="text-xs italic mt-2" style={{ color: '#62837F' }}>{signalLine}</p>
+        )}
+        {/* Advisory only — SME field verification. Never gates build or save. */}
+        {slide.trend_id && (
+          <div className="mt-2">
+            <SMEAnnotationBadge trendId={slide.trend_id} />
+          </div>
         )}
 
         <div className="grid md:grid-cols-2 gap-6 mt-5 flex-1">
