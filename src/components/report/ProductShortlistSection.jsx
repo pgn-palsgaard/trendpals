@@ -2,9 +2,13 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ImageOff } from 'lucide-react';
+import { useLivePackshots } from '@/hooks/useLivePackshots';
 
 export default function ProductShortlistSection({ report }) {
   const products = report?.product_shortlist || [];
+  // Pack shots uploaded after the report was saved are not in the snapshot —
+  // resolve the live image for each record so the list is never falsely empty.
+  const liveImages = useLivePackshots(products.map(p => p.gnpd_record_id));
   if (products.length === 0) return null;
 
   return (
@@ -14,11 +18,13 @@ export default function ProductShortlistSection({ report }) {
       </CardHeader>
       <CardContent>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {products.map((p, idx) => (
+          {products.map((p, idx) => {
+            const imageUrl = liveImages[p.gnpd_record_id] || p.image_url;
+            return (
             <div key={idx} className="flex gap-3 p-3 rounded-lg border border-border bg-card">
               <div className="w-16 h-16 shrink-0 rounded-md overflow-hidden bg-muted flex items-center justify-center">
-                {p.image_url ? (
-                  <img src={p.image_url} alt={p.product_name} className="w-full h-full object-contain" loading="lazy" />
+                {imageUrl ? (
+                  <img src={imageUrl} alt={p.product_name} className="w-full h-full object-contain" loading="lazy" />
                 ) : (
                   <ImageOff className="w-5 h-5 text-muted-foreground" />
                 )}
@@ -37,7 +43,8 @@ export default function ProductShortlistSection({ report }) {
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </CardContent>
     </Card>

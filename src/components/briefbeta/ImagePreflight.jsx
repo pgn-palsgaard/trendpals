@@ -20,6 +20,15 @@ export default function ImagePreflight({ reportId }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Pack shots live in one database, so an upload made in ANY export panel must
+  // refresh every other preflight on the page — otherwise the second panel keeps
+  // claiming images are missing that were just uploaded.
+  useEffect(() => {
+    const onUpdated = () => { load(); };
+    window.addEventListener('packshots-updated', onUpdated);
+    return () => window.removeEventListener('packshots-updated', onUpdated);
+  }, [load]);
+
   if (!data) {
     return (
       <p className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
@@ -81,7 +90,7 @@ export default function ImagePreflight({ reportId }) {
           )}
 
           <div className="mt-2.5">
-            <PackshotUploader compact onDone={load} />
+            <PackshotUploader compact onDone={() => window.dispatchEvent(new Event('packshots-updated'))} />
           </div>
         </>
       )}
