@@ -163,6 +163,12 @@ BODY_IDX={'Full page content and preheader':18,
 DARK_LAYOUTS={'Full page content and preheader, dark colours'}
 BINDINGS={}
 TREND_STATUS={}
+# Canonical deck skeleton. Every export follows this order:
+#   front (system) -> about -> opening -> [divider -> trend -> implications]* -> closing -> methodology
+ABOUT_TITLE='About this report'
+AI_NOTICE=('This content was generated with the assistance of AI and may contain errors or '
+  'omissions. It is provided as a starting point only \\u2014 please review and verify all '
+  'information before sharing externally or acting on it.')
 THUMB_LEFT_IN=9.15; THUMB_BOX_W_IN=3.29; THUMB_BOX_H_IN=1.55
 THUMB_TOPS_IN=[1.60,3.35,5.10]
 
@@ -336,7 +342,7 @@ def image_key_candidates(example):
   if name: keys.append(name.lower())
   keys.append(text.strip().lower()); return keys
 
-def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE):
+def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE,variant='trend'):
   blocks=[]; used_images=[]; gap=max(6,size/2)
   subtitle=(slide.get('subtitle') or '').strip()
   if subtitle:
@@ -370,7 +376,9 @@ def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE):
     as_list(slide.get('formulation_questions')),prefix='\\u2022  ')
   pains=[p.get('pain',p) if isinstance(p,dict) else p for p in as_list(slide.get('customer_pains'))]
   section('What this creates for manufacturers',pains,prefix='\\u2022  ')
-  evidence=as_list(slide.get('gnpd_examples'))
+  # Opening and closing slides are narrative framing: no product evidence, no pack
+  # shots. Only a trend slide carries the GNPD block.
+  evidence=as_list(slide.get('gnpd_examples')) if variant=='trend' else []
   if evidence:
     paras=[{'text':'Market evidence (Mintel GNPD)','bold':True,'size':size,'color':header_colour,'space_before':gap}]
     for example in evidence:
@@ -415,6 +423,49 @@ def title_size(text,budget,base,minimum):
   if not text: return base
   if len(text)<=budget: return base
   return max(minimum,int(base*budget/len(text)))
+
+def classify(entry):
+  """Deterministic slide-type resolution. Legacy decks carry only 'content' for the
+  about, opening and closing slides \\u2014 they are recognised structurally, never by prose."""
+  kind=str(entry.get('slide_type') or 'content').strip().lower()
+  if kind in ('section_header','implications','methodology','about','opening','closing'): return kind
+  if kind=='briefing_context': return 'about'
+  if str(entry.get('title') or '').strip().lower().startswith('about this report'): return 'about'
+  return 'content'
+
+def order_slides(slides,report):
+  """Sorts the architect's slides into the canonical skeleton and synthesises the
+  mandatory about slide when absent. Relative order of body slides is preserved:
+  only the fixed-position slides (about, methodology) are moved."""
+  tagged=[(classify(e),e) for e in slides]
+  about=[e for k,e in tagged if k=='about']
+  method=[e for k,e in tagged if k=='methodology']
+  body=[(k,e) for k,e in tagged if k not in ('about','methodology')]
+  # First trend-less content slide opens the deck; the last one closes it.
+  plain=[i for i,(k,e) in enumerate(body) if k=='content' and not str(e.get('trend_id') or '').strip()]
+  if plain:
+    body[plain[0]]=('opening',body[plain[0]][1])
+    if len(plain)>1: body[plain[-1]]=('closing',body[plain[-1]][1])
+    else: report['warnings'].append('No cross-category closing slide \\u2014 deck ends on a trend.')
+  else:
+    report['warnings'].append('No executive opening slide found.')
+  if not about:
+    about=[{'slide_type':'about','title':ABOUT_TITLE,'market_signal':AI_NOTICE}]
+    report['synthesised']=report.get('synthesised',[])+['about']
+  if not method: report['warnings'].append('No methodology appendix slide in the deck.')
+  ordered=[('about',about[0])]+body+[('methodology',m) for m in method]
+  return ordered
+
+def render_about(prs,slide_data,preheader,report):
+  """Dedicated about / AI-notice slide. Never carries trend content."""
+  layout_name='Full page content and preheader'
+  slide=prs.slides.add_slide(get_layout(prs,layout_name))
+  if preheader: set_ph_simple(slide,PREHEADER_IDX[layout_name],preheader,size=11,color=DKBLUE)
+  set_ph_simple(slide,0,str(slide_data.get('title') or ABOUT_TITLE),size=24,color=DKBLUE)
+  notice=str(slide_data.get('market_signal') or '').strip() or AI_NOTICE
+  set_ph_structured(slide,BODY_IDX[layout_name],[{'text':notice,'size':12,'color':GREY}])
+  drop_empty_placeholders(slide)
+  return [slide]
 
 def render_front_page(prs,data,report):
   slide=prs.slides.add_slide(get_layout(prs,'Alternative front page - Palsgaard blue'))
@@ -487,22 +538,25 @@ def render_implications(prs,slide_data,preheader,report):
   drop_empty_placeholders(slide)
   return [slide]
 
-def render_content(prs,slide_data,preheader,layout_name,images,report,accent=None):
+def render_content(prs,slide_data,preheader,layout_name,images,report,accent=None,variant='trend'):
   dark=layout_name in DARK_LAYOUTS
   text_colour=LGOLD if dark else DKBLUE
   header_colour=SAGE_LIGHT if dark else (accent or BLUE)
-  width=BODY_WIDTH_IN; probe,thumbs=build_blocks(slide_data,images,12,text_colour,header_colour)
+  width=BODY_WIDTH_IN; probe,thumbs=build_blocks(slide_data,images,12,text_colour,header_colour,variant)
   if thumbs: width=BODY_WIDTH_WITH_IMAGES_IN
-  size=pick_body_size(probe,width); blocks,thumbs=build_blocks(slide_data,images,size,text_colour,header_colour)
+  size=pick_body_size(probe,width)
+  blocks,thumbs=build_blocks(slide_data,images,size,text_colour,header_colour,variant)
   pages=pack_blocks(blocks,width)
   title=(slide_data.get('title') or slide_data.get('slide_name') or 'Slide').strip()
   if len(title)>BUDGET_CONTENT_TITLE: report['warnings'].append(f'Title {len(title)} chars.')
+  # Framing slides get a larger title so the deck's hierarchy is visible at a glance.
+  base_title_pt=28 if variant in ('opening','closing') else 24
   made=[]
   for page_no,paras in enumerate(pages):
     slide=prs.slides.add_slide(get_layout(prs,layout_name))
     if preheader: set_ph_simple(slide,PREHEADER_IDX[layout_name],preheader,size=11,color=text_colour)
     shown=title if page_no==0 else f'{title} (cont.)'
-    set_ph_simple(slide,0,shown,size=title_size(shown,BUDGET_CONTENT_TITLE,24,16),color=text_colour)
+    set_ph_simple(slide,0,shown,size=title_size(shown,BUDGET_CONTENT_TITLE,base_title_pt,16),color=text_colour)
     body_idx=BODY_IDX[layout_name]; set_ph_structured(slide,body_idx,paras)
     if thumbs and page_no==0:
       reposition_placeholder(slide,body_idx,0.89,1.53,BODY_WIDTH_WITH_IMAGES_IN,BODY_HEIGHT_IN)
@@ -539,26 +593,52 @@ def build(data,template_path,out_path,workdir):
   images={str(k).lower():v for k,v in (data.get('images') or {}).items()}
   preheader=data.get('preheader') or ''; slides=data.get('slides') or []
   report['slides_in']=len(slides); render_front_page(prs,data,report)
-  section_index=0; last_layout=None
-  for entry in slides:
-    kind=entry.get('slide_type')
+  ordered=order_slides(slides,report)
+  validate_structure(ordered,report)
+  report['slide_type_counts']={}
+  section_index=0
+  for kind,entry in ordered:
+    report['slide_type_counts'][kind]=report['slide_type_counts'].get(kind,0)+1
     if kind=='section_header':
       render_breaking(prs,entry,section_index,report); section_index+=1; continue
-    if kind=='implications':
-      made=render_implications(prs,entry,preheader,report); last_layout='Full page content and preheader'
+    if kind=='about':
+      made=render_about(prs,entry,preheader,report)
+    elif kind=='implications':
+      made=render_implications(prs,entry,preheader,report)
     elif kind=='methodology':
-      made=render_methodology(prs,entry,preheader,report); last_layout='Full page content and preheader'
+      made=render_methodology(prs,entry,preheader,report)
     else:
-      layout_name=next((n for n in CONTENT_LAYOUTS if n!=last_layout),CONTENT_LAYOUTS[0])
       # The accent of the divider this slide sits under, so the section's colour
       # carries into its content. Before any divider, the deck opens on blue.
       accent=SECTION_ACCENTS[(section_index-1)%len(SECTION_ACCENTS)] if section_index else BLUE
-      made=render_content(prs,entry,preheader,layout_name,images,report,accent); last_layout=layout_name
+      made=render_content(prs,entry,preheader,CONTENT_LAYOUTS[0],images,report,accent,kind)
     report['slides_out']+=len(made); report['continuations']+=max(0,len(made)-1)
     for field in ('market_signal','why_it_may_matter','supporting_data','formulation_questions',
                   'gnpd_examples','conversation_openers','customer_pains'):
       if entry.get(field): report['sections_rendered']+=1
   prs.save(out_path); return validate(out_path,data,report)
+
+def validate_structure(ordered,report):
+  """Checks the ordered deck against the canonical skeleton. Warnings only \\u2014 a
+  structurally odd deck still builds, so the analyst can see the drift and fix it."""
+  kinds=[k for k,_ in ordered]
+  for i,(kind,entry) in enumerate(ordered):
+    prev=ordered[i-1] if i else None
+    if kind=='implications':
+      if not prev or prev[0]!='content':
+        report['warnings'].append(f'Implications slide {i+1} does not follow a trend slide.')
+      elif str(entry.get('trend_id') or '')!=str(prev[1].get('trend_id') or ''):
+        report['warnings'].append(f'Implications slide {i+1} does not match the preceding trend.')
+    if kind=='content' and str(entry.get('trend_id') or '').strip():
+      nxt=ordered[i+1][0] if i+1<len(ordered) else None
+      if nxt!='implications':
+        report['warnings'].append(f'Trend slide {i+1} has no paired implications slide.')
+    if kind=='section_header':
+      nxt=ordered[i+1][0] if i+1<len(ordered) else None
+      if nxt!='content':
+        report['warnings'].append(f'Section divider {i+1} is not followed by a trend slide.')
+  if kinds and kinds[0]!='about': report['warnings'].append('Deck does not open on the about slide.')
+  return report
 
 def validate(out_path,data,report):
   prs=Presentation(out_path); report['total_slides']=len(prs.slides)
