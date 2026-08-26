@@ -1,7 +1,7 @@
 // Starts a Gamma PPTX export for a saved report, styled to the Palsgaard CVI.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { secrets } from 'base44:runtime';
-import { buildDeckMarkdown } from '../../shared/buildDeckMarkdown.ts';
+import { buildGammaMarkdown } from '../../shared/gammaMarkdown.ts';
 import { resolveDeckProducts, imageMapFrom } from '../../shared/deckImages.ts';
 import { runExportPreflight, recordPreflightFailure } from '../../shared/exportPreflight.ts';
 
@@ -35,7 +35,7 @@ export default async function (req) {
     // exported PPTX shows real pack shots next to the market evidence.
     const imageMap = imageMapFrom(await resolveDeckProducts(base44, report, 40));
 
-    const inputText = buildDeckMarkdown(report, imageMap);
+    const inputText = buildGammaMarkdown(report, imageMap);
 
     const body = {
       inputText,
@@ -45,7 +45,7 @@ export default async function (req) {
       exportAs: 'pptx',
       title: report.title?.slice(0, 200),
       additionalInstructions:
-        'B2B market intelligence deck for Palsgaard. Keep all facts exactly as written — never invent data. Use ONLY provided image URLs, as small thumbnails beside their product. Palsgaard CVI: blue #1D428A for headings and section dividers (H1-only cards = full-bleed Palsgaard blue divider slides with white text), dark blue #1D2B47 body text, cream #F7F4EE backgrounds, sage #6F8263 and teal #22566E accents, grey #969696 source citations. Never red/green/yellow. Titles are sentence-case insight statements, not topic labels.',
+        'B2B market intelligence deck for Palsgaard. Keep all facts exactly as written — never invent data. LAYOUT: keep each card as ONE single text block — do not split paragraphs, headings or list sections into separate boxes, cards-within-cards, columns or callout panels. IMAGES: use ONLY the provided image URLs; render them as one horizontal row of SMALL uniform thumbnails (roughly 3 cm tall) at the bottom of the card — never full-width, never one image per row, never as a background or hero image. Palsgaard CVI: blue #1D428A for headings and section dividers (H1-only cards = full-bleed Palsgaard blue divider slides with white text), dark blue #1D2B47 body text, cream #F7F4EE backgrounds, sage #6F8263 and teal #22566E accents, grey #969696 source citations. Never red/green/yellow. Titles are sentence-case insight statements, not topic labels.',
     };
 
     // GAMMA_TEMPLATE_ID may hold either a Gamma *theme* id (used directly) or a Gamma
