@@ -377,8 +377,10 @@ def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE,variant
   pains=[p.get('pain',p) if isinstance(p,dict) else p for p in as_list(slide.get('customer_pains'))]
   section('What this creates for manufacturers',pains,prefix='\\u2022  ')
   # Opening and closing slides are narrative framing: no product evidence, no pack
-  # shots. Only a trend slide carries the GNPD block.
-  evidence=as_list(slide.get('gnpd_examples')) if variant=='trend' else []
+  # shots. Every OTHER content slide (a trend slide arrives here as 'content')
+  # carries its GNPD block and its pack shots \\u2014 gating on variant=='trend'
+  # silently dropped the evidence from every trend slide in the deck.
+  evidence=[] if variant in ('opening','closing','about','methodology') else as_list(slide.get('gnpd_examples'))
   if evidence:
     paras=[{'text':'Market evidence (Mintel GNPD)','bold':True,'size':size,'color':header_colour,'space_before':gap}]
     for example in evidence:
