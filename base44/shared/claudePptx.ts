@@ -456,6 +456,17 @@ def order_slides(slides,report):
   ordered=[('about',about[0])]+body+[('methodology',m) for m in method]
   return ordered
 
+def trend_stems(ordered):
+  """trend_id -> 'TREND NN  |  THEME', taken from that trend's implications slide, so a
+  trend slide and its implications slide carry the SAME topline stem."""
+  out={}
+  for kind,entry in ordered:
+    if kind!='implications': continue
+    key=str(entry.get('trend_id') or '')
+    parts=[p.strip() for p in str(entry.get('preheader') or '').split('|') if p.strip()]
+    if key and len(parts)>=2 and key not in out: out[key]='  |  '.join(parts[:2])
+  return out
+
 def render_about(prs,slide_data,preheader,report):
   """Dedicated about / AI-notice slide. Never carries trend content."""
   layout_name='Full page content and preheader'
@@ -596,6 +607,7 @@ def build(data,template_path,out_path,workdir):
   ordered=order_slides(slides,report)
   validate_structure(ordered,report)
   report['slide_type_counts']={}
+  stems=trend_stems(ordered)
   section_index=0
   for kind,entry in ordered:
     report['slide_type_counts'][kind]=report['slide_type_counts'].get(kind,0)+1
@@ -611,7 +623,9 @@ def build(data,template_path,out_path,workdir):
       # The accent of the divider this slide sits under, so the section's colour
       # carries into its content. Before any divider, the deck opens on blue.
       accent=SECTION_ACCENTS[(section_index-1)%len(SECTION_ACCENTS)] if section_index else BLUE
-      made=render_content(prs,entry,preheader,CONTENT_LAYOUTS[0],images,report,accent,kind)
+      stem=stems.get(str(entry.get('trend_id') or ''))
+      head=stem+'  |  MARKET SIGNAL' if stem else preheader
+      made=render_content(prs,entry,head,CONTENT_LAYOUTS[0],images,report,accent,kind)
     report['slides_out']+=len(made); report['continuations']+=max(0,len(made)-1)
     for field in ('market_signal','why_it_may_matter','supporting_data','formulation_questions',
                   'gnpd_examples','conversation_openers','customer_pains'):

@@ -4,16 +4,18 @@ import ImplicationsCanvas from './ImplicationsCanvas';
 import SMEAnnotationBadge from '@/components/sme/SMEAnnotationBadge';
 
 // One slide rendered as a presentation-style 16:9 canvas.
-export default function SlideCanvas({ slide, trendStatus }) {
+export default function SlideCanvas({ slide, trendStatus, topline }) {
   // Build B — computed render-state. Derived from the frozen trend status, never
   // from slide prose; the architect no longer writes record counts.
   const signalLine = annotationForSlide(slide, trendStatus);
-  if (slide.slide_type === 'implications') return <ImplicationsCanvas slide={slide} />;
+  if (slide.slide_type === 'implications') return <ImplicationsCanvas slide={slide} topline={topline} />;
   return (
     <div className="w-full bg-card border border-border rounded-xl shadow-panel overflow-hidden">
       <div className="aspect-[16/9] w-full overflow-y-auto p-8 flex flex-col">
-        <p className="section-label mb-2">Slide {slide.slide_number}</p>
-        <h2 className="font-heading text-2xl leading-tight text-foreground">{slide.title}</h2>
+        <p className="text-[11px] font-bold tracking-widest uppercase mb-2" style={{ color: '#1D428A' }}>
+          {topline || 'Market intelligence'}
+        </p>
+        <h2 className="font-heading text-[26px] leading-tight text-foreground">{slide.title}</h2>
         {slide.subtitle && (
           <p className="text-sm mt-1.5" style={{ color: '#1D428A' }}>{slide.subtitle}</p>
         )}

@@ -3,11 +3,14 @@ import { ChevronLeft, ChevronRight, Pencil, Check, Save, AlertTriangle } from 'l
 import SlideCanvas from './SlideCanvas';
 import SlideCard from './SlideCard';
 import { resolveSupportingData } from './citationMap';
+import { buildToplines } from './slideTopline';
 
 export default function DeckPreview({ slides, onSlideChange, onSave, saving, bindings, trendStatus, saveDisabledReason, saveWarning }) {
   const [index, setIndex] = useState(0);
   const [editing, setEditing] = useState(false);
   const raw = slides[Math.min(index, slides.length - 1)];
+  // One consistent topline per slide, derived once at deck level.
+  const toplines = buildToplines(slides);
   // Citations are resolved from the frozen map for display; an id that resolves to
   // nothing is dropped, never shown as a raw id or an empty citation.
   const current = Array.isArray(raw?.supporting_data)
@@ -63,7 +66,7 @@ export default function DeckPreview({ slides, onSlideChange, onSave, saving, bin
       {editing ? (
         <SlideCard slide={current} onChange={updated => onSlideChange(index, updated)} />
       ) : (
-        <SlideCanvas slide={current} trendStatus={trendStatus} />
+        <SlideCanvas slide={current} trendStatus={trendStatus} topline={toplines[Math.min(index, slides.length - 1)]} />
       )}
 
       <div className="flex gap-2 overflow-x-auto pb-1">
