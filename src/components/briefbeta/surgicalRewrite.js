@@ -28,17 +28,26 @@ export function splitVerdict(rejections) {
   };
 }
 
-// Only these two fields are single strings a shortening pass can safely replace.
+// Single strings a shortening pass may safely replace.
 // Restricted deliberately: a correction must never be able to write an arbitrary
 // key onto a slide.
 const REWRITABLE_FIELDS = ['title', 'subtitle'];
+// One line inside an implications box. Indexed, so ONLY the offending line is
+// rewritten — the clean lines beside it keep their exact wording.
+const REWRITABLE_LINE_FIELDS = ['strategic_implications', 'palsgaard_support'];
 
-// "slide 3.title" → { slide_number: 3, field: 'title' } · "report.title" → title
+// "slide 3.title" → { slide_number: 3, field: 'title' }
+// "slide 4.strategic_implications[0]" → { slide_number: 4, field: '…', index: 0 }
+// "report.title" → title
 function parseField(field) {
   const s = String(field || '');
   const m = s.match(/^slide (\d+)\.(.+)$/);
-  if (m) return { slide_number: Number(m[1]), field: m[2] };
-  if (s === 'report.title') return { slide_number: null, field: 'report.title' };
+  if (m) {
+    const idx = m[2].match(/^([a-z_]+)\[(\d+)\]$/);
+    if (idx) return { slide_number: Number(m[1]), field: idx[1], index: Number(idx[2]) };
+    return { slide_number: Number(m[1]), field: m[2], index: null };
+  }
+  if (s === 'report.title') return { slide_number: null, field: 'report.title', index: null };
   return null;
 }
 
@@ -46,10 +55,14 @@ function parseField(field) {
 // measures against — read from contentBudgets, never restated here.
 // LEN-3 is a WHOLE-SLIDE total across many strings, so it has no single string to
 // hand back: it is never surgically rewritten, it becomes an advisory warning.
-function budgetFor(rule, slide) {
+function budgetFor(rule, slide, index = null) {
   const isSection = slide?.slide_type === 'section_header';
+  if (rule === 'LEN-5') return index === null ? null : BUDGETS.IMPLICATION_LINE;
   if (rule === 'LEN-1') return BUDGETS.FRONT_PAGE_TITLE;
-  if (rule === 'LEN-2') return isSection ? BUDGETS.BREAKING_HEADLINE : BUDGETS.CONTENT_TITLE;
+  if (rule === 'LEN-2') {
+    if (slide?.slide_type === 'implications') return BUDGETS.IMPLICATIONS_TITLE;
+    return isSection ? BUDGETS.BREAKING_HEADLINE : BUDGETS.CONTENT_TITLE;
+  }
   if (rule === 'LEN-4') return isSection ? BUDGETS.BREAKING_SUBLINE : BUDGETS.PRE_HEADER;
   return null;
 }
@@ -69,14 +82,19 @@ export function buildSurgicalPayload(rejections, slides, reportTitle) {
       out.push({ slide_number: null, field: 'report.title', current: String(reportTitle || ''), rule: r.rule, budget: BUDGETS.FRONT_PAGE_TITLE });
       continue;
     }
-    if (!REWRITABLE_FIELDS.includes(parsed.field)) continue;
+    const isLine = parsed.index !== null && REWRITABLE_LINE_FIELDS.includes(parsed.field);
+    if (!isLine && !REWRITABLE_FIELDS.includes(parsed.field)) continue;
     const slide = (slides || []).find((s, i) => (s.slide_number ?? i + 1) === parsed.slide_number);
     if (!slide) continue;
-    const budget = budgetFor(r.rule, slide);
+    const budget = budgetFor(r.rule, slide, parsed.index);
     if (!budget) continue;
-    const current = slide[parsed.field];
+    const current = isLine ? (slide[parsed.field] || [])[parsed.index] : slide[parsed.field];
     if (typeof current !== 'string' || !current.trim()) continue;
-    out.push({ slide_number: parsed.slide_number, field: parsed.field, current, rule: r.rule, budget });
+    out.push({
+      slide_number: parsed.slide_number, field: parsed.field,
+      ...(isLine ? { index: parsed.index } : {}),
+      current, rule: r.rule, budget,
+    });
   }
   return out;
 }
@@ -94,8 +112,21 @@ export function applyCorrections(slides, title, corrections) {
       nextTitle = text;
       continue;
     }
-    if (!REWRITABLE_FIELDS.includes(String(c.field))) continue;
+    const field = String(c.field);
     const n = Number(c.slide_number);
+    const hasIndex = c.index !== null && c.index !== undefined && Number.isInteger(Number(c.index));
+    if (hasIndex && REWRITABLE_LINE_FIELDS.includes(field)) {
+      const j = Number(c.index);
+      next = next.map((s, i) => {
+        if ((s.slide_number ?? i + 1) !== n) return s;
+        const rows = Array.isArray(s[field]) ? [...s[field]] : [];
+        if (j < 0 || j >= rows.length) return s;
+        rows[j] = text;
+        return { ...s, [field]: rows };
+      });
+      continue;
+    }
+    if (!REWRITABLE_FIELDS.includes(field)) continue;
     next = next.map((s, i) => ((s.slide_number ?? i + 1) === n ? { ...s, [c.field]: text } : s));
   }
   return { slides: next, title: nextTitle };

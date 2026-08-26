@@ -284,13 +284,13 @@ export default function SubmitBriefBeta() {
   // that were already clean, so the rewrite budget never converged.
   async function requestSurgicalRewrite(payload) {
     const items = payload
-      .map((p, i) => `${i}. rule=${p.rule} budget=${p.budget} current_length=${p.current.length}\n   "${p.current}"`)
+      .map((p, i) => `${i}. rule=${p.rule} max_characters=${p.budget} target=${Math.max(20, p.budget - 12)} current_length=${p.current.length}\n   "${p.current}"`)
       .join('\n');
     try {
       const reply = await base44.integrations.Core.InvokeLLM({
         prompt: `These strings exceed their hard character budgets in a PowerPoint template that never autofits text — anything over the budget renders clipped.
 
-Rewrite each one to fit its stated budget. Keep the same meaning and the same language. Do not add new content, new figures, new claims, new sources or new place names. Do not truncate mid-word. Do not add ellipses. Return the corrected string for every item, referenced by its index.
+Rewrite each one so it fits WITHIN its max_characters — aim for the stated target so there is margin, and COUNT the characters of your rewrite before returning it. Never return a string longer than max_characters. Keep the core point, the same meaning and the same language, and cut the least load-bearing clause rather than compressing everything (one clear clause beats two cramped ones). Do not add new content, new figures, new claims, new sources or new place names. Do not truncate mid-word. Do not add ellipses. Return the corrected string for every item, referenced by its index.
 
 ${items}`,
         response_json_schema: {
@@ -319,7 +319,11 @@ ${items}`,
         .map(c => {
           const p = payload[Number(c?.index)];
           if (!p || !String(c?.corrected || '').trim()) return null;
-          return { slide_number: p.slide_number, field: p.field, corrected: String(c.corrected).trim() };
+          return {
+            slide_number: p.slide_number, field: p.field,
+            ...(p.index === undefined ? {} : { index: p.index }),
+            corrected: String(c.corrected).trim(),
+          };
         })
         .filter(Boolean);
     } catch {
