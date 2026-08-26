@@ -40,7 +40,9 @@ export async function dispatchAssignments({
         category: challenge.category || undefined,
         reviewer_email: emailKey,
         reviewer_name: (reviewer.name || '').trim() || undefined,
-        reviewer_region: region,
+        // Optional metadata. When the dispatcher leaves it blank, the reviewer
+        // can state their own region at review time.
+        reviewer_region: region || undefined,
         assigned_by: dispatchedBy,
         assigned_at: new Date().toISOString(),
         status: 'sent',

@@ -61,7 +61,7 @@ export default function SMEReviewPortal() {
     }));
   }, [pending, challengeMap, trendMap]);
 
-  const handleSubmitGroup = async ({ signal, items }) => {
+  const handleSubmitGroup = async ({ signal, region, items }) => {
     // CRITICAL: writes ONLY to ReviewAssignment. trend_signal applied to every assignment in the group.
     const updates = items.map(({ assignment, verdict, comment }) => ({
       id: assignment.id,

@@ -58,8 +58,9 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
       .map(u => ({ name: u.full_name || '', email: u.email }));
     if (validReviewers.length === 0) { toast.error('Select at least one SME.'); return; }
     if (selectedChallenges.length === 0) { toast.error('No challenges selected.'); return; }
-    if (!region) { toast.error('Select a region for this dispatch.'); return; }
-    if (!isCanonicalRegion(region)) { toast.error('Invalid region selected.'); return; }
+    // Region is optional metadata — a missing region never blocks dispatch.
+    // Only a non-empty value is validated against the canonical taxonomy.
+    if (region && !isCanonicalRegion(region)) { toast.error('Invalid region selected.'); return; }
 
     setDispatching(true);
     setEmailErrors([]);
@@ -150,19 +151,23 @@ export default function DispatchPanel({ selectedChallenges, allChallenges, onClo
 
           {/* Region */}
           <div className="mb-5">
-            <p className="text-sm font-semibold mb-2" style={{ color: '#1D2B47' }}>Review region *</p>
+            <p className="text-sm font-semibold mb-2" style={{ color: '#1D2B47' }}>
+              Review region <span className="font-normal text-slate-400">(optional)</span>
+            </p>
             <select
               value={region}
               onChange={e => setRegion(e.target.value)}
               className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none"
               style={{ color: region ? '#1D2B47' : '#9CA3AF' }}
             >
-              <option value="">Select region…</option>
+              <option value="">Let the reviewer state their region</option>
               {CANONICAL_REGIONS.map(r => (
                 <option key={r.key} value={r.key}>{r.label} — {r.description}</option>
               ))}
             </select>
-            <p className="text-xs text-slate-400 mt-1.5">The reviewer validates these trends from this region's perspective.</p>
+            <p className="text-xs text-slate-400 mt-1.5">
+              If left blank, the reviewer can state which market they are reviewing from when they respond.
+            </p>
           </div>
 
           {/* Reviewers — pick from signed-up SMEs */}

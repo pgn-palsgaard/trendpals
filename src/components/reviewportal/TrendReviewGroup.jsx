@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Check, X, TrendingUp, Sprout, EyeOff } from 'lucide-react';
 
 import { CATEGORY_LABELS as CAT_LABELS } from '@/lib/palsgaardCategoryMapping';
+import { CANONICAL_REGIONS, getRegionLabel } from '@/lib/regions';
 
 const SIGNAL_OPTIONS = [
   { key: 'strong', label: 'Strong signal', desc: 'I clearly see this in my market', icon: TrendingUp, active: '#4A6040', bg: '#EEF1EC' },
@@ -82,6 +83,9 @@ export default function TrendReviewGroup({ trend, assignments, challengeMap, onS
   // Per-assignment verdict + comment, keyed by assignment id
   const [verdicts, setVerdicts] = useState({});
   const [comments, setComments] = useState({});
+  // Self-declared review region. Only offered when the dispatcher left it blank.
+  const assignedRegion = assignments.find(a => a.reviewer_region)?.reviewer_region || null;
+  const [region, setRegion] = useState('');
 
   const category = assignments[0]?.category;
   const allVerdictsSet = assignments.every(a => verdicts[a.id]);
@@ -91,6 +95,7 @@ export default function TrendReviewGroup({ trend, assignments, challengeMap, onS
     if (!canSubmit) return;
     onSubmitGroup({
       signal,
+      region: assignedRegion ? null : (region || null),
       items: assignments.map(a => ({
         assignment: a,
         verdict: verdicts[a.id],
@@ -152,6 +157,36 @@ export default function TrendReviewGroup({ trend, assignments, challengeMap, onS
             );
           })}
         </div>
+      </div>
+
+      {/* Review region — pre-set by the dispatcher, or optionally self-declared */}
+      <div style={{ marginBottom: 18 }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: '#1D2B47', marginBottom: 8 }}>
+          Which market are you reviewing from?
+        </p>
+        {assignedRegion ? (
+          <Badge bg="hsl(var(--muted))" color="hsl(var(--muted-foreground))">{getRegionLabel(assignedRegion)}</Badge>
+        ) : (
+          <>
+            <select
+              value={region}
+              onChange={e => setRegion(e.target.value)}
+              style={{
+                width: '100%', maxWidth: 340, fontSize: 12.5, padding: '8px 10px', borderRadius: 8,
+                border: '1px solid hsl(var(--border))', background: '#ffffff',
+                color: region ? '#1D2B47' : '#9CA3AF', outline: 'none',
+              }}
+            >
+              <option value="">Prefer not to say</option>
+              {CANONICAL_REGIONS.map(r => (
+                <option key={r.key} value={r.key}>{r.label} — {r.description}</option>
+              ))}
+            </select>
+            <p style={{ fontSize: 11, color: '#6F7B90', marginTop: 6 }}>
+              Optional — it just adds context to your review.
+            </p>
+          </>
+        )}
       </div>
 
       {/* Per-challenge verdicts */}
