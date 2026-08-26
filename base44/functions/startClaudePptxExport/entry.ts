@@ -8,6 +8,9 @@
 //
 // checkClaudePptxExport is now a pure read of the Report fields this function
 // writes (status / stage / stage_detail), used by the UI to show live progress.
+//
+// Bundle marker 2026-08-26b: redeployed to pick up the claudePptx.ts fix that
+// restores GNPD evidence + pack shots on trend slides (variant gate bug).
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import {
   API,
