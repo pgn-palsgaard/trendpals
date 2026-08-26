@@ -129,7 +129,17 @@ export default async function (req) {
       return scope.scope === 'global' ? true : allowedLc.has(c);
     };
 
-    const subs = (Array.isArray(sub_categories) ? sub_categories : []).filter(Boolean);
+    // Placeholder values mean "no format restriction", never a literal Mintel
+    // sub-category. Left un-normalised they are matched verbatim against
+    // sub_category and silently empty the pool (region gate 11421 -> format gate 0).
+    const SUB_CATEGORY_PLACEHOLDERS = new Set([
+      'all', 'all formats', 'all format', 'all sub-categories', 'all subcategories',
+      'all categories', 'any', 'any format', 'alle', 'alle formater', 'n/a', 'none',
+    ]);
+    const subs = (Array.isArray(sub_categories) ? sub_categories : [])
+      .filter(Boolean)
+      .map(s => String(s).trim())
+      .filter(s => s && !SUB_CATEGORY_PLACEHOLDERS.has(s.toLowerCase()));
     const inCategory = p => subs.length === 0 || subs.includes(String(p.sub_category || '').trim());
 
     const cutoff = new Date();
