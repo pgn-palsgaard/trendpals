@@ -2,7 +2,8 @@
 import { useState, useEffect } from "react";
 
 const TOAST_LIMIT = 20;
-const TOAST_REMOVE_DELAY = 1000000;
+const TOAST_REMOVE_DELAY = 300; // removal shortly after dismiss (exit animation)
+const TOAST_AUTO_DISMISS = 4000; // toasts close themselves after 4s
 
 const actionTypes = {
   ADD_TOAST: "ADD_TOAST",
@@ -134,6 +135,9 @@ function toast({ ...props }) {
     },
   });
 
+  // Auto-dismiss after a short while so toasts never pile up on screen.
+  setTimeout(dismiss, TOAST_AUTO_DISMISS);
+
   return {
     id,
     dismiss,
@@ -161,4 +165,4 @@ function useToast() {
   };
 }
 
-export { useToast, toast }; 
+export { useToast, toast };
