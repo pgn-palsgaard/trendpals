@@ -480,6 +480,28 @@ export function unresolvableGate(slides, bindings, threshold = UNRESOLVABLE_THRE
   };
 }
 
+// NARR-1 — the hypothesis tie-back must EXIST on every trend slide.
+//
+// The prompt demands it, LEN-6 only measures it, and a LEN violation is cosmetic
+// under Build D — so a slide that simply omitted the tie-back saved clean and the
+// narrative thread broke silently. This is an integrity rule: a hard wall, never
+// save-anyway. Only slide_type 'content' carries it; implications, dividers,
+// agenda and methodology must not.
+function narrativeRejections(slides) {
+  const rejections = [];
+  (slides || []).forEach((slide, i) => {
+    if (slide?.slide_type !== 'content') return;
+    if (String(slide.hypothesis_tieback || '').trim()) return;
+    rejections.push({
+      rule: 'NARR-1',
+      field: `slide ${slide.slide_number ?? i + 1}.hypothesis_tieback`,
+      why: 'trend slide carries no hypothesis_tieback — every trend slide must state how it maps back to the core hypothesis, otherwise the deck loses its thread on exactly the slides where it was skipped',
+      text: String(slide.title || slide.slide_name || '').slice(0, 300),
+    });
+  });
+  return rejections;
+}
+
 const TEXT_FIELDS = ['title', 'subtitle', 'market_signal', 'why_it_may_matter', 'hypothesis_tieback'];
 const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_examples', 'strategic_implications', 'agenda_items'];
 
@@ -487,6 +509,7 @@ const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_exa
 export function validateSlides(slides, briefCategory, reportTitle = null, allowList = null) {
   const rejections = [
     ...budgetRejections(slides, reportTitle),
+    ...narrativeRejections(slides),
     ...tierRejections(slides, allowList?.bindings || null),
     ...xtrendRejections(slides, allowList?.bindings || null),
   ];
