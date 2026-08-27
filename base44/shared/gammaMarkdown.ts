@@ -79,6 +79,7 @@ export function buildGammaMarkdown(report, imageMap = {}) {
 
     // One contiguous list — no blank lines inside, so Gamma keeps it as a single box.
     let list = '';
+    list += group('In this report', slide.agenda_items);
     list += group(
       'Supporting data',
       (slide.supporting_data || []).map(d => `${d.stat || d}${d.source ? ` (${d.source})` : ''}`)

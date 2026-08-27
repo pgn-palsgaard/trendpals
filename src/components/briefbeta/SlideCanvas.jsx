@@ -42,6 +42,18 @@ export default function SlideCanvas({ slide, trendStatus, topline }) {
           </div>
         )}
 
+        {/* Trend overview — lives on the opening slide, no separate agenda slide. */}
+        {(slide.agenda_items || []).length > 0 && (
+          <ul className="mt-5 space-y-2">
+            {slide.agenda_items.map((item, i) => (
+              <li key={i} className="text-sm leading-snug text-foreground/85 flex gap-3">
+                <span className="font-bold shrink-0" style={{ color: '#1D428A' }}>→</span>
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
         <div className="grid md:grid-cols-2 gap-6 mt-5 flex-1">
           <div>
             {slide.market_signal && (

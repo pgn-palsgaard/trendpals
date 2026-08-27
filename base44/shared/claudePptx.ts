@@ -449,10 +449,22 @@ def order_slides(slides,report):
   about=[e for k,e in tagged if k=='about']
   method=[e for k,e in tagged if k=='methodology']
   body=[(k,e) for k,e in tagged if k not in ('about','methodology')]
+  # The trend overview belongs ON the opening slide. A legacy deck that still
+  # carries a standalone agenda slide is folded into the opening slide here, so
+  # old and new decks render the same single slide.
+  agenda_items=[]; kept=[]
+  for k,e in body:
+    if k=='agenda':
+      agenda_items+=[i for i in as_list(e.get('agenda_items')) if str(i).strip()]
+      continue
+    kept.append((k,e))
+  body=kept
   # First trend-less content slide opens the deck; the last one closes it.
   plain=[i for i,(k,e) in enumerate(body) if k=='content' and not str(e.get('trend_id') or '').strip()]
   if plain:
-    body[plain[0]]=('opening',body[plain[0]][1])
+    first=dict(body[plain[0]][1])
+    if agenda_items and not as_list(first.get('agenda_items')): first['agenda_items']=agenda_items
+    body[plain[0]]=('opening',first)
     if len(plain)>1: body[plain[-1]]=('closing',body[plain[-1]][1])
     else: report['warnings'].append('No cross-category closing slide \\u2014 deck ends on a trend.')
   else:

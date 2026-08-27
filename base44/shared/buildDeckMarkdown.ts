@@ -51,6 +51,12 @@ export function buildDeckMarkdown(report, imageMap = {}) {
     if (slide.market_signal) s += `${slide.market_signal}\n\n`;
     if (slide.hypothesis_tieback) s += `*${slide.hypothesis_tieback}*\n\n`;
 
+    if ((slide.agenda_items || []).length > 0) {
+      s += `**In this report**\n\n`;
+      for (const item of slide.agenda_items) s += `- ${item}\n`;
+      s += `\n`;
+    }
+
     if ((slide.supporting_data || []).length > 0) {
       s += `**Supporting data**\n\n`;
       for (const d of slide.supporting_data) {
