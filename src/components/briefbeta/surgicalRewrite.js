@@ -31,10 +31,10 @@ export function splitVerdict(rejections) {
 // Single strings a shortening pass may safely replace.
 // Restricted deliberately: a correction must never be able to write an arbitrary
 // key onto a slide.
-const REWRITABLE_FIELDS = ['title', 'subtitle'];
+const REWRITABLE_FIELDS = ['title', 'subtitle', 'hypothesis_tieback'];
 // One line inside an implications box. Indexed, so ONLY the offending line is
 // rewritten — the clean lines beside it keep their exact wording.
-const REWRITABLE_LINE_FIELDS = ['strategic_implications', 'palsgaard_support'];
+const REWRITABLE_LINE_FIELDS = ['strategic_implications', 'palsgaard_support', 'agenda_items'];
 
 // "slide 3.title" → { slide_number: 3, field: 'title' }
 // "slide 4.strategic_implications[0]" → { slide_number: 4, field: '…', index: 0 }
@@ -64,6 +64,7 @@ function budgetFor(rule, slide, index = null) {
     return isSection ? BUDGETS.BREAKING_HEADLINE : BUDGETS.CONTENT_TITLE;
   }
   if (rule === 'LEN-4') return isSection ? BUDGETS.BREAKING_SUBLINE : BUDGETS.PRE_HEADER;
+  if (rule === 'LEN-6') return BUDGETS.IMPLICATION_LINE;
   return null;
 }
 

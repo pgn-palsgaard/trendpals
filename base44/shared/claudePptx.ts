@@ -360,12 +360,18 @@ def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE,variant
     paras=[{'text':line,'size':size,'color':text_colour,'space_before':gap if i==0 else 0}
            for i,line in enumerate(l for l in signal.split('\\n') if l.strip())]
     blocks.append(Block(paras))
+  # Build B (narrative) \\u2014 the one-line tie back to the core hypothesis.
+  tie=(slide.get('hypothesis_tieback') or '').strip()
+  if tie:
+    blocks.append(Block([{'text':tie,'size':size,'color':TEAL,'space_before':gap}]))
   def section(header,items,prefix='',splittable=True):
     rows=[i for i in items if str(i).strip()]
     if not rows: return
     paras=[{'text':header,'bold':True,'size':size,'color':header_colour,'space_before':gap}]
     for item in rows: paras.append({'text':f'{prefix}{item}','size':size,'color':text_colour})
     blocks.append(Block(paras,splittable=splittable))
+  # Agenda slide \\u2014 the deck overview list. Only present on the agenda variant.
+  section('In this report',as_list(slide.get('agenda_items')),prefix='\\u2022  ')
   section('Supporting data',[stat_text(d) for d in as_list(slide.get('supporting_data'))],prefix='\\u2022  ')
   why=(slide.get('why_it_may_matter') or '').strip()
   if why:
@@ -380,7 +386,7 @@ def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE,variant
   # shots. Every OTHER content slide (a trend slide arrives here as 'content')
   # carries its GNPD block and its pack shots \\u2014 gating on variant=='trend'
   # silently dropped the evidence from every trend slide in the deck.
-  evidence=[] if variant in ('opening','closing','about','methodology') else as_list(slide.get('gnpd_examples'))
+  evidence=[] if variant in ('opening','closing','about','methodology','agenda') else as_list(slide.get('gnpd_examples'))
   if evidence:
     paras=[{'text':'Market evidence (Mintel GNPD)','bold':True,'size':size,'color':header_colour,'space_before':gap}]
     for example in evidence:
@@ -430,7 +436,7 @@ def classify(entry):
   """Deterministic slide-type resolution. Legacy decks carry only 'content' for the
   about, opening and closing slides \\u2014 they are recognised structurally, never by prose."""
   kind=str(entry.get('slide_type') or 'content').strip().lower()
-  if kind in ('section_header','implications','methodology','about','opening','closing'): return kind
+  if kind in ('section_header','implications','methodology','about','opening','closing','agenda'): return kind
   if kind=='briefing_context': return 'about'
   if str(entry.get('title') or '').strip().lower().startswith('about this report'): return 'about'
   return 'content'

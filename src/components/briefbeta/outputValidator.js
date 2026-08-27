@@ -307,10 +307,30 @@ function budgetRejections(slides, reportTitle) {
 
     if (isSection) return;
 
+    // LEN-6 — one-line fields rendered on a single line (same metric as an
+    // implications line): the hypothesis tie-back and each agenda item.
+    if (len(slide.hypothesis_tieback) > BUDGETS.IMPLICATION_LINE) {
+      rejections.push({
+        rule: 'LEN-6', field: `${where}.hypothesis_tieback`,
+        why: `hypothesis tie-back must be ≤ ${BUDGETS.IMPLICATION_LINE} characters on one line (currently ${len(slide.hypothesis_tieback)})`,
+        text: String(slide.hypothesis_tieback).slice(0, 300),
+      });
+    }
+    (slide.agenda_items || []).forEach((row, j) => {
+      if (len(row) > BUDGETS.IMPLICATION_LINE) {
+        rejections.push({
+          rule: 'LEN-6', field: `${where}.agenda_items[${j}]`,
+          why: `each agenda item must be ≤ ${BUDGETS.IMPLICATION_LINE} characters on one line (currently ${len(row)})`,
+          text: String(row).slice(0, 300),
+        });
+      }
+    });
+
     // Body budget depends on layout: slides carrying packshots use the
     // narrower text column beside the image slots.
     const bodyParts = [
-      slide.market_signal, slide.why_it_may_matter,
+      slide.market_signal, slide.why_it_may_matter, slide.hypothesis_tieback,
+      ...(slide.agenda_items || []),
       ...(slide.formulation_questions || []),
       ...(slide.conversation_openers || []),
       ...(slide.gnpd_examples || []),
@@ -460,8 +480,8 @@ export function unresolvableGate(slides, bindings, threshold = UNRESOLVABLE_THRE
   };
 }
 
-const TEXT_FIELDS = ['title', 'subtitle', 'market_signal', 'why_it_may_matter'];
-const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_examples', 'strategic_implications'];
+const TEXT_FIELDS = ['title', 'subtitle', 'market_signal', 'why_it_may_matter', 'hypothesis_tieback'];
+const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_examples', 'strategic_implications', 'agenda_items'];
 
 // Validates a whole deck. Returns { ok, rejections[], flags[] }.
 export function validateSlides(slides, briefCategory, reportTitle = null, allowList = null) {

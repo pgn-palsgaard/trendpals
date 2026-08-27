@@ -200,6 +200,20 @@ export default async function (req) {
     };
     for (const key of Object.keys(scope.subregions || {})) gate.per_subregion_counts[key] = 0;
 
+    // Build B (narrative) — fixed driver order. Trends are still SELECTED
+    // alphabetically (relevance ranking is the carried open item), but the
+    // evaluated set is GROUPED by primary driver in MegaTrend display order, so
+    // the evidence block — and therefore the deck — reads driver by driver,
+    // never A-to-Z.
+    const driverOrder: Record<string, number> = {};
+    try {
+      const megas = await base44.asServiceRole.entities.MegaTrend.list('display_order');
+      megas.forEach((m, i) => {
+        const k = String(m.mega_trend_name || '').toLowerCase();
+        if (k) driverOrder[k] = typeof m.display_order === 'number' ? m.display_order : i;
+      });
+    } catch { /* no drivers on record — alphabetical order stands */ }
+
     for (const category of cats) {
       // Region-gated pool (country filter only — region/region_code are too coarse).
       let regionPass;
@@ -295,6 +309,14 @@ export default async function (req) {
       // Relevance ranking is a separate audit (carried open item).
       const allTrends = await base44.asServiceRole.entities.GlobalTrend.filter({ category, is_active: true }, 'trend_name');
       const trends = allTrends.slice(0, TRENDS_EVALUATED);
+      // Group the evaluated set by primary driver (fixed MegaTrend order), name
+      // second. Selection above is unchanged — this orders, it never picks.
+      const driverRank = (t) => {
+        const k = String(t.mega_trend || '').toLowerCase();
+        return k in driverOrder ? driverOrder[k] : 999;
+      };
+      trends.sort((a, b) => driverRank(a) - driverRank(b)
+        || String(a.trend_name).localeCompare(String(b.trend_name)));
       gate.trend_truncation.push({
         category,
         active_total: allTrends.length,

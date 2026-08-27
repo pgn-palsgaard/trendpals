@@ -54,6 +54,10 @@ export function buildEvidenceContext(evidence) {
   const trendBlocks = trends.map(t => {
     const lines = [`### [${t.category}] TREND: ${t.trend_name}`];
     lines.push(`TREND ID (copy into every slide built on this trend): ${t.trend_id}`);
+    // Build B (narrative) — the driver is the deck's grouping axis. Trends arrive
+    // pre-sorted by driver; the label is shown so the architect can group and
+    // name the sections without inventing a taxonomy.
+    lines.push(`PRIMARY DRIVER: ${t.mega_trend || 'Uncategorised'}`);
     // Build B — the status is shown so the architect knows which TIER the trend
     // belongs to (placement stays architect-owned). The record count is NOT its
     // to write: the renderer stamps that annotation from the frozen trend status.

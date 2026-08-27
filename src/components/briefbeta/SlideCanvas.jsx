@@ -1,6 +1,7 @@
 import React from 'react';
 import { annotationForSlide } from './trendStatus';
 import ImplicationsCanvas from './ImplicationsCanvas';
+import AgendaCanvas from './AgendaCanvas';
 import SMEAnnotationBadge from '@/components/sme/SMEAnnotationBadge';
 
 // One slide rendered as a presentation-style 16:9 canvas.
@@ -9,6 +10,7 @@ export default function SlideCanvas({ slide, trendStatus, topline }) {
   // from slide prose; the architect no longer writes record counts.
   const signalLine = annotationForSlide(slide, trendStatus);
   if (slide.slide_type === 'implications') return <ImplicationsCanvas slide={slide} topline={topline} />;
+  if (slide.slide_type === 'agenda') return <AgendaCanvas slide={slide} topline={topline} />;
   return (
     <div className="w-full bg-card border border-border rounded-xl shadow-panel overflow-hidden">
       <div className="aspect-[16/9] w-full overflow-y-auto p-8 flex flex-col">
@@ -28,6 +30,10 @@ export default function SlideCanvas({ slide, trendStatus, topline }) {
         )}
         {signalLine && (
           <p className="text-xs italic mt-2" style={{ color: '#62837F' }}>{signalLine}</p>
+        )}
+        {/* Build B (narrative) — the one-line tie back to the core hypothesis. */}
+        {slide.hypothesis_tieback && (
+          <p className="text-xs italic mt-2" style={{ color: '#22566E' }}>{slide.hypothesis_tieback}</p>
         )}
         {/* Advisory only — SME field verification. Never gates build or save. */}
         {slide.trend_id && (

@@ -43,6 +43,15 @@ export function buildGammaMarkdown(report, imageMap = {}) {
       continue;
     }
 
+    // Agenda — the deck overview list, one box, no images.
+    if (slide.slide_type === 'agenda') {
+      let a = `## ${slide.title || 'In this report'}\n\n`;
+      if (slide.subtitle) a += `*${slide.subtitle}*\n\n`;
+      a += (slide.agenda_items || []).map(i => `- ${i}`).join('\n');
+      parts.push(a.trim());
+      continue;
+    }
+
     if (slide.slide_type === 'methodology') {
       const lines = [
         ...String(slide.market_signal || '').split('\n').filter(Boolean),
@@ -66,6 +75,7 @@ export function buildGammaMarkdown(report, imageMap = {}) {
     let s = `## ${slide.title || slide.slide_name || 'Slide'}\n\n`;
     if (slide.subtitle) s += `*${slide.subtitle}*\n\n`;
     if (slide.market_signal) s += `${String(slide.market_signal).replace(/\n+/g, ' ')}\n\n`;
+    if (slide.hypothesis_tieback) s += `*${slide.hypothesis_tieback}*\n\n`;
 
     // One contiguous list — no blank lines inside, so Gamma keeps it as a single box.
     let list = '';

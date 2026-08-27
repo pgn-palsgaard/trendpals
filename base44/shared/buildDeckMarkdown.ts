@@ -21,6 +21,16 @@ export function buildDeckMarkdown(report, imageMap = {}) {
       continue;
     }
 
+    // Agenda — the deck overview list between opening and first divider.
+    if (slide.slide_type === 'agenda') {
+      let a = `## ${slide.title || 'In this report'}\n`;
+      if (slide.subtitle) a += `### ${slide.subtitle}\n`;
+      a += `\n**In this report**\n\n`;
+      for (const item of slide.agenda_items || []) a += `- ${item}\n`;
+      parts.push(a.trim());
+      continue;
+    }
+
     // Methodology is a real slide, not an appendix: its market_signal holds one
     // statement per line — rendered as bullets so the skill builds a dense list
     // slide instead of compressing a wall of text.
@@ -39,6 +49,7 @@ export function buildDeckMarkdown(report, imageMap = {}) {
     let s = `## ${slide.title || slide.slide_name || 'Slide'}\n`;
     if (slide.subtitle) s += `### ${slide.subtitle}\n\n`;
     if (slide.market_signal) s += `${slide.market_signal}\n\n`;
+    if (slide.hypothesis_tieback) s += `*${slide.hypothesis_tieback}*\n\n`;
 
     if ((slide.supporting_data || []).length > 0) {
       s += `**Supporting data**\n\n`;
