@@ -491,6 +491,9 @@ function narrativeRejections(slides) {
   const rejections = [];
   (slides || []).forEach((slide, i) => {
     if (slide?.slide_type !== 'content') return;
+    // Only slides built on a verified trend carry a tie-back. The opening
+    // hypothesis slide states the hypothesis itself and has no trend_id.
+    if (!String(slide.trend_id || '').trim()) return;
     if (String(slide.hypothesis_tieback || '').trim()) return;
     rejections.push({
       rule: 'NARR-1',
