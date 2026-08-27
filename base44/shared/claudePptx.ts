@@ -153,8 +153,18 @@ LINE_HEIGHT_IN={14:0.245,13:0.228,12:0.210,11:0.194,10:0.177}
 # One Palsgaard identity, with rhythm. Section dividers rotate through three
 # brand accents in a fixed order, and the accent is carried into the content
 # slides that follow it — so slides differ, but the deck reads as one document.
-BREAKING_COLOURS=['Breaking slide Palsgaard blue','Breaking slide sage','Breaking slide dark blue']
-SECTION_ACCENTS=[RGBColor(0x1D,0x42,0x8A),RGBColor(0x6F,0x82,0x63),RGBColor(0x5A,0x36,0x1F)]
+CHOCOLATE=RGBColor(0x5A,0x36,0x1F)
+# Dividers are painted, not layout-picked: the template only ships three breaking
+# colours, so one layout is reused and its background repainted in a fixed
+# four-colour cycle. Two consecutive section breaks can therefore never match.
+BREAKING_LAYOUT='Breaking slide Palsgaard blue'
+DIVIDER_FILLS=[BLUE,SAGE,CHOCOLATE,TEAL]
+SECTION_ACCENTS=DIVIDER_FILLS
+# Palsgaard signature: a narrow vertical strip of small squares down the far left
+# edge of every content card, outside the text area (body starts at 0.89in).
+DOT_LEFT_IN=0.42; DOT_SIZE_IN=0.075; DOT_GAP_IN=0.16
+DOT_TOP_IN=1.55; DOT_BOTTOM_IN=6.45
+SLIDE_W_IN=13.333; SLIDE_H_IN=7.5
 CONTENT_LAYOUTS=['Full page content and preheader']
 PREHEADER_IDX={'Full page content and preheader':16,
   'Full page content and preheader, dark colours':39}
@@ -278,6 +288,29 @@ def add_footnote(slide,text,color=GREY,width_in=11.50):
   body=box.text_frame._txBody
   for p in body.findall(qn('a:p')): body.remove(p)
   body.append(make_para(text,size_pt=8,color=color))
+
+def send_to_back(shape):
+  """Moves a shape to the bottom of the z-order, after the required
+  nvGrpSpPr/grpSpPr elements, so painted fills sit behind the layout's text."""
+  tree=shape._element.getparent(); tree.remove(shape._element); tree.insert(2,shape._element)
+
+def paint_background(slide,colour):
+  box=slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,0,0,Inches(SLIDE_W_IN),Inches(SLIDE_H_IN))
+  box.fill.solid(); box.fill.fore_color.rgb=colour; box.line.fill.background()
+  try: box.shadow.inherit=False
+  except Exception: pass
+  send_to_back(box)
+
+def add_dot_strip(slide,colour=BLUE):
+  """The left-edge dot strip. Same position and size on every content card."""
+  top=DOT_TOP_IN
+  while top+DOT_SIZE_IN<=DOT_BOTTOM_IN:
+    dot=slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,Inches(DOT_LEFT_IN),Inches(top),
+      Inches(DOT_SIZE_IN),Inches(DOT_SIZE_IN))
+    dot.fill.solid(); dot.fill.fore_color.rgb=colour; dot.line.fill.background()
+    try: dot.shadow.inherit=False
+    except Exception: pass
+    top+=DOT_GAP_IN
 
 def drop_empty_placeholders(slide):
   for ph in list(slide.placeholders):
@@ -510,8 +543,8 @@ def render_front_page(prs,data,report):
   drop_empty_placeholders(slide)
 
 def render_breaking(prs,slide_data,index,report):
-  layout_name=BREAKING_COLOURS[index%len(BREAKING_COLOURS)]
-  slide=prs.slides.add_slide(get_layout(prs,layout_name))
+  slide=prs.slides.add_slide(get_layout(prs,BREAKING_LAYOUT))
+  paint_background(slide,DIVIDER_FILLS[index%len(DIVIDER_FILLS)])
   headline=(slide_data.get('title') or slide_data.get('slide_name') or 'Section').strip()
   if len(headline)>BUDGET_BREAKING_HEADLINE: report['warnings'].append(f'Breaking headline {len(headline)} chars.')
   set_ph_simple(slide,29,headline,size=title_size(headline,BUDGET_BREAKING_HEADLINE,32,20),bold=True,color=WHITE)
@@ -646,6 +679,9 @@ def build(data,template_path,out_path,workdir):
       stem=stems.get(str(entry.get('trend_id') or ''))
       head=stem+'  |  MARKET SIGNAL' if stem else preheader
       made=render_content(prs,entry,head,CONTENT_LAYOUTS[0],images,report,accent,kind)
+    # Left-edge dot strip on every content card. Dividers are excluded above
+    # (they 'continue' before reaching here), so they never carry it.
+    for s in made: add_dot_strip(s)
     report['slides_out']+=len(made); report['continuations']+=max(0,len(made)-1)
     for field in ('market_signal','why_it_may_matter','supporting_data','formulation_questions',
                   'gnpd_examples','conversation_openers','customer_pains'):
