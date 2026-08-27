@@ -19,6 +19,13 @@ const RECENCY_MONTHS = 30;
 const PAGE = 500;
 const FULL_EVIDENCE_MIN = 3;
 const TRENDS_EVALUATED = 8;
+// Deterministic selection. Evidence strength is the RANKING; the driver cap is a
+// CEILING applied afterwards — an over-cap trend is deferred to the back of the
+// order, never dropped, so the cap can never force a weaker trend into the deck.
+const DRIVER_CAP = 2;
+// The deck's trend count is bound to the top N of the fixed order. The architect
+// has no freedom to pick how many, or to skip one.
+const DECK_TREND_COUNT = 4;
 // Safety ceiling only. Hitting it is a loud failure, never a silent truncation —
 // a pool that is quietly cut is the same defect as a region that is quietly widened.
 const SAFETY_CAP = 40000;
@@ -189,6 +196,14 @@ export default async function (req) {
         rendered_by_country: {},
       },
       trend_truncation: [],
+      // Selection audit. deck_trend_count binds the slide count; trend_ranking is the
+      // pass-1 ranking basis; allocation_losses records trends that ranked on raw
+      // matches but lost records to a stronger trend during exclusive allocation —
+      // correct behaviour, but it must be visible or it reads as a bug.
+      deck_trend_count: DECK_TREND_COUNT,
+      driver_cap: DRIVER_CAP,
+      trend_ranking: [],
+      allocation_losses: [],
       // The actual launch-date span of the pool that reached matching. Distinct from
       // recency_months: the window says what was ALLOWED in, this says what is
       // ACTUALLY there. A pool spanning one period cannot evidence change over time,
@@ -329,6 +344,57 @@ export default async function (req) {
       const searchable = inWindow.map(p => ({ p, text: productText(p) }));
       const consumed = new Set(); // Phase 4.2 — one record backs exactly one trend
 
+      // ── PASS 1 — raw match counts, WITHOUT exclusivity ──
+      // Exclusive allocation depends on the order, and the order depends on record
+      // counts: it cannot run in one pass. So counting is done first on the open pool
+      // (the same record may count for several trends) and is used only to rank.
+      const keywordsFor = (t) => (t.trend_keywords || []).map(k => String(k).toLowerCase()).filter(k => k.length >= 3);
+      const rawMatches = new Map();
+      for (const t of trends) {
+        const kws = keywordsFor(t);
+        let raw = 0;
+        for (const { p, text } of searchable) {
+          if (!p.gnpd_record_id) continue;
+          const matched = kws.some(k => text.includes(k));
+          const linked = (p.trend_links || []).some(l => l.trend_id === t.id && l.review_status !== 'rejected');
+          if (matched || linked) raw++;
+        }
+        rawMatches.set(t.id, raw);
+      }
+      // Sources are a TIEBREAKER only. Source volume measures how much has been
+      // uploaded about a topic, not how much the market is moving.
+      const sourceWeight = (t) => new Set([
+        ...(t.source_references || []),
+        ...(t.sources || []).map(s => s.source_id),
+      ].filter(Boolean)).size + (t.sources || []).filter(s => !s.source_id).length;
+      const rawTier = (n) => (n >= FULL_EVIDENCE_MIN ? 0 : n > 0 ? 1 : 2);
+      const ranked = [...trends].sort((a, b) => {
+        const ra = rawMatches.get(a.id) || 0, rb = rawMatches.get(b.id) || 0;
+        return rawTier(ra) - rawTier(rb)
+          || rb - ra
+          || sourceWeight(b) - sourceWeight(a)
+          || String(a.trend_name).localeCompare(String(b.trend_name));
+      });
+      // Driver cap as a CEILING: over-cap trends move to the back of the order, so
+      // spread is achieved while evidence still wins whenever the deck needs filling.
+      const perDriver = {};
+      const capped = [], deferred = [];
+      for (const t of ranked) {
+        const k = String(t.mega_trend || '').toLowerCase() || 'unassigned';
+        perDriver[k] = (perDriver[k] || 0) + 1;
+        (perDriver[k] <= DRIVER_CAP ? capped : deferred).push(t);
+      }
+      const ordered = [...capped, ...deferred];
+      ordered.forEach((t, i) => gate.trend_ranking.push({
+        rank: i + 1,
+        trend_name: t.trend_name,
+        category,
+        driver: t.mega_trend || 'unassigned',
+        raw_matches: rawMatches.get(t.id) || 0,
+        source_weight: sourceWeight(t),
+        deferred_by_driver_cap: deferred.includes(t),
+      }));
+
       // Build C — the out-of-region pool for this category, fetched at most once and
       // only when read-across was opted into. Rows, not counts (secondary_counts is
       // a count and holds nothing). The sub_category filter is applied only when the
@@ -364,7 +430,8 @@ export default async function (req) {
         return readAcrossPool;
       }
 
-      for (const t of trends) {
+      // ── PASS 2 — exclusive allocation in the now-fixed order ──
+      for (const t of ordered) {
         // --- Sources backing this trend ---
         const sourceIds = [...new Set([
           ...(t.source_references || []),
@@ -420,6 +487,17 @@ export default async function (req) {
         for (const { p } of picked) consumed.add(p.gnpd_record_id);
 
         const evidenceStatus = picked.length >= FULL_EVIDENCE_MIN ? 'full' : picked.length > 0 ? 'signal_only' : 'dropped';
+        // A trend can rank on raw matches and still end below full because a stronger
+        // trend consumed its records. Correct, but logged so the methodology slide can
+        // state it instead of it looking like a retrieval failure.
+        const raw = rawMatches.get(t.id) || 0;
+        if (raw >= FULL_EVIDENCE_MIN && picked.length < FULL_EVIDENCE_MIN) {
+          gate.allocation_losses.push({
+            trend_name: t.trend_name, category, raw_matches: raw,
+            allocated: picked.length, resulting_status: evidenceStatus,
+            reason: 'records already allocated to a higher-ranked trend (one record backs exactly one trend)',
+          });
+        }
 
         // ── Build C — read-across: opt-in, and only for a trend that is BELOW full
         // on in-region evidence. A fully evidenced regional trend never triggers it.
@@ -643,9 +721,14 @@ export default async function (req) {
       }
     }
 
+    // Bind the deck to the top N of the fixed order. deck_selected is the contract:
+    // the architect builds exactly these trends, in this order, and skips none.
+    trendsOut.forEach((t, i) => { t.selection_rank = i + 1; t.deck_selected = i < DECK_TREND_COUNT; });
+
     return Response.json({
       success: true,
       gate,
+      deck_trend_count: DECK_TREND_COUNT,
       exclusions: exclusions.slice(0, 100),
       trends: trendsOut,
       web_signals: webSignals,

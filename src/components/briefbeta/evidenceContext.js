@@ -44,10 +44,26 @@ function buildRegionLabelBlock(evidence) {
   ].join('\n');
 }
 
+// The deck's trend set is decided deterministically by retrieval (evidence strength
+// ranked, driver cap applied as a ceiling) — never by the architect. Same brief,
+// same trends, same count, same order.
+function buildSelectionBlock(trends) {
+  const selected = trends.filter(t => t.deck_selected !== false);
+  if (selected.length === 0) return '';
+  const list = selected.map((t, i) => `  ${i + 1}. ${t.trend_name} (trend_id: ${t.trend_id})`);
+  return [
+    '### TREND SELECTION (system-owned — you do not choose)',
+    `Build a trend slide (plus its paired implications slide) for EXACTLY these ${selected.length} trends, in this order:`,
+    list.join('\n'),
+    'You may not add a trend, skip a trend, reorder them, merge two into one slide, or change how many there are. Any other trend shown below is context only and gets no slide.',
+  ].join('\n');
+}
+
 export function buildEvidenceContext(evidence) {
   const { trends, webSignals } = collectCitations(evidence);
   if (trends.length === 0) return null;
 
+  const selectionBlock = buildSelectionBlock(trends);
   const regionBlock = buildRegionLabelBlock(evidence);
   const webBlock = buildWebSignalBlock(webSignals);
 
@@ -107,7 +123,7 @@ export function buildEvidenceContext(evidence) {
     'Do NOT write a cross-region, read-across or provenance sentence anywhere in the slide text: the system stamps that label itself. Set the flag and write the observation.',
   ].join('\n') : '';
 
-  return [regionBlock, trendBlocks, readAcrossRules, webBlock].filter(Boolean).join('\n\n');
+  return [selectionBlock, regionBlock, trendBlocks, readAcrossRules, webBlock].filter(Boolean).join('\n\n');
 }
 
 // Deck entries are written as "<RECORD_ID> | Product — Brand (Country): why".
