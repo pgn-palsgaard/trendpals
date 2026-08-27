@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import KAMBadge from '@/components/KAMBadge';
 import { reportSearchText, matchSnippet, reportFiles } from '@/lib/reportSearch';
 import ArchitectBadge from '@/components/ArchitectBadge';
+import DeleteReportButton from '@/components/reports/DeleteReportButton';
 
 export default function ReportsLibrary() {
   const navigate = useNavigate();
@@ -310,6 +311,10 @@ export default function ReportsLibrary() {
                           </Button>
                         </a>
                       )}
+                      <DeleteReportButton
+                        report={report}
+                        onDeleted={() => queryClient.invalidateQueries({ queryKey: ['reportsLibrary'] })}
+                      />
                     </div>
                   </CardContent>
                 </Card>
