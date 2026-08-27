@@ -31,6 +31,9 @@ function group(label, items) {
 export function buildGammaMarkdown(report, imageMap = {}) {
   const parts = [];
 
+  // Same topline as the Claude deck: CATEGORY | MARKET INTELLIGENCE | YEAR.
+  const topline = `${String(report.category || 'Market intelligence')}  |  Market intelligence  |  ${new Date().getFullYear()}`.toUpperCase();
+
   const preHeader = report.generated_by === 'architect' ? 'BETA — draft for review\n\n' : '';
   parts.push(
     `${preHeader}# ${report.title}\n## ${report.category || ''} market intelligence | ${report.region_display_label || report.region || ''}\n*Prepared by Palsgaard*`
@@ -45,7 +48,7 @@ export function buildGammaMarkdown(report, imageMap = {}) {
 
     // Agenda — the deck overview list, one box, no images.
     if (slide.slide_type === 'agenda') {
-      let a = `## ${slide.title || 'In this report'}\n\n`;
+      let a = `${topline}\n\n## ${slide.title || 'In this report'}\n\n`;
       if (slide.subtitle) a += `*${slide.subtitle}*\n\n`;
       a += (slide.agenda_items || []).map(i => `- ${i}`).join('\n');
       parts.push(a.trim());
@@ -57,14 +60,14 @@ export function buildGammaMarkdown(report, imageMap = {}) {
         ...String(slide.market_signal || '').split('\n').filter(Boolean),
         ...(slide.gnpd_examples || []),
       ];
-      let m = `## ${slide.title || 'How this report was evidenced'}\n\n`;
+      let m = `${topline}\n\n## ${slide.title || 'How this report was evidenced'}\n\n`;
       m += lines.map(l => `- ${l}`).join('\n');
       parts.push(m.trim());
       continue;
     }
 
     if (slide.slide_type === 'implications') {
-      let s = `## ${slide.title || 'Strategic implications'}\n\n`;
+      let s = `${(slide.preheader || topline).toUpperCase()}\n\n## ${slide.title || 'Strategic implications'}\n\n`;
       s += group('So what for manufacturers', slide.strategic_implications);
       s += group('Where Palsgaard supports', slide.palsgaard_support);
       if (slide.evidence_footer) s += `\n*Sources: ${slide.evidence_footer}*`;
@@ -72,7 +75,7 @@ export function buildGammaMarkdown(report, imageMap = {}) {
       continue;
     }
 
-    let s = `## ${slide.title || slide.slide_name || 'Slide'}\n\n`;
+    let s = `${topline}\n\n## ${slide.title || slide.slide_name || 'Slide'}\n\n`;
     if (slide.subtitle) s += `*${slide.subtitle}*\n\n`;
     if (slide.market_signal) s += `${String(slide.market_signal).replace(/\n+/g, ' ')}\n\n`;
     if (slide.hypothesis_tieback) s += `*${slide.hypothesis_tieback}*\n\n`;
