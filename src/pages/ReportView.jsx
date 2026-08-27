@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
 import FinalReportSection from '@/components/report/FinalReportSection';
+import GeneratedExportsSection from '@/components/report/GeneratedExportsSection';
 import ExecutiveSummaryCard from '@/components/report/ExecutiveSummaryCard';
 import BriefingContextSlide from '@/components/report/BriefingContextSlide';
 import AIDisclaimer from '@/components/report/AIDisclaimer';
@@ -266,6 +267,9 @@ export default function ReportView() {
 
         {/* Briefing Context cover slide */}
         <BriefingContextSlide slide={(report.slides || []).find(s => s.slide_type === 'briefing_context')} />
+
+        {/* Generated deck files (Claude / Gamma exports) */}
+        <GeneratedExportsSection report={report} />
 
         {/* Final Report Files */}
         <FinalReportSection report={report} />
