@@ -48,15 +48,19 @@ function buildRegionLabelBlock(evidence) {
 // ranked, driver cap applied as a ceiling) — never by the architect. Same brief,
 // same trends, same count, same order.
 function buildSelectionBlock(trends) {
-  const selected = trends.filter(t => t.deck_selected !== false);
-  if (selected.length === 0) return '';
-  const list = selected.map((t, i) => `  ${i + 1}. ${t.trend_name} (trend_id: ${t.trend_id})`);
-  return [
-    '### TREND SELECTION (system-owned — you do not choose)',
-    `Build a trend slide (plus its paired implications slide) for EXACTLY these ${selected.length} trends, in this order:`,
-    list.join('\n'),
-    'You may not add a trend, skip a trend, reorder them, merge two into one slide, or change how many there are. Any other trend shown below is context only and gets no slide.',
-  ].join('\n');
+  const core = trends.filter(t => t.deck_role === 'core');
+  const signal = trends.filter(t => t.deck_role === 'signal');
+  if (core.length === 0 && signal.length === 0) return '';
+  const lines = ['### TREND SELECTION (system-owned — you do not choose)'];
+  if (core.length > 0) {
+    lines.push(`CORE trends — build a trend slide plus its paired implications slide for EXACTLY these ${core.length}, in this order:`);
+    lines.push(core.map((t, i) => `  ${i + 1}. ${t.trend_name} (trend_id: ${t.trend_id})`).join('\n'));
+  }
+  if (signal.length > 0) {
+    lines.push(`SIGNAL trend — outside the core count, ALWAYS last, under the signal divider, never earlier in the deck:\n${signal.map(t => `  - ${t.trend_name} (trend_id: ${t.trend_id})`).join('\n')}`);
+  }
+  lines.push('You may not add a trend, skip a trend, reorder them, merge two into one slide, or change how many there are. Any other trend shown below is context only and gets no slide.');
+  return lines.join('\n');
 }
 
 export function buildEvidenceContext(evidence) {

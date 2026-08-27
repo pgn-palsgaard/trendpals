@@ -25,7 +25,15 @@ const TRENDS_EVALUATED = 8;
 const DRIVER_CAP = 2;
 // The deck's trend count is bound to the top N of the fixed order. The architect
 // has no freedom to pick how many, or to skip one.
-const DECK_TREND_COUNT = 4;
+// Ceiling, not a quota: only FULL-evidence trends can take a core slot, so a
+// position can never be padded by a trend that lost its records in allocation.
+const DECK_MAX_TRENDS = 5;
+// Floor. Below this the analyst is warned instead of the deck being filled out —
+// thin evidence must look thin.
+const DECK_FULL_MIN = 3;
+// Signal-only trends live outside the core count: at most one, always last, under
+// the existing signal divider. One record must not buy a place in the body.
+const DECK_MAX_SIGNALS = 1;
 // Safety ceiling only. Hitting it is a loud failure, never a silent truncation —
 // a pool that is quietly cut is the same defect as a region that is quietly widened.
 const SAFETY_CAP = 40000;
@@ -200,7 +208,10 @@ export default async function (req) {
       // pass-1 ranking basis; allocation_losses records trends that ranked on raw
       // matches but lost records to a stronger trend during exclusive allocation —
       // correct behaviour, but it must be visible or it reads as a bug.
-      deck_trend_count: DECK_TREND_COUNT,
+      deck_max_trends: DECK_MAX_TRENDS,
+      deck_full_min: DECK_FULL_MIN,
+      deck_selection: [],
+      thin_evidence_warning: null,
       driver_cap: DRIVER_CAP,
       trend_ranking: [],
       allocation_losses: [],
@@ -721,14 +732,37 @@ export default async function (req) {
       }
     }
 
-    // Bind the deck to the top N of the fixed order. deck_selected is the contract:
-    // the architect builds exactly these trends, in this order, and skips none.
-    trendsOut.forEach((t, i) => { t.selection_rank = i + 1; t.deck_selected = i < DECK_TREND_COUNT; });
+    // ── Deck binding — gated on TIER, never on position ──
+    // A core slot requires full regional evidence AFTER exclusive allocation, so a
+    // trend that ranked high on raw matches but lost its records cannot pad the body.
+    let coreTaken = 0, signalTaken = 0;
+    trendsOut.forEach((t, i) => {
+      t.selection_rank = i + 1;
+      if (t.evidence_status === 'full' && coreTaken < DECK_MAX_TRENDS) {
+        t.deck_role = 'core'; coreTaken++;
+      } else if (t.read_across_status === 'full') {
+        t.deck_role = 'cross_region';
+      } else if (t.evidence_status === 'signal_only' && signalTaken < DECK_MAX_SIGNALS) {
+        t.deck_role = 'signal'; signalTaken++;
+      } else {
+        t.deck_role = 'context';
+      }
+      t.deck_selected = t.deck_role !== 'context';
+      gate.deck_selection.push({
+        rank: t.selection_rank, trend_name: t.trend_name, category: t.category,
+        evidence_status: t.evidence_status, deck_role: t.deck_role, record_count: t.record_count,
+      });
+    });
+    if (coreTaken < DECK_FULL_MIN) {
+      gate.thin_evidence_warning = `Only ${coreTaken} trend${coreTaken === 1 ? '' : 's'} cleared full evidence (${FULL_EVIDENCE_MIN}+ allocated regional launches). The floor is ${DECK_FULL_MIN}. The deck is NOT padded with weaker trends — narrow or widen the brief deliberately, or accept a short deck.`;
+    }
 
     return Response.json({
       success: true,
       gate,
-      deck_trend_count: DECK_TREND_COUNT,
+      deck_core_count: coreTaken,
+      deck_max_trends: DECK_MAX_TRENDS,
+      thin_evidence_warning: gate.thin_evidence_warning,
       exclusions: exclusions.slice(0, 100),
       trends: trendsOut,
       web_signals: webSignals,
