@@ -39,11 +39,38 @@ export function buildGammaMarkdown(report, imageMap = {}) {
     `${preHeader}# ${report.title}\n## ${report.category || ''} market intelligence | ${report.region_display_label || report.region || ''}\n*Prepared by Palsgaard*`
   );
 
-  for (const slide of report.slides || []) {
+  // Breaker cards are part of the standard layout, but not every deck carries
+  // authored section_header slides. When none exist, one is SYNTHESIZED before
+  // each trend's content slide, titled with the same 'TREND NN | THEME' stem the
+  // PPTX deck uses (taken from that trend's implications preheader).
+  const slides = report.slides || [];
+  const hasAuthoredDividers = slides.some(s => s.slide_type === 'section_header');
+  const stems = {};
+  for (const s of slides) {
+    if (s.slide_type !== 'implications') continue;
+    const key = String(s.trend_id || '');
+    const segs = String(s.preheader || '').split('|').map(p => p.trim()).filter(Boolean);
+    if (key && segs.length >= 2 && !stems[key]) stems[key] = segs.slice(0, 2).join(' | ');
+  }
+  const dividersEmitted = new Set();
+  let trendNo = 0;
+
+  for (const slide of slides) {
     // Section divider — heading only, so Gamma renders a full-bleed break card.
     if (slide.slide_type === 'section_header') {
       parts.push(`# ${slide.title || slide.slide_name || 'Section'}${slide.subtitle ? `\n## ${slide.subtitle}` : ''}`);
       continue;
+    }
+
+    // Synthesized breaker before the first content slide of each trend.
+    const trendKey = String(slide.trend_id || '');
+    if (!hasAuthoredDividers && trendKey
+        && (slide.slide_type === 'content' || !slide.slide_type)
+        && !dividersEmitted.has(trendKey)) {
+      dividersEmitted.add(trendKey);
+      trendNo++;
+      const stem = stems[trendKey] || `TREND ${String(trendNo).padStart(2, '0')}`;
+      parts.push(`# ${stem}`);
     }
 
     // Agenda — the deck overview list, one box, no images.
