@@ -15,7 +15,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import {
   Upload, Search, Trash2, CheckCircle2, XCircle, Clock, AlertCircle,
-  FileText, SkipForward, Loader2, Eye
+  FileText, SkipForward, Loader2, Eye, RefreshCw
 } from 'lucide-react';
 import DeleteSourcesDialog from './DeleteSourcesDialog';
 import SourceDetailPanel from './SourceDetailPanel';
@@ -103,7 +103,17 @@ export default function RagSourceTable({
     staleTime: 5 * 60 * 1000,
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
-    refetchInterval: processing.active ? 30000 : false,
+    // Poll while any source is still being classified/extracted, so freshly
+    // uploaded files appear on their own instead of looking like nothing happened.
+    refetchInterval: (query) => {
+      if (processing.active) return 30000;
+      const rows = query.state.data || [];
+      const inFlight = rows.some(s =>
+        ['uploaded', 'extracting'].includes(s.pipeline_stage) ||
+        s.classification?.status === 'classifying'
+      );
+      return inFlight ? 15000 : false;
+    },
   });
 
   const handleRefresh = () => queryClient.invalidateQueries({ queryKey });
@@ -239,10 +249,16 @@ export default function RagSourceTable({
             <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
             {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
           </div>
-          <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowUploadModal(true)}>
-            <Upload className="w-4 h-4 mr-2" />
-            Upload Files
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => refetch()}>
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Refresh
+            </Button>
+            <Button className="bg-blue-600 hover:bg-blue-700" onClick={() => setShowUploadModal(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Upload Files
+            </Button>
+          </div>
         </div>
 
         {/* Awaiting review banner */}
