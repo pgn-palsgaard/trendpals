@@ -376,7 +376,7 @@ async function parseRows(fileBuffer, fileUrl) {
   }
 }
 
-async function processOneSource(base44, anthropic, sourceId, batchSize = 50, skipTrendLinking = false) {
+async function processOneSource(base44, anthropic, sourceId, batchSize = 50, skipTrendLinking = false, allowStaleClaim = false) {
   const source = await base44.asServiceRole.entities.Source.get(sourceId);
 
   // ── Guard clauses (fires on every Source.update; must skip non-GNPD work) ──
@@ -388,7 +388,12 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
   // Only process when in an eligible pipeline stage. This path fully ingests and
   // marks the source gnpd_ready. 'gnpd_ready' is NOT eligible — that would let the
   // function's own final Source.update re-trigger the automation and ingest twice.
-  const eligibleStages = ['uploaded'];
+  // 'extracting' is the claim state this function writes before doing the work. If a
+  // previous run died mid-ingest (timeout / platform kill) the claim is never released,
+  // which blocked the source forever. A MANUAL retry may therefore re-enter from
+  // 'extracting' — record-id dedup below still prevents double-created products.
+  // Automation events never get this, so a concurrent event still skips.
+  const eligibleStages = allowStaleClaim ? ['uploaded', 'extracting'] : ['uploaded'];
   if (source.pipeline_stage && !eligibleStages.includes(source.pipeline_stage)) {
     return { skipped: true, reason: 'not eligible stage', pipeline_stage: source.pipeline_stage };
   }
@@ -706,7 +711,7 @@ Deno.serve(async (req) => {
     const results = [];
     for (const sourceId of sourceIds) {
       try {
-        const result = await processOneSource(base44, anthropic, sourceId, batchSize, skipTrendLinking);
+        const result = await processOneSource(base44, anthropic, sourceId, batchSize, skipTrendLinking, !isAutomation);
         results.push({ sourceId, status: result?.skipped ? 'skipped' : 'ok', ...result });
       } catch (e) {
         console.error(`Error processing ${sourceId}:`, e.message);
