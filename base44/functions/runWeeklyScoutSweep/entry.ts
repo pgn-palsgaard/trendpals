@@ -23,9 +23,13 @@ export default async function (req) {
       ? body.category
       : SCOUT_CATEGORIES[week % SCOUT_CATEGORIES.length];
 
+    // Nested call: this wrapper is itself on a runtime budget, so the sweep gets a
+    // short one. A full 240s sweep here got the wrapper killed and left the child
+    // run stuck in 'running' with zero findings.
     const res = await base44.functions.invoke('runMarketScout', {
       category,
       window: 'the last 4 weeks',
+      time_budget_ms: 90000,
     });
 
     return Response.json({ success: true, category, result: res?.data || null });

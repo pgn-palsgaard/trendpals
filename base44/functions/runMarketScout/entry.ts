@@ -6,6 +6,10 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { runDeepSweep, classifyFindings, persistFindings, SCOUT_CATEGORIES, SCOUT_REGIONS } from '../../shared/marketScout.ts';
 
 const TIME_BUDGET_MS = 240000;
+// A nested call (weekly wrapper → runMarketScout) must finish well inside the
+// platform's kill window, otherwise the parent dies and the child is left hanging
+// in 'running'. Callers can therefore hand in a smaller budget.
+const MIN_TIME_BUDGET_MS = 60000;
 
 export default async function (req) {
   const started = Date.now();
@@ -46,12 +50,17 @@ export default async function (req) {
     });
     runId = run.id;
 
+    const requestedBudget = Number(body.time_budget_ms);
+    const budget = (!isNaN(requestedBudget) && requestedBudget > 0)
+      ? Math.min(TIME_BUDGET_MS, Math.max(MIN_TIME_BUDGET_MS, requestedBudget))
+      : TIME_BUDGET_MS;
+
     const sweep = await runDeepSweep(base44, {
       category,
       question,
       window,
       regions,
-      deadline: started + TIME_BUDGET_MS,
+      deadline: started + budget,
     });
 
     const trends = await base44.asServiceRole.entities.GlobalTrend.filter(
