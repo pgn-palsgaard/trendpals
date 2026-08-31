@@ -79,37 +79,58 @@ export default function KnowledgeUploadModal({ onClose }) {
         console.error('Background upload failed:', err);
       });
 
-      // Upload files with concurrency limit
-      const uploadPromises = files.map((fileItem, index) => 
-        uploadSingleFile(fileItem, batch.id, index)
-      );
-
-      // Process in batches of 5
+      // Upload in batches of 5 — the work must be STARTED per batch, not created
+      // up-front, or every file fires at once regardless of the limit.
+      const outcome = { created: 0, duplicates: [], failed: [] };
       const batchSize = 5;
-      for (let i = 0; i < uploadPromises.length; i += batchSize) {
-        await Promise.allSettled(uploadPromises.slice(i, i + batchSize));
+      for (let i = 0; i < files.length; i += batchSize) {
+        await Promise.all(
+          files.slice(i, i + batchSize).map((fileItem, j) =>
+            uploadSingleFile(fileItem, batch.id, i + j, outcome)
+          )
+        );
       }
 
-      return batch.id;
+      return outcome;
     },
-    onSuccess: (batchId) => {
+    onSuccess: (outcome) => {
       // The source tables (Knowledge + Market Intelligence) read from the 'ragSources'
       // query with a 5-minute staleTime — without invalidating that key the freshly
       // uploaded files stay invisible until a hard reload.
       queryClient.invalidateQueries({ queryKey: ['ragSources'] });
       queryClient.invalidateQueries({ queryKey: ['knowledgeSources'] });
       queryClient.invalidateQueries({ queryKey: ['uploadBatches'] });
-      toast.success('Bulk upload started', {
-        description: 'Files are being processed in the background'
-      });
-      onClose();
+      // Never claim success for files that were skipped or failed — a silent no-op
+      // is what made a fully-skipped upload look like "nothing happened".
+      if (outcome.created > 0) {
+        toast.success(`${outcome.created} file(s) uploaded`, {
+          description: 'Source type is being detected in the background',
+        });
+      }
+      if (outcome.duplicates.length > 0) {
+        toast.warning(
+          `${outcome.duplicates.length} file(s) skipped as duplicates: ${outcome.duplicates.join(', ')}`,
+          { description: 'Tick "Upload anyway as new version" to upload them again.', duration: 10000 }
+        );
+      }
+      if (outcome.failed.length > 0) {
+        toast.error(`${outcome.failed.length} file(s) failed`, {
+          description: outcome.failed.join(' · '),
+          duration: 10000,
+        });
+      }
+      if (outcome.created === 0 && outcome.duplicates.length === 0 && outcome.failed.length === 0) {
+        toast.error('Nothing was uploaded');
+      }
+      // Keep the dialog open when nothing landed, so the reason stays on screen.
+      if (outcome.created > 0) onClose();
     },
     onError: (error) => {
       toast.error(error.message || 'Failed to start upload');
     }
   });
 
-  const uploadSingleFile = async (fileItem, batchId, index) => {
+  const uploadSingleFile = async (fileItem, batchId, index, outcome) => {
     try {
       // Unified intake: dedup check + auto-classification (no manual source_type)
       const { sourceId } = await intakeFile({
@@ -135,21 +156,21 @@ export default function KnowledgeUploadModal({ onClose }) {
         status: 'completed',
         source_id: sourceId
       });
+      outcome.created++;
     } catch (error) {
       if (error instanceof DuplicateSourceError) {
-        const dup = error.duplicates[0];
-        toast.warning(`"${fileItem.filename}" already exists (${dup.review_status || 'pending'}). Tick "Upload anyway as new version" to override.`, { duration: 8000 });
-        // Do not re-throw — duplicate skips are expected, not fatal upload failures
+        // Duplicate skips are expected, not fatal — reported in the summary instead.
+        outcome.duplicates.push(fileItem.filename);
         return;
       }
       console.error('File upload failed:', fileItem.filename, error);
+      outcome.failed.push(`${fileItem.filename}: ${error.message}`);
       await base44.functions.invoke('updateBatchProgress', {
         batch_id: batchId,
         file_index: index,
         status: 'failed',
         error_message: error.message
-      });
-      throw error;
+      }).catch(() => {});
     }
   };
 
