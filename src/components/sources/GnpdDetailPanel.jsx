@@ -37,14 +37,27 @@ export default function GnpdDetailPanel({ sourceId, onClose, onRefresh, onDelete
 
   const handleRerunMapping = async () => {
     setLoading(true);
+    // Captured so a failed call can never leave the row spinning in 'detecting'
+    // forever — the Uploads tab polls that state indefinitely.
+    const previousStatus = source?.gnpd_mapping_status;
     try {
       await base44.entities.Source.update(sourceId, { gnpd_mapping_status: 'detecting' });
-      const res = await base44.functions.invoke('detectGNPDColumns', { sourceId });
+      // snake_case — the function reads body.source_id
+      await base44.functions.invoke('detectGNPDColumns', { source_id: sourceId });
       const updated = await base44.entities.Source.filter({ id: sourceId }, null, 1);
       setSource(updated[0]);
       toast.success('Column detection complete');
       onRefresh?.();
     } catch (e) {
+      try {
+        await base44.entities.Source.update(sourceId, {
+          gnpd_mapping_status: (!previousStatus || previousStatus === 'detecting') ? 'failed' : previousStatus,
+          gnpd_mapping_error: `Detection failed: ${e.message}`,
+        });
+        const restored = await base44.entities.Source.filter({ id: sourceId }, null, 1);
+        setSource(restored[0]);
+        onRefresh?.();
+      } catch (_) { /* status restore is best-effort */ }
       toast.error('Detection failed: ' + e.message);
     } finally {
       setLoading(false);
