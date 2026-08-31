@@ -1,14 +1,21 @@
 import React from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { base44 } from '@/api/base44Client';
 import { useAuth } from '@/lib/AuthContext';
 import { LogOut } from 'lucide-react';
+
+const REVIEWER_LINKS = [
+  { label: 'Review', to: '/review' },
+  { label: 'Architect', to: '/SubmitBriefBeta' },
+];
 
 // Stripped-down layout for SME reviewers — no sidebar, no admin nav.
 // Auth is handled upstream in App.jsx (AuthenticatedApp gates rendering
 // behind isLoadingAuth / authError → navigateToLogin), so by the time this
 // renders the user is authenticated.
-export default function ReviewerLayout({ children }) {
+export default function ReviewerLayout({ children, wide = false }) {
   const { user } = useAuth();
+  const { pathname } = useLocation();
 
   return (
     <div className="min-h-screen flex flex-col bg-background">
@@ -20,6 +27,27 @@ export default function ReviewerLayout({ children }) {
         <span style={{ fontFamily: "'Lora', Georgia, serif", fontWeight: 500, fontSize: 18, color: '#fff', letterSpacing: '0.2px' }}>
           TrendPals
         </span>
+        <nav className="flex items-center gap-1 ml-8 flex-1">
+          {REVIEWER_LINKS.map(link => {
+            const active = pathname.toLowerCase() === link.to.toLowerCase();
+            return (
+              <Link
+                key={link.to}
+                to={link.to}
+                className="rounded-lg transition-colors"
+                style={{
+                  fontSize: 13,
+                  fontWeight: 600,
+                  padding: '6px 12px',
+                  color: active ? '#fff' : '#C7D2E8',
+                  background: active ? 'rgba(255,255,255,0.16)' : 'transparent',
+                }}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
+        </nav>
         <div className="flex items-center gap-4">
           {user && (
             <div className="text-right leading-tight">
@@ -41,7 +69,7 @@ export default function ReviewerLayout({ children }) {
       </header>
 
       {/* Content */}
-      <main className="flex-1 w-full" style={{ maxWidth: 800, margin: '0 auto', padding: 24 }}>
+      <main className="flex-1 w-full" style={{ maxWidth: wide ? '100%' : 800, margin: '0 auto', padding: wide ? 0 : 24 }}>
         {children}
       </main>
 

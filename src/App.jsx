@@ -116,6 +116,7 @@ const AuthenticatedApp = () => {
     return (
       <Routes>
         <Route path="/review" element={<ReviewerLayout><SMEReviewPortal /></ReviewerLayout>} />
+        <Route path="/SubmitBriefBeta" element={<ReviewerLayout wide><SubmitBriefBeta /></ReviewerLayout>} />
         <Route path="*" element={<Navigate to="/review" replace />} />
       </Routes>
     );
