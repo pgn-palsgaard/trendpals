@@ -16,35 +16,39 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
   const [uploading, setUploading] = useState(false);
   const [currentDuplicate, setCurrentDuplicate] = useState(null);
 
-  // Poll for status updates on uploaded sources
-  useEffect(() => {
-    const uploadedItems = uploadQueue.filter(i => 
-      i.status === 'uploading' || i.sourceId && !['success', 'failed', 'duplicate'].includes(i.status)
-    );
+  // Poll classification progress on uploaded sources.
+  // Reads pipeline_stage / classification.status — the legacy `status` field is never
+  // written by the intake flow, so reading it kept flipping finished items back to
+  // 'uploading' and the row span forever.
+  const pendingIds = uploadQueue
+    .filter(i => i.sourceId && i.status === 'classifying')
+    .map(i => i.sourceId)
+    .join(',');
 
-    if (uploadedItems.length === 0) return;
+  useEffect(() => {
+    if (!pendingIds) return;
+    const ids = pendingIds.split(',');
 
     const interval = setInterval(async () => {
-      for (const item of uploadedItems) {
-        if (!item.sourceId) continue;
-        
+      for (const sourceId of ids) {
         try {
-          const source = await base44.entities.Source.get(item.sourceId);
-          const newStatus = source.status === 'ready' ? 'success' : 
-                           source.status === 'failed' ? 'error' : 
-                           'uploading';
-          
-          setUploadQueue(prev => prev.map(i => 
-            i.id === item.id ? { ...i, status: newStatus, error: source.status_message } : i
+          const source = await base44.entities.Source.get(sourceId);
+          const cls = source.classification?.status;
+          if (cls === 'classifying') continue;
+          const isError = source.pipeline_stage === 'failed';
+          setUploadQueue(prev => prev.map(i =>
+            i.sourceId === sourceId
+              ? { ...i, status: isError ? 'error' : 'success', error: isError ? source.failure_reason : null }
+              : i
           ));
         } catch (err) {
           console.error('Failed to fetch source status:', err);
         }
       }
-    }, 2000);
+    }, 3000);
 
     return () => clearInterval(interval);
-  }, [uploadQueue]);
+  }, [pendingIds]);
 
   const handleDragOver = useCallback((e) => {
     e.preventDefault();
@@ -114,8 +118,12 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
         // Use canonical intake: dedup check + auto-classification (source_type set by LLM)
         const result = await intakeFile({ file: item.file, title: item.name });
 
-        setUploadQueue(prev => prev.map(i => 
-          i.id === item.id ? { ...i, status: 'success', progress: 100, sourceId: result.sourceId } : i
+        // Spreadsheets go to the GNPD pipeline (no classification) — done immediately.
+        // Everything else is being classified in the background; the poll above resolves it.
+        setUploadQueue(prev => prev.map(i =>
+          i.id === item.id
+            ? { ...i, status: result.gnpd ? 'success' : 'classifying', progress: 100, sourceId: result.sourceId }
+            : i
         ));
       } catch (error) {
         if (error instanceof DuplicateSourceError) {
@@ -236,7 +244,7 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
                 <div key={item.id} className="flex items-center gap-3 p-3 border border-slate-200 rounded-lg">
                   <div className="flex-shrink-0">
                     {item.status === 'pending' && <div className="w-5 h-5 rounded-full border-2 border-slate-300" />}
-                    {item.status === 'uploading' && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}
+                    {(item.status === 'uploading' || item.status === 'classifying') && <Loader2 className="w-5 h-5 animate-spin text-blue-600" />}
                     {item.status === 'success' && <CheckCircle className="w-5 h-5 text-green-600" />}
                     {item.status === 'duplicate' && <AlertCircle className="w-5 h-5 text-orange-600" />}
                     {item.status === 'error' && <AlertCircle className="w-5 h-5 text-red-600" />}
@@ -269,6 +277,10 @@ export default function BulkUploadZone({ onUploadComplete, projectId, onLinkSour
                       <p className="text-xs text-red-600">{item.error}</p>
                     )}
                     
+                    {item.status === 'classifying' && (
+                      <p className="text-xs text-blue-600">Uploaded • Classifying…</p>
+                    )}
+
                     {item.status === 'success' && (
                       <p className="text-xs text-green-600">Uploaded • Needs metadata</p>
                     )}
