@@ -6,13 +6,20 @@ import { DIVISIONS, setDivision, useDivision } from '@/lib/division';
 export default function DivisionSwitcher({ collapsed }) {
   const division = useDivision();
 
+  // Marks the document so the Personal Care skin (a very discreet lavender
+  // canvas, defined in index.css) applies while that division is active.
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-division', division);
+    return () => document.documentElement.removeAttribute('data-division');
+  }, [division]);
+
   if (collapsed) {
     return (
       <button
         onClick={() => setDivision(division === 'BSA' ? 'Food' : 'BSA')}
         title={`Division: ${division === 'BSA' ? 'Personal Care' : 'Food'} — click to switch`}
         className="mx-auto flex items-center justify-center w-8 h-8 rounded-lg text-xs font-bold text-white"
-        style={{ background: division === 'BSA' ? '#6F8263' : '#1D428A' }}
+        style={{ background: division === 'BSA' ? '#6E6191' : '#1D428A' }}
       >
         {division === 'BSA' ? 'PC' : 'F'}
       </button>
@@ -33,7 +40,7 @@ export default function DivisionSwitcher({ collapsed }) {
               onClick={() => setDivision(d.value)}
               className="flex-1 rounded-md px-2 py-1.5 text-xs font-semibold transition-colors"
               style={{
-                background: active ? '#1D428A' : 'transparent',
+                background: active ? (d.value === 'BSA' ? '#6E6191' : '#1D428A') : 'transparent',
                 color: active ? '#fff' : '#1D2B47',
               }}
             >

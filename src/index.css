@@ -43,6 +43,17 @@
     --sidebar-ring: 220 66% 32%;
   }
 
+  /* Personal Care (BSA) skin — the same layout, faintly lavender so the division
+     is recognisable at a glance without becoming a different-looking product. */
+  :root[data-division='BSA'] {
+    --background: 265 24% 97%;       /* #F7F5FA */
+    --secondary: 265 22% 94%;
+    --muted: 265 18% 94%;
+    --muted-foreground: 265 12% 50%;
+    --border: 265 16% 89%;
+    --input: 265 16% 89%;
+  }
+
   .dark {
     --background: 222 42% 10%;
     --foreground: 40 33% 96%;
