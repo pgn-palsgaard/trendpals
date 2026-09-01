@@ -18,9 +18,19 @@
         "oils_fats",
         "plant_based",
         "rutf_rusf",
+        "personal_care",
         "needs_human_review"
       ],
-      "description": "Canonical Palsgaard solution key for this project's focus area"
+      "description": "Canonical Palsgaard solution key for this project's focus area. personal_care = BSA Personal Care (one unified category for now)."
+    },
+    "main_group": {
+      "type": "string",
+      "enum": [
+        "Food",
+        "BSA"
+      ],
+      "default": "Food",
+      "description": "Which Palsgaard division this project belongs to. Missing means Food \u2014 existing projects predate this field."
     },
     "category_ai_proposed": {
       "type": "string",

@@ -45,7 +45,10 @@ export async function linkSourceToProject(projectId, sourceId) {
 
 const SPREADSHEET_EXTS = ['xls', 'xlsx'];
 
-export async function intakeFile({ file, projectId = null, title = null, allowDuplicate = false }) {
+// mainGroup: 'Food' | 'BSA' | null. Set ONLY at intake — the division a source
+// belongs to is a fact about where it came from, never inferred later. null leaves
+// the field unset, which every food-facing read treats as Food.
+export async function intakeFile({ file, projectId = null, title = null, allowDuplicate = false, mainGroup = null }) {
   // Fix 4 — duplicate detection BEFORE creating a Source
   const fileHash = await computeFileHash(file);
   if (!allowDuplicate) {
@@ -67,6 +70,7 @@ export async function intakeFile({ file, projectId = null, title = null, allowDu
       file_hash: fileHash,
       gnpd_mapping_status: 'detecting',
       visibility: 'org_shared',
+      ...(mainGroup ? { main_group: mainGroup } : {}),
     });
     // Heavy validation/parsing (fetch file → parse xlsx → write rows) can exceed the
     // request timeout on large exports (15MB+), causing a 502. Run it in the background:
@@ -91,6 +95,7 @@ export async function intakeFile({ file, projectId = null, title = null, allowDu
     classification: { status: 'classifying' },
     // Guardrail: a Source must never sit in Queue with metadata_extraction=null
     metadata_extraction: { status: 'pending', verified: false },
+    ...(mainGroup ? { main_group: mainGroup } : {}),
   });
 
   // Fire classification (it routes into the correct flow on completion; sets failed state on error)
@@ -100,7 +105,7 @@ export async function intakeFile({ file, projectId = null, title = null, allowDu
   return { sourceId: source.id, gnpd: false };
 }
 
-export async function intakeUrl({ url, title = null, projectId = null, extraFields = {} }) {
+export async function intakeUrl({ url, title = null, projectId = null, extraFields = {}, mainGroup = null }) {
   const source = await base44.entities.Source.create({
     source_type: 'url',
     title: title || url,
@@ -111,6 +116,7 @@ export async function intakeUrl({ url, title = null, projectId = null, extraFiel
     date: new Date().toISOString().split('T')[0],
     classification: { status: 'classifying' },
     metadata_extraction: { status: 'pending', verified: false },
+    ...(mainGroup ? { main_group: mainGroup } : {}),
     ...extraFields,
   });
   base44.functions.invoke('classifySource', { source_id: source.id }).catch(() => {});

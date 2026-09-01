@@ -406,6 +406,21 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
   const mappingRecords = await base44.asServiceRole.entities.GNPDColumnMapping.filter({ source_id: sourceId });
   const colMap = mappingRecords.length > 0 ? (mappingRecords[0].mappings || {}) : (source.gnpd_column_mapping || {});
 
+  // Division gate. A BSA (Personal Care) upload is tagged main_group='BSA', carries the
+  // unified 'personal_care' category (the food mapping resolver is never applied to it),
+  // and keeps its extra export columns verbatim in extra_fields.
+  const mainGroup = source.main_group === 'BSA' ? 'BSA' : 'Food';
+  const mappedCols = new Set(Object.values(colMap).filter(Boolean));
+  const collectExtraFields = (row) => {
+    const out = {};
+    for (const [k, v] of Object.entries(row)) {
+      if (mappedCols.has(k)) continue;
+      if (v === null || v === undefined || v === '') continue;
+      out[k] = String(v).slice(0, 500);
+    }
+    return out;
+  };
+
   // Prefer the clean, pre-parsed rows stored on the source at upload time.
   // Re-fetching the raw XLSX is unreliable: some GNPD exports carry banner rows
   // above the real header (e.g. "Search details"), which makes sheet_to_json
@@ -597,6 +612,10 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
       toCreate.push({
         gnpd_record_id: recordId,
         product_name: productName,
+        main_group: mainGroup,
+        ...(mainGroup === 'BSA'
+          ? { palsgaard_category: 'personal_care', extra_fields: collectExtraFields(row) }
+          : {}),
         brand: String(getBrand(row) || ''),
         company,
         ultimate_company: String(get(row, 'ultimate_company') || ''),

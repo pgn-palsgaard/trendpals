@@ -94,9 +94,11 @@ export default function RagSourceTable({
       // ONE request for all requested source types. Four parallel 2000-row reads of
       // full Source records (excerpts + chunks inline) blew the read traffic limit.
       const FETCH_LIMIT = 250;
-      const q = Array.isArray(sourceTypeFilter)
-        ? { source_type: { $in: sourceTypeFilter } }
-        : sourceTypeFilter ? { source_type: sourceTypeFilter } : {};
+      // Food-only wall: BSA (Personal Care) sources live on their own page. Existing
+      // food sources predate main_group, so a MISSING value counts as Food.
+      const q = { main_group: { $in: [null, 'Food'] } };
+      if (Array.isArray(sourceTypeFilter)) q.source_type = { $in: sourceTypeFilter };
+      else if (sourceTypeFilter) q.source_type = sourceTypeFilter;
       return await base44.entities.Source.filter(q, '-created_date', FETCH_LIMIT);
     },
     retry: false,

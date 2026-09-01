@@ -30,6 +30,7 @@ import MarketScout from './pages/MarketScout';
 import Users from './pages/Users';
 import ArchitectHistory from './pages/ArchitectHistory';
 import ArchitectSessionDetail from './pages/ArchitectSessionDetail';
+import PersonalCare from './pages/PersonalCare';
 import AccessGuide from './pages/AccessGuide';
 import AccessGuideReview from './pages/AccessGuideReview';
 import { Navigate, useLocation } from 'react-router-dom';
@@ -164,6 +165,7 @@ const AuthenticatedApp = () => {
       <Route path="/TrendLibrary" element={<LayoutWrapper currentPageName="TrendLibrary"><TrendLibrary /></LayoutWrapper>} />
       <Route path="/AgentActivity" element={<LayoutWrapper currentPageName="AgentActivity"><AgentActivity /></LayoutWrapper>} />
       <Route path="/GNPD" element={<LayoutWrapper currentPageName="GNPD"><GNPD /></LayoutWrapper>} />
+      <Route path="/PersonalCare" element={<LayoutWrapper currentPageName="PersonalCare"><PersonalCare /></LayoutWrapper>} />
       <Route path="/ThemeLibrary" element={<LayoutWrapper currentPageName="ThemeLibrary"><ThemeLibrary /></LayoutWrapper>} />
       <Route path="/ThemeMatrix" element={<LayoutWrapper currentPageName="ThemeMatrix"><ThemeMatrix /></LayoutWrapper>} />
       <Route path="/SMEReviewQueue" element={<LayoutWrapper currentPageName="SMEReviewQueue"><SMEReviewQueue /></LayoutWrapper>} />

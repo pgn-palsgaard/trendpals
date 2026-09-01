@@ -14,8 +14,19 @@
     "source_id": {
       "type": "string"
     },
-    "product_name": {
-      "type": "string"
+    "main_group": {
+      "type": "string",
+      "enum": [
+        "Food",
+        "BSA"
+      ],
+      "default": "Food",
+      "description": "Which Palsgaard division this product belongs to. Food = the original food GNPD data. BSA = Personal Care data from the BSA division. Existing rows predate this field: readers must treat a MISSING value as 'Food' (query { main_group: { $in: [null, 'Food'] } }) rather than assuming every food row carries it."
+    },
+    "extra_fields": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Raw columns from the upload that have no mapped field of their own \u2014 Personal Care exports carry a few extra columns beyond the food template. Preserved verbatim (string values, truncated) so nothing from the export is lost before a dedicated field exists."
     },
     "brand": {
       "type": "string"
@@ -42,6 +53,9 @@
     "region": {
       "type": "string",
       "description": "Canonical region key derived from the market/country field via getRegionForMarket(). One of: aspac, europe, north_america, latam, mena, sub_saharan_africa, or 'unknown' if the market is unmapped. Separate from the legacy region_code field."
+    },
+    "product_name": {
+      "type": "string"
     },
     "launch_date": {
       "type": "string",
@@ -70,10 +84,11 @@
         "oils_fats",
         "plant_based",
         "rutf_rusf",
+        "personal_care",
         "out_of_scope",
         "needs_human_review"
       ],
-      "description": "Resolved Palsgaard canonical solution key, derived from the two-level Mintel mapping resolver. Set at import time and by backfill."
+      "description": "Resolved Palsgaard canonical solution key, derived from the two-level Mintel mapping resolver. Set at import time and by backfill. personal_care = BSA Personal Care; one unified category for now, to be refined into sub-categories later. The food mapping resolver is never run on a BSA upload."
     },
     "product_description": {
       "type": "string"

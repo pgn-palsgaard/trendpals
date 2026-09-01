@@ -140,6 +140,20 @@ Deno.serve(async (req) => {
     if (source.source_type !== 'gnpd') return Response.json({ error: 'Source is not GNPD type' }, { status: 400 });
 
     const colMap = source.gnpd_column_mapping || {};
+    // Division gate. A BSA (Personal Care) upload never runs the food category
+    // resolver — its rows carry the unified 'personal_care' key and are walled off
+    // from food views by main_group.
+    const mainGroup = source.main_group === 'BSA' ? 'BSA' : 'Food';
+    const mappedCols = new Set(Object.values(colMap).filter(Boolean));
+    const collectExtraFields = (row) => {
+      const out = {};
+      for (const [k, v] of Object.entries(row)) {
+        if (mappedCols.has(k)) continue;
+        if (v === null || v === undefined || v === '') continue;
+        out[k] = String(v).slice(0, 500);
+      }
+      return out;
+    };
     const fileUrl = source.file_url;
     if (!fileUrl) return Response.json({ error: 'Source has no file_url' }, { status: 400 });
 
@@ -283,7 +297,9 @@ Deno.serve(async (req) => {
           if (sub) { const sn = sub.trim().toLowerCase(); if (topMap[sn] !== undefined) return topMap[sn]; }
           return topMap['*'] ?? 'needs_human_review';
         }
-        const palsgaardCategory = _resolvePalsgaard(rawCategory, rawSubCategory);
+        const palsgaardCategory = mainGroup === 'BSA'
+          ? 'personal_care'
+          : _resolvePalsgaard(rawCategory, rawSubCategory);
 
         const rawDate = get(row, 'date_published');
         let launchDate = null;
@@ -316,6 +332,8 @@ Deno.serve(async (req) => {
         toCreate.push({
           gnpd_record_id: recordId,
           product_name: productName,
+          main_group: mainGroup,
+          ...(mainGroup === 'BSA' ? { extra_fields: collectExtraFields(row) } : {}),
           brand: String(get(row, 'brand') || ''),
           company: String(get(row, 'company') || ''),
           ultimate_company: String(get(row, 'ultimate_company') || ''),

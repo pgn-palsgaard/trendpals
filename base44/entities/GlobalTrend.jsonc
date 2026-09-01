@@ -22,9 +22,19 @@
         "oils_fats",
         "plant_based",
         "rutf_rusf",
+        "personal_care",
         "needs_human_review"
       ],
-      "description": "Canonical Palsgaard solution key for this trend"
+      "description": "Canonical Palsgaard solution key for this trend. personal_care = BSA Personal Care (one unified category for now)."
+    },
+    "main_group": {
+      "type": "string",
+      "enum": [
+        "Food",
+        "BSA"
+      ],
+      "default": "Food",
+      "description": "Which Palsgaard division this trend belongs to. Missing means Food \u2014 existing trends predate this field."
     },
     "category_ai_proposed": {
       "type": "string",

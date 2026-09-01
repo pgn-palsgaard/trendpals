@@ -49,6 +49,12 @@ const ADMIN_NAV = [
     ],
   },
   {
+    section: 'PERSONAL CARE',
+    items: [
+      { label: 'Personal Care (BSA)', to: '/PersonalCare', icon: Sparkles, pages: ['PersonalCare'] },
+    ],
+  },
+  {
     section: 'SYSTEM',
     items: [
       { label: 'Agent Activity', to: '/AgentActivity', icon: Activity, pages: ['AgentActivity'] },

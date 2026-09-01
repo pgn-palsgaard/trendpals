@@ -45,7 +45,9 @@ function UploadsTab() {
 
   const { data: sources = [], isLoading } = useQuery({
     queryKey,
-    queryFn: () => base44.entities.Source.filter({ source_type: 'gnpd' }, '-created_date', 300),
+    // Food-only wall: BSA (Personal Care) exports live on their own page. Existing
+    // food sources predate main_group, so a missing value counts as Food.
+    queryFn: () => base44.entities.Source.filter({ source_type: 'gnpd', main_group: { $in: [null, 'Food'] } }, '-created_date', 300),
     refetchInterval: (data) => {
       const sources = data?.state?.data ?? [];
       return sources.some(s => s.gnpd_mapping_status === 'detecting') ? 3000 : false;
@@ -419,7 +421,8 @@ function ProductsTab({ onNavigateToReviewQueue }) {
   async function fetchProducts(currentSkip, replace = false) {
     replace ? setLoading(true) : setLoadingMore(true);
     try {
-      const query = {};
+      // Food-only wall — a missing main_group is a pre-split food record.
+      const query = { main_group: { $in: [null, 'Food'] } };
       if (filters.category) query.palsgaard_category = filters.category;
       if (filters.region)   query.region_code = filters.region;
       if (filters.has_emulsifier === "yes") query.has_emulsifier = true;

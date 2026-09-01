@@ -25,7 +25,14 @@ const COLUMN_SYNONYMS = {
   price_usd: ['price in us dollars', 'price (usd)', 'price usd', 'usd price'],
   price_eur: ['price in euros', 'price (eur)', 'price eur', 'eur price'],
   product_variants: ['product variants', 'variants', 'product_variants'],
-  record_hyperlink: ['record hyperlink', 'record_hyperlink', 'hyperlink', 'url', 'link', 'record hyperlink']
+  record_hyperlink: ['record hyperlink', 'record_hyperlink', 'hyperlink', 'url', 'link', 'record hyperlink'],
+  // Personal Care (BSA) exports use the same template plus a few extra columns.
+  // Anything not mapped here is still preserved verbatim in GNPDProduct.extra_fields,
+  // so an unrecognised extra column is never lost — and never breaks a food upload.
+  ingredients: ['ingredients (on pack)', 'ingredients', 'ingredient list', 'inci', 'inci list'],
+  application: ['application', 'product type', 'usage', 'application area'],
+  spf: ['spf', 'sun protection factor'],
+  fragrance: ['fragrance', 'scent', 'perfume']
 };
 
 function detectColumnMapping(columns) {
