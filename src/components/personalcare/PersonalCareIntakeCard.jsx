@@ -8,20 +8,31 @@ import { intakeFile, intakeUrl, DuplicateSourceError } from '@/components/intake
 export default function PersonalCareIntakeCard({ onDone }) {
   const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState(null);
   const [url, setUrl] = useState('');
 
+  // Bulk: files are uploaded one at a time so one duplicate or failure never
+  // takes the rest of the batch down with it.
   async function handleFile(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     setBusy(true);
-    try {
-      await intakeFile({ file, title: file.name, mainGroup: 'BSA' });
-      toast.success('Uploaded — processing in the background');
-      onDone?.();
-    } catch (err) {
-      toast.error(err instanceof DuplicateSourceError ? err.message : (err.message || 'Upload failed'));
+    let ok = 0;
+    const failures = [];
+    for (let i = 0; i < files.length; i++) {
+      setProgress({ done: i, total: files.length });
+      try {
+        await intakeFile({ file: files[i], title: files[i].name, mainGroup: 'BSA' });
+        ok++;
+      } catch (err) {
+        failures.push(`${files[i].name}: ${err instanceof DuplicateSourceError ? 'already uploaded' : (err.message || 'failed')}`);
+      }
     }
+    setProgress(null);
     setBusy(false);
+    if (ok > 0) toast.success(`${ok} file${ok === 1 ? '' : 's'} uploaded — processing in the background`);
+    if (failures.length > 0) toast.error(`${failures.length} skipped:\n${failures.slice(0, 5).join('\n')}`);
+    onDone?.();
     if (fileRef.current) fileRef.current.value = '';
   }
 
@@ -50,7 +61,7 @@ export default function PersonalCareIntakeCard({ onDone }) {
           style={{ background: '#1D428A' }}
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          Upload file
+          {progress ? `Uploading ${progress.done + 1} of ${progress.total}…` : 'Upload files'}
         </button>
         <div className="flex-1 flex gap-2">
           <input
@@ -72,11 +83,13 @@ export default function PersonalCareIntakeCard({ onDone }) {
       <input
         ref={fileRef}
         type="file"
+        multiple
         className="hidden"
         accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.html,.htm"
         onChange={handleFile}
       />
       <p className="text-xs text-muted-foreground mt-3">
+        Select several files at once — they are uploaded one by one, so a duplicate only skips itself.
         Spreadsheets in the Mintel GNPD template are routed to the GNPD tab automatically.
         Everything else is classified as a knowledge or market-intelligence source.
       </p>

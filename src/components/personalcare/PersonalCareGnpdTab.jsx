@@ -10,6 +10,7 @@ export default function PersonalCareGnpdTab() {
   const queryClient = useQueryClient();
   const queryKey = ['bsaGnpdSources'];
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(null);
   const [parsing, setParsing] = useState({});
   const fileRef = React.useRef(null);
 
@@ -22,23 +23,34 @@ export default function PersonalCareGnpdTab() {
     },
   });
 
+  // Bulk: exports are uploaded one at a time so one bad or duplicate file never
+  // takes the rest of the batch down with it.
   async function handleFile(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const ext = file.name.toLowerCase().split('.').pop();
-    if (ext !== 'xls' && ext !== 'xlsx') {
-      toast.error('Use the Mintel Spreadsheet Template export (.xls or .xlsx).');
-      return;
+    const all = Array.from(e.target.files || []);
+    if (all.length === 0) return;
+    const failures = [];
+    const files = [];
+    for (const f of all) {
+      const ext = f.name.toLowerCase().split('.').pop();
+      if (ext === 'xls' || ext === 'xlsx') files.push(f);
+      else failures.push(`${f.name}: not a Mintel spreadsheet export`);
     }
     setUploading(true);
-    try {
-      await intakeFile({ file, title: file.name, mainGroup: 'BSA' });
-      toast.success('Uploaded — column detection is running');
-      queryClient.invalidateQueries({ queryKey });
-    } catch (err) {
-      toast.error(err instanceof DuplicateSourceError ? err.message : (err.message || 'Upload failed'));
+    let ok = 0;
+    for (let i = 0; i < files.length; i++) {
+      setProgress({ done: i, total: files.length });
+      try {
+        await intakeFile({ file: files[i], title: files[i].name, mainGroup: 'BSA' });
+        ok++;
+      } catch (err) {
+        failures.push(`${files[i].name}: ${err instanceof DuplicateSourceError ? 'already uploaded' : (err.message || 'failed')}`);
+      }
     }
+    setProgress(null);
     setUploading(false);
+    if (ok > 0) toast.success(`${ok} export${ok === 1 ? '' : 's'} uploaded — column detection is running`);
+    if (failures.length > 0) toast.error(`${failures.length} skipped:\n${failures.slice(0, 5).join('\n')}`);
+    queryClient.invalidateQueries({ queryKey });
     if (fileRef.current) fileRef.current.value = '';
   }
 
@@ -73,9 +85,9 @@ export default function PersonalCareGnpdTab() {
           style={{ background: '#1D428A' }}
         >
           {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-          Upload export
+          {progress ? `Uploading ${progress.done + 1} of ${progress.total}…` : 'Upload exports'}
         </button>
-        <input ref={fileRef} type="file" accept=".xls,.xlsx" className="hidden" onChange={handleFile} />
+        <input ref={fileRef} type="file" accept=".xls,.xlsx" multiple className="hidden" onChange={handleFile} />
       </div>
 
       <div className="pal-card overflow-hidden">
