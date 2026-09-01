@@ -6,6 +6,9 @@ import ArchitectChat from '@/components/briefbeta/ArchitectChat';
 import ContractPanel from '@/components/briefbeta/ContractPanel';
 import SimilarReportsPanel from '@/components/reports/SimilarReportsPanel';
 import ScopeIntro from '@/components/submitbrief/ScopeIntro';
+import { jtbdLabelFor } from '@/components/submitbrief/JtbdPicker';
+import ArchitectStart from '@/components/briefbeta/ArchitectStart';
+import { ARCHITECT_OPENERS, jtbdFraming } from '@/components/briefbeta/architectJtbd';
 import DeckPreview from '@/components/briefbeta/DeckPreview';
 import GammaExportPanel from '@/components/briefbeta/GammaExportPanel';
 import ClaudePptxPanel from '@/components/briefbeta/ClaudePptxPanel';
@@ -29,10 +32,7 @@ import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
 import { useAuth } from '@/lib/AuthContext';
 import useArchitectSession from '@/hooks/useArchitectSession';
 
-const OPENER = {
-  role: 'assistant',
-  content: "I'm the Report Architect (BETA). Tell me what report you need — paste an email, a meeting note, or just describe it. I'll structure the brief with you, then build the full slide deck for your review before anything is saved.",
-};
+
 
 // Project.region_code / Report.region are a 4-value commercial enum, far coarser
 // than the brief's actual country scope. The authoritative scope is the resolved
@@ -57,7 +57,10 @@ function regionDisplayLabel(scope) {
 }
 
 export default function SubmitBriefBeta() {
-  const [messages, setMessages] = useState([OPENER]);
+  // The session opens on the same job-to-be-done question as the brief intake.
+  // Nothing is sent to the architect until an errand is chosen.
+  const [jtbd, setJtbd] = useState(null);
+  const [messages, setMessages] = useState([]);
   const [contract, setContract] = useState({});
   const [slides, setSlides] = useState(null);
   const [trends, setTrends] = useState(null); // verified trends for the contract category
@@ -95,6 +98,9 @@ export default function SubmitBriefBeta() {
     base44.entities.ArchitectSession.get(resumeId).then(s => {
       if (cancelled || !s) return;
       if (Array.isArray(s.messages) && s.messages.length > 0) setMessages(s.messages);
+      // A resumed session already has its errand established in the transcript —
+      // it must not be sent back to the job-to-be-done picker.
+      setJtbd(prev => prev || 'other');
       if (s.contract) setContract(s.contract);
       // A resumed deck is UNBOUND: the slides come from the saved session while the
       // evidence is retrieved fresh below, so nothing guarantees the two match. It is
@@ -169,6 +175,11 @@ export default function SubmitBriefBeta() {
     }
   }
 
+  function selectJtbd(id) {
+    setJtbd(id);
+    setMessages([{ role: 'assistant', content: ARCHITECT_OPENERS[id], timestamp: new Date().toISOString() }]);
+  }
+
   async function sendMessage() {
     if (!inputText.trim() || loading) return;
     const userMsg = { role: 'user', content: inputText.trim(), timestamp: new Date().toISOString() };
@@ -178,7 +189,7 @@ export default function SubmitBriefBeta() {
     setLoading(true);
 
     try {
-      const transcript = newMessages
+      const transcript = jtbdFraming(jtbd, jtbdLabelFor(jtbd)) + newMessages
         .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
         .join('\n\n');
 
@@ -649,6 +660,12 @@ ${items}`,
     setSaving(false);
   }
 
+  // Nothing reaches the architect until an errand is chosen — the same opening
+  // question the brief intake asks.
+  if (!jtbd && !resuming) {
+    return <ArchitectStart onSelect={selectJtbd} />;
+  }
+
   return (
     <div className="page-shell">
       <div className="page-inner">
@@ -672,6 +689,17 @@ ${items}`,
         <div className="flex flex-col lg:flex-row gap-5">
           {/* Chat */}
           <div className={slides ? 'lg:w-2/5' : 'lg:w-3/5'}>
+            {jtbd && !resumeId && messages.filter(m => m.role === 'user').length === 0 && (
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-medium text-muted-foreground">{jtbdLabelFor(jtbd)}</p>
+                <button
+                  onClick={() => { setJtbd(null); setMessages([]); }}
+                  className="text-xs text-muted-foreground hover:text-foreground underline"
+                >
+                  Change
+                </button>
+              </div>
+            )}
             <ArchitectChat
               messages={messages}
               loading={loading}

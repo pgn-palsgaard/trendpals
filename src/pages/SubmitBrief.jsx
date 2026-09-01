@@ -1,20 +1,13 @@
 import React, { useState } from 'react';
 import { base44 } from '@/api/base44Client';
-import { Briefcase, BarChart3, Search, FlaskConical, MessageCircle, CheckCircle2 } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
+import JtbdPicker, { JTBD_OPTIONS } from '@/components/submitbrief/JtbdPicker';
 import Stepper from '@/components/submitbrief/Stepper';
 import ChatPanel from '@/components/submitbrief/ChatPanel';
 import BriefReadiness from '@/components/submitbrief/BriefReadiness';
 import TrendRelevanceChecker from '@/components/submitbrief/TrendRelevanceChecker';
 import ScopeIntro from '@/components/submitbrief/ScopeIntro';
 import SimilarReportsPanel from '@/components/reports/SimilarReportsPanel';
-
-const JTBD_OPTIONS = [
-  { id: 'prepare_customer_meeting', icon: Briefcase, label: 'Prepare a customer meeting', desc: 'Get insight for an upcoming customer visit.' },
-  { id: 'build_trend_deck', icon: BarChart3, label: 'Build a trend deck', desc: 'Shape a trend overview for your team or customer.' },
-  { id: 'understand_market', icon: Search, label: 'Understand a market', desc: "Explore what's happening in a category or region." },
-  { id: 'support_innovation_pipeline', icon: FlaskConical, label: 'Support innovation', desc: 'Find evidence to back an NPD direction.' },
-  { id: 'other', icon: MessageCircle, label: 'Something else', desc: 'Describe what you need — the assistant will help.' },
-];
 
 const SUBTEXTS = {
   prepare_customer_meeting: "Paste the meeting email, invite, or any notes you have. I'll identify what's clear and ask only for what's missing.",
@@ -236,28 +229,7 @@ export default function SubmitBrief() {
 
         {/* ── Step 1: Brief type ── */}
         {step === 0 && !submitted && (
-          <div className="max-w-3xl mx-auto">
-            <h2 className="text-lg font-semibold text-stone-800 text-center">Select what you need help with.</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
-              {JTBD_OPTIONS.map(opt => {
-                const Icon = opt.icon;
-                const selected = jtbd === opt.id;
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() => selectJtbd(opt.id)}
-                    className={`text-left rounded-xl p-4 border transition cursor-pointer ${
-                      selected ? 'border-[#1D428A] bg-blue-50' : 'border-stone-200 bg-white hover:border-[#1D428A] hover:bg-blue-50'
-                    }`}
-                  >
-                    <Icon className="w-6 h-6 text-[#1D428A] mb-2" />
-                    <p className="text-sm font-semibold text-stone-800">{opt.label}</p>
-                    <p className="text-xs text-stone-500 mt-1 leading-relaxed">{opt.desc}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          <JtbdPicker selectedId={jtbd} onSelect={selectJtbd} />
         )}
 
         {/* ── Step 2: Add context ── */}
