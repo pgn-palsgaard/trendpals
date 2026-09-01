@@ -9,8 +9,10 @@ import { Upload, FolderOpen, File, X, Loader2, Sparkles } from 'lucide-react';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { intakeFile, DuplicateSourceError } from '../intake/sourceIntake';
+import { useDivision } from '@/lib/division';
 
 export default function KnowledgeUploadModal({ onClose }) {
+  const division = useDivision();
   const queryClient = useQueryClient();
   const fileInputRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -137,6 +139,8 @@ export default function KnowledgeUploadModal({ onClose }) {
         file: fileItem.file,
         title: fileItem.filename,
         allowDuplicate,
+        // Tagged with the active division, so it lands in the right library.
+        mainGroup: division,
       });
 
       // Enrich with batch/folder metadata

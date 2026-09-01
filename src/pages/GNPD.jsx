@@ -13,6 +13,7 @@ import TrendLinkReviewCard from '../components/gnpd/TrendLinkReviewCard';
 import ReviewQueueTab from '../components/gnpd/ReviewQueueTab';
 import RevalidateJobPanel from '../components/gnpd/RevalidateJobPanel';
 import ImageCoveragePanel from '../components/gnpd/ImageCoveragePanel';
+import { useDivision, divisionQuery } from '@/lib/division';
 
 // ── Brand colours ────────────────────────────────────────────────────────────
 const BLUE      = "#1D428A";
@@ -40,14 +41,14 @@ function UploadsTab() {
   const [parsing, setParsing]         = useState({});   // { sourceId: {status, rows, created} }
   const [deleting, setDeleting]       = useState({});   // { sourceId: true }
 
-  const queryKey = ['gnpdSources'];
+  // Same table for both divisions — the global switch decides which rows are read.
+  const division = useDivision();
+  const queryKey = ['gnpdSources', division];
   const [detectingTimers, setDetectingTimers] = useState({});
 
   const { data: sources = [], isLoading } = useQuery({
     queryKey,
-    // Food-only wall: BSA (Personal Care) exports live on their own page. Existing
-    // food sources predate main_group, so a missing value counts as Food.
-    queryFn: () => base44.entities.Source.filter({ source_type: 'gnpd', main_group: { $in: [null, 'Food'] } }, '-created_date', 300),
+    queryFn: () => base44.entities.Source.filter({ source_type: 'gnpd', ...divisionQuery(division) }, '-created_date', 300),
     refetchInterval: (data) => {
       const sources = data?.state?.data ?? [];
       return sources.some(s => s.gnpd_mapping_status === 'detecting') ? 3000 : false;
@@ -368,6 +369,7 @@ function MappingBadge({ status, elapsed }) {
 const PAGE_SIZE = 50;
 
 function ProductsTab({ onNavigateToReviewQueue }) {
+  const division = useDivision();
   const [products, setProducts]     = useState([]);
   const [loading, setLoading]       = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -410,7 +412,7 @@ function ProductsTab({ onNavigateToReviewQueue }) {
     setSkip(0);
     setProducts([]);
     fetchProducts(0, true);
-  }, [filters, sortBy]);
+  }, [filters, sortBy, division]);
 
   // Highest-score helper — top confidence_score across a product's trend links
   const topScore = (p) => {
@@ -421,8 +423,7 @@ function ProductsTab({ onNavigateToReviewQueue }) {
   async function fetchProducts(currentSkip, replace = false) {
     replace ? setLoading(true) : setLoadingMore(true);
     try {
-      // Food-only wall — a missing main_group is a pre-split food record.
-      const query = { main_group: { $in: [null, 'Food'] } };
+      const query = { ...divisionQuery(division) };
       if (filters.category) query.palsgaard_category = filters.category;
       if (filters.region)   query.region_code = filters.region;
       if (filters.has_emulsifier === "yes") query.has_emulsifier = true;

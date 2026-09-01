@@ -8,6 +8,7 @@ import {
   ListChecks, FileBarChart2, UserCircle, Sparkles, FlaskConical, Globe, Users, History
 } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
+import DivisionSwitcher from '@/components/layout/DivisionSwitcher';
 
 const SIDEBAR_WIDTH = 220;
 const SIDEBAR_COLLAPSED_WIDTH = 56;
@@ -46,12 +47,6 @@ const ADMIN_NAV = [
       { label: 'Knowledge Sources', to: createPageUrl('KnowledgeSources'), icon: Library, pages: ['KnowledgeSources'] },
       { label: 'Market Intelligence', to: createPageUrl('SourcesDatabase'), icon: Database, pages: ['SourcesDatabase'] },
       { label: 'GNPD', to: '/GNPD', icon: Grid, pages: ['GNPD'] },
-    ],
-  },
-  {
-    section: 'PERSONAL CARE',
-    items: [
-      { label: 'Personal Care (BSA)', to: '/PersonalCare', icon: Sparkles, pages: ['PersonalCare'] },
     ],
   },
   {
@@ -129,7 +124,7 @@ function SidebarLink({ item, currentPageName, collapsed, badgeCount }) {
   );
 }
 
-function Sidebar({ collapsed, onToggle, currentPageName, navGroups, newBriefCount, user, isMobile, mobileOpen, onMobileClose }) {
+function Sidebar({ collapsed, onToggle, currentPageName, navGroups, newBriefCount, user, isMobile, mobileOpen, onMobileClose, isReviewerNav }) {
   const sidebarContent = (
     <div
       className="flex flex-col h-full"
@@ -179,6 +174,13 @@ function Sidebar({ collapsed, onToggle, currentPageName, navGroups, newBriefCoun
           </button>
         )}
       </div>
+
+      {/* Global division switch — governs every source/GNPD view below */}
+      {!isReviewerNav && (
+        <div className="px-3 pt-3 shrink-0">
+          <DivisionSwitcher collapsed={collapsed && !isMobile} />
+        </div>
+      )}
 
       {/* Nav groups */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
@@ -319,6 +321,7 @@ export default function Layout({ children, currentPageName }) {
         onToggle={handleToggle}
         currentPageName={currentPageName}
         navGroups={navGroups}
+        isReviewerNav={isReviewer || isUser}
         newBriefCount={newBriefCount}
         user={user}
         isMobile={isMobile}

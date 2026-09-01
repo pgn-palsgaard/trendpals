@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Loader2, Upload, X, CheckCircle2, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import { intakeFile, DuplicateSourceError } from '../intake/sourceIntake';
+import { useDivision } from '@/lib/division';
 
 const BLUE   = '#1D428A';
 const ORANGE = '#C15338';
@@ -17,6 +18,7 @@ const HARD_GNPD_FILE_SIZE = 25 * 1024 * 1024; // 25MB — hard block above this
 const fmtMB = (bytes) => (bytes / (1024 * 1024)).toFixed(1);
 
 export default function GNPDUploadModal({ onClose, onUploaded }) {
+  const division = useDivision();
   const fileInputRef = useRef(null);
   const [file, setFile]           = useState(null);
   const [stage, setStage]         = useState('idle'); // idle | sizeWarning | uploading | done | error
@@ -54,7 +56,8 @@ export default function GNPDUploadModal({ onClose, onUploaded }) {
 
     try {
       // Unified intake: dedup check + upload. GNPD validation/parsing runs in the background.
-      await intakeFile({ file, title: file.name });
+      // Tagged with the active division, so the export lands in the right library.
+      await intakeFile({ file, title: file.name, mainGroup: division });
 
       setResult({ title: file.name });
       setStage('done');

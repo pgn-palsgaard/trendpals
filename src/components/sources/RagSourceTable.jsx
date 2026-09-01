@@ -24,6 +24,7 @@ import ProcessQueueControls, { RetryRowButton } from './ProcessQueueControls';
 import ProcessingStatusBar from './ProcessingStatusBar';
 import NeedsClassificationSection from './NeedsClassificationSection';
 import { getSourceAttentionState, STATE_TO_TAB, attentionNote, checkTabInvariant } from './sourceAttentionState';
+import { useDivision, divisionQuery } from '@/lib/division';
 
 // Back-compat: some panels import this from here
 export { attentionNote as queueBlockedReason };
@@ -86,7 +87,9 @@ export default function RagSourceTable({
   const [openSourceId, setOpenSourceId] = useState(null);
   const [processing, setProcessing] = useState({ active: false, batchDone: 0, batchTotal: 0, stopped: false });
 
-  const queryKey = ['ragSources', JSON.stringify(sourceTypeFilter)];
+  // One shared library, filtered by the global division switch.
+  const division = useDivision();
+  const queryKey = ['ragSources', JSON.stringify(sourceTypeFilter), division];
 
   const { data: sources = [], isLoading, refetch } = useQuery({
     queryKey,
@@ -94,9 +97,7 @@ export default function RagSourceTable({
       // ONE request for all requested source types. Four parallel 2000-row reads of
       // full Source records (excerpts + chunks inline) blew the read traffic limit.
       const FETCH_LIMIT = 250;
-      // Food-only wall: BSA (Personal Care) sources live on their own page. Existing
-      // food sources predate main_group, so a MISSING value counts as Food.
-      const q = { main_group: { $in: [null, 'Food'] } };
+      const q = { ...divisionQuery(division) };
       if (Array.isArray(sourceTypeFilter)) q.source_type = { $in: sourceTypeFilter };
       else if (sourceTypeFilter) q.source_type = sourceTypeFilter;
       return await base44.entities.Source.filter(q, '-created_date', FETCH_LIMIT);
