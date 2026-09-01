@@ -8,6 +8,7 @@ import SimilarReportsPanel from '@/components/reports/SimilarReportsPanel';
 import ScopeIntro from '@/components/submitbrief/ScopeIntro';
 import { jtbdLabelFor } from '@/components/submitbrief/JtbdPicker';
 import ArchitectStart from '@/components/briefbeta/ArchitectStart';
+import SaveDraftButton from '@/components/briefbeta/SaveDraftButton';
 import { ARCHITECT_OPENERS, jtbdFraming } from '@/components/briefbeta/architectJtbd';
 import DeckPreview from '@/components/briefbeta/DeckPreview';
 import GammaExportPanel from '@/components/briefbeta/GammaExportPanel';
@@ -118,7 +119,7 @@ export default function SubmitBriefBeta() {
   }, [resumeId]);
 
   // Every session is auto-saved to the Architect history as the conversation runs.
-  const { markConverted } = useArchitectSession({
+  const { markConverted, saveDraft } = useArchitectSession({
     messages,
     contract,
     slides,
@@ -679,6 +680,12 @@ ${items}`,
               Chat your way to a full trend deck. Isolated test environment — saved reports are prefixed [BETA].
             </p>
           </div>
+          {!savedReport && (
+            <SaveDraftButton
+              onSave={saveDraft}
+              disabled={!messages.some(m => m.role === 'user')}
+            />
+          )}
         </div>
 
         {resuming && (

@@ -75,6 +75,13 @@ export default function useArchitectSession({ messages, contract, slides, sessio
       .catch(() => {});
   }, [messages, contract, slides, sessionStart, user]);
 
+  // Explicit "save draft": the auto-save effect has already queued the current
+  // state, so this just waits for the queue to drain and reports the session id.
+  function saveDraft() {
+    queueRef.current = queueRef.current.catch(() => {});
+    return queueRef.current.then(() => sessionIdRef.current);
+  }
+
   function markConverted(reportId, projectId) {
     // Runs behind the same queue so the session record always exists first.
     queueRef.current = queueRef.current
@@ -89,5 +96,5 @@ export default function useArchitectSession({ messages, contract, slides, sessio
     return queueRef.current;
   }
 
-  return { sessionIdRef, markConverted };
+  return { sessionIdRef, markConverted, saveDraft };
 }
