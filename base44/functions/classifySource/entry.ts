@@ -1,8 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { readSourceText } from '../../shared/extractText.ts';
+import { divisionOf, framing, categoryKeysFor } from '../../shared/divisionFraming.ts';
 
 // ── Inline category validator ──────────────────────────────────────────────
-const VALID_CATEGORY_VALUES = ['bakery','condiments','chocolate_confectionery','dairy','ice_cream','meat','oils_fats','plant_based','rutf_rusf','out_of_scope','needs_human_review'];
+const VALID_CATEGORY_VALUES = ['bakery','condiments','chocolate_confectionery','dairy','ice_cream','meat','oils_fats','plant_based','rutf_rusf','personal_care','out_of_scope','needs_human_review'];
 const BRIEF_NORM = {'confectionery':'chocolate_confectionery','chocolate':'chocolate_confectionery','chocolate confectionery':'chocolate_confectionery','chocolate & confectionery':'chocolate_confectionery','bakery':'bakery','cake':'bakery','cake gels':'bakery','baking':'bakery','dairy':'dairy','ice cream':'ice_cream','ice-cream':'ice_cream','soft serve ice cream':'ice_cream','soft serve':'ice_cream','meat':'meat','processed meat':'meat','oils':'oils_fats','oils & fats':'oils_fats','fats':'oils_fats','margarine':'oils_fats','plant based':'plant_based','plant-based':'plant_based','plant based products':'plant_based','plant based dairy alternatives':'plant_based','plant-based dairy alternatives':'plant_based','plant based beverages and dairy alternatives':'plant_based','rutf':'rutf_rusf','rusf':'rutf_rusf','rutf and rusf':'rutf_rusf','condiments':'condiments','condiments & sauces':'condiments','sauces':'condiments','dressings':'condiments','spreads':'condiments','sweet spreads':'condiments','coffee creamer':'dairy','creamer':'dairy','creamers':'dairy'};
 
 function validateLLMCategoryArray(arr, sourceId, svc, fnName) {
@@ -77,11 +78,15 @@ Deno.serve(async (req) => {
     }
 
     const sample = readData.content.slice(0, 30_000);
+    // Classification is division-aware: a BSA source belongs to the personal care
+    // taxonomy, so it must not be forced into the food solution keys.
+    const division = divisionOf(source);
+    const fr = framing(division);
 
     // 2. LLM classification (Claude Sonnet — same family as Source Processor)
     const runClassification = () => base44.asServiceRole.integrations.Core.InvokeLLM({
       model: 'claude_sonnet_4_6',
-      prompt: `You are a document classification system for Palsgaard (a Danish emulsifier/stabiliser manufacturer). Classify this uploaded document into exactly one source type.
+      prompt: `You are a document classification system for Palsgaard (a Danish emulsifier/stabiliser manufacturer). This document was uploaded for the ${fr.industry}. Classify it into exactly one source type.
 
 SOURCE TYPES:
 - "knowledge" — Palsgaard-internal material: product sheets, recipe suggestions, application notes, technical docs, capability overviews, certifications, sustainability docs. Signals: Palsgaard product names (Emulpals, Palsgaard SE, ArtisanIce, Einar, etc.), "FOR DISTRIBUTOR USE ONLY", internal template layout, recipe/dosage tables.
@@ -97,7 +102,7 @@ DOCUMENT TEXT (truncated):
 ${sample}
 
 Return your classification. document_type must be one of: product_sheet, recipe_suggestion, technical_doc, capability_overview, case_study, certification, sustainability, application_note, consumer_insight, market_report, trend_report, trade_press_article, whitepaper, presentation, webinar, other.
-category_relevance values from canonical Palsgaard solution keys: bakery, condiments, chocolate_confectionery, dairy, ice_cream, meat, oils_fats, plant_based, rutf_rusf, out_of_scope, needs_human_review.
+category_relevance values from canonical Palsgaard solution keys — valid values for this document: ${categoryKeysFor(division).join(', ')}.
 Use multiple keys when the document covers several solution areas. For cross-category sources, populate category_relevance with all relevant keys — do NOT default to needs_human_review when the document legitimately spans multiple categories.
 region_signal from: ASPAC, AMERICAS, EMEC, IMEA, Global (or empty if unclear).
 classification_confidence: 0-100 — how certain you are about proposed_source_type. Be conservative: only score >=85 when markers are unambiguous.

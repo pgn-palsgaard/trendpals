@@ -1,8 +1,9 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import { readSourceText as readText } from '../../shared/extractText.ts';
+import { divisionOf, framing, categoryKeysFor } from '../../shared/divisionFraming.ts';
 
 // ── Inline category validator ──────────────────────────────────────────────
-const VALID_CATEGORY_VALUES = ['bakery','condiments','chocolate_confectionery','dairy','ice_cream','meat','oils_fats','plant_based','rutf_rusf','out_of_scope','needs_human_review'];
+const VALID_CATEGORY_VALUES = ['bakery','condiments','chocolate_confectionery','dairy','ice_cream','meat','oils_fats','plant_based','rutf_rusf','personal_care','out_of_scope','needs_human_review'];
 const BRIEF_NORM = {'confectionery':'chocolate_confectionery','chocolate':'chocolate_confectionery','chocolate confectionery':'chocolate_confectionery','chocolate & confectionery':'chocolate_confectionery','bakery':'bakery','cake':'bakery','cake gels':'bakery','baking':'bakery','dairy':'dairy','ice cream':'ice_cream','ice-cream':'ice_cream','soft serve ice cream':'ice_cream','soft serve':'ice_cream','meat':'meat','processed meat':'meat','oils':'oils_fats','oils & fats':'oils_fats','fats':'oils_fats','margarine':'oils_fats','plant based':'plant_based','plant-based':'plant_based','plant based products':'plant_based','plant based dairy alternatives':'plant_based','plant-based dairy alternatives':'plant_based','plant based beverages and dairy alternatives':'plant_based','rutf':'rutf_rusf','rusf':'rutf_rusf','rutf and rusf':'rutf_rusf','condiments':'condiments','condiments & sauces':'condiments','sauces':'condiments','dressings':'condiments','spreads':'condiments','sweet spreads':'condiments','coffee creamer':'dairy','creamer':'dairy','creamers':'dairy'};
 
 function validateCategoryArray(arr, sourceId, svc) {
@@ -58,12 +59,17 @@ async function runPreGate(source, openingText) {
   const summary = source.metadata_extraction?.summary || '';
   const description = source.subtitle || source.notes || '';
   const opening = (openingText || '').slice(0, PRE_GATE_TEXT_CHARS);
+  // The gate must judge the source against ITS OWN division's industry — a food-framed
+  // gate rejects every Personal Care source as "not relevant to food".
+  const f = framing(divisionOf(source));
 
-  const prompt = `You are evaluating whether a source document should be extracted for TrendPals, an outside-in market intelligence tool for commercial teams in the food ingredients industry. TrendPals captures market signals, consumer drivers, category movements, regional expressions, and competitive activity — to help account managers prepare better customer conversations.
+  const prompt = `You are evaluating whether a source document should be extracted for TrendPals, an outside-in market intelligence tool for commercial teams in the ${f.industry}. TrendPals captures market signals in this scope: ${f.signalScope} — to help account managers prepare better customer conversations.
+Judge relevance ONLY against the ${f.industry}. Do not reject a source for being outside any other industry.
 Given the title, summary, and opening text below, answer:
 
 Does this source plausibly contain ANY market-intelligence signal of this kind?
-Be inclusive — uncertain → proceed. Only reject sources that are clearly off-scope (e.g. internal HR documents, equipment manuals, off-topic press releases, pure advertising, finance reports unrelated to category, regulatory filings without market content).
+Be inclusive — uncertain → proceed. Only reject sources that are clearly off-scope (e.g. ${f.offScopeExamples}).
+A product-launch database extract for this industry (e.g. a Mintel GNPD product listing) DOES carry category and claim signals — treat it as in scope.
 Ingredient mentions are NOT required. A signal-rich, ingredient-free source is fully in scope.
 
 When returning proceed: false, also assess your confidence:
@@ -453,7 +459,8 @@ Deno.serve(async (req) => {
             ? fileContent.slice(0, MAX_CHARS) + '\n\n[Content truncated for token limits]'
             : fileContent;
 
-          const prompt = `You are an outside-in market intelligence processor for TrendPals, a commercial signal tool used by account managers and category teams preparing customer conversations. Extract structured market intelligence excerpts that surface category movements, consumer drivers, regional expressions, and competitive activity.
+          const fr = framing(divisionOf(source));
+          const prompt = `You are an outside-in market intelligence processor for TrendPals, a commercial signal tool used by account managers and category teams in the ${fr.industry} preparing customer conversations. Extract structured market intelligence excerpts that surface ${fr.signalScope}.
 
 Source metadata:
 - Title: ${source.title || 'Unknown'}
@@ -469,16 +476,16 @@ Extract market intelligence excerpts that carry an outside-in market signal usef
 
 For each excerpt, identify:
 1. market_signal: What is the observable market trend or shift (1-2 sentences, outside-in, factual)
-2. customer_pain: The specific challenge this creates for food manufacturers (1-2 sentences)
-3. palsgaard_angle: OPTIONAL. If — and only if — the signal points to a specific application area where deep emulsifier/stabiliser expertise is plausibly relevant, describe the angle in one short sentence. Phrase as capability-led (e.g. "Deep expertise in X enables…") — never with "Palsgaard" as grammatical subject. If no clear angle exists, return empty string "". An empty value is a fully valid result and must NOT lower any score.
+2. customer_pain: The specific challenge this creates for ${fr.manufacturers} (1-2 sentences)
+3. palsgaard_angle: OPTIONAL. If — and only if — the signal points to ${fr.angle}, describe the angle in one short sentence. Phrase as capability-led (e.g. "Deep expertise in X enables…") — never with "Palsgaard" as grammatical subject. If no clear angle exists, return empty string "". An empty value is a fully valid result and must NOT lower any score.
 4. has_direct_role: OPTIONAL. true only when an ingredient angle is concretely identifiable in the excerpt; false otherwise. This is a tag for downstream filtering, NOT a quality signal. It must not influence relevance_score or quality_score.
 5. capability_area: One of: sustainability, texture_quality, cost_efficiency, compliance_regulatory, new_product_development, food_safety, supply_chain, plant_based, general
 6. confidence: high/medium/low based on how clearly the source supports this excerpt
-7. relevance_score: Integer 0-100. How commercially useful is this signal for a TrendPals user preparing a customer conversation — i.e. does it surface a category movement, consumer driver, regional expression, or competitive/innovation activity that could become a better question to ask a customer? Score purely on signal value. Ingredient mentions (emulsifiers, stabilisers, any specific ingredient class) neither raise nor lower this score. A signal-rich, ingredient-free excerpt and a signal-rich, ingredient-heavy excerpt receive the same relevance score. 0 = no signal (generic chatter, non-food, off-category). 100 = a sharp, specific, conversation-starting market signal. Be strict on signal value; be neutral on ingredient presence.
+7. relevance_score: Integer 0-100. How commercially useful is this signal for a TrendPals user preparing a customer conversation — i.e. does it surface a category movement, consumer driver, regional expression, or competitive/innovation activity that could become a better question to ask a customer? Score purely on signal value. Ingredient mentions (emulsifiers, stabilisers, any specific ingredient class) neither raise nor lower this score. A signal-rich, ingredient-free excerpt and a signal-rich, ingredient-heavy excerpt receive the same relevance score. 0 = no signal (generic chatter, wrong industry, off-category). 100 = a sharp, specific, conversation-starting market signal. Be strict on signal value; be neutral on ingredient presence.
 8. quality_score: Integer 0-100. Specificity and evidence strength of the excerpt itself. 0 = boilerplate, navigation copy, vague generalities, unsupported speculation. 100 = a concrete claim with a figure, a named brand/launch/region, a quoted statistic, or a specific dated event. Penalise filler hard.
 8b. signal_type: One of: consumer_driver, category_movement, regional_expression, competitive_activity, other. The kind of market signal this excerpt carries. Use "other" if none cleanly fits.
 9. source_quote: A verbatim quote from the document (max 200 chars)
-10. category_relevance: Array of canonical Palsgaard solution keys (e.g. ["ice_cream", "bakery"]). Valid values: bakery, condiments, chocolate_confectionery, dairy, ice_cream, meat, oils_fats, plant_based, rutf_rusf, out_of_scope, needs_human_review. For cross-category sources, populate all relevant keys — do NOT use needs_human_review when the source legitimately spans multiple categories; instead return multiple canonical keys.
+10. category_relevance: Array of canonical Palsgaard solution keys. Valid values for this source: ${categoryKeysFor(divisionOf(source)).join(', ')}. For cross-category sources, populate all relevant keys — do NOT use needs_human_review when the source legitimately spans multiple categories; instead return multiple canonical keys.
 11. trend_keywords: Array of 3-5 keyword phrases from this excerpt
 12. regions: Array of canonical region keys mentioned or implied in this excerpt. Use ONLY these keys: aspac, europe, north_america, latam, mena, sub_saharan_africa.
    Rules:
