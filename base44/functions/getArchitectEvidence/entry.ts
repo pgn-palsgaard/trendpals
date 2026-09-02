@@ -163,19 +163,29 @@ export default async function (req) {
     // resolves to the sub-categories it names — and anything that resolves to
     // nothing is recorded in gate.format_resolution rather than silently dropped.
     const normFormat = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-    const subsNorm = subs.map(normFormat).filter(Boolean);
+    const subsNorm = subs.map(normFormat);
     const matchedFormatTerms = new Set();
     const matchedSubCats = new Set();
-    const inCategory = p => {
-      if (subsNorm.length === 0) return true;
-      const n = normFormat(p.sub_category);
-      if (!n) return false;
-      let hit = false;
-      subsNorm.forEach((q, i) => {
-        if (n.includes(q) || q.includes(n)) { hit = true; matchedFormatTerms.add(subs[i]); }
+    const termHits = (subCategory, terms) => {
+      const n = normFormat(subCategory);
+      if (!n) return [];
+      return terms.filter(t => {
+        const q = normFormat(t);
+        return q && (n.includes(q) || q.includes(n));
       });
-      if (hit) matchedSubCats.add(String(p.sub_category || '').trim());
-      return hit;
+    };
+    // The brief states industries and formats as two independent lists and never
+    // says which format belongs to which industry. A format term must therefore
+    // only restrict the industry whose data actually carries it: applied globally,
+    // a cake format emptied the whole chocolate pool and every chocolate trend was
+    // reported as "no evidence". Built per category from that category's own pool.
+    const makeCategoryFilter = terms => p => {
+      if (terms.length === 0) return true;
+      const hits = termHits(p.sub_category, terms);
+      if (hits.length === 0) return false;
+      hits.forEach(t => matchedFormatTerms.add(t));
+      matchedSubCats.add(String(p.sub_category || '').trim());
+      return true;
     };
 
     const cutoff = new Date();
@@ -201,7 +211,7 @@ export default async function (req) {
       sub_categories: subs,
       // How the stated formats resolved against the real Mintel sub-categories. A
       // term that resolves to nothing is a brief/data mismatch and must be visible.
-      format_resolution: { requested: subs, matched_terms: [], unmatched_terms: [], matched_sub_categories: [] },
+      format_resolution: { requested: subs, matched_terms: [], unmatched_terms: [], matched_sub_categories: [], per_category: [] },
       recency_months: RECENCY_MONTHS,
       population_total: 0,
       after_region_gate: 0,
@@ -318,6 +328,18 @@ export default async function (req) {
         }
       }
       gate.after_region_gate += regionPass.length;
+
+      // Which of the stated formats this category's data actually knows. A term that
+      // names nothing here belongs to another industry in the brief and is ignored
+      // for this one; if none apply, the category runs with no format restriction.
+      const poolSubs = [...new Set(regionPass.map(p => String(p.sub_category || '').trim()).filter(Boolean))];
+      const localTerms = subs.filter(t => poolSubs.some(sc => termHits(sc, [t]).length > 0));
+      gate.format_resolution.per_category.push({
+        category,
+        applied_terms: localTerms,
+        unrestricted: localTerms.length === 0 && subs.length > 0,
+      });
+      const inCategory = makeCategoryFilter(localTerms);
 
       const eligible = regionPass.filter(inCategory);
       const catFail = regionPass.filter(p => !inCategory(p));
