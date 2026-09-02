@@ -199,20 +199,23 @@ export default function SubmitBriefBeta() {
       // already names categories + region, the gates are resolved (and awaited) here
       // before the prompt is sent, and a failed retrieval stops the turn loudly.
       let ev = evidence;
+      let gateBlocked = false;
       if (!ev && contract.categories && contract.region) {
         ev = await loadEvidenceFor(contract.categories, contract.region, contract.sub_categories, contract.read_across, contract.excluded_countries);
-        if (!ev) {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: 'I cannot build without verified evidence — the region/format gates returned nothing usable. See the note on the right, then adjust the region or formats and ask me to build again.',
-          }]);
-          setLoading(false);
-          return;
-        }
+        gateBlocked = !ev;
       }
 
+      // A failed gate must never end the turn. Ending it here meant the user's own
+      // message ('build it for global', 'start over') never reached the architect,
+      // so the same refusal came back forever and the session was stuck. The turn
+      // now runs with an explicit instruction to repair the scope instead — and no
+      // deck can be emitted while the gate is blocked (enforced below).
+      const gateNote = gateBlocked
+        ? `\n\nSYSTEM NOTE: the evidence gates returned NOTHING usable for the current brief scope (categories: ${JSON.stringify(contract.categories)}, region: ${JSON.stringify(contract.region)}, formats: ${JSON.stringify(contract.sub_categories || [])}). You must NOT emit a <slides> block this turn. Instead: acknowledge it in one sentence, state which part of the scope is most likely the cause, and propose 2-3 concrete adjustments (a wider region, global scope, fewer or different formats, or a different category). If the user's latest message already states an adjustment, emit an updated <contract> block reflecting it so the gates can be re-run.`
+        : '';
+
       const reply = await base44.integrations.Core.InvokeLLM({
-        prompt: buildArchitectPrompt(transcript, buildEvidenceContext(ev)),
+        prompt: buildArchitectPrompt(transcript + gateNote, buildEvidenceContext(ev)),
         model: 'claude_sonnet_4_6',
       });
       const rawText = typeof reply === 'string' ? reply : (reply?.content || '');
@@ -258,7 +261,7 @@ export default function SubmitBriefBeta() {
       }
 
       // Parse slides block — validated (and rewritten if needed) BEFORE it is shown.
-      const slidesMatch = rawText.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
+      const slidesMatch = gateBlocked ? null : rawText.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
       if (slidesMatch) {
         try {
           const parsedSlides = JSON.parse(slidesMatch[1].trim());
@@ -680,12 +683,27 @@ ${items}`,
               Chat your way to a full trend deck. Isolated test environment — saved reports are prefixed [BETA].
             </p>
           </div>
-          {!savedReport && (
-            <SaveDraftButton
-              onSave={saveDraft}
-              disabled={!messages.some(m => m.role === 'user')}
-            />
-          )}
+          <div className="flex items-center gap-2">
+            {messages.some(m => m.role === 'user') && (
+              <button
+                onClick={() => {
+                  if (!window.confirm('Start a new session? This chat is kept in the Architect history — the new one starts from scratch.')) return;
+                  // A hard navigation, deliberately: it gives a genuinely new session
+                  // (new autosave record, no resumed ?session id, no stale evidence).
+                  window.location.href = '/SubmitBriefBeta';
+                }}
+                className="rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground hover:border-pal-blue/30"
+              >
+                Start over
+              </button>
+            )}
+            {!savedReport && (
+              <SaveDraftButton
+                onSave={saveDraft}
+                disabled={!messages.some(m => m.role === 'user')}
+              />
+            )}
+          </div>
         </div>
 
         {resuming && (
