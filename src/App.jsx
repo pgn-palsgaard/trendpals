@@ -130,9 +130,11 @@ const AuthenticatedApp = () => {
   if (!isAdmin) {
     return (
       <Routes>
-        <Route path="/SubmitBrief" element={<SubmitterLayout><SubmitBrief /></SubmitterLayout>} />
+        {/* Submitters now work in the Report Architect. The classic brief form is
+            hidden for now (kept in the codebase) — any visit redirects onward. */}
+        <Route path="/SubmitBriefBeta" element={<SubmitterLayout><SubmitBriefBeta /></SubmitterLayout>} />
         <Route path="/Profile" element={<SubmitterLayout><Profile /></SubmitterLayout>} />
-        <Route path="*" element={<Navigate to="/SubmitBrief" replace />} />
+        <Route path="*" element={<Navigate to="/SubmitBriefBeta" replace />} />
       </Routes>
     );
   }

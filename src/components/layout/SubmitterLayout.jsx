@@ -20,13 +20,13 @@ export default function SubmitterLayout({ children }) {
         </span>
         <div className="flex items-center gap-2">
           <Link
-            to="/SubmitBrief"
+            to="/SubmitBriefBeta"
             className="rounded-lg transition-colors"
             style={{ fontSize: 13, fontWeight: 500, color: '#C7D2E8', padding: '6px 10px' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff'; }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#C7D2E8'; }}
           >
-            Submit brief
+            Report Architect
           </Link>
           <Link
             to="/Profile"
