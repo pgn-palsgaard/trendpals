@@ -1,6 +1,12 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 import * as XLSX from 'npm:xlsx@0.18.5';
 import Anthropic from 'npm:@anthropic-ai/sdk@0.27.3';
+import { resolvePalsgaardCategory } from '../../shared/palsgaardCategory.ts';
+
+const CANONICAL_CATEGORIES = new Set([
+  'bakery', 'condiments', 'chocolate_confectionery', 'dairy', 'ice_cream',
+  'meat', 'oils_fats', 'plant_based', 'rutf_rusf',
+]);
 
 const EMULSIFIER_TERMS = [
   'lecithin', 'mono and diglycerides', 'monoglycerides', 'diglycerides',
@@ -609,13 +615,24 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
 
       const hasPalsgaardRelevance = hasEmulsifier || linkedTrendIds.length > 0;
 
+      // Every product gets a canonical category — Food rows resolve through the
+      // Mintel mapping, exactly as in parseGNPDToDatabase. Without it, Food
+      // products were invisible to every downstream palsgaard_category filter.
+      // The row's raw Mintel category is what the resolver understands; source.category
+      // is already a canonical Palsgaard key and is only used when the row has none.
+      const rawCategory = String(getCategory(row) || '').trim();
+      const palsgaardCategory = mainGroup === 'BSA'
+        ? 'personal_care'
+        : rawCategory
+          ? resolvePalsgaardCategory(rawCategory, String(getSubCat(row) || ''))
+          : (CANONICAL_CATEGORIES.has(source.category) ? source.category : 'needs_human_review');
+
       toCreate.push({
         gnpd_record_id: recordId,
         product_name: productName,
         main_group: mainGroup,
-        ...(mainGroup === 'BSA'
-          ? { palsgaard_category: 'personal_care', extra_fields: collectExtraFields(row) }
-          : {}),
+        palsgaard_category: palsgaardCategory,
+        ...(mainGroup === 'BSA' ? { extra_fields: collectExtraFields(row) } : {}),
         brand: String(getBrand(row) || ''),
         company,
         ultimate_company: String(get(row, 'ultimate_company') || ''),
