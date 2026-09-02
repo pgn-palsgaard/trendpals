@@ -31,7 +31,7 @@ export const ACCESS_MAP = [
   {
     role: 'submitter',
     ui: 'Lightweight submitter shell — header only, no sidebar.',
-    routes: ['/SubmitBrief', '/Profile'],
+    routes: ['/SubmitBriefBeta (Report Architect)', '/Profile'],
   },
   {
     role: 'reviewer',
