@@ -25,6 +25,7 @@ import { computeRenderedSplit } from '@/components/briefbeta/renderedByCountry';
 import { stampProvenance } from '@/components/briefbeta/readAcross';
 import { runBuildWithValidation, MAX_BUILD_ATTEMPTS } from '@/components/briefbeta/validationLoop';
 import { splitVerdict } from '@/components/briefbeta/surgicalRewrite';
+import { bindingChanged, parseArchitectResponse } from '@/components/briefbeta/architectContract';
 import ValidationBanner from '@/components/briefbeta/ValidationBanner';
 import ValidationStatus from '@/components/briefbeta/ValidationStatus';
 import GateNotice from '@/components/briefbeta/GateNotice';
@@ -134,7 +135,7 @@ export default function SubmitBriefBeta() {
   // read_across and excluded_countries live in the contract and must REACH retrieval:
   // read-across cannot fire without the first, and cannot honour exclusions without
   // the second (which also revives the regional exclusion list — it never arrived).
-  async function loadEvidenceFor(categories, regionText, subCategories, readAcross, excludedCountries) {
+  async function loadEvidenceFor(categories, regionText, subCategories, readAcross, excludedCountries, subCategoriesByCategory) {
     const valid = (Array.isArray(categories) ? categories : [categories])
       .filter(c => CANONICAL_CATEGORIES.includes(c));
     if (valid.length === 0) return null;
@@ -152,6 +153,7 @@ export default function SubmitBriefBeta() {
         categories: valid,
         region_text: regionText,
         sub_categories: Array.isArray(subCategories) ? subCategories : [],
+        sub_categories_by_category: subCategoriesByCategory && typeof subCategoriesByCategory === 'object' ? subCategoriesByCategory : {},
         read_across: readAcross || 'strict_region',
         excluded_countries: Array.isArray(excludedCountries) ? excludedCountries : [],
       });
@@ -194,88 +196,67 @@ export default function SubmitBriefBeta() {
         .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
         .join('\n\n');
 
-      // The architect may NEVER build from an empty evidence block — without it it
-      // invents trend names and emits slides with no GNPD examples. If the contract
-      // already names categories + region, the gates are resolved (and awaited) here
-      // before the prompt is sent, and a failed retrieval stops the turn loudly.
-      let ev = evidence;
-      let gateBlocked = false;
-      if (!ev && contract.categories && contract.region) {
-        ev = await loadEvidenceFor(contract.categories, contract.region, contract.sub_categories, contract.read_across, contract.excluded_countries);
-        gateBlocked = !ev;
-      }
-
-      // A failed gate must never end the turn. Ending it here meant the user's own
-      // message ('build it for global', 'start over') never reached the architect,
-      // so the same refusal came back forever and the session was stuck. The turn
-      // now runs with an explicit instruction to repair the scope instead — and no
-      // deck can be emitted while the gate is blocked (enforced below).
-      const gateNote = gateBlocked
-        ? `\n\nSYSTEM NOTE: the evidence gates returned NOTHING usable for the current brief scope (categories: ${JSON.stringify(contract.categories)}, region: ${JSON.stringify(contract.region)}, formats: ${JSON.stringify(contract.sub_categories || [])}). You must NOT emit a <slides> block this turn. Instead: acknowledge it in one sentence, state which part of the scope is most likely the cause, and propose 2-3 concrete adjustments (a wider region, global scope, fewer or different formats, or a different category). If the user's latest message already states an adjustment, emit an updated <contract> block reflecting it so the gates can be re-run.`
-        : '';
-
-      const reply = await base44.integrations.Core.InvokeLLM({
-        prompt: buildArchitectPrompt(transcript + gateNote, buildEvidenceContext(ev)),
+      // Pass 1 is always contract-only. This lets the model apply corrections and
+      // removals from the latest message before any evidence is fetched or frozen.
+      const planningReply = await base44.integrations.Core.InvokeLLM({
+        prompt: buildArchitectPrompt(`${transcript}\n\nSYSTEM MODE: Update the live contract only. Do not build slides in this pass.`, null),
         model: 'claude_sonnet_4_6',
       });
-      const rawText = typeof reply === 'string' ? reply : (reply?.content || '');
+      const planningRaw = typeof planningReply === 'string' ? planningReply : (planningReply?.content || '');
+      const planned = parseArchitectResponse(planningRaw, contract);
+      const nextContract = planned.contract;
+      const scopeChanged = bindingChanged(contract, nextContract);
+      setContract(nextContract);
 
-      // Parse contract block
-      let merged = contract;
-      const contractMatch = rawText.match(/<contract>\s*([\s\S]*?)\s*<\/contract>/);
-      if (contractMatch) {
-        try {
-          const parsed = JSON.parse(contractMatch[1].trim());
-          const next = { ...contract };
-          for (const [k, v] of Object.entries(parsed)) {
-            if (v !== null && v !== 'null' && String(v).trim()) next[k] = v;
-          }
-          merged = next;
-          setContract(next);
-          // Re-run the gates whenever the binding constraints change — categories,
-          // formats or region text. Evidence is never retrieved without them.
-          const bindingChanged =
-            JSON.stringify(next.categories) !== JSON.stringify(contract.categories) ||
-            JSON.stringify(next.sub_categories) !== JSON.stringify(contract.sub_categories) ||
-            JSON.stringify(next.excluded_countries) !== JSON.stringify(contract.excluded_countries) ||
-            next.read_across !== contract.read_across ||
-            next.region !== contract.region;
-          if (next.categories && next.region && bindingChanged) {
-            loadEvidenceFor(next.categories, next.region, next.sub_categories, next.read_across, next.excluded_countries);
-          }
-          // A binding field changed after a deck was built: the built slides were
-          // grounded in the previous evidence, so the deck is stale and must be
-          // rebuilt — exactly as a manual slide edit invalidates the build verdict.
-          if (bindingChanged && slides) {
-            setSlides(null);
-            setFrozenEvidence(null);
-            setBindings(null);
-            setTrendStatus(null);
-            setBuildValidation(null);
-            setMessages(prev => [...prev, {
-              role: 'assistant',
-              content: 'The brief scope changed, so the deck built on the previous evidence has been discarded. Ask me to build again and it will be grounded in the new evidence.',
-            }]);
-          }
-        } catch { /* malformed contract — ignore, next turn re-emits */ }
+      if (scopeChanged) {
+        setEvidence(null);
+        setTrends(null);
+        setGateNotice(null);
+        if (slides) {
+          setSlides(null);
+          setFrozenEvidence(null);
+          setBindings(null);
+          setTrendStatus(null);
+          setBuildValidation(null);
+        }
       }
 
-      // Parse slides block — validated (and rewritten if needed) BEFORE it is shown.
-      const slidesMatch = gateBlocked ? null : rawText.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
-      if (slidesMatch) {
-        try {
-          const parsedSlides = JSON.parse(slidesMatch[1].trim());
-          if (Array.isArray(parsedSlides) && parsedSlides.length > 0) {
-            await validateAndSetDeck(parsedSlides, merged, ev, transcript);
+      let visible = planned.visible;
+      if (planned.buildRequested) {
+        // Pass 2 starts only after the latest complete snapshot is known. Retrieval
+        // and generation therefore cannot race against an older category/format scope.
+        const ev = await loadEvidenceFor(
+          nextContract.categories,
+          nextContract.region,
+          nextContract.sub_categories,
+          nextContract.read_across,
+          nextContract.excluded_countries,
+          nextContract.sub_categories_by_category,
+        );
+        if (ev) {
+          const finalInstruction = `\n\nSYSTEM FINAL CONTRACT — frozen after explicit user approval. Build now from the freshly retrieved evidence below; do not alter this contract:\n${JSON.stringify(nextContract)}`;
+          const buildReply = await base44.integrations.Core.InvokeLLM({
+            prompt: buildArchitectPrompt(transcript + finalInstruction, buildEvidenceContext(ev)),
+            model: 'claude_sonnet_4_6',
+          });
+          const buildRaw = typeof buildReply === 'string' ? buildReply : (buildReply?.content || '');
+          const built = parseArchitectResponse(buildRaw, nextContract);
+          const slidesMatch = buildRaw.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
+          if (slidesMatch) {
+            const parsedSlides = JSON.parse(slidesMatch[1].trim());
+            if (Array.isArray(parsedSlides) && parsedSlides.length > 0) {
+              await validateAndSetDeck(parsedSlides, nextContract, ev, transcript);
+            }
           }
-        } catch { /* malformed slides — user can ask to rebuild */ }
+          visible = built.visible || visible;
+        }
       }
 
-      const visible = rawText
-        .replace(/<contract>[\s\S]*?<\/contract>/, '')
-        .replace(/<slides>[\s\S]*?<\/slides>/, '')
-        .trim();
-      setMessages(prev => [...prev, { role: 'assistant', content: visible || 'Deck built — review the slides on the right.', timestamp: new Date().toISOString() }]);
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: visible || (planned.buildRequested ? 'Deck built — review the slides on the right.' : 'I have updated the brief.'),
+        timestamp: new Date().toISOString(),
+      }]);
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong reaching the architect. Please try again.' }]);
     }

@@ -108,6 +108,9 @@ export default async function (req) {
 
     const body = await req.json();
     const { categories, region_text, sub_categories, test_pool } = body;
+    const subCategoriesByCategory = body.sub_categories_by_category && typeof body.sub_categories_by_category === 'object'
+      ? body.sub_categories_by_category
+      : {};
     // Build C — read-across is OPT-IN. Anything other than the explicit
     // 'labelled_read_across' contract value means strict region: no cross-region
     // retrieval happens at all.
@@ -329,11 +332,16 @@ export default async function (req) {
       }
       gate.after_region_gate += regionPass.length;
 
-      // Which of the stated formats this category's data actually knows. A term that
-      // names nothing here belongs to another industry in the brief and is ignored
-      // for this one; if none apply, the category runs with no format restriction.
+      // Prefer the explicit industry → formats map emitted by the live contract.
+      // Legacy flat lists still resolve against each industry's own data pool.
       const poolSubs = [...new Set(regionPass.map(p => String(p.sub_category || '').trim()).filter(Boolean))];
-      const localTerms = subs.filter(t => poolSubs.some(sc => termHits(sc, [t]).length > 0));
+      const hasMappedScope = Object.prototype.hasOwnProperty.call(subCategoriesByCategory, category);
+      const mappedTerms = hasMappedScope && Array.isArray(subCategoriesByCategory[category])
+        ? subCategoriesByCategory[category].map(s => String(s).trim()).filter(Boolean)
+        : [];
+      const localTerms = hasMappedScope
+        ? mappedTerms
+        : subs.filter(t => poolSubs.some(sc => termHits(sc, [t]).length > 0));
       gate.format_resolution.per_category.push({
         category,
         applied_terms: localTerms,
