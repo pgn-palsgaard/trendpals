@@ -24,4 +24,16 @@ export const BUDGETS = {
   // renderer to 1.45" and set at 26pt, so it holds exactly 2 lines.
   IMPLICATIONS_TITLE: 110,
   IMPLICATION_LINE: 130,     // one arrow / tick line, 11pt, single line in the box
+  // Simplified trend slide (PDF pattern): a short bullet list in the left column
+  // beside the product-proof column. Each bullet wraps to at most 2 lines.
+  BULLET_LINE: 170,
+  MAX_BULLETS: 4,
+  // Overview / synthesis table slide.
+  TABLE_CELL: 120,
+  MAX_TABLE_ROWS: 5,
+  MAX_TABLE_COLUMNS: 4,
+  // Strategic-imperatives slide (three numbered columns).
+  IMPERATIVE_TITLE: 34,
+  IMPERATIVE_TEXT: 170,
+  MAX_IMPERATIVES: 3,
 };

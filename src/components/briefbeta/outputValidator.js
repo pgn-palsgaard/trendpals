@@ -249,6 +249,75 @@ function budgetRejections(slides, reportTitle) {
     const isSection = slide.slide_type === 'section_header';
     const isImplications = slide.slide_type === 'implications';
 
+    // Overview / synthesis table slide — a fixed grid, so the cells are what
+    // overflow, not a body budget.
+    if (slide.slide_type === 'table') {
+      const cols = slide.columns || [];
+      if (cols.length > BUDGETS.MAX_TABLE_COLUMNS) {
+        rejections.push({
+          rule: 'LEN-7', field: `${where}.columns`,
+          why: `max ${BUDGETS.MAX_TABLE_COLUMNS} columns (currently ${cols.length}) — the table runs off the slide beyond that`,
+          text: cols.join(' | ').slice(0, 300),
+        });
+      }
+      const rows = slide.rows || [];
+      if (rows.length > BUDGETS.MAX_TABLE_ROWS) {
+        rejections.push({
+          rule: 'LEN-7', field: `${where}.rows`,
+          why: `max ${BUDGETS.MAX_TABLE_ROWS} rows (currently ${rows.length})`,
+          text: `(${rows.length} rows)`,
+        });
+      }
+      rows.forEach((row, r) => {
+        (row || []).forEach((cell, c) => {
+          if (len(cell) > BUDGETS.TABLE_CELL) {
+            rejections.push({
+              rule: 'LEN-7', field: `${where}.rows[${r}][${c}]`,
+              why: `each table cell must be ≤ ${BUDGETS.TABLE_CELL} characters (currently ${len(cell)})`,
+              text: String(cell).slice(0, 300),
+            });
+          }
+        });
+      });
+      if (len(slide.so_what) > BUDGETS.BULLET_LINE) {
+        rejections.push({
+          rule: 'LEN-7', field: `${where}.so_what`,
+          why: `the "so what" line must be ≤ ${BUDGETS.BULLET_LINE} characters (currently ${len(slide.so_what)})`,
+          text: String(slide.so_what).slice(0, 300),
+        });
+      }
+      return;
+    }
+
+    // Strategic-imperatives slide — three numbered columns.
+    if (slide.slide_type === 'imperatives') {
+      const items = slide.items || [];
+      if (items.length > BUDGETS.MAX_IMPERATIVES) {
+        rejections.push({
+          rule: 'LEN-8', field: `${where}.items`,
+          why: `max ${BUDGETS.MAX_IMPERATIVES} imperatives (currently ${items.length}) — the three columns are fixed`,
+          text: `(${items.length} items)`,
+        });
+      }
+      items.forEach((item, j) => {
+        if (len(item?.title) > BUDGETS.IMPERATIVE_TITLE) {
+          rejections.push({
+            rule: 'LEN-8', field: `${where}.items[${j}].title`,
+            why: `imperative heading must be ≤ ${BUDGETS.IMPERATIVE_TITLE} characters (currently ${len(item?.title)})`,
+            text: String(item?.title).slice(0, 300),
+          });
+        }
+        if (len(item?.text) > BUDGETS.IMPERATIVE_TEXT) {
+          rejections.push({
+            rule: 'LEN-8', field: `${where}.items[${j}].text`,
+            why: `imperative body must be ≤ ${BUDGETS.IMPERATIVE_TEXT} characters (currently ${len(item?.text)})`,
+            text: String(item?.text).slice(0, 300),
+          });
+        }
+      });
+      return;
+    }
+
     // Strategic-implications slide: its own budgets. Two boxed lists, no body text.
     if (isImplications) {
       if (len(slide.title) > BUDGETS.IMPLICATIONS_TITLE) {
@@ -316,6 +385,25 @@ function budgetRejections(slides, reportTitle) {
         text: String(slide.hypothesis_tieback).slice(0, 300),
       });
     }
+    // Simplified trend slide: a short bullet list, each bullet at most 2 lines.
+    const bullets = slide.bullets || [];
+    if (bullets.length > BUDGETS.MAX_BULLETS) {
+      rejections.push({
+        rule: 'LEN-9', field: `${where}.bullets`,
+        why: `max ${BUDGETS.MAX_BULLETS} bullets on a slide (currently ${bullets.length}) — the slide is meant to stay readable at a glance`,
+        text: `(${bullets.length} bullets)`,
+      });
+    }
+    bullets.forEach((row, j) => {
+      if (len(row) > BUDGETS.BULLET_LINE) {
+        rejections.push({
+          rule: 'LEN-9', field: `${where}.bullets[${j}]`,
+          why: `each bullet must be ≤ ${BUDGETS.BULLET_LINE} characters (currently ${len(row)})`,
+          text: String(row).slice(0, 300),
+        });
+      }
+    });
+
     (slide.agenda_items || []).forEach((row, j) => {
       if (len(row) > BUDGETS.IMPLICATION_LINE) {
         rejections.push({
@@ -330,6 +418,7 @@ function budgetRejections(slides, reportTitle) {
     // narrower text column beside the image slots.
     const bodyParts = [
       slide.market_signal, slide.why_it_may_matter, slide.hypothesis_tieback,
+      ...(slide.bullets || []),
       ...(slide.agenda_items || []),
       ...(slide.formulation_questions || []),
       ...(slide.conversation_openers || []),
@@ -480,39 +569,18 @@ export function unresolvableGate(slides, bindings, threshold = UNRESOLVABLE_THRE
   };
 }
 
-// NARR-1 — the hypothesis tie-back must EXIST on every trend slide.
-//
-// The prompt demands it, LEN-6 only measures it, and a LEN violation is cosmetic
-// under Build D — so a slide that simply omitted the tie-back saved clean and the
-// narrative thread broke silently. This is an integrity rule: a hard wall, never
-// save-anyway. Only slide_type 'content' carries it; implications, dividers,
-// agenda and methodology must not.
-function narrativeRejections(slides) {
-  const rejections = [];
-  (slides || []).forEach((slide, i) => {
-    if (slide?.slide_type !== 'content') return;
-    // Only slides built on a verified trend carry a tie-back. The opening
-    // hypothesis slide states the hypothesis itself and has no trend_id.
-    if (!String(slide.trend_id || '').trim()) return;
-    if (String(slide.hypothesis_tieback || '').trim()) return;
-    rejections.push({
-      rule: 'NARR-1',
-      field: `slide ${slide.slide_number ?? i + 1}.hypothesis_tieback`,
-      why: 'trend slide carries no hypothesis_tieback — every trend slide must state how it maps back to the core hypothesis, otherwise the deck loses its thread on exactly the slides where it was skipped',
-      text: String(slide.title || slide.slide_name || '').slice(0, 300),
-    });
-  });
-  return rejections;
-}
+// NARR-1 retired with the simplified (PDF-pattern) deck: a trend is now told over
+// a global-context slide and a region-in-focus slide, and the red thread lives on
+// the opening slide and the per-trend implications slide instead of a tie-back
+// line on every slide.
 
-const TEXT_FIELDS = ['title', 'subtitle', 'market_signal', 'why_it_may_matter', 'hypothesis_tieback'];
-const ARRAY_FIELDS = ['formulation_questions', 'conversation_openers', 'gnpd_examples', 'strategic_implications', 'agenda_items'];
+const TEXT_FIELDS = ['title', 'subtitle', 'preheader', 'market_signal', 'why_it_may_matter', 'hypothesis_tieback', 'so_what'];
+const ARRAY_FIELDS = ['bullets', 'formulation_questions', 'conversation_openers', 'gnpd_examples', 'strategic_implications', 'palsgaard_support', 'agenda_items'];
 
 // Validates a whole deck. Returns { ok, rejections[], flags[] }.
 export function validateSlides(slides, briefCategory, reportTitle = null, allowList = null) {
   const rejections = [
     ...budgetRejections(slides, reportTitle),
-    ...narrativeRejections(slides),
     ...tierRejections(slides, allowList?.bindings || null),
     ...xtrendRejections(slides, allowList?.bindings || null),
   ];
@@ -531,6 +599,13 @@ export function validateSlides(slides, briefCategory, reportTitle = null, allowL
     for (const f of ARRAY_FIELDS) {
       (slide[f] || []).forEach((v, j) => checkProse(v, `${where}.${f}[${j}]`));
     }
+    (slide.rows || []).forEach((row, r) => {
+      (row || []).forEach((cell, c) => checkProse(cell, `${where}.rows[${r}][${c}]`));
+    });
+    (slide.items || []).forEach((item, j) => {
+      checkProse(item?.title, `${where}.items[${j}].title`);
+      checkProse(item?.text, `${where}.items[${j}].text`);
+    });
     (slide.supporting_data || []).forEach((c, j) => {
       const t = validateText(c.stat, `${where}.supporting_data[${j}].stat`);
       if (!t.ok) { rejections.push(t); return; }
