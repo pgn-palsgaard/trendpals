@@ -121,8 +121,8 @@ Deno.serve(async (req) => {
       success: true,
       source_id: source.id,
       products_count: mergedProducts.length,
-      images_count: successfulUploads,
-      images_failed: failedUploads
+      images_count: imagesMatched,
+      images_failed: mergedProducts.length - imagesMatched
     });
   } catch (error) {
     console.error('Merge GNPD with images error:', error);
