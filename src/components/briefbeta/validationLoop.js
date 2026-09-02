@@ -52,7 +52,7 @@ export async function runBuildWithValidation({
   const allowList = bindings ? allowListFromBindings(bindings) : buildCitationAllowList(evidence);
   // Citations that do not belong on their slide are DROPPED here, before any
   // validation runs — a single bad reference must never hard-block the build.
-  const firstPrune = pruneCitations(slides, bindings);
+  const firstPrune = pruneCitations(slides, bindings, category);
   let deck = firstPrune.slides;
   const droppedCitations = [...firstPrune.dropped];
   let currentTitle = title;
@@ -78,7 +78,7 @@ export async function runBuildWithValidation({
     if (!corrections || corrections.length === 0) break;
 
     const applied = applyCorrections(deck, currentTitle, corrections);
-    const pruned = pruneCitations(applied.slides, bindings);
+    const pruned = pruneCitations(applied.slides, bindings, category);
     deck = pruned.slides;
     droppedCitations.push(...pruned.dropped);
     if (applied.title !== currentTitle) {

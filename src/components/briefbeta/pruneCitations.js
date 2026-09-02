@@ -11,6 +11,17 @@
 // analyst is never stopped over one bad reference. Everything else (character
 // budgets, competitor content, market sizing) is untouched.
 import { resolveBinding } from './citationKey';
+import { OTHER_CATEGORY_TERMS } from './outputValidator';
+
+// A citation whose resolved title is plainly about another industry (an ice cream
+// article on a bakery slide) is dropped like any other misplaced reference — it
+// must never hard-block the build (PUB-3).
+function offCategory(hit, briefCategory) {
+  const s = String(hit?.canonical_string || '');
+  if (!s) return null;
+  return (OTHER_CATEGORY_TERMS[briefCategory] || [])
+    .find(t => new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(s)) || null;
+}
 
 function slideClassOf(slide) {
   return String(slide?.evidence_class || 'regional') === 'read_across' ? 'read_across' : 'regional';
@@ -36,7 +47,7 @@ function isContentSlide(slide) {
 }
 
 // Drops offending citations from a deck. Returns { slides, dropped: [{field, id, why}] }.
-export function pruneCitations(slides, bindings) {
+export function pruneCitations(slides, bindings, briefCategory = null) {
   const map = bindings && typeof bindings === 'object' ? bindings : null;
   if (!map || Object.keys(map).length === 0) return { slides: slides || [], dropped: [] };
 
@@ -50,9 +61,16 @@ export function pruneCitations(slides, bindings) {
       next.supporting_data = slide.supporting_data.filter((d, j) => {
         const id = String(d?.source_id || '').trim();
         if (!id) return true;
-        if (idAllowed(id, slide, map)) return true;
-        dropped.push({ field: `${where}.supporting_data[${j}]`, id, why: 'citation does not resolve to this slide\u2019s evidence' });
-        return false;
+        if (!idAllowed(id, slide, map)) {
+          dropped.push({ field: `${where}.supporting_data[${j}]`, id, why: 'citation does not resolve to this slide\u2019s evidence' });
+          return false;
+        }
+        const wrongCat = briefCategory ? offCategory(resolveBinding(id, map), briefCategory) : null;
+        if (wrongCat) {
+          dropped.push({ field: `${where}.supporting_data[${j}]`, id, why: `citation is about ${wrongCat}, not ${briefCategory}` });
+          return false;
+        }
+        return true;
       });
     }
 

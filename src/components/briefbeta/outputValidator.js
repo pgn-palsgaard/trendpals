@@ -85,7 +85,7 @@ export const LABEL_REQUIRED_PUBLISHERS = [
   'AMF', 'Technavio', 'Research and Markets', 'Fact.MR',
 ];
 
-const OTHER_CATEGORY_TERMS = {
+export const OTHER_CATEGORY_TERMS = {
   bakery: ['ice cream', 'confectionery', 'chocolate', 'dairy', 'meat', 'mayonnaise', 'margarine'],
   ice_cream: ['bakery', 'bread', 'biscuit', 'meat'],
   dairy: ['ice cream', 'bakery', 'meat'],
@@ -160,10 +160,12 @@ export function validateCitation(citation, briefCategory, allowList = null) {
   const hit = SUPPRESSED_PUBLISHERS.find(p => new RegExp(`\\b${p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(s));
   if (hit) return { ok: false, rule: 'PUB-1', why: `${hit} is competitor / ingredient-supplier content — never customer-facing evidence`, text: s, flags: [] };
 
-  // PUB-3 — a citation about another category cannot support this claim.
-  const otherCats = OTHER_CATEGORY_TERMS[briefCategory] || [];
-  const catHit = otherCats.find(t => new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(s));
-  if (catHit) return { ok: false, rule: 'PUB-3', why: `citation is about ${catHit}, not ${briefCategory} — cannot support this claim`, text: s, flags: [] };
+  // PUB-3 — a citation about another category cannot support this claim. This is
+  // handled by DROPPING the citation in pruneCitations (before validation), so it
+  // never hard-blocks a build. If one still reaches here (legacy deck, or a save
+  // of a hand-edited deck), it is a non-blocking flag, not a wall.
+  const offCategory = (OTHER_CATEGORY_TERMS[briefCategory] || [])
+    .find(t => new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(s));
 
   // CITE-1 — the citation must trace to a source that actually reached this brief.
   // A fabricated citation names a real-sounding publisher or title that is not in
@@ -190,6 +192,9 @@ export function validateCitation(citation, briefCategory, allowList = null) {
   // label (PUB-4), and cohort plausibility (NUM-1).
   const flags = [];
   if (citeFlag) flags.push(citeFlag);
+  if (offCategory) {
+    flags.push({ rule: 'PUB-3', why: `citation is about ${offCategory}, not ${briefCategory} — treat as read-across context, not ${briefCategory} evidence`, text: s });
+  }
   const vendor = LABEL_REQUIRED_PUBLISHERS.find(p => new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(s));
   if (vendor && !SCOPE_LABEL.test(stat)) {
     flags.push({ rule: 'PUB-2', why: `${vendor} is a consultancy / market-report vendor — needs an inline scope label and a second source`, text: s });
