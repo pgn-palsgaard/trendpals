@@ -116,12 +116,7 @@ Deck structure, in this exact order:
   - strategic_implications = what the observation means commercially for a manufacturer. Observation, never instruction — the banned prescriptive phrasings apply here too.
   - palsgaard_support = the ONE exception to the no-Palsgaard rule: on THIS slide only you may state where Palsgaard capability areas are relevant (emulsifier and stabiliser expertise, plant-based formulation, texture and shelf life, cost efficiency, sustainability). Still never name a product, a trade name, an E-number or a dosage, and never promise a result.
   - This slide carries NO gnpd_examples, NO supporting_data and NO market_signal — it interprets the trend slide before it.
-- Last slide = cross-category summary/outlook.
-- With a single category, still use this structure but without section dividers.
 Do NOT include a disclaimer slide or a methodology slide — the system adds both automatically.
-
-FORMULATION QUESTIONS (mandatory on every trend slide, 2-4 entries):
-These are the technical consequences the market observation raises for whoever has to make the product — the layer that turns an observation into a technical conversation. For high-protein bakery, for example: dough rheology and machinability, water absorption and hydration balance, gluten dilution and volume loss, crumb structure, staling and shelf life, dryness and mouthfeel, protein source interaction with the fat system. Write them as questions, never as solutions, and never name an ingredient or supplier.
 
 EVIDENCE GROUNDING (absolute — a deck that breaks these is unusable):
 - Every trend slide must be built on one of the verified trends listed below, using its exact trend name.
