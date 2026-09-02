@@ -155,7 +155,28 @@ export default async function (req) {
       .filter(Boolean)
       .map(s => String(s).trim())
       .filter(s => s && !SUB_CATEGORY_PLACEHOLDERS.has(s.toLowerCase()));
-    const inCategory = p => subs.length === 0 || subs.includes(String(p.sub_category || '').trim());
+    // The brief states formats in plain language ('yogurt', 'cream', 'chocolate'),
+    // while GNPD carries full Mintel sub-category labels ('Spoonable Yogurt',
+    // 'Creamers', 'Chocolate Tablets'). Exact equality therefore emptied the pool on
+    // every brief that named a format (region gate 5931 -> format gate 0). Matching
+    // is normalised and containment-based in both directions, so a stated format
+    // resolves to the sub-categories it names — and anything that resolves to
+    // nothing is recorded in gate.format_resolution rather than silently dropped.
+    const normFormat = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const subsNorm = subs.map(normFormat).filter(Boolean);
+    const matchedFormatTerms = new Set();
+    const matchedSubCats = new Set();
+    const inCategory = p => {
+      if (subsNorm.length === 0) return true;
+      const n = normFormat(p.sub_category);
+      if (!n) return false;
+      let hit = false;
+      subsNorm.forEach((q, i) => {
+        if (n.includes(q) || q.includes(n)) { hit = true; matchedFormatTerms.add(subs[i]); }
+      });
+      if (hit) matchedSubCats.add(String(p.sub_category || '').trim());
+      return hit;
+    };
 
     const cutoff = new Date();
     cutoff.setMonth(cutoff.getMonth() - RECENCY_MONTHS);
@@ -178,6 +199,9 @@ export default async function (req) {
       excluded_countries: excludedCountries,
       resolution_log: resolved.resolution_log,
       sub_categories: subs,
+      // How the stated formats resolved against the real Mintel sub-categories. A
+      // term that resolves to nothing is a brief/data mismatch and must be visible.
+      format_resolution: { requested: subs, matched_terms: [], unmatched_terms: [], matched_sub_categories: [] },
       recency_months: RECENCY_MONTHS,
       population_total: 0,
       after_region_gate: 0,
@@ -271,10 +295,11 @@ export default async function (req) {
         gate.excluded_by_reason.out_of_region += population - regionPass.length;
 
         if (scope.scope !== 'global') {
+          // No sub_category filter here: stated formats are resolved in JS (they are
+          // plain-language terms, not literal Mintel labels), so a database-level
+          // $in on them matches nothing.
           const sample = await base44.asServiceRole.entities.GNPDProduct.filter(
-            subs.length > 0
-              ? { palsgaard_category: category, sub_category: { $in: subs }, country: { $nin: scope.countries } }
-              : { palsgaard_category: category, country: { $nin: scope.countries } },
+            { palsgaard_category: category, country: { $nin: scope.countries } },
             'id', 20, 0
           );
           for (const p of sample) {
@@ -286,9 +311,9 @@ export default async function (req) {
         // Deliberately kept out of the funnel: it is not complementary to any step.
         if (subs.length > 0 && scope.scope !== 'global') {
           const readAcross = await countRows(base44, {
-            palsgaard_category: category, sub_category: { $in: subs }, country: { $nin: scope.countries },
+            palsgaard_category: category, country: { $nin: scope.countries },
           });
-          const label = `${subs.join(' / ')} records outside the region allow-list (read-across potential, NOT part of the funnel)`;
+          const label = `${category} records outside the region allow-list, all formats (read-across potential, NOT part of the funnel)`;
           gate.secondary_counts[label] = (gate.secondary_counts[label] || 0) + readAcross;
         }
       }
@@ -419,9 +444,9 @@ export default async function (req) {
         } else if (scope.scope === 'global') {
           rows = []; // a global brief has no "outside the region"
         } else {
-          const q: Record<string, unknown> = { palsgaard_category: category, country: { $nin: scope.countries } };
-          if (subs.length > 0) q.sub_category = { $in: subs };
-          const res = await paginate(base44, q);
+          // Format scope is applied by inCategory below, not in the query — the
+          // stated formats are plain-language terms, not literal Mintel labels.
+          const res = await paginate(base44, { palsgaard_category: category, country: { $nin: scope.countries } });
           gate.pagination_duplicates_dropped += res.duplicates;
           rows = res.rows;
         }
@@ -644,6 +669,10 @@ export default async function (req) {
         });
       }
     }
+
+    gate.format_resolution.matched_terms = [...matchedFormatTerms];
+    gate.format_resolution.unmatched_terms = subs.filter(s => !matchedFormatTerms.has(s));
+    gate.format_resolution.matched_sub_categories = [...matchedSubCats].filter(Boolean).sort();
 
     // ── Phase 2 — render-level contribution, counted on the products that actually
     // reached the deck (productsById holds exactly the picked records). Eligibility
