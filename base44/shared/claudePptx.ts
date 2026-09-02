@@ -405,6 +405,9 @@ def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE,variant
     blocks.append(Block(paras,splittable=splittable))
   # Agenda slide \\u2014 the deck overview list. Only present on the agenda variant.
   section('In this report',as_list(slide.get('agenda_items')),prefix='\\u2022  ')
+  # Simplified trend slide (PDF pattern): one short bullet list under its own header.
+  section(str(slide.get('bullets_header') or 'What we see').strip(),
+    as_list(slide.get('bullets')),prefix='\\u2022  ')
   section('Supporting data',[stat_text(d) for d in as_list(slide.get('supporting_data'))],prefix='\\u2022  ')
   why=(slide.get('why_it_may_matter') or '').strip()
   if why:
@@ -469,7 +472,8 @@ def classify(entry):
   """Deterministic slide-type resolution. Legacy decks carry only 'content' for the
   about, opening and closing slides \\u2014 they are recognised structurally, never by prose."""
   kind=str(entry.get('slide_type') or 'content').strip().lower()
-  if kind in ('section_header','implications','methodology','about','opening','closing','agenda'): return kind
+  if kind in ('section_header','implications','methodology','about','opening','closing','agenda',
+    'table','imperatives'): return kind
   if kind=='briefing_context': return 'about'
   if str(entry.get('title') or '').strip().lower().startswith('about this report'): return 'about'
   return 'content'
@@ -602,6 +606,76 @@ def render_implications(prs,slide_data,preheader,report):
   drop_empty_placeholders(slide)
   return [slide]
 
+def render_table(prs,slide_data,preheader,report,accent=None):
+  """Overview / synthesis table slide: a fixed grid, one row per trend."""
+  layout_name='Full page content and preheader'
+  slide=prs.slides.add_slide(get_layout(prs,layout_name))
+  head=str(slide_data.get('preheader') or preheader or '').strip()
+  if head: set_ph_simple(slide,PREHEADER_IDX[layout_name],head,size=11,bold=True,color=accent or BLUE)
+  title=str(slide_data.get('title') or 'Overview').strip()
+  reposition_placeholder(slide,0,0.89,0.95,11.86,1.15)
+  set_ph_simple(slide,0,title,size=title_size(title,BUDGET_CONTENT_TITLE,24,16),color=DKBLUE)
+  cols=[str(c) for c in as_list(slide_data.get('columns'))]
+  rows=[[str(c) for c in as_list(r)] for r in as_list(slide_data.get('rows'))]
+  if cols and rows:
+    n_rows=len(rows)+1; n_cols=len(cols)
+    height=min(3.85,0.44*n_rows+0.20)
+    table=slide.shapes.add_table(n_rows,n_cols,Inches(0.89),Inches(2.20),
+      Inches(11.86),Inches(height)).table
+    def fill_cell(cell,text,size,bold,colour,bg):
+      body=cell.text_frame._txBody
+      for p in body.findall(qn('a:p')): body.remove(p)
+      body.append(make_para(text,bold=bold,size_pt=size,color=colour))
+      cell.fill.solid(); cell.fill.fore_color.rgb=bg
+    for j,name in enumerate(cols):
+      fill_cell(table.cell(0,j),name,11,True,WHITE,accent or BLUE)
+    for i,row in enumerate(rows):
+      for j in range(n_cols):
+        fill_cell(table.cell(i+1,j),row[j] if j<len(row) else '',10,False,DKBLUE,
+          LGOLD if i%2==0 else WHITE)
+  else:
+    report['warnings'].append('Table slide had no columns or rows.')
+  so_what=str(slide_data.get('so_what') or '').strip()
+  if so_what:
+    tb=slide.shapes.add_textbox(Inches(0.89),Inches(6.14),Inches(11.86),Inches(0.40))
+    tb.text_frame.word_wrap=True; body=tb.text_frame._txBody
+    for p in body.findall(qn('a:p')): body.remove(p)
+    body.append(make_para(so_what,bold=True,size_pt=11,color=TEAL))
+  footer=str(slide_data.get('evidence_footer') or '').strip()
+  if footer: add_footnote(slide,'Sources: '+footer)
+  drop_empty_placeholders(slide)
+  return [slide]
+
+def render_imperatives(prs,slide_data,preheader,report,accent=None):
+  """Closing slide: exactly three numbered imperative columns."""
+  layout_name='Full page content and preheader'
+  slide=prs.slides.add_slide(get_layout(prs,layout_name))
+  head=str(slide_data.get('preheader') or preheader or '').strip()
+  if head: set_ph_simple(slide,PREHEADER_IDX[layout_name],head,size=11,bold=True,color=accent or BLUE)
+  title=str(slide_data.get('title') or 'Strategic imperatives').strip()
+  reposition_placeholder(slide,0,0.89,0.95,11.86,1.25)
+  set_ph_simple(slide,0,title,size=title_size(title,BUDGET_CONTENT_TITLE,26,18),color=DKBLUE)
+  items=[i for i in as_list(slide_data.get('items')) if isinstance(i,dict)][:3]
+  if not items: report['warnings'].append('Imperatives slide had no items.')
+  fills=[LGOLD,SAGE_LIGHT,LGOLD]; width=3.72; gap=0.35; left=0.89
+  for n,item in enumerate(items):
+    x=left+n*(width+gap)
+    box=slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,Inches(x),Inches(2.55),
+      Inches(width),Inches(3.05))
+    box.fill.solid(); box.fill.fore_color.rgb=fills[n%len(fills)]; box.line.fill.background()
+    try: box.shadow.inherit=False
+    except Exception: pass
+    tb=slide.shapes.add_textbox(Inches(x+0.22),Inches(2.74),Inches(width-0.44),Inches(2.66))
+    tb.text_frame.word_wrap=True; body=tb.text_frame._txBody
+    for p in body.findall(qn('a:p')): body.remove(p)
+    body.append(make_para('0%d'%(n+1),bold=True,size_pt=20,color=accent or BLUE))
+    body.append(make_para(str(item.get('title') or ''),bold=True,size_pt=13,color=DKBLUE,space_before_pt=8))
+    body.append(make_para(str(item.get('text') or ''),size_pt=11,color=DKBLUE,space_before_pt=6))
+  footer=str(slide_data.get('evidence_footer') or '').strip()
+  if footer: add_footnote(slide,'Sources: '+footer)
+  drop_empty_placeholders(slide)
+  return [slide]
+
 def render_content(prs,slide_data,preheader,layout_name,images,report,accent=None,variant='trend'):
   dark=layout_name in DARK_LAYOUTS
   text_colour=LGOLD if dark else DKBLUE
@@ -672,12 +746,21 @@ def build(data,template_path,out_path,workdir):
       made=render_implications(prs,entry,preheader,report)
     elif kind=='methodology':
       made=render_methodology(prs,entry,preheader,report)
+    elif kind=='table':
+      accent=SECTION_ACCENTS[(section_index-1)%len(SECTION_ACCENTS)] if section_index else BLUE
+      made=render_table(prs,entry,preheader,report,accent)
+    elif kind=='imperatives':
+      accent=SECTION_ACCENTS[(section_index-1)%len(SECTION_ACCENTS)] if section_index else BLUE
+      made=render_imperatives(prs,entry,preheader,report,accent)
     else:
       # The accent of the divider this slide sits under, so the section's colour
       # carries into its content. Before any divider, the deck opens on blue.
       accent=SECTION_ACCENTS[(section_index-1)%len(SECTION_ACCENTS)] if section_index else BLUE
       stem=stems.get(str(entry.get('trend_id') or ''))
-      head=stem+'  |  MARKET SIGNAL' if stem else preheader
+      # The architect writes the slide's own pre-header ("TREND 01 | THEME |
+      # REGION IN FOCUS"); it is authoritative. The stem is only a fallback for
+      # older decks that carried none.
+      head=str(entry.get('preheader') or '').strip() or (stem+'  |  MARKET SIGNAL' if stem else preheader)
       made=render_content(prs,entry,head,CONTENT_LAYOUTS[0],images,report,accent,kind)
     # Left-edge dot strip on every content card. Dividers are excluded above
     # (they 'continue' before reaching here), so they never carry it.
