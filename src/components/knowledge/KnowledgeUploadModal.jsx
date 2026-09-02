@@ -68,18 +68,9 @@ export default function KnowledgeUploadModal({ onClose }) {
         options
       });
 
-      // Start background processing
-      base44.functions.invoke('processBulkUpload', {
-        batch_id: batch.id,
-        files: files.map((f, idx) => ({
-          index: idx,
-          filename: f.filename,
-          relative_path: f.relative_path,
-          folder_path: f.folder_path
-        }))
-      }).catch(err => {
-        console.error('Background upload failed:', err);
-      });
+      // Per-file outcomes are reported through updateBatchProgress, which owns the
+      // batch summary and the completion flip. Here we only mark the batch in flight.
+      await base44.entities.UploadBatch.update(batch.id, { status: 'uploading' });
 
       // Upload in batches of 5 — the work must be STARTED per batch, not created
       // up-front, or every file fires at once regardless of the limit.
