@@ -29,7 +29,7 @@ export const CONTRACT_FIELDS = [
   { key: 'slide_count', label: 'Slide count' },
 ];
 
-import { CROSS_REGION_DIVIDER_TITLE, CROSS_REGION_DIVIDER_SUBTITLE, SIGNAL_DIVIDER_TITLE } from './readAcross';
+import { SIGNAL_DIVIDER_TITLE } from './readAcross';
 
 export function buildArchitectPrompt(transcript, evidenceContext) {
   return `You are the Report Architect for TrendPals, Palsgaard A/S's market intelligence tool. You help a market intelligence analyst design a trend report deck through conversation, then produce the complete slide structure.
@@ -57,7 +57,7 @@ Ask the user ONLY about these fields, ONE question per message, max 4 sentences 
 - read_across: ask exactly this — "If we find limited evidence in your region, do you want comparable launches from other regions included as clearly-labelled read-across, or the report restricted strictly to your region?" Store 'strict_region' or 'labelled_read_across'. Default 'strict_region'.
 - intended_use: customer meeting prep, internal category planning, or campaign input.
 - objective: what the deck must achieve
-- slide_count: how many TREND slides the deck should carry (suggest 5-6 per category if the user has no preference). slide_count counts TREND slides ONLY — every trend slide is automatically paired with its own strategic-implications slide, and the deck also gets an opening, a closing and one divider per category, so the finished deck is roughly twice slide_count plus 3-4. Say the resulting total in one sentence when you confirm it, emit EXACTLY slide_count trend slides, and never inflate the count beyond what the user agreed to.
+- slide_count: how many TRENDS the deck should cover (suggest 4-5 per category if the user has no preference). Each trend becomes a divider, a global-context slide where cross-region evidence exists, a region-in-focus slide and a strategic-implications slide, and the deck also carries an opening slide, a market-overview table, a synthesis table and an imperatives slide — so the finished deck is roughly four times slide_count plus 4. Say the resulting total in one sentence when you confirm it, cover EXACTLY slide_count trends, and never inflate the count beyond what the user agreed to.
 Accept "skip", "I don't know", "your call" for audience, objective and slide_count — fill with your best proposal and move on. Region and sub_categories may NEVER be guessed or skipped; keep asking until they are explicit.
 
 MULTI-CATEGORY SECTIONING (never break):

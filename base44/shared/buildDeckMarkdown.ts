@@ -46,9 +46,63 @@ export function buildDeckMarkdown(report, imageMap = {}) {
       continue;
     }
 
+    // Overview / synthesis table slide.
+    if (slide.slide_type === 'table') {
+      let t = `## ${slide.title || 'Overview'}\n`;
+      if (slide.preheader) t += `### ${slide.preheader}\n\n`;
+      const cols = slide.columns || [];
+      if (cols.length > 0) {
+        t += `| ${cols.join(' | ')} |\n| ${cols.map(() => '---').join(' | ')} |\n`;
+        for (const row of slide.rows || []) t += `| ${(row || []).join(' | ')} |\n`;
+        t += `\n`;
+      }
+      if (slide.so_what) t += `**So what?** ${slide.so_what}\n\n`;
+      if (slide.evidence_footer) t += `*Sources: ${slide.evidence_footer}*\n`;
+      parts.push(t.trim());
+      continue;
+    }
+
+    // Strategic imperatives — three numbered columns.
+    if (slide.slide_type === 'imperatives') {
+      let p = `## ${slide.title || 'Strategic imperatives'}\n`;
+      if (slide.preheader) p += `### ${slide.preheader}\n\n`;
+      (slide.items || []).forEach((item, i) => {
+        p += `**${String(i + 1).padStart(2, '0')} ${item.title || ''}**\n\n${item.text || ''}\n\n`;
+      });
+      if (slide.evidence_footer) p += `*Sources: ${slide.evidence_footer}*\n`;
+      parts.push(p.trim());
+      continue;
+    }
+
+    // Strategic implications — two boxed lists, no product evidence.
+    if (slide.slide_type === 'implications') {
+      let im = `## ${slide.title || 'Strategic implications'}\n`;
+      if (slide.preheader) im += `### ${slide.preheader}\n\n`;
+      if ((slide.strategic_implications || []).length > 0) {
+        im += `**So what for manufacturers?**\n\n`;
+        for (const line of slide.strategic_implications) im += `- ${line}\n`;
+        im += `\n`;
+      }
+      if ((slide.palsgaard_support || []).length > 0) {
+        im += `**Where Palsgaard supports**\n\n`;
+        for (const line of slide.palsgaard_support) im += `- ${line}\n`;
+        im += `\n`;
+      }
+      if (slide.evidence_footer) im += `*Sources: ${slide.evidence_footer}*\n`;
+      parts.push(im.trim());
+      continue;
+    }
+
     let s = `## ${slide.title || slide.slide_name || 'Slide'}\n`;
-    if (slide.subtitle) s += `### ${slide.subtitle}\n\n`;
+    if (slide.preheader) s += `### ${slide.preheader}\n\n`;
+    else if (slide.subtitle) s += `### ${slide.subtitle}\n\n`;
     if (slide.market_signal) s += `${slide.market_signal}\n\n`;
+
+    if ((slide.bullets || []).length > 0) {
+      s += `**${slide.bullets_header || "What's happening"}**\n\n`;
+      for (const b of slide.bullets) s += `- ${b}\n`;
+      s += `\n`;
+    }
     if (slide.hypothesis_tieback) s += `*${slide.hypothesis_tieback}*\n\n`;
 
     if ((slide.agenda_items || []).length > 0) {
