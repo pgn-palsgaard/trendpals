@@ -268,6 +268,7 @@ Deno.serve(async (req) => {
         const msg = 'Could not extract text from PPTX — file may be empty or image-only slides';
         await base44.entities.Source.update(source_id, {
           status: 'failed',
+          pipeline_stage: 'failed',
           status_message: msg,
           processing_error: msg,
           rag_processed: false
