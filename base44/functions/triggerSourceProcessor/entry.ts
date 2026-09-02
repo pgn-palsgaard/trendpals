@@ -75,15 +75,11 @@ Deno.serve(async (req) => {
       content: `Process source_id=${source.id} (title: "${source.title || 'untitled'}"). This is an automated run with processing_run_id=${run.id}. Follow the full processing workflow: skip-rules → read → summarize → extract excerpts → match GlobalTrends with confidence scoring → propose new trends if needed → finalize source. Write a confidence_reasoning for each trend link and log all actions back to the ProcessingRun.`,
     });
 
-    // Wait for agent completion (poll or just let it run async and update run on completion)
-    // Since agent runs async, mark as completed after a short settle
-    // The agent itself will update GlobalTrend.sources[] - we finalize the run record
-    const duration = Math.round((Date.now() - startTime) / 1000);
-
+    // The agent processes asynchronously. It owns completion: step 6 of its
+    // instructions writes status 'completed' with the real counts when it finishes.
+    // This function only confirms the run is in flight.
     await base44.asServiceRole.entities.ProcessingRun.update(run.id, {
-      status: 'completed',
-      completed_at: new Date().toISOString(),
-      duration_seconds: duration,
+      status: 'running',
     });
 
     return Response.json({
