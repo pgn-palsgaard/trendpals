@@ -206,6 +206,7 @@ Deno.serve(async (req) => {
     if (!source.file_url) {
       await base44.entities.Source.update(source_id, {
         status: 'failed',
+        pipeline_stage: 'failed',
         status_message: 'No file URL'
       });
       return Response.json({ error: 'Source has no file_url' }, { status: 400 });
@@ -219,6 +220,7 @@ Deno.serve(async (req) => {
       const msg = `Unsupported file type — only PDF, PPTX, and images are supported`;
       await base44.entities.Source.update(source_id, {
         status: 'failed',
+        pipeline_stage: 'failed',
         status_message: msg,
         processing_error: msg,
         rag_processed: false
@@ -227,7 +229,7 @@ Deno.serve(async (req) => {
     }
 
     // Mark as processing
-    await base44.entities.Source.update(source_id, { status: 'processing', status_message: null });
+    await base44.entities.Source.update(source_id, { status: 'processing', pipeline_stage: 'extracting', status_message: null });
 
     const claudeApiKey = Deno.env.get('ANTHROPIC_API_KEY');
     if (!claudeApiKey) {
@@ -311,6 +313,7 @@ Deno.serve(async (req) => {
       const msg = `Claude API error ${claudeResponse.status}: ${errText.substring(0, 300)}`;
       await base44.entities.Source.update(source_id, {
         status: 'failed',
+        pipeline_stage: 'failed',
         status_message: msg,
         processing_error: msg,
         rag_processed: false
@@ -331,6 +334,7 @@ Deno.serve(async (req) => {
       const msg = `JSON parse error: ${rawText.substring(0, 200)}`;
       await base44.entities.Source.update(source_id, {
         status: 'failed',
+        pipeline_stage: 'failed',
         status_message: msg,
         processing_error: msg,
         rag_processed: false
@@ -362,6 +366,7 @@ Deno.serve(async (req) => {
         mintel_chunks: chunks,
         mintel_chunking_status: 'ready',
         status: 'ready',
+        pipeline_stage: 'extracted',
         status_message: `RAG complete: ${excerptCount} insight${excerptCount !== 1 ? 's' : ''} + ${chunks.length} chapter chunk${chunks.length !== 1 ? 's' : ''} extracted`,
         processing_error: null,
         rag_processed: true,
@@ -379,6 +384,7 @@ Deno.serve(async (req) => {
       updatePayload = {
         excerpts: insights,
         status: 'ready',
+        pipeline_stage: 'extracted',
         status_message: `RAG complete: ${excerptCount} insight${excerptCount !== 1 ? 's' : ''} extracted`,
         processing_error: null,
         rag_processed: true,
@@ -402,6 +408,7 @@ Deno.serve(async (req) => {
       try {
         await base44.entities.Source.update(source_id, {
           status: 'failed',
+          pipeline_stage: 'failed',
           status_message: 'RAG processing failed: ' + error.message,
           processing_error: error.message,
           rag_processed: false
