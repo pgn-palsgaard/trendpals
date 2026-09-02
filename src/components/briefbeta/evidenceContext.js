@@ -63,10 +63,31 @@ function buildSelectionBlock(trends) {
   return lines.join('\n');
 }
 
-export function buildEvidenceContext(evidence) {
+// The scope the evidence was retrieved for, stated up front — so the architect
+// never reasons about a category, format or region that was not part of the
+// retrieval, and knows per industry which format buckets the data can offer.
+function buildScopeBlock(evidence, scope, trends) {
+  if (!scope?.categories) return '';
+  const cats = Array.isArray(scope.categories) ? scope.categories : [scope.categories];
+  const perCat = evidence?.gate?.format_resolution?.per_category || [];
+  const lines = ['### EVIDENCE SCOPE (what the block below was retrieved for — nothing else has been looked up)'];
+  lines.push(`Region: ${scope.region || 'unspecified'}. Formats requested: ${Array.isArray(scope.sub_categories) && scope.sub_categories.length ? scope.sub_categories.join(' | ') : 'all formats'}.`);
+  for (const c of cats) {
+    const n = trends.filter(t => t.category === c).length;
+    const pc = perCat.find(p => p.category === c);
+    const applied = pc?.applied_terms?.length ? `formats applied: ${pc.applied_terms.join(' | ')}` : 'no format restriction applied';
+    const avail = pc?.available_formats?.length ? ` Format buckets this industry's data can distinguish here: ${pc.available_formats.join(' | ')}.` : '';
+    lines.push(`- ${c}: ${n} verified trend${n === 1 ? '' : 's'} in scope (${applied}).${avail}`);
+  }
+  lines.push('A category, format or region NOT listed here has not been retrieved — never state that it has no evidence. If the user changes the scope, emit the updated contract and say the evidence is being refreshed.');
+  return lines.join('\n');
+}
+
+export function buildEvidenceContext(evidence, scope) {
   const { trends, webSignals } = collectCitations(evidence);
   if (trends.length === 0) return null;
 
+  const scopeBlock = buildScopeBlock(evidence, scope, trends);
   const selectionBlock = buildSelectionBlock(trends);
   const regionBlock = buildRegionLabelBlock(evidence);
   const webBlock = buildWebSignalBlock(webSignals);
@@ -127,7 +148,7 @@ export function buildEvidenceContext(evidence) {
     'Do NOT write a cross-region, read-across or provenance sentence anywhere in the slide text: the system stamps that label itself. Set the flag and write the observation.',
   ].join('\n') : '';
 
-  return [selectionBlock, regionBlock, trendBlocks, readAcrossRules, webBlock].filter(Boolean).join('\n\n');
+  return [scopeBlock, selectionBlock, regionBlock, trendBlocks, readAcrossRules, webBlock].filter(Boolean).join('\n\n');
 }
 
 // Deck entries are written as "<RECORD_ID> | Product — Brand (Country): why".

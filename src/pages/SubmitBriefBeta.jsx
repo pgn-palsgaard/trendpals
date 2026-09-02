@@ -87,6 +87,11 @@ export default function SubmitBriefBeta() {
   const [validationStatus, setValidationStatus] = useState(null);
   const [buildValidation, setBuildValidation] = useState(null);
   const sessionStart = useRef(new Date().toISOString());
+  // Which contract scope the evidence in state was retrieved for. Evidence follows
+  // the contract, not the other way round: if these drift apart, retrieval re-runs
+  // before the architect is asked anything.
+  const evidenceKey = useRef(null);
+  const evidenceScope = useRef(null);
   const { user } = useAuth();
 
   // Resuming a session from the Architect history: ?session=<id>
@@ -134,10 +139,19 @@ export default function SubmitBriefBeta() {
   // read_across and excluded_countries live in the contract and must REACH retrieval:
   // read-across cannot fire without the first, and cannot honour exclusions without
   // the second (which also revives the regional exclusion list — it never arrived).
+  // The binding fields of a contract, as one comparable key. Evidence is always
+  // retrieved for exactly this key — whatever order the user filled the fields
+  // in, and however often they change their mind before the deck is built.
+  function bindingKey(c) {
+    return JSON.stringify([c?.categories, c?.region, c?.sub_categories || [], c?.read_across || 'strict_region', c?.excluded_countries || []]);
+  }
+
   async function loadEvidenceFor(categories, regionText, subCategories, readAcross, excludedCountries) {
     const valid = (Array.isArray(categories) ? categories : [categories])
       .filter(c => CANONICAL_CATEGORIES.includes(c));
     if (valid.length === 0) return null;
+    evidenceKey.current = bindingKey({ categories, region: regionText, sub_categories: subCategories, read_across: readAcross, excluded_countries: excludedCountries });
+    evidenceScope.current = { categories: valid, region: regionText, sub_categories: Array.isArray(subCategories) ? subCategories : [] };
 
     const scope = resolveRegionScope(regionText);
     if (!scope.ok) {
@@ -200,7 +214,7 @@ export default function SubmitBriefBeta() {
       // before the prompt is sent, and a failed retrieval stops the turn loudly.
       let ev = evidence;
       let gateBlocked = false;
-      if (!ev && contract.categories && contract.region) {
+      if (contract.categories && contract.region && (!ev || evidenceKey.current !== bindingKey(contract))) {
         ev = await loadEvidenceFor(contract.categories, contract.region, contract.sub_categories, contract.read_across, contract.excluded_countries);
         gateBlocked = !ev;
       }
@@ -215,20 +229,25 @@ export default function SubmitBriefBeta() {
         : '';
 
       const reply = await base44.integrations.Core.InvokeLLM({
-        prompt: buildArchitectPrompt(transcript + gateNote, buildEvidenceContext(ev)),
+        prompt: buildArchitectPrompt(transcript + gateNote, buildEvidenceContext(ev, evidenceScope.current)),
         model: 'claude_sonnet_4_6',
       });
       const rawText = typeof reply === 'string' ? reply : (reply?.content || '');
 
       // Parse contract block
       let merged = contract;
+      let scopeNote = '';
       const contractMatch = rawText.match(/<contract>\s*([\s\S]*?)\s*<\/contract>/);
       if (contractMatch) {
         try {
           const parsed = JSON.parse(contractMatch[1].trim());
           const next = { ...contract };
           for (const [k, v] of Object.entries(parsed)) {
-            if (v !== null && v !== 'null' && String(v).trim()) next[k] = v;
+            // Arrays are taken as emitted, EMPTY included — an empty list is the user
+            // dropping a format or a category, and must be allowed to land. Only
+            // scalar nulls mean "unknown, keep what we had".
+            if (Array.isArray(v)) next[k] = v;
+            else if (v !== null && v !== 'null' && String(v).trim()) next[k] = v;
           }
           merged = next;
           setContract(next);
@@ -241,7 +260,15 @@ export default function SubmitBriefBeta() {
             next.read_across !== contract.read_across ||
             next.region !== contract.region;
           if (next.categories && next.region && bindingChanged) {
-            loadEvidenceFor(next.categories, next.region, next.sub_categories, next.read_across, next.excluded_countries);
+            // Awaited, so the user is told what the NEW scope actually yields in the
+            // same turn — per industry — instead of the architect reasoning from the
+            // evidence of the scope they just left.
+            const fresh = await loadEvidenceFor(next.categories, next.region, next.sub_categories, next.read_across, next.excluded_countries);
+            const cats = (Array.isArray(next.categories) ? next.categories : [next.categories]).filter(c => CANONICAL_CATEGORIES.includes(c));
+            const perCat = cats.map(c => `${c}: ${(fresh?.trends || []).filter(t => t.category === c).length} verified trends`);
+            scopeNote = fresh
+              ? `Scope updated — evidence refreshed for ${next.region}${Array.isArray(next.sub_categories) && next.sub_categories.length ? ` (formats: ${next.sub_categories.join(', ')})` : ''}: ${perCat.join('; ')}. Nothing is locked until you ask me to build.`
+              : `Scope updated, but the evidence gates returned nothing usable for ${next.region} with these categories and formats — adjust the scope and I will look again.`;
           }
           // A binding field changed after a deck was built: the built slides were
           // grounded in the previous evidence, so the deck is stale and must be
@@ -276,6 +303,9 @@ export default function SubmitBriefBeta() {
         .replace(/<slides>[\s\S]*?<\/slides>/, '')
         .trim();
       setMessages(prev => [...prev, { role: 'assistant', content: visible || 'Deck built — review the slides on the right.', timestamp: new Date().toISOString() }]);
+      if (scopeNote) {
+        setMessages(prev => [...prev, { role: 'assistant', content: scopeNote, timestamp: new Date().toISOString() }]);
+      }
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Something went wrong reaching the architect. Please try again.' }]);
     }

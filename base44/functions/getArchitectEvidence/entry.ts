@@ -338,6 +338,10 @@ export default async function (req) {
         category,
         applied_terms: localTerms,
         unrestricted: localTerms.length === 0 && subs.length > 0,
+        // The format buckets this industry's data can actually distinguish in the
+        // brief region — shown to the architect so it can offer real choices for
+        // ANY industry rather than a hard-coded list.
+        available_formats: poolSubs.sort().slice(0, 40),
       });
       const inCategory = makeCategoryFilter(localTerms);
 
