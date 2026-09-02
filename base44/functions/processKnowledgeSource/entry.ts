@@ -57,6 +57,21 @@ function validateCategoryRelevance(arr, source_id, svc, functionName) {
   return validated;
 }
 
+// Same thresholds as processSourceQueue: quality is the hard bar, relevance the soft bar.
+function classifyExcerpt(e) {
+  const valid = (n) => typeof n === 'number' && Number.isFinite(n) && n >= 0 && n <= 100;
+  if (!valid(e.relevance_score) || !valid(e.quality_score)) {
+    return { promotion_status: 'pending_review', promotion_reason: 'score missing or out of range' };
+  }
+  if (e.quality_score < 65) {
+    return { promotion_status: 'demoted', promotion_reason: `quality below threshold (${e.quality_score} < 65)` };
+  }
+  if (e.relevance_score < 35) {
+    return { promotion_status: 'demoted', promotion_reason: `relevance below threshold (${e.relevance_score} < 35)` };
+  }
+  return { promotion_status: 'promoted', promotion_reason: 'promoted' };
+}
+
 const BASE_SYSTEM_PROMPT = `You are a food industry expert working for Palsgaard, a producer of plant-based emulsifiers and stabilisers founded in 1917.
 
 Your job is to extract structured insights from documents. These insights will power trend reports that open conversations with food manufacturers — they are NOT sales pitches.
@@ -82,8 +97,13 @@ For each meaningful insight in the document, return a JSON object with this exac
   "confidence": "high | medium | low",
   "source_quote": "A short grounding quote or data point from the source that supports this insight. Max 1-2 sentences. No product names.",
   "trend_keywords": ["clean label", "resource scarcity", "sustainability"],
-  "page_ref": "page 3 or slide 7"
+  "page_ref": "page 3 or slide 7",
+  "relevance_score": 72,
+  "quality_score": 80
 }
+
+relevance_score: Integer 0-100 — commercial market-signal value (category movement, consumer driver, regional expression, competitive activity). Ingredient presence alone should not affect this score.
+quality_score: Integer 0-100 — specificity/evidence strength of the excerpt (0 = boilerplate/vague, 100 = a concrete claim with a figure, named brand/launch/region, quoted statistic, or specific dated event). Both scores are required on every insight.
 
 Set has_direct_role to false when the insight represents valuable expert industry framing but does not require a Palsgaard product to address. This is intentional and valuable.
 
@@ -358,6 +378,7 @@ Deno.serve(async (req) => {
       insights = (parsed.insights || []).map(e => ({
         ...e,
         category_relevance: validateCategoryRelevance(e.category_relevance, source_id, base44.asServiceRole, 'processKnowledgeSource'),
+        ...classifyExcerpt(e),
       }));
       console.log('PARSED INSIGHTS SAMPLE (mintel):', JSON.stringify(insights[0]));
       const chunks = parsed.chunks || [];
@@ -379,6 +400,7 @@ Deno.serve(async (req) => {
       insights = rawInsights.map(e => ({
         ...e,
         category_relevance: validateCategoryRelevance(e.category_relevance, source_id, base44.asServiceRole, 'processKnowledgeSource'),
+        ...classifyExcerpt(e),
       }));
       console.log('PARSED INSIGHTS SAMPLE:', JSON.stringify(insights[0]));
       const excerptCount = insights.length;
