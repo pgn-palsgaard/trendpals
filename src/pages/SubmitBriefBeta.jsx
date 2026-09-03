@@ -208,9 +208,11 @@ export default function SubmitBriefBeta() {
     const cats = (next.categories || []).filter(c => CANONICAL_CATEGORIES.includes(c));
     const formats = Array.isArray(next.sub_categories) && next.sub_categories.length ? ` — formats: ${next.sub_categories.join(', ')}` : '';
     let note = `Scope updated: ${cats.length ? cats.join(', ') : 'no industry'}${formats}.`;
+    let freshEvidence = undefined;
     if (cats.length && next.region) {
       setLoading(true);
       const fresh = await loadEvidenceFor(next.categories, next.region, next.sub_categories, next.read_across, next.excluded_countries);
+      freshEvidence = fresh;
       setLoading(false);
       const perCat = cats.map(c => `${c}: ${(fresh?.trends || []).filter(t => t.category === c).length} verified trends`);
       note += fresh ? ` Evidence refreshed for ${next.region}: ${perCat.join('; ')}.` : ` The evidence gates returned nothing usable for ${next.region} with this scope — adjust it and I will look again.`;
@@ -218,7 +220,16 @@ export default function SubmitBriefBeta() {
       note += ' Tell me the region and I will retrieve the evidence and list the formats each industry can distinguish there.';
     }
     if (slides) note += ' The deck built on the previous scope has been discarded — ask me to build again.';
-    setMessages(prev => [...prev, { role: 'assistant', content: note, timestamp: new Date().toISOString() }]);
+    const noteMsg = { role: 'assistant', content: note, timestamp: new Date().toISOString() };
+    setMessages(prev => [...prev, noteMsg]);
+    // A panel click is a scope decision, not a chat message — so the architect
+    // takes its next step immediately instead of waiting for the user to type.
+    if (cats.length) {
+      await runArchitectTurn([...messages, noteMsg], next, {
+        evidence: freshEvidence,
+        note: '\n\nSYSTEM NOTE: the user just changed industries or formats in the scope panel (there is no new chat message). Continue from the CURRENT CONTRACT STATE with the next open step — acknowledge the change in one sentence, never re-ask what the contract already holds, and do not emit a <slides> block unless the user had already asked to build.',
+      });
+    }
   }
 
   async function sendMessage() {
@@ -227,24 +238,32 @@ export default function SubmitBriefBeta() {
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInputText('');
-    setLoading(true);
+    await runArchitectTurn(newMessages, contract);
+  }
 
+  // One architect turn: resolve the gates for the active contract, prompt, then
+  // apply the returned contract / deck. Shared by typed messages and panel clicks.
+  async function runArchitectTurn(newMessages, activeContract, opts = {}) {
+    setLoading(true);
     try {
       // The contract is stated explicitly: the user may have changed industries or
       // formats by clicking in the scope panel, which leaves no trace in the chat.
       const transcript = jtbdFraming(jtbd, jtbdLabelFor(jtbd)) + newMessages
         .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
         .join('\n\n')
-        + `\n\nCURRENT CONTRACT STATE (authoritative — set by the user in chat or in the scope panel; start from it, never revert it): ${JSON.stringify(contract)}`;
+        + `\n\nCURRENT CONTRACT STATE (authoritative — set by the user in chat or in the scope panel; start from it, never revert it): ${JSON.stringify(activeContract)}`
+        + (opts.note || '');
 
       // The architect may NEVER build from an empty evidence block — without it it
       // invents trend names and emits slides with no GNPD examples. If the contract
       // already names categories + region, the gates are resolved (and awaited) here
       // before the prompt is sent, and a failed retrieval stops the turn loudly.
-      let ev = evidence;
+      let ev = opts.evidence !== undefined ? opts.evidence : evidence;
       let gateBlocked = false;
-      if (contract.categories && contract.region && (!ev || evidenceKey.current !== bindingKey(contract))) {
-        ev = await loadEvidenceFor(contract.categories, contract.region, contract.sub_categories, contract.read_across, contract.excluded_countries);
+      if (opts.evidence !== undefined) {
+        gateBlocked = !ev;
+      } else if (activeContract.categories && activeContract.region && (!ev || evidenceKey.current !== bindingKey(activeContract))) {
+        ev = await loadEvidenceFor(activeContract.categories, activeContract.region, activeContract.sub_categories, activeContract.read_across, activeContract.excluded_countries);
         gateBlocked = !ev;
       }
 
@@ -254,7 +273,7 @@ export default function SubmitBriefBeta() {
       // now runs with an explicit instruction to repair the scope instead — and no
       // deck can be emitted while the gate is blocked (enforced below).
       const gateNote = gateBlocked
-        ? `\n\nSYSTEM NOTE: the evidence gates returned NOTHING usable for the current brief scope (categories: ${JSON.stringify(contract.categories)}, region: ${JSON.stringify(contract.region)}, formats: ${JSON.stringify(contract.sub_categories || [])}). You must NOT emit a <slides> block this turn. Instead: acknowledge it in one sentence, state which part of the scope is most likely the cause, and propose 2-3 concrete adjustments (a wider region, global scope, fewer or different formats, or a different category). If the user's latest message already states an adjustment, emit an updated <contract> block reflecting it so the gates can be re-run.`
+        ? `\n\nSYSTEM NOTE: the evidence gates returned NOTHING usable for the current brief scope (categories: ${JSON.stringify(activeContract.categories)}, region: ${JSON.stringify(activeContract.region)}, formats: ${JSON.stringify(activeContract.sub_categories || [])}). You must NOT emit a <slides> block this turn. Instead: acknowledge it in one sentence, state which part of the scope is most likely the cause, and propose 2-3 concrete adjustments (a wider region, global scope, fewer or different formats, or a different category). If the user's latest message already states an adjustment, emit an updated <contract> block reflecting it so the gates can be re-run.`
         : '';
 
       const reply = await base44.integrations.Core.InvokeLLM({
@@ -264,13 +283,13 @@ export default function SubmitBriefBeta() {
       const rawText = typeof reply === 'string' ? reply : (reply?.content || '');
 
       // Parse contract block
-      let merged = contract;
+      let merged = activeContract;
       let scopeNote = '';
       const contractMatch = rawText.match(/<contract>\s*([\s\S]*?)\s*<\/contract>/);
       if (contractMatch) {
         try {
           const parsed = JSON.parse(contractMatch[1].trim());
-          const next = { ...contract };
+          const next = { ...activeContract };
           for (const [k, v] of Object.entries(parsed)) {
             // Arrays are taken as emitted, EMPTY included — an empty list is the user
             // dropping a format or a category, and must be allowed to land. Only
@@ -283,11 +302,11 @@ export default function SubmitBriefBeta() {
           // Re-run the gates whenever the binding constraints change — categories,
           // formats or region text. Evidence is never retrieved without them.
           const bindingChanged =
-            JSON.stringify(next.categories) !== JSON.stringify(contract.categories) ||
-            JSON.stringify(next.sub_categories) !== JSON.stringify(contract.sub_categories) ||
-            JSON.stringify(next.excluded_countries) !== JSON.stringify(contract.excluded_countries) ||
-            next.read_across !== contract.read_across ||
-            next.region !== contract.region;
+            JSON.stringify(next.categories) !== JSON.stringify(activeContract.categories) ||
+            JSON.stringify(next.sub_categories) !== JSON.stringify(activeContract.sub_categories) ||
+            JSON.stringify(next.excluded_countries) !== JSON.stringify(activeContract.excluded_countries) ||
+            next.read_across !== activeContract.read_across ||
+            next.region !== activeContract.region;
           if (next.categories && next.region && bindingChanged) {
             // Awaited, so the user is told what the NEW scope actually yields in the
             // same turn — per industry — instead of the architect reasoning from the

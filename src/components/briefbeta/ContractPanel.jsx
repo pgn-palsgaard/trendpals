@@ -3,8 +3,14 @@ import { CheckCircle2, Circle } from 'lucide-react';
 import { CONTRACT_FIELDS } from '@/components/briefbeta/architectPrompt';
 
 export default function ContractPanel({ contract, trendCount }) {
-  const isFilled = v => Array.isArray(v) ? v.length > 0 : !!v;
-  const filled = CONTRACT_FIELDS.filter(f => isFilled(contract[f.key])).length;
+  // An empty formats array with industries chosen means "all formats" — a filled
+  // field, not a missing one (the architect stores [] for "everything").
+  const hasCategories = Array.isArray(contract.categories) && contract.categories.length > 0;
+  const displayValue = (key, raw) => {
+    if (key === 'sub_categories' && Array.isArray(raw) && raw.length === 0 && hasCategories) return 'All formats';
+    return Array.isArray(raw) ? (raw.length ? raw.join(', ') : null) : raw;
+  };
+  const filled = CONTRACT_FIELDS.filter(f => !!displayValue(f.key, contract[f.key])).length;
 
   return (
     <div className="pal-card p-5">
@@ -17,8 +23,7 @@ export default function ContractPanel({ contract, trendCount }) {
       </p>
       <div className="space-y-2.5">
         {CONTRACT_FIELDS.map(f => {
-          const raw = contract[f.key];
-          const value = Array.isArray(raw) ? (raw.length ? raw.join(', ') : null) : raw;
+          const value = displayValue(f.key, contract[f.key]);
           return (
             <div key={f.key} className="flex items-start gap-2 text-sm">
               {value
