@@ -288,21 +288,44 @@ export default function SubmitBriefBeta() {
       }
 
       // Parse slides block — validated (and rewritten if needed) BEFORE it is shown.
+      // Any failure here must be told to the user — the architect's own text claims
+      // the deck exists, so swallowing the error left the chat asserting a deck that
+      // was never built.
       const slidesMatch = gateBlocked ? null : rawText.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
+      const slidesOpened = !gateBlocked && /<slides>/.test(rawText);
+      let deckFailure = null;
       if (slidesMatch) {
         try {
-          const parsedSlides = JSON.parse(slidesMatch[1].trim());
+          // Tolerate a fenced ```json block inside the tags.
+          const body = slidesMatch[1].trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+          const parsedSlides = JSON.parse(body);
           if (Array.isArray(parsedSlides) && parsedSlides.length > 0) {
             await validateAndSetDeck(parsedSlides, merged, ev, transcript);
+          } else {
+            deckFailure = 'the slides block was empty';
           }
-        } catch { /* malformed slides — user can ask to rebuild */ }
+        } catch (e) {
+          console.error('Architect deck could not be built:', e);
+          setValidationStatus(null);
+          deckFailure = `the slides could not be read or validated (${e.message})`;
+        }
+      } else if (slidesOpened) {
+        deckFailure = 'the reply was cut off before the deck was complete — the deck is too long for one reply';
       }
 
       const visible = rawText
         .replace(/<contract>[\s\S]*?<\/contract>/, '')
         .replace(/<slides>[\s\S]*?<\/slides>/, '')
+        .replace(/<slides>[\s\S]*$/, '')
         .trim();
       setMessages(prev => [...prev, { role: 'assistant', content: visible || 'Deck built — review the slides on the right.', timestamp: new Date().toISOString() }]);
+      if (deckFailure) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `No deck was built — ${deckFailure}. Ask me to build again; if it fails a second time, lower the slide count (fewer trends) so the deck fits in one reply.`,
+          timestamp: new Date().toISOString(),
+        }]);
+      }
       if (scopeNote) {
         setMessages(prev => [...prev, { role: 'assistant', content: scopeNote, timestamp: new Date().toISOString() }]);
       }
