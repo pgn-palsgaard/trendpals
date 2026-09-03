@@ -6,7 +6,7 @@ const CATEGORY_LABELS = {
   dairy: 'Dairy', ice_cream: 'Ice cream', meat: 'Meat', oils_fats: 'Oils & fats',
   plant_based: 'Plant-based', rutf_rusf: 'RUTF / RUSF',
 };
-const MAX_CATEGORIES = 3;
+const MAX_CATEGORIES = 2;
 
 function Chip({ active, onClick, children, disabled }) {
   return (
@@ -52,11 +52,16 @@ export default function ScopePicker({ contract, formatsByCategory, disabled, onC
     <div className="pal-card p-5 space-y-4">
       <div>
         <p className="text-sm font-semibold text-foreground">Scope</p>
-        <p className="text-xs text-muted-foreground">Step 1 — industries (max {MAX_CATEGORIES}). Step 2 — formats per industry. Change anything, any time.</p>
+        <p className="text-xs text-muted-foreground">Step 1 — industries (max {MAX_CATEGORIES} — one is preferable, a second makes the deck heavier). Step 2 — formats per industry. Change anything, any time.</p>
       </div>
 
       <div>
-        <p className="section-label mb-2">1 · Industry</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="section-label">1 · Industry</p>
+          {categories.length >= MAX_CATEGORIES && (
+            <span className="text-[11px] text-muted-foreground">Max reached — one industry keeps the deck lighter</span>
+          )}
+        </div>
         <div className="flex flex-wrap gap-1.5">
           {CANONICAL_CATEGORIES.map(c => (
             <Chip
