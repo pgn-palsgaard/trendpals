@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { FlaskConical, CheckCircle2 } from 'lucide-react';
 import ArchitectChat from '@/components/briefbeta/ArchitectChat';
 import ContractPanel from '@/components/briefbeta/ContractPanel';
+import ScopePicker from '@/components/briefbeta/ScopePicker';
 import SimilarReportsPanel from '@/components/reports/SimilarReportsPanel';
 import ScopeIntro from '@/components/submitbrief/ScopeIntro';
 import { jtbdLabelFor } from '@/components/submitbrief/JtbdPicker';
@@ -195,6 +196,31 @@ export default function SubmitBriefBeta() {
     setMessages([{ role: 'assistant', content: ARCHITECT_OPENERS[id], timestamp: new Date().toISOString() }]);
   }
 
+  // Scope changed by clicking in the scope panel (industries / formats). The
+  // contract is the single source of truth, so this takes the same path as a
+  // change spoken in chat: refresh evidence, discard a deck built on the old scope.
+  async function applyScopeChange(patch) {
+    const next = { ...contract, ...patch };
+    setContract(next);
+    if (slides) {
+      setSlides(null); setFrozenEvidence(null); setBindings(null); setTrendStatus(null); setBuildValidation(null);
+    }
+    const cats = (next.categories || []).filter(c => CANONICAL_CATEGORIES.includes(c));
+    const formats = Array.isArray(next.sub_categories) && next.sub_categories.length ? ` — formats: ${next.sub_categories.join(', ')}` : '';
+    let note = `Scope updated: ${cats.length ? cats.join(', ') : 'no industry'}${formats}.`;
+    if (cats.length && next.region) {
+      setLoading(true);
+      const fresh = await loadEvidenceFor(next.categories, next.region, next.sub_categories, next.read_across, next.excluded_countries);
+      setLoading(false);
+      const perCat = cats.map(c => `${c}: ${(fresh?.trends || []).filter(t => t.category === c).length} verified trends`);
+      note += fresh ? ` Evidence refreshed for ${next.region}: ${perCat.join('; ')}.` : ` The evidence gates returned nothing usable for ${next.region} with this scope — adjust it and I will look again.`;
+    } else if (cats.length) {
+      note += ' Tell me the region and I will retrieve the evidence and list the formats each industry can distinguish there.';
+    }
+    if (slides) note += ' The deck built on the previous scope has been discarded — ask me to build again.';
+    setMessages(prev => [...prev, { role: 'assistant', content: note, timestamp: new Date().toISOString() }]);
+  }
+
   async function sendMessage() {
     if (!inputText.trim() || loading) return;
     const userMsg = { role: 'user', content: inputText.trim(), timestamp: new Date().toISOString() };
@@ -204,9 +230,12 @@ export default function SubmitBriefBeta() {
     setLoading(true);
 
     try {
+      // The contract is stated explicitly: the user may have changed industries or
+      // formats by clicking in the scope panel, which leaves no trace in the chat.
       const transcript = jtbdFraming(jtbd, jtbdLabelFor(jtbd)) + newMessages
         .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
-        .join('\n\n');
+        .join('\n\n')
+        + `\n\nCURRENT CONTRACT STATE (authoritative — set by the user in chat or in the scope panel; start from it, never revert it): ${JSON.stringify(contract)}`;
 
       // The architect may NEVER build from an empty evidence block — without it it
       // invents trend names and emits slides with no GNPD examples. If the contract
@@ -791,6 +820,16 @@ ${items}`,
 
           {/* Contract + slides */}
           <div className={`space-y-4 ${slides ? 'lg:w-3/5' : 'lg:w-2/5'}`}>
+            <ScopePicker
+              contract={contract}
+              disabled={loading}
+              formatsByCategory={Object.fromEntries(
+                (evidence?.gate?.format_resolution?.per_category || [])
+                  .filter(p => p.available_formats?.length)
+                  .map(p => [p.category, p.available_formats])
+              )}
+              onChange={applyScopeChange}
+            />
             <ContractPanel contract={contract} trendCount={trends?.length || 0} />
             <GateNotice notice={gateNotice} />
             <SubregionNotice gate={evidence?.gate} />
