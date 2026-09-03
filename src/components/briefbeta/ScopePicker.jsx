@@ -52,7 +52,7 @@ export default function ScopePicker({ contract, formatsByCategory, disabled, onC
     <div className="pal-card p-5 space-y-4">
       <div>
         <p className="text-sm font-semibold text-foreground">Scope</p>
-        <p className="text-xs text-muted-foreground">Step 1 — industries (max {MAX_CATEGORIES} — one is preferable, a second makes the deck heavier). Step 2 — formats per industry. Change anything, any time.</p>
+        <p className="text-xs text-muted-foreground">Step 1 — industries (max {MAX_CATEGORIES}, ideally 1 — a single industry keeps the deck focused). Step 2 — formats per industry. Change anything, any time.</p>
       </div>
 
       <div>
