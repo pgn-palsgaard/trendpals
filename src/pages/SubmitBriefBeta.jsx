@@ -197,9 +197,11 @@ export default function SubmitBriefBeta() {
   }
 
   // Scope changed by clicking in the scope panel (industries / formats). The
-  // contract is the single source of truth, so this takes the same path as a
-  // change spoken in chat: refresh evidence, discard a deck built on the old scope.
-  async function applyScopeChange(patch) {
+  // contract is the single source of truth. This is deliberately cheap: it patches
+  // the contract and discards a deck built on the old scope, nothing else. Evidence
+  // is NOT retrieved here — runArchitectTurn re-runs the gates on the next message
+  // whenever the binding key has drifted, so a click never locks the picker.
+  function applyScopeChange(patch) {
     const next = { ...contract, ...patch };
     setContract(next);
     if (slides) {
@@ -207,29 +209,9 @@ export default function SubmitBriefBeta() {
     }
     const cats = (next.categories || []).filter(c => CANONICAL_CATEGORIES.includes(c));
     const formats = Array.isArray(next.sub_categories) && next.sub_categories.length ? ` — formats: ${next.sub_categories.join(', ')}` : '';
-    let note = `Scope updated: ${cats.length ? cats.join(', ') : 'no industry'}${formats}.`;
-    let freshEvidence = undefined;
-    if (cats.length && next.region) {
-      setLoading(true);
-      const fresh = await loadEvidenceFor(next.categories, next.region, next.sub_categories, next.read_across, next.excluded_countries);
-      freshEvidence = fresh;
-      setLoading(false);
-      const perCat = cats.map(c => `${c}: ${(fresh?.trends || []).filter(t => t.category === c).length} verified trends`);
-      note += fresh ? ` Evidence refreshed for ${next.region}: ${perCat.join('; ')}.` : ` The evidence gates returned nothing usable for ${next.region} with this scope — adjust it and I will look again.`;
-    } else if (cats.length) {
-      note += ' Tell me the region and I will retrieve the evidence and list the formats each industry can distinguish there.';
-    }
+    let note = `Scope updated: ${cats.length ? cats.join(', ') : 'no industry'}${formats}. Evidence refreshes on your next message or when you ask me to build.`;
     if (slides) note += ' The deck built on the previous scope has been discarded — ask me to build again.';
-    const noteMsg = { role: 'assistant', content: note, timestamp: new Date().toISOString() };
-    setMessages(prev => [...prev, noteMsg]);
-    // A panel click is a scope decision, not a chat message — so the architect
-    // takes its next step immediately instead of waiting for the user to type.
-    if (cats.length) {
-      await runArchitectTurn([...messages, noteMsg], next, {
-        evidence: freshEvidence,
-        note: '\n\nSYSTEM NOTE: the user just changed industries or formats in the scope panel (there is no new chat message). Continue from the CURRENT CONTRACT STATE with the next open step — acknowledge the change in one sentence, never re-ask what the contract already holds, and do not emit a <slides> block unless the user had already asked to build.',
-      });
-    }
+    setMessages(prev => [...prev, { role: 'assistant', content: note, timestamp: new Date().toISOString() }]);
   }
 
   async function sendMessage() {
