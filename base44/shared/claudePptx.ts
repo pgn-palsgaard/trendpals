@@ -53,17 +53,31 @@ async function fetchWithRetry(url: string, init: RequestInit, label: string) {
 
 // ---------- image upload ----------
 
+export type PackshotUpload = {
+  file_id: string; filename: string | null; product: string; record_id: string | null;
+  matched_by: string | null; brand: string | null; country: string | null; launch_date: string | null;
+};
+
+// Returns one record per resolved product. Records WITH an image carry a file_id
+// and filename; exact-record-id products without a usable image are returned
+// with an empty file_id so the renderer can still draw a text-only card from
+// authoritative data. Callers must filter on file_id for anything file-related.
 export async function uploadPackshotImages(
   base44,
   report,
   limit = MAX_PACK_SHOTS,
-): Promise<Array<{ file_id: string; filename: string; product: string; record_id: string | null }>> {
-  const resolved = (await resolveDeckProducts(base44, report, limit)).filter(r => r.image_url);
+): Promise<PackshotUpload[]> {
+  const all = await resolveDeckProducts(base44, report, limit);
+  const resolved = all.filter(r => r.image_url);
 
   // Parallel upload — bounded by the file-session limit.
   const CONCURRENCY = 5;
-  const results: Array<{ file_id: string; filename: string; product: string; record_id: string | null }> = [];
+  const results: PackshotUpload[] = [];
   const queue = resolved.slice(0, limit);
+  const enrich = r => ({
+    matched_by: r.matched_by ?? null, brand: r.brand ?? null,
+    country: r.country ?? null, launch_date: r.launch_date ?? null,
+  });
 
   async function processOne(r, index: number) {
     const name = r.label || r.name;
@@ -80,13 +94,20 @@ export async function uploadPackshotImages(
         `${API}/v1/files`, { method: 'POST', headers: anthropicHeaders(), body: form }, `upload ${fname}`
       );
       const meta = await up.json();
-      results.push({ file_id: meta.id, filename: fname, product: name, record_id: r.record_id ?? null });
+      results.push({ file_id: meta.id, filename: fname, product: name, record_id: r.record_id ?? null, ...enrich(r) });
     } catch { /* skip unresolvable images — never fail the deck over a missing pack shot */ }
   }
 
   // Run in batches of CONCURRENCY, preserving index for deterministic filenames.
   for (let i = 0; i < queue.length; i += CONCURRENCY) {
     await Promise.all(queue.slice(i, i + CONCURRENCY).map((r, j) => processOne(r, i + j)));
+  }
+  // Authoritative products that ended up without an uploaded image (no pack shot,
+  // >4MB, fetch failed) still feed a text-only card.
+  const uploadedIds = new Set(results.map(u => u.record_id).filter(Boolean));
+  for (const r of all) {
+    if (r.matched_by !== 'record_id' || !r.record_id || uploadedIds.has(r.record_id)) continue;
+    results.push({ file_id: '', filename: null, product: r.label || r.name, record_id: r.record_id, ...enrich(r) });
   }
   return results;
 }
@@ -95,12 +116,23 @@ export async function uploadPackshotImages(
 
 // Builds the JSON payload sent to build_deck.py as data.json.
 // No markdown conversion — the script reads the structured data directly.
-export function buildDataJson(report, uploads: Array<{ file_id: string; filename: string; record_id: string | null; product: string }>) {
+export function buildDataJson(report, uploads: PackshotUpload[]) {
   // Image map: record_id → filename, lowercased product name → filename.
   const images: Record<string, string> = {};
+  // Card data keyed by record_id — ONLY from exact-record-id matches. A missing
+  // entry tells the renderer to fall back to parsing the display string.
+  const products: Record<string, { name: string; brand_or_desc: string; country: string; launch_date: string }> = {};
   for (const u of uploads) {
-    if (u.record_id)  images[u.record_id]               = u.filename;
-    if (u.product)    images[u.product.toLowerCase()]   = u.filename;
+    if (u.filename) {
+      if (u.record_id)  images[u.record_id]               = u.filename;
+      if (u.product)    images[u.product.toLowerCase()]   = u.filename;
+    }
+    if (u.record_id && u.matched_by === 'record_id') {
+      products[u.record_id] = {
+        name: u.product || '', brand_or_desc: u.brand || '',
+        country: u.country || '', launch_date: u.launch_date || '',
+      };
+    }
   }
 
   return JSON.stringify({
@@ -117,6 +149,7 @@ export function buildDataJson(report, uploads: Array<{ file_id: string; filename
     // the renderer stamps signal annotations from THIS, never from slide prose.
     trend_status: report.trend_status || {},
     images,
+    products,
   });
 }
 
@@ -181,6 +214,10 @@ AI_NOTICE=('This content was generated with the assistance of AI and may contain
   'information before sharing externally or acting on it.')
 THUMB_LEFT_IN=9.15; THUMB_BOX_W_IN=3.29; THUMB_BOX_H_IN=1.55
 THUMB_TOPS_IN=[1.60,3.35,5.10]
+# Evidence cards in the right column: photo on top (when present), text below.
+CARD_IMG_H_IN=0.70; CARD_TEXT_GAP_IN=0.05; CARD_CAPTION_MAX=95; MAX_CARDS=3
+PRODUCTS={}
+MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
 def find_template(explicit=None):
   candidates=[]
@@ -238,10 +275,10 @@ def get_layout(prs,name):
     if layout.name==name: return layout
   raise ValueError(f"Layout '{name}' not found")
 
-def make_para(text,bold=False,size_pt=12,color=None,space_before_pt=0):
+def make_para(text,bold=False,size_pt=12,color=None,space_before_pt=0,italic=False):
   if color is None: color=DKBLUE
   col=f'{color[0]:02X}{color[1]:02X}{color[2]:02X}'
-  bold_attr='b="1"' if bold else 'b="0"'
+  bold_attr=('b="1"' if bold else 'b="0"')+(' i="1"' if italic else '')
   xml=(
     '<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
     '<a:pPr marL="0" indent="0" algn="l">'
@@ -367,16 +404,39 @@ def signal_annotation(slide):
   n=int(st.get('record_count') or 0)
   return 'Signal \\u2014 %d regional launch%s on record'%(n,'' if n==1 else 'es')
 
-def image_key_candidates(example):
-  text=str(example); keys=[]
-  match=re.search(r'\\b(\\d{6,9})\\b',text)
-  if match: keys.append(match.group(1))
-  name=re.split(r'\\s+[-\\u2013\\u2014(]|\\s+\\(',text)[0].strip()
-  if name: keys.append(name.lower())
-  keys.append(text.strip().lower()); return keys
+# Mirrors shared/productNames.ts: "<Record ID> | Product name \\u2014 Brand (Country): why".
+def parse_record_id(example):
+  text=str(example or '')
+  m=re.match(r'^\\s*(?:\\[[^\\]]*\\]\\s*)?(\\d{6,})\\s*\\|',text)
+  if m: return m.group(1)
+  m=re.search(r'\\b(\\d{7,})\\b',text)
+  return m.group(1) if m else None
 
-def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE,variant='trend'):
-  blocks=[]; used_images=[]; gap=max(6,size/2)
+def strip_id_prefix(example):
+  text=re.sub(r'^\\[Expert pick\\]\\s*','',str(example or ''),flags=re.I)
+  return re.sub(r'^\\s*(?:\\[[^\\]]*\\]\\s*)?\\d{6,}\\s*\\|\\s*','',text).strip()
+
+def parse_product_name(example):
+  return strip_id_prefix(example).split('|')[0].split('\\u2014')[0].split(' - ')[0].strip()
+
+def parse_brand_line(example):
+  tail=strip_id_prefix(example).split('|')[0]
+  m=re.search(r'\\u2014\\s*([^:]+)',tail)
+  return m.group(1).strip() if m else ''
+
+def parse_caption(example):
+  tail=strip_id_prefix(example)
+  cap=tail.rsplit(':',1)[1].strip() if ':' in tail else tail
+  return cap if len(cap)<=CARD_CAPTION_MAX else cap[:CARD_CAPTION_MAX-1].rstrip()+'\\u2026'
+
+def fmt_launch(date):
+  s=str(date or '').strip(); m=re.match(r'(\\d{4})-(\\d{2})',s)
+  if not m: return s
+  idx=int(m.group(2))-1
+  return f'{MONTHS[idx]} {m.group(1)}' if 0<=idx<12 else m.group(1)
+
+def build_blocks(slide,size,text_colour=DKBLUE,header_colour=BLUE,variant='trend'):
+  blocks=[]; cards=[]; gap=max(6,size/2)
   subtitle=(slide.get('subtitle') or '').strip()
   if subtitle:
     blocks.append(Block([{'text':subtitle,'bold':True,'size':size,'color':header_colour}]))
@@ -422,17 +482,13 @@ def build_blocks(slide,images,size,text_colour=DKBLUE,header_colour=BLUE,variant
   # shots. Every OTHER content slide (a trend slide arrives here as 'content')
   # carries its GNPD block and its pack shots \\u2014 gating on variant=='trend'
   # silently dropped the evidence from every trend slide in the deck.
-  evidence=[] if variant in ('opening','closing','about','methodology','agenda') else as_list(slide.get('gnpd_examples'))
-  if evidence:
-    paras=[{'text':'Market evidence (Mintel GNPD)','bold':True,'size':size,'color':header_colour,'space_before':gap}]
-    for example in evidence:
-      paras.append({'text':f'\\u2022  {example}','size':size,'color':text_colour})
-      for key in image_key_candidates(example):
-        if key in images and images[key] not in used_images:
-          used_images.append(images[key]); break
-    blocks.append(Block(paras,splittable=True))
+  evidence=[] if variant in ('opening','closing','about','methodology','agenda') else [e for e in as_list(slide.get('gnpd_examples')) if str(e).strip()]
+  # The first MAX_CARDS launches become right-column cards; anything beyond stays
+  # in the body as compact bullets so no retrieved evidence is silently dropped.
+  cards=evidence[:MAX_CARDS]
+  section('Additional launches',[strip_id_prefix(e) for e in evidence[MAX_CARDS:]],prefix='\\u2022  ')
   section('Conversation openers',as_list(slide.get('conversation_openers')),prefix='\\u2022  ')
-  return blocks,used_images[:3]
+  return blocks,cards
 
 def pack_blocks(blocks,width_in):
   cap=capacity_in(); pages,current,used=[],[],0.0
@@ -680,10 +736,10 @@ def render_content(prs,slide_data,preheader,layout_name,images,report,accent=Non
   dark=layout_name in DARK_LAYOUTS
   text_colour=LGOLD if dark else DKBLUE
   header_colour=SAGE_LIGHT if dark else (accent or BLUE)
-  width=BODY_WIDTH_IN; probe,thumbs=build_blocks(slide_data,images,12,text_colour,header_colour,variant)
-  if thumbs: width=BODY_WIDTH_WITH_IMAGES_IN
+  width=BODY_WIDTH_IN; probe,cards=build_blocks(slide_data,12,text_colour,header_colour,variant)
+  if cards: width=BODY_WIDTH_WITH_IMAGES_IN
   size=pick_body_size(probe,width)
-  blocks,thumbs=build_blocks(slide_data,images,size,text_colour,header_colour,variant)
+  blocks,cards=build_blocks(slide_data,size,text_colour,header_colour,variant)
   pages=pack_blocks(blocks,width)
   title=(slide_data.get('title') or slide_data.get('slide_name') or 'Slide').strip()
   if len(title)>BUDGET_CONTENT_TITLE: report['warnings'].append(f'Title {len(title)} chars.')
@@ -696,38 +752,69 @@ def render_content(prs,slide_data,preheader,layout_name,images,report,accent=Non
     shown=title if page_no==0 else f'{title} (cont.)'
     set_ph_simple(slide,0,shown,size=title_size(shown,BUDGET_CONTENT_TITLE,base_title_pt,16),color=text_colour)
     body_idx=BODY_IDX[layout_name]; set_ph_structured(slide,body_idx,paras)
-    if thumbs and page_no==0:
+    if cards and page_no==0:
       reposition_placeholder(slide,body_idx,0.89,1.53,BODY_WIDTH_WITH_IMAGES_IN,BODY_HEIGHT_IN)
-      place_thumbnails(slide,thumbs,report)
+      place_cards(slide,cards,images,text_colour,report)
     footer=(slide_data.get('evidence_footer') or '').strip()
     if footer and page_no==len(pages)-1:
       add_footnote(slide,f'Sources: {footer}',color=LGOLD if dark else GREY,
-        width_in=BODY_WIDTH_WITH_IMAGES_IN if thumbs else 11.50)
+        width_in=BODY_WIDTH_WITH_IMAGES_IN if cards else 11.50)
     drop_empty_placeholders(slide); made.append(slide)
   return made
 
-def place_thumbnails(slide,filenames,report):
-  for i,name in enumerate(filenames[:3]):
-    if not os.path.isfile(name): report['warnings'].append(f"Pack shot '{name}' not found."); continue
-    top=THUMB_TOPS_IN[i]
-    try:
-      pic=slide.shapes.add_picture(name,Inches(THUMB_LEFT_IN),Inches(top))
-      nw=pic.width/914400; nh=pic.height/914400
-      if nw<=0 or nh<=0: pic._element.getparent().remove(pic._element); continue
-      scale=min(THUMB_BOX_W_IN/nw,THUMB_BOX_H_IN/nh); w,h=nw*scale,nh*scale
-      pic.width=Inches(w); pic.height=Inches(h)
-      pic.left=Inches(THUMB_LEFT_IN+(THUMB_BOX_W_IN-w)/2); pic.top=Inches(top+(THUMB_BOX_H_IN-h)/2)
-      report['images_placed']+=1
-    except Exception as exc: report['warnings'].append(f"Pack shot '{name}' failed: {exc}")
+def place_card_image(slide,fname,top,report):
+  """Scales the pack shot into the card's photo band. Returns the band height used,
+  or 0 when nothing was placed (the card then becomes text-only)."""
+  if not os.path.isfile(fname): report['warnings'].append(f"Pack shot '{fname}' not found."); return 0
+  try:
+    pic=slide.shapes.add_picture(fname,Inches(THUMB_LEFT_IN),Inches(top))
+    nw=pic.width/914400; nh=pic.height/914400
+    if nw<=0 or nh<=0: pic._element.getparent().remove(pic._element); return 0
+    scale=min(THUMB_BOX_W_IN/nw,CARD_IMG_H_IN/nh); w,h=nw*scale,nh*scale
+    pic.width=Inches(w); pic.height=Inches(h)
+    pic.left=Inches(THUMB_LEFT_IN+(THUMB_BOX_W_IN-w)/2); pic.top=Inches(top+(CARD_IMG_H_IN-h)/2)
+    report['images_placed']+=1; return CARD_IMG_H_IN+CARD_TEXT_GAP_IN
+  except Exception as exc:
+    report['warnings'].append(f"Pack shot '{fname}' failed: {exc}"); return 0
+
+def place_cards(slide,examples,images,text_colour,report):
+  """Up to MAX_CARDS evidence cards in the right column. Product facts come from
+  data.json's products map (exact Record ID matches only); otherwise the display
+  string is parsed. Country/date are never shown unless authoritative."""
+  for i,example in enumerate(examples[:MAX_CARDS]):
+    top=THUMB_TOPS_IN[i]; rid=parse_record_id(example)
+    prod=PRODUCTS.get(rid) if rid else None
+    fname=images.get(rid) if rid else None
+    if not fname: fname=images.get(parse_product_name(example).lower())
+    used=place_card_image(slide,fname,top,report) if fname else 0
+    name=(prod or {}).get('name') or parse_product_name(example)
+    brand=(prod or {}).get('brand_or_desc') or parse_brand_line(example)
+    meta=''
+    if prod:
+      parts=[p for p in (str(prod.get('country') or '').strip(),fmt_launch(prod.get('launch_date'))) if p]
+      meta=' \\u00b7 '.join(parts)
+    caption=parse_caption(example)
+    text_top=top+used
+    tb=slide.shapes.add_textbox(Inches(THUMB_LEFT_IN),Inches(text_top),Inches(THUMB_BOX_W_IN),
+      Inches(max(0.40,THUMB_BOX_H_IN-used)))
+    tf=tb.text_frame; tf.word_wrap=True
+    tf.margin_left=tf.margin_right=Inches(0.02); tf.margin_top=tf.margin_bottom=Inches(0.01)
+    body=tf._txBody
+    for p in body.findall(qn('a:p')): body.remove(p)
+    body.append(make_para(name,bold=True,size_pt=10,color=text_colour))
+    if brand: body.append(make_para(brand,size_pt=9,color=text_colour))
+    if meta: body.append(make_para(meta,size_pt=9,color=GREY))
+    if caption: body.append(make_para(caption,size_pt=9,color=TEAL,italic=True,space_before_pt=2))
 
 def build(data,template_path,out_path,workdir):
   report={'slides_in':0,'slides_out':0,'continuations':0,'images_placed':0,'warnings':[],'sections_rendered':0}
   patched=patch_template(template_path,workdir)
   prs=Presentation(patched)
   if len(prs.slides)!=0: raise RuntimeError(f'Patched template has {len(prs.slides)} artefact slides.')
-  global BINDINGS,TREND_STATUS
+  global BINDINGS,TREND_STATUS,PRODUCTS
   BINDINGS={str(k):v for k,v in (data.get('bindings') or {}).items() if isinstance(v,dict)}
   TREND_STATUS={str(k):v for k,v in (data.get('trend_status') or {}).items() if isinstance(v,dict)}
+  PRODUCTS={str(k):v for k,v in (data.get('products') or {}).items() if isinstance(v,dict)}
   images={str(k).lower():v for k,v in (data.get('images') or {}).items()}
   preheader=data.get('preheader') or ''; slides=data.get('slides') or []
   report['slides_in']=len(slides); render_front_page(prs,data,report)
@@ -834,10 +921,12 @@ if __name__=='__main__': sys.exit(main())
 // Streams a /v1/messages call with build_deck.py + data.json + pack shots.
 // Returns the finished Anthropic message object.
 export async function runSkillStream(
-  uploads: Array<{ file_id: string; filename: string }>,
+  uploadsIn: Array<{ file_id: string; filename: string | null }>,
   dataJson: string,
   onStageDetail: (detail: string) => void,
 ): Promise<{ message: unknown; usage: { input_tokens: number; output_tokens: number } }> {
+  // Text-only card records carry no file — never send them to the container.
+  const uploads = uploadsIn.filter(u => u.file_id);
   // Upload data.json
   const dataForm = new FormData();
   dataForm.append('file', new Blob([dataJson], { type: 'application/json' }), 'data.json');

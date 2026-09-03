@@ -62,7 +62,9 @@ export default async function (req) {
 
     // Everything from here on is the synchronous export itself. Any failure marks
     // the report failed and returns 500 — there is no background path to recover.
-    let uploads: Array<{ file_id: string; filename: string; product: string; record_id: string | null }> = [];
+    // Includes text-only card records (empty file_id) — everything file-related
+    // below filters on file_id.
+    let uploads: Array<{ file_id: string; filename: string | null; product: string; record_id: string | null }> = [];
     try {
       uploads = await uploadPackshotImages(base44, report);
 
@@ -115,7 +117,7 @@ export default async function (req) {
       const fileUrl = await storeGeneratedPptx(
         base44,
         message as Record<string, unknown>,
-        uploads.map(u => u.file_id),
+        uploads.map(u => u.file_id).filter(Boolean),
       );
 
       await Reports.update(report_id, {
@@ -129,7 +131,7 @@ export default async function (req) {
       // Clean up pack shots from Anthropic Files. Failures ignored — the files
       // expire server-side anyway; a leftover file must never fail a built deck.
       for (const u of uploads) {
-        fetch(`${API}/v1/files/${u.file_id}`, { method: 'DELETE', headers: anthropicHeaders() }).catch(() => {});
+        if (u.file_id) fetch(`${API}/v1/files/${u.file_id}`, { method: 'DELETE', headers: anthropicHeaders() }).catch(() => {});
       }
 
       return Response.json({ started: true, slide_count: report.slides.length });
@@ -141,7 +143,7 @@ export default async function (req) {
         claude_export_finished_at: new Date().toISOString(),
       }).catch(() => {});
       for (const u of uploads) {
-        fetch(`${API}/v1/files/${u.file_id}`, { method: 'DELETE', headers: anthropicHeaders() }).catch(() => {});
+        if (u.file_id) fetch(`${API}/v1/files/${u.file_id}`, { method: 'DELETE', headers: anthropicHeaders() }).catch(() => {});
       }
       return Response.json({ error: String(error?.message || error) }, { status: 500 });
     }

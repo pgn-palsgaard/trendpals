@@ -14,13 +14,19 @@ export async function resolveDeckProducts(base44, report, limit = 40) {
     const recordId = recordIdFromExample(example);
     const name = productNameFromExample(example);
     let hits = [];
+    // Only an exact Record ID hit is authoritative. The name search below is a
+    // heuristic (first of up to 3 regex hits) and must never enrich a card with
+    // another product's country or date.
+    let matchedBy = null;
 
     if (recordId) {
       hits = await base44.asServiceRole.entities.GNPDProduct.filter(
         { gnpd_record_id: String(recordId) }, null, 3
       ).catch(() => []);
+      if (hits.length > 0) matchedBy = 'record_id';
     }
     if (hits.length === 0 && name.length >= 4) {
+      matchedBy = 'name_fallback';
       const esc = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       hits = await base44.asServiceRole.entities.GNPDProduct.filter(
         { product_name: { $regex: esc, $options: 'i' } }, null, 3
@@ -28,6 +34,7 @@ export async function resolveDeckProducts(base44, report, limit = 40) {
     }
 
     const withImage = hits.find(h => h.image_url && String(h.image_url).startsWith('http'));
+    const exact = matchedBy === 'record_id' ? hits[0] : null;
     out.push({
       example,
       record_id: recordId || (hits[0]?.gnpd_record_id ? String(hits[0].gnpd_record_id) : null),
@@ -35,6 +42,10 @@ export async function resolveDeckProducts(base44, report, limit = 40) {
       label: name || (hits[0]?.product_name ?? ''),
       image_url: withImage?.image_url || null,
       found: hits.length > 0,
+      matched_by: hits.length > 0 ? matchedBy : null,
+      brand: exact?.brand || null,
+      country: exact?.country || null,
+      launch_date: exact?.launch_date || null,
     });
   }
 
