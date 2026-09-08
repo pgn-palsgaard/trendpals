@@ -1,0 +1,37 @@
+{
+  "name": "Auto Extract Source Metadata",
+  "description": "Automatically deep-reads uploaded reports and fills in all metadata (title, date, category, region, publisher, summary, etc.) using AI whenever a new source is uploaded.",
+  "trigger": {
+    "condition": "${ (.trigger.data.classification == null) }",
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "create"
+      ],
+      "entity_name": "Source"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "auto_extract_source_metadata",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "autoExtractMetadata",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "autoExtractMetadata"
+  }
+}

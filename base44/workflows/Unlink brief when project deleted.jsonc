@@ -1,0 +1,37 @@
+{
+  "name": "Unlink brief when project deleted",
+  "description": "When a Project is deleted, reset the originating brief (ReportRequest): clear project_id and set status back to 'new'.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "delete"
+      ],
+      "entity_name": "Project"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "unlink_brief_when_project_deleted",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "onProjectDeleted",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "onProjectDeleted"
+  }
+}

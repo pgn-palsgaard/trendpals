@@ -1,0 +1,37 @@
+{
+  "name": "Auto-parse GNPD after validation",
+  "description": "When validateAndIngestGNPD succeeds (gnpd_mapping_status becomes 'complete'), automatically run the full ingestion chain: parse \u2192 dedup on gnpd_record_id \u2192 ingredients + emulsifier detection \u2192 LLM-validated trend linking \u2192 gnpd_ready. Template validation is the gate on this path.",
+  "trigger": {
+    "condition": "${ ((.trigger.data.source_type == \"gnpd\") and (.trigger.changed_fields | index(\"gnpd_mapping_status\") != null) and (.trigger.data.gnpd_mapping_status == \"complete\")) }",
+    "config": {
+      "trigger_type": "entity",
+      "events": [
+        "update"
+      ],
+      "entity_name": "Source"
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "auto_parse_gnpd_after_validation",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "runGNPDBatchParse",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "runGNPDBatchParse"
+  }
+}

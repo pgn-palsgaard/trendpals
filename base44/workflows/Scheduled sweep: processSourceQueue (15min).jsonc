@@ -1,0 +1,44 @@
+{
+  "name": "Scheduled sweep: processSourceQueue (15min)",
+  "description": "Every 15 minutes, drain approved+verified sources that are stuck in uploaded or metadata_extracted without a recent update-event. Scope: pipeline_stage in [uploaded, metadata_extracted] AND metadata_extraction.verified=true AND review_status=approved. Prevents stall for records that miss the entity-event automation.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 15,
+      "interval_unit": "minutes",
+      "interval_anchor": "2026-06-16T12:18:58.264000",
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "scheduled_sweep_processsourcequeue_15min",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "processSourceQueue",
+            "args": {}
+          },
+          "then": "end"
+        }
+      }
+    ]
+  },
+  "x-base44-migrated-from-automation": {
+    "legacy_payload_function": "processSourceQueue"
+  }
+}
