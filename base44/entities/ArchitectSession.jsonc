@@ -1,7 +1,7 @@
 {
   "name": "ArchitectSession",
   "type": "object",
-  "description": "A persisted Report Architect (Beta) chat session \u2014 full transcript, the derived contract, the built slide deck, and a link to the saved report if the session was converted. Auto-saved while the user chats so nothing is lost on refresh.",
+  "description": "A persisted Report Architect (Beta) chat session \u2014 transcript, contract, deck, and linked saved report.",
   "properties": {
     "owner_email": {
       "type": "string",
@@ -23,7 +23,7 @@
     },
     "messages": {
       "type": "array",
-      "description": "The chat transcript. Capped to the most recent messages, with long message bodies truncated, to stay within entity field size limits.",
+      "description": "Stored transcript, capped for entity size limits.",
       "items": {
         "type": "object",
         "properties": {
@@ -46,32 +46,41 @@
     },
     "message_count": {
       "type": "number",
-      "description": "Number of messages stored in the transcript."
+      "description": "Number of stored messages."
     },
     "contract": {
       "type": "object",
-      "description": "The brief contract the architect derived during the conversation (categories, objective, audience, core hypothesis, region).",
-      "additionalProperties": true
+      "additionalProperties": true,
+      "description": "Brief contract derived during the conversation."
     },
     "slides": {
       "type": "array",
-      "description": "Snapshot of the slide deck the architect built, as last seen in the session.",
+      "description": "Current working deck snapshot, including unsaved rebuilds.",
       "items": {
         "type": "object",
         "additionalProperties": true
       }
     },
+    "deck_state": {
+      "type": "string",
+      "enum": [
+        "none",
+        "draft",
+        "saved"
+      ],
+      "description": "Whether the working deck is absent, an unsaved draft, or the linked saved report. Missing on legacy sessions; load linked report when available."
+    },
     "title": {
       "type": "string",
-      "description": "Human-readable session title, derived from the contract's core hypothesis or objective."
+      "description": "Session title derived from the contract."
     },
     "category": {
       "type": "string",
-      "description": "Primary canonical Palsgaard solution key from the contract."
+      "description": "Primary canonical Palsgaard category."
     },
     "region": {
       "type": "string",
-      "description": "Canonical region code from the contract."
+      "description": "Canonical region code."
     },
     "status": {
       "type": "string",
@@ -80,15 +89,15 @@
         "converted"
       ],
       "default": "active",
-      "description": "active = session in progress or never saved. converted = the user saved the deck as a Report."
+      "description": "converted means a report was saved; later working changes are tracked by deck_state."
     },
     "linked_report_id": {
       "type": "string",
-      "description": "Report id created when the user saved the deck. Null unless status=converted."
+      "description": "Latest saved Report id."
     },
     "linked_project_id": {
       "type": "string",
-      "description": "Project id created alongside the saved report. Null unless status=converted."
+      "description": "Project id created alongside the saved report."
     }
   },
   "required": [

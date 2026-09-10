@@ -1,66 +1,15 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import { MessageSquare, FileCheck2 } from 'lucide-react';
-import { format } from 'date-fns';
-
-function StatusBadge({ status }) {
-  if (status === 'converted') {
-    return <span className="badge-approved"><FileCheck2 className="w-3 h-3 mr-1" />Converted</span>;
-  }
-  return <span className="badge-draft">Active</span>;
-}
+import React, { useEffect, useState } from 'react';
+import SessionSummaryCard from '@/components/architecthistory/SessionSummaryCard';
 
 export default function SessionTable({ sessions, showOwner }) {
-  const navigate = useNavigate();
-
-  return (
-    <div className="pal-card overflow-hidden">
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left px-4 py-3 section-label">Session</th>
-              {showOwner && <th className="text-left px-4 py-3 section-label">Owner</th>}
-              <th className="text-left px-4 py-3 section-label">Category</th>
-              <th className="text-left px-4 py-3 section-label">Region</th>
-              <th className="text-left px-4 py-3 section-label">Messages</th>
-              <th className="text-left px-4 py-3 section-label">Status</th>
-              <th className="text-left px-4 py-3 section-label">Last activity</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sessions.map(s => (
-              <tr
-                key={s.id}
-                onClick={() => navigate(`/ArchitectHistory/${s.id}`)}
-                className="table-row-airy cursor-pointer"
-              >
-                <td className="px-4 py-3 max-w-[340px]">
-                  <p className="font-medium text-foreground truncate">{s.title || 'Untitled session'}</p>
-                </td>
-                {showOwner && (
-                  <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                    {s.owner_name || s.owner_email}
-                  </td>
-                )}
-                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                  {s.category ? s.category.replace(/_/g, ' ') : '—'}
-                </td>
-                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">{s.region || '—'}</td>
-                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                  <span className="inline-flex items-center gap-1">
-                    <MessageSquare className="w-3.5 h-3.5" />{s.message_count || 0}
-                  </span>
-                </td>
-                <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
-                <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                  {s.last_message_at ? format(new Date(s.last_message_at), 'd MMM yyyy HH:mm') : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  const [page, setPage] = useState(0);
+  useEffect(() => setPage(0), [sessions]);
+  const pages = Math.ceil(sessions.length / 12);
+  const active = Math.min(page, Math.max(0, pages - 1));
+  return <div className="space-y-5">
+    <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{sessions.slice(active * 12, (active + 1) * 12).map(s => <SessionSummaryCard key={s.id} session={s} showOwner={showOwner} />)}</div>
+    {pages > 1 && <nav aria-label="Workspace pages" className="flex justify-center items-center gap-4 text-sm">
+      <button disabled={active === 0} onClick={() => setPage(active - 1)} className="rounded-lg border px-4 py-3 disabled:opacity-40">Previous</button><span>{active + 1} / {pages}</span><button disabled={active + 1 >= pages} onClick={() => setPage(active + 1)} className="rounded-lg border px-4 py-3 disabled:opacity-40">Next</button>
+    </nav>}
+  </div>;
 }

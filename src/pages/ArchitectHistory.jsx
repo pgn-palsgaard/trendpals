@@ -55,7 +55,7 @@ export default function ArchitectHistory() {
         <div className="page-header">
           <div className="flex items-center gap-2">
             <History className="w-6 h-6" style={{ color: '#1D428A' }} />
-            <h1 className="page-title">Architect history</h1>
+            <h1 className="page-title">Saved work</h1>
           </div>
           <p className="page-subtitle">
             {isAdmin

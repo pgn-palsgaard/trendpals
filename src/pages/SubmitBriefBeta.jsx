@@ -12,8 +12,7 @@ import ArchitectStart from '@/components/briefbeta/ArchitectStart';
 import SaveDraftButton from '@/components/briefbeta/SaveDraftButton';
 import { ARCHITECT_OPENERS, jtbdFraming } from '@/components/briefbeta/architectJtbd';
 import DeckPreview from '@/components/briefbeta/DeckPreview';
-import GammaExportPanel from '@/components/briefbeta/GammaExportPanel';
-import ClaudePptxPanel from '@/components/briefbeta/ClaudePptxPanel';
+import ReportExports from '@/components/briefbeta/ReportExports';
 import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbeta/architectPrompt';
 import { buildEvidenceContext, extractRecordIds } from '@/components/briefbeta/evidenceContext';
 import { resolveRegionScope } from '@/components/briefbeta/regionScope';
@@ -72,6 +71,9 @@ export default function SubmitBriefBeta() {
   const [feedbackGiven, setFeedbackGiven] = useState({});
   const [saving, setSaving] = useState(false);
   const [savedReport, setSavedReport] = useState(null);
+  const [deckState, setDeckState] = useState('none');
+  const [showSaved, setShowSaved] = useState(false);
+  const [restoreError, setRestoreError] = useState(null);
   const [gateNotice, setGateNotice] = useState(null);
   // The evidence snapshot the CURRENT deck was built from, frozen at build time and
   // never overwritten by a later retrieval. Binding, validation and save read this,
@@ -102,25 +104,31 @@ export default function SubmitBriefBeta() {
   useEffect(() => {
     if (!resumeId) return;
     let cancelled = false;
-    base44.entities.ArchitectSession.get(resumeId).then(s => {
-      if (cancelled || !s) return;
-      if (Array.isArray(s.messages) && s.messages.length > 0) setMessages(s.messages);
-      // A resumed session already has its errand established in the transcript —
-      // it must not be sent back to the job-to-be-done picker.
-      setJtbd(prev => prev || 'other');
-      if (s.contract) setContract(s.contract);
-      // A resumed deck is UNBOUND: the slides come from the saved session while the
-      // evidence is retrieved fresh below, so nothing guarantees the two match. It is
-      // shown for reading, but must be rebuilt before it can be saved.
-      if (Array.isArray(s.slides) && s.slides.length > 0) setSlides(s.slides);
-      if (s.session_started_at) sessionStart.current = s.session_started_at;
-      // Evidence is not stored on the session — re-run the gates so the architect
-      // keeps working from real, verified evidence.
-      if (s.contract?.categories && s.contract?.region) {
-        loadEvidenceFor(s.contract.categories, s.contract.region, s.contract.sub_categories, s.contract.read_across, s.contract.excluded_countries);
+    setResuming(true);
+    setRestoreError(null);
+    base44.entities.ArchitectSession.get(resumeId).then(async s => {
+      if (!s) throw new Error('Session not found.');
+      const report = s.linked_report_id ? await base44.entities.Report.get(s.linked_report_id) : null;
+      if (cancelled) return;
+      setMessages(Array.isArray(s.messages) ? s.messages : []);
+      setJtbd('other');
+      setContract(s.contract || {});
+      setSavedReport(report);
+      const state = s.deck_state || (report ? 'saved' : s.slides?.length ? 'draft' : 'none');
+      setDeckState(state);
+      setShowSaved(state === 'saved' && !!report);
+      setSlides(state === 'saved' && report ? report.slides : s.slides?.length ? s.slides : null);
+      if (report) {
+        setBindings(report.evidence_bindings || null);
+        setTrendStatus(report.trend_status || null);
       }
+      // A saved report is already exportable. New work retrieves fresh evidence on
+      // the next chat turn; merely opening a report must not rerun research.
+      if (s.session_started_at) sessionStart.current = s.session_started_at;
       setResuming(false);
-    }).catch(() => setResuming(false));
+    }).catch(error => {
+      if (!cancelled) { setRestoreError(error.message || 'Unable to restore this workspace.'); setResuming(false); }
+    });
     return () => { cancelled = true; };
   }, [resumeId]);
 
@@ -132,6 +140,8 @@ export default function SubmitBriefBeta() {
     sessionStart: sessionStart.current,
     user,
     initialSessionId: resumeId || undefined,
+    deckState,
+    enabled: !resuming && !restoreError,
   });
 
   // Retrieval applies the brief's region and format constraints as HARD GATES
@@ -204,6 +214,7 @@ export default function SubmitBriefBeta() {
   function applyScopeChange(patch) {
     const next = { ...contract, ...patch };
     setContract(next);
+    setDeckState('none'); setShowSaved(false);
     if (slides) {
       setSlides(null); setFrozenEvidence(null); setBindings(null); setTrendStatus(null); setBuildValidation(null);
     }
@@ -304,6 +315,7 @@ export default function SubmitBriefBeta() {
           // grounded in the previous evidence, so the deck is stale and must be
           // rebuilt — exactly as a manual slide edit invalidates the build verdict.
           if (bindingChanged && slides) {
+            setDeckState('none'); setShowSaved(false);
             setSlides(null);
             setFrozenEvidence(null);
             setBindings(null);
@@ -430,6 +442,7 @@ ${items}`,
   }
 
   function updateSlide(index, updated) {
+    setDeckState('draft'); setShowSaved(false);
     setSlides(prev => prev.map((s, i) => (i === index ? updated : s)));
     // A manual edit invalidates the build verdict — save re-validates it anyway.
     setBuildValidation(null);
@@ -467,6 +480,7 @@ ${items}`,
     // never authored by the architect. Stamping here means the preview shows exactly
     // what the export will.
     setSlides(stampProvenance(result.slides, coveredRegionLabel(snapshot?.gate) || ''));
+    setDeckState('draft'); setShowSaved(false);
     // Citations that did not belong on their slide were dropped, not blocked —
     // the deck still builds, and the analyst is told what was removed.
     const droppedCites = result.dropped_citations || [];
@@ -740,7 +754,9 @@ ${items}`,
         version: 1,
       });
       setSavedReport(report);
-      markConverted(report.id, project.id);
+      setSlides(report.slides || finalSlides);
+      setDeckState('saved'); setShowSaved(true);
+      await markConverted(report.id, project.id);
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Saving failed: ${e.message}` }]);
     }
@@ -749,9 +765,9 @@ ${items}`,
 
   // Nothing reaches the architect until an errand is chosen — the same opening
   // question the brief intake asks.
-  if (!jtbd && !resuming) {
-    return <ArchitectStart onSelect={selectJtbd} />;
-  }
+  if (resuming) return <div className="page-inner"><p role="status" className="text-muted-foreground">Restoring your chat and report…</p></div>;
+  if (restoreError) return <div className="page-inner"><div role="alert" className="pal-card p-6 space-y-4"><p>{restoreError}</p><Link className="text-primary underline" to="/ArchitectHistory">Back to saved work</Link><button className="ml-4 text-primary underline" onClick={() => window.location.reload()}>Retry</button></div></div>;
+  if (!jtbd) return <ArchitectStart onSelect={selectJtbd} />;
 
   return (
     <div className="page-shell">
@@ -763,10 +779,11 @@ ${items}`,
               <span className="badge-pending"><FlaskConical className="w-3 h-3 mr-1" />BETA</span>
             </div>
             <p className="page-subtitle">
-              Chat your way to a full trend deck. Isolated test environment — saved reports are prefixed [BETA].
+              Your chat, report and downloads — together in one workspace.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/ArchitectHistory" className="rounded-lg border px-3 py-2 text-sm text-primary">Saved work</Link>
             {messages.some(m => m.role === 'user') && (
               <button
                 onClick={() => {
@@ -780,7 +797,7 @@ ${items}`,
                 Start over
               </button>
             )}
-            {!savedReport && (
+            {deckState !== 'saved' && (
               <SaveDraftButton
                 onSave={saveDraft}
                 disabled={!messages.some(m => m.role === 'user')}
@@ -796,7 +813,7 @@ ${items}`,
 
         <div className="flex flex-col lg:flex-row gap-5">
           {/* Chat */}
-          <div className={slides ? 'lg:w-2/5' : 'lg:w-3/5'}>
+          <div className={slides || savedReport ? 'lg:w-2/5 min-w-0 lg:sticky lg:top-5 self-start w-full' : 'lg:w-3/5 min-w-0 w-full'}>
             {jtbd && !resumeId && messages.filter(m => m.role === 'user').length === 0 && (
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-muted-foreground">{jtbdLabelFor(jtbd)}</p>
@@ -820,7 +837,10 @@ ${items}`,
           </div>
 
           {/* Contract + slides */}
-          <div className={`space-y-4 ${slides ? 'lg:w-3/5' : 'lg:w-2/5'}`}>
+          <div className={`space-y-4 min-w-0 ${slides || savedReport ? 'lg:w-3/5' : 'lg:w-2/5'}`}>
+            <details key={slides || savedReport ? 'with-deck' : 'brief-only'} open={slides || savedReport ? undefined : true} className="pal-card p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-primary py-1">Brief & scope</summary>
+              <div className="space-y-4 mt-4">
             <ScopePicker
               contract={contract}
               disabled={loading}
@@ -832,6 +852,12 @@ ${items}`,
               onChange={applyScopeChange}
             />
             <ContractPanel contract={contract} trendCount={trends?.length || 0} />
+              </div>
+            </details>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div><p className="section-label">{showSaved ? 'Saved report' : 'Working draft'}</p><h2 className="text-xl mt-1">{showSaved ? savedReport?.title : contract.report_title || 'Your report'}</h2></div>
+              {savedReport && deckState !== 'saved' && <button onClick={() => setShowSaved(!showSaved)} className="text-sm text-primary underline">{showSaved ? 'Back to working draft' : 'View saved version'}</button>}
+            </div>
             <GateNotice notice={gateNotice} />
             <SubregionNotice gate={evidence?.gate} />
 
@@ -846,7 +872,7 @@ ${items}`,
 
             <ValidationStatus status={validationStatus} />
 
-            {slides && !savedReport && buildValidation && !buildValidation.ok && (
+            {slides && !showSaved && buildValidation && !buildValidation.ok && (
               <ValidationBanner
                 rejections={buildValidation.verdict === 'blocked'
                   ? buildValidation.integrity_rejections
@@ -856,11 +882,12 @@ ${items}`,
               />
             )}
 
-            {slides && !savedReport && (
+            {slides && !showSaved && (
               <DeckPreview
                 slides={slides}
                 bindings={bindings}
                 trendStatus={trendStatus}
+                products={[...(frozenEvidence?.products || []), ...(frozenEvidence?.read_across_products || [])]}
                 onSlideChange={updateSlide}
                 onSave={saveAsReport}
                 saving={saving}
@@ -880,33 +907,14 @@ ${items}`,
               />
             )}
 
-            {savedReport && (
-              <div className="pal-card p-5 text-center">
-                <CheckCircle2 className="w-10 h-10 mx-auto mb-3" style={{ color: '#6F8263' }} />
-                <p className="font-semibold text-foreground">Beta report saved</p>
-                <p className="text-xs text-muted-foreground mt-1">{savedReport.title}</p>
-                <Link
-                  to={`/ReportView?id=${savedReport.id}`}
-                  className="inline-block mt-4 rounded-lg px-4 py-2 text-sm font-semibold text-white"
-                  style={{ background: '#1D428A' }}
-                >
-                  Open report
-                </Link>
-              </div>
-            )}
+            {showSaved && savedReport && <>
+              <p className="text-xs text-muted-foreground">Saved and ready to read or download. Continue chatting to build a new draft; this version stays available.</p>
+              <ReportExports report={savedReport} />
+              <DeckPreview key={`saved-${savedReport.id}`} slides={savedReport.slides || []} bindings={savedReport.evidence_bindings} trendStatus={savedReport.trend_status} products={savedReport.product_shortlist || []} />
+            </>}
+            {!slides && !showSaved && <div className="pal-card p-8 text-center text-sm text-muted-foreground">Continue the chat to build your report. It will appear here.</div>}
 
-            {savedReport && (
-              <>
-                <ClaudePptxPanel
-                  report={savedReport}
-                  slideCount={(savedReport.slides || []).length}
-                />
-                <GammaExportPanel
-                  report={savedReport}
-                  slideCount={(savedReport.slides || []).length}
-                />
-              </>
-            )}
+
           </div>
         </div>
       </div>

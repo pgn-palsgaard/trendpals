@@ -39,7 +39,7 @@ function firstCategory(contract) {
  * Returns a ref holding the session id, plus a helper to mark it converted
  * once the deck has been saved as a Report.
  */
-export default function useArchitectSession({ messages, contract, slides, sessionStart, user, initialSessionId }) {
+export default function useArchitectSession({ messages, contract, slides, sessionStart, user, initialSessionId, deckState, enabled = true }) {
   // When resuming from history, keep writing to the SAME record instead of
   // creating a duplicate session.
   const sessionIdRef = useRef(initialSessionId || null);
@@ -49,7 +49,7 @@ export default function useArchitectSession({ messages, contract, slides, sessio
 
   useEffect(() => {
     // The opener alone is not a session — wait for the user's first message.
-    if (!user?.email) return;
+    if (!enabled || !user?.email) return;
     if (!messages.some(m => m.role === 'user')) return;
 
     const transcript = trimTranscript(messages);
@@ -62,6 +62,7 @@ export default function useArchitectSession({ messages, contract, slides, sessio
       message_count: transcript.length,
       contract: contract || {},
       slides: Array.isArray(slides) ? slides : [],
+      ...(deckState ? { deck_state: deckState } : {}),
       title: deriveTitle(contract),
       category: firstCategory(contract),
       region: toRegionCode(contract?.region),
@@ -73,7 +74,7 @@ export default function useArchitectSession({ messages, contract, slides, sessio
         : base44.entities.ArchitectSession.create({ ...payload, status: 'active' })
             .then(rec => { sessionIdRef.current = rec.id; })))
       .catch(() => {});
-  }, [messages, contract, slides, sessionStart, user]);
+  }, [messages, contract, slides, sessionStart, user, deckState, enabled]);
 
   // Explicit "save draft": the auto-save effect has already queued the current
   // state, so this just waits for the queue to drain and reports the session id.

@@ -1,105 +1,36 @@
 import React from 'react';
-import { annotationForSlide } from './trendStatus';
-import ImplicationsCanvas from './ImplicationsCanvas';
-import AgendaCanvas from './AgendaCanvas';
+import { annotationForSlide } from '@/components/briefbeta/trendStatus';
+import SlideNarrative from '@/components/briefbeta/SlideNarrative';
+import SlideProducts from '@/components/briefbeta/SlideProducts';
+import SlideTableContent from '@/components/briefbeta/SlideTableContent';
+import SlideImplicationsContent from '@/components/briefbeta/SlideImplicationsContent';
 import SMEAnnotationBadge from '@/components/sme/SMEAnnotationBadge';
 
-// One slide rendered as a presentation-style 16:9 canvas.
-export default function SlideCanvas({ slide, trendStatus, topline }) {
-  // Build B — computed render-state. Derived from the frozen trend status, never
-  // from slide prose; the architect no longer writes record counts.
+export default function SlideCanvas({ slide, trendStatus, topline, products = [], images = {}, thumbnail = false }) {
+  if (!slide) return null;
+  const divider = slide.slide_type === 'section_header';
   const signalLine = annotationForSlide(slide, trendStatus);
-  if (slide.slide_type === 'implications') return <ImplicationsCanvas slide={slide} topline={topline} />;
-  if (slide.slide_type === 'agenda') return <AgendaCanvas slide={slide} topline={topline} />;
-  return (
-    <div className="w-full bg-card border border-border rounded-xl shadow-panel overflow-hidden">
-      <div className="aspect-[16/9] w-full overflow-y-auto p-8 flex flex-col">
-        <p className="text-[11px] font-bold tracking-widest uppercase mb-2" style={{ color: '#1D428A' }}>
-          {topline || 'Market intelligence'}
-        </p>
-        <h2 className="font-heading text-[26px] leading-tight text-foreground">{slide.title}</h2>
-        {slide.subtitle && (
-          <p className="text-sm mt-1.5" style={{ color: '#1D428A' }}>{slide.subtitle}</p>
-        )}
-        {/* Build C — render-owned provenance banner. Shown from the stamped label
-            only; the architect never writes this line. */}
-        {slide.evidence_class === 'read_across' && slide.provenance_label && (
-          <p className="text-xs mt-2 rounded-md px-2.5 py-1.5 font-medium" style={{ background: '#FAE9E5', color: '#A33B24' }}>
-            {slide.provenance_label}
-          </p>
-        )}
-        {signalLine && (
-          <p className="text-xs italic mt-2" style={{ color: '#62837F' }}>{signalLine}</p>
-        )}
-        {/* Build B (narrative) — the one-line tie back to the core hypothesis. */}
-        {slide.hypothesis_tieback && (
-          <p className="text-xs italic mt-2" style={{ color: '#22566E' }}>{slide.hypothesis_tieback}</p>
-        )}
-        {/* Advisory only — SME field verification. Never gates build or save. */}
-        {slide.trend_id && (
-          <div className="mt-2">
-            <SMEAnnotationBadge trendId={slide.trend_id} />
-          </div>
-        )}
-
-        {/* Trend overview — lives on the opening slide, no separate agenda slide. */}
-        {(slide.agenda_items || []).length > 0 && (
-          <ul className="mt-5 space-y-2">
-            {slide.agenda_items.map((item, i) => (
-              <li key={i} className="text-sm leading-snug text-foreground/85 flex gap-3">
-                <span className="font-bold shrink-0" style={{ color: '#1D428A' }}>→</span>
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        <div className="grid md:grid-cols-2 gap-6 mt-5 flex-1">
-          <div>
-            {slide.market_signal && (
-              <p className="text-[15px] leading-relaxed text-foreground/85">{slide.market_signal}</p>
-            )}
-            {(slide.supporting_data || []).length > 0 && (
-              <ul className="mt-4 space-y-1.5">
-                {slide.supporting_data.map((d, i) => (
-                  <li key={i} className="text-xs text-muted-foreground leading-snug">
-                    • {d.stat} <span className="italic">({d.source})</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            {(slide.gnpd_examples || []).length > 0 && (
-              <div className="rounded-lg p-3" style={{ background: '#EBF0F8' }}>
-                <p className="section-label mb-1.5">GNPD evidence</p>
-                <ul className="space-y-1.5">
-                  {slide.gnpd_examples.map((g, i) => (
-                    <li key={i} className="text-xs text-foreground/75 leading-snug">{g}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            {(slide.conversation_openers || []).length > 0 && (
-              <div>
-                <p className="section-label mb-1.5">Conversation openers</p>
-                <ul className="space-y-1">
-                  {slide.conversation_openers.map((c, i) => (
-                    <li key={i} className="text-xs italic text-foreground/70">“{c}”</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
+  return <article className={`report-slide w-full rounded-xl border shadow-card overflow-hidden ${divider ? 'bg-primary text-primary-foreground' : 'bg-card text-card-foreground'}`}>
+    <div className="min-h-[360px] sm:min-h-[450px] p-5 sm:p-8 flex flex-col break-words">
+      <header className={divider ? 'my-auto py-12' : 'mb-6'}>
+        <p className={`text-xs font-semibold tracking-widest uppercase mb-3 ${divider ? 'text-primary-foreground/80' : 'text-primary'}`}>{slide.preheader || topline || (divider ? 'TrendPals · Market intelligence' : 'Market intelligence')}</p>
+        <h2 className={`font-heading leading-tight ${divider ? 'text-4xl sm:text-5xl text-primary-foreground' : 'text-2xl sm:text-3xl'}`}>{slide.title || slide.slide_name}</h2>
+        {slide.subtitle && <p className={`mt-3 ${divider ? 'text-xl text-primary-foreground/90' : 'text-sm text-muted-foreground'}`}>{slide.subtitle}</p>}
+      </header>
+      {slide.provenance_label && <p className="text-xs bg-secondary text-secondary-foreground rounded-lg p-3 mb-4">{slide.provenance_label}</p>}
+      {signalLine && <p className="text-xs italic mb-4">{signalLine}</p>}
+      {!thumbnail && slide.trend_id && <div className="mb-4"><SMEAnnotationBadge trendId={slide.trend_id} /></div>}
+      <div className="space-y-6 flex-1">
+        <div className={slide.gnpd_examples?.length ? 'report-slide-grid' : ''}>
+          <SlideNarrative slide={slide} />
+          <SlideProducts examples={slide.gnpd_examples} products={products} images={images} />
         </div>
-
-        {slide.evidence_footer && (
-          <p className="text-[11px] text-muted-foreground mt-4 pt-3 border-t border-border">
-            {slide.evidence_footer}
-          </p>
-        )}
+        <SlideTableContent slide={slide} />
+        <SlideImplicationsContent slide={slide} />
       </div>
+      <footer className={`flex items-end justify-between gap-4 text-xs mt-8 pt-4 border-t ${divider ? 'border-primary-foreground/30 text-primary-foreground/80' : 'border-border text-muted-foreground'}`}>
+        <span className="whitespace-pre-wrap">{slide.evidence_footer || 'TrendPals · Palsgaard'}</span><span className="tabular-nums shrink-0">{slide.slide_number ?? ''}</span>
+      </footer>
     </div>
-  );
+  </article>;
 }

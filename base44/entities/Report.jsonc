@@ -12,15 +12,15 @@
     },
     "category": {
       "type": "string",
-      "description": "Category (copied from project)"
+      "description": "Category copied from project"
     },
     "region": {
       "type": "string",
-      "description": "Coarse commercial region code (EMEC/ASPAC/AMERICAS/IMEA). NULL when the brief spans more than one code \u2014 a mixed scope is never labelled 'Global', because 'Global' reads as worldwide coverage the report does not have. NEVER use this field as a filter for evidence scoping; the authoritative scope is evidence_gate.country_allow_list."
+      "description": "Coarse commercial region code (EMEC/ASPAC/AMERICAS/IMEA). NULL when the brief spans more than one code \u2014 a mixed scope is never labelled Global. Display only; authoritative evidence scope is evidence_gate.country_allow_list."
     },
     "region_display_label": {
       "type": "string",
-      "description": "Human-readable scope label for headers and exports, e.g. 'Europe, Turkey, CIS countries (49 markets)'. DISPLAY ONLY \u2014 free text, never a query value, never parsed. Anything that needs the real scope must read evidence_gate.country_allow_list."
+      "description": "Human-readable scope label for headers and exports. DISPLAY ONLY \u2014 never parsed as a query. Real scope lives in evidence_gate.country_allow_list."
     },
     "excluded_countries": {
       "type": "array",
@@ -28,34 +28,34 @@
         "type": "string"
       },
       "default": [],
-      "description": "Countries explicitly excluded from evidence scope. Written by the architect at brief intake. Fail-closed: gate removes these from the allow-list after all other resolution. Never inferred from free text."
+      "description": "Countries explicitly excluded at intake. Fail-closed removal after scope resolution; never inferred from prose."
     },
     "evidence_gate_rendered_by_country": {
       "type": "object",
       "additionalProperties": true,
       "default": {},
-      "description": "Country \u2192 count of rendered REGIONAL gnpd_examples. Written at save time, per datapoint, by resolving each rendered example against the frozen bindings. Cross-region (Build C) examples are counted in evidence_gate.read_across.rendered_by_country instead, never here \u2014 they are out-of-region by design and exempt from the containment pre-flight. Fail-closed: an example whose id does not resolve to a read_across binding is counted as regional."
+      "description": "Country to rendered REGIONAL GNPD count. Read-across counts belong in evidence_gate.read_across.rendered_by_country. Unresolved bindings count as regional, fail-closed."
     },
     "evidence_bindings": {
       "type": "object",
       "additionalProperties": true,
       "default": {},
-      "description": "Frozen at build, persisted at save. Maps every cited id to its resolved evidence: { <id>: { canonical_string, trend_id, kind } } where kind is one of 'source' | 'inline' | 'web' | 'gnpd'. A cross-region (Build C) GNPD entry additionally carries read_across: true and original_country. The trend_id is what the Build B XTREND-1 rule compares against the slide's own trend_id; web-kind bindings carry an empty trend_id by design and are exempt. The renderer and export resolve against THIS map, never against live retrieval."
+      "description": "Frozen build-time citation map: id to {canonical_string, trend_id, kind: source|inline|web|gnpd}. Cross-region GNPD entries additionally carry read_across:true and original_country. Resolve against this map, never live retrieval. Web entries have empty trend_id and are exempt from XTREND-1."
     },
     "trend_status": {
       "type": "object",
       "additionalProperties": true,
       "default": {},
-      "description": "Per-trend evidence status snapshot, frozen at save from the build evidence: { <trend_id>: { evidence_status, record_count, read_across_status, read_across_count } }. The export renderer stamps signal annotations and record counts from this, never from slide prose."
+      "description": "Frozen per-trend {evidence_status, record_count, read_across_status, read_across_count}. Renderer owns signal annotations, never slide prose."
     },
     "preflight_failed": {
       "type": "boolean",
       "default": false,
-      "description": "Phase 6 \u2014 true when the last export attempt was blocked by the regional-containment pre-flight. Set on the report so the UI can state the reason instead of the user meeting a silent failure. Cleared on the next export attempt that passes."
+      "description": "Whether the last export was blocked by regional containment. Cleared on a passing export."
     },
     "preflight_error": {
       "type": "string",
-      "description": "Human-readable reason the export pre-flight blocked this report, including the offending countries and their rendered counts."
+      "description": "Human-readable pre-flight failure reason, offending countries and counts."
     },
     "generated_by": {
       "type": "string",
@@ -64,7 +64,7 @@
         "architect"
       ],
       "default": "manual",
-      "description": "How the report was produced. architect = built automatically by the Report Architect agent chat flow. manual = assembled in the project workspace."
+      "description": "How this report was produced."
     },
     "analysis_mode": {
       "type": "string",
@@ -72,13 +72,14 @@
         "standard",
         "product_first"
       ],
-      "description": "How the report's trends were determined. standard = manually selected trends. product_first = KAM approach \u2014 trends derived automatically from the account's own GNPD launch history (outside-in, product-led analysis)."
+      "description": "Standard trend selection or outside-in, account product-led KAM analysis."
     },
     "slides": {
       "type": "array",
-      "description": "Complete slide deck (5-10 slides)",
+      "description": "Complete ordered slide deck, including all presentation text, tables and appendices.",
       "items": {
         "type": "object",
+        "additionalProperties": true,
         "properties": {
           "slide_number": {
             "type": "number"
@@ -88,11 +89,11 @@
           },
           "slide_type": {
             "type": "string",
-            "description": "Rendering hint: content, section_header, briefing_context, methodology, implications, product_export."
+            "description": "Rendering hint: content, section_header, briefing_context, methodology, implications, product_export, agenda, table, imperatives."
           },
           "trend_id": {
             "type": "string",
-            "description": "The verified trend this content slide is built on. Emitted by the architect from the evidence. Basis for citation resolution, XTREND-1 trend containment, and the computed evidence-status annotation."
+            "description": "Exact verified trend id. Basis for citation resolution, XTREND-1 containment and computed evidence annotation."
           },
           "evidence_class": {
             "type": "string",
@@ -101,11 +102,11 @@
               "read_across"
             ],
             "default": "regional",
-            "description": "Which evidence tier this slide is built on. Regional = in-region launches only. read_across = cross-region reference only. Never mixed. Emitted by the architect, validated against the frozen bindings at save."
+            "description": "One evidence tier per slide; never mix regional and cross-region products."
           },
           "provenance_label": {
             "type": "string",
-            "description": "Render-owned. The deterministic cross-region honesty line, written by the renderer for read_across slides. Never authored by the architect."
+            "description": "Deterministic cross-region honesty line written by renderer, never architect."
           },
           "title": {
             "type": "string"
@@ -115,40 +116,109 @@
           },
           "preheader": {
             "type": "string",
-            "description": "Implications slides only \u2014 the one-line pre-header above the title, e.g. 'TREND 01 | <trend name> | STRATEGIC IMPLICATIONS'."
+            "description": "Slide pre-header, preserved for preview and all export formats."
+          },
+          "category": {
+            "type": "string"
+          },
+          "bullets_header": {
+            "type": "string"
+          },
+          "bullets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "agenda_items": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "so_what": {
+            "type": "string"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "hypothesis_tieback": {
+            "type": "string"
+          },
+          "prepared_for": {
+            "type": "string"
+          },
+          "commercial_questions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "trends_under_microscope": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "strategic_implications": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Implications slides only \u2014 max 4 one-line 'so what for manufacturers' bullets, each grounded in the preceding trend slide's evidence."
+            "description": "Implications slides: max 4 one-line commercial observations grounded in preceding trend evidence."
           },
           "palsgaard_support": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Implications slides only \u2014 max 3 one-line capability-angle bullets. Observation framing, no product names or dosages."
+            "description": "Implications slides: max 3 one-line capability observations, no product names or dosages."
           },
           "market_signal": {
             "type": "string",
-            "description": "What is happening in the market \u2014 1-2 sentences, external signals only"
+            "description": "External market observation, 1\u20132 sentences."
           },
           "why_it_may_matter": {
             "type": "string",
-            "description": "The commercial implication of the observation for a manufacturer deciding now. Observation framing, never prescription."
+            "description": "Commercial implication, observation not prescription."
           },
           "formulation_questions": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "The technical / application questions the market observation raises (dough rheology, hydration balance, gluten dilution, staling, mouthfeel and similar)."
+            "description": "Technical/application questions raised by the market observation."
           },
           "customer_pains": {
             "type": "array",
-            "description": "2-3 specific challenges this creates for food manufacturers",
+            "description": "Specific manufacturer challenges.",
             "items": {
               "type": "object",
               "properties": {
@@ -160,25 +230,25 @@
                 },
                 "palsgaard_angle": {
                   "type": "string",
-                  "description": "How Palsgaard expertise addresses this \u2014 NO product names or dosages"
+                  "description": "Capability angle, no product names or dosages."
                 },
                 "expert_only": {
                   "type": "boolean",
-                  "description": "True if valuable insight even without Palsgaard product"
+                  "description": "Valuable insight even without a Palsgaard product."
                 }
               }
             }
           },
           "conversation_openers": {
             "type": "array",
-            "description": "1-2 open questions to invite customer into dialogue",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Open questions inviting customer dialogue."
           },
           "supporting_data": {
             "type": "array",
-            "description": "Stats or market data that ground the slide \u2014 sourced from Mintel or GNPD",
+            "description": "Source-backed market data.",
             "items": {
               "type": "object",
               "properties": {
@@ -187,11 +257,11 @@
                 },
                 "source_id": {
                   "type": "string",
-                  "description": "The [SRC:\u2026] or [WEB:\u2026] id the architect cited. Authoritative. The human-readable `source` is resolved from this at build and stored alongside for standalone rendering."
+                  "description": "Authoritative cited SRC or WEB id."
                 },
                 "source": {
                   "type": "string",
-                  "description": "Resolved human-readable citation, written from evidence_bindings \u2014 never architect-authored on an ID-locked deck. Legacy decks carry the original string here."
+                  "description": "Resolved citation from evidence_bindings, never architect-authored on ID-locked decks. Legacy strings retained."
                 },
                 "geography": {
                   "type": "string"
@@ -201,10 +271,10 @@
           },
           "gnpd_examples": {
             "type": "array",
-            "description": "2-4 real product launches that illustrate the trend",
             "items": {
               "type": "string"
-            }
+            },
+            "description": "Real product examples prefixed by exact GNPD Record ID."
           },
           "evidence_footer": {
             "type": "string"
@@ -220,7 +290,7 @@
     },
     "evidence_pack": {
       "type": "array",
-      "description": "5-10 evidence bullets linking market signals to Palsgaard capability areas",
+      "description": "Evidence bullets linking signals to capability areas.",
       "items": {
         "type": "object",
         "properties": {
@@ -244,16 +314,15 @@
       "items": {
         "type": "object"
       },
-      "description": "12-20 GNPD launches with priorities and trend mappings"
+      "description": "GNPD launches with priorities and trend mappings."
     },
     "image_map": {
       "type": "object",
-      "description": "Slide-by-slide image placement mapping"
+      "description": "Slide-by-slide image placement mapping."
     },
     "version": {
       "type": "number",
-      "default": 1,
-      "description": "Report version number"
+      "default": 1
     },
     "status": {
       "type": "string",
@@ -286,17 +355,17 @@
     },
     "executive_summary": {
       "type": "string",
-      "description": "AI-generated executive summary of the report"
+      "description": "AI-generated executive summary."
     },
     "evidence_gate": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Snapshot of the evidence gate that produced this report (beta architect only): resolved country allow-list, sequential funnel counts, actual data window, per-sub-region eligible AND rendered counts, web-signal region filter counts, exclusion counts by reason, dropped and downgraded trends, and the Build C read_across block (requested, total_records, by_country, per_trend, rendered_by_country). Feeds the methodology appendix and makes the report auditable. This is the authoritative scope of the report."
+      "description": "Authoritative evidence scope and audit snapshot: resolved country allow-list, sequential funnel counts, actual data window, per-sub-region eligible/rendered counts, exclusions, dropped/downgraded trends and read_across block (requested, total_records, by_country, per_trend, rendered_by_country)."
     },
     "validator_log": {
       "type": "object",
       "additionalProperties": true,
-      "description": "Phase 7 \u2014 write-time output-validation record for this report. An EMPTY log is a valid, meaningful state: it means the deck passed with nothing rejected. Shape: { validated_at, verdict, rewrite_attempts, rewrite_attempted, rewrite_succeeded, unresolvable: {total_cited, unresolved, ratio, threshold}, rejections: [{rule, field, why, text, phase, timestamp}], flags: [...], rule_fire_counts: {RULE_ID: n} }.",
+      "description": "Write-time validation record. Empty log means passed with nothing rejected. Surgical rewrites only, never full-deck re-rolls.",
       "properties": {
         "validated_at": {
           "type": "string",
@@ -309,11 +378,11 @@
             "warnings_only",
             "blocked"
           ],
-          "description": "Build D two-layer outcome at save. passed = nothing left. warnings_only = only LEN character-budget overruns remain; the analyst saved knowingly and the export will clip that text. blocked = an integrity violation remained, in which case nothing is saved at all \u2014 so this value never appears on the save that created a report."
+          "description": "warnings_only means cosmetic LEN overruns knowingly saved. blocked means integrity violations and nothing saved."
         },
         "rewrite_attempts": {
           "type": "number",
-          "description": "Build D \u2014 how many SURGICAL rewrites the build loop spent (0, 1 or 2). 0 means the deck either passed first pass or carried only violations a rewrite cannot fix. Replaces the earlier undeclared build_attempts, which counted validation passes rather than rewrites."
+          "description": "Number of surgical rewrites: 0, 1 or 2."
         },
         "rewrite_attempted": {
           "type": "boolean"
@@ -324,7 +393,7 @@
         "unresolvable": {
           "type": "object",
           "additionalProperties": true,
-          "description": "Build B UNRES-1 accounting for this save: total cited datapoints, how many resolved to nothing, the ratio, and the ceiling in force. Recorded on every save, whether or not the gate fired."
+          "description": "UNRES-1 counts: total_cited, unresolved, ratio, threshold."
         },
         "rejections": {
           "type": "array",
@@ -332,19 +401,17 @@
             "type": "object",
             "properties": {
               "rule": {
-                "type": "string",
-                "description": "Rule ID that fired, e.g. FIG-1, ADJ-2, PRE-1, PUB-3, TIER-1, XTREND-1, UNRES-1, LEN-2"
+                "type": "string"
               },
               "field": {
-                "type": "string",
-                "description": "Slide and field path the rejected string sat in"
+                "type": "string"
               },
               "why": {
                 "type": "string"
               },
               "text": {
                 "type": "string",
-                "description": "The rejected string, stored verbatim so the decision is auditable"
+                "description": "Verbatim rejected text."
               },
               "phase": {
                 "type": "string",
@@ -353,8 +420,7 @@
                   "after_rewrite_1",
                   "after_rewrite_2",
                   "save_confirm"
-                ],
-                "description": "first_pass = fired on the architect's original deck. after_rewrite_1 / after_rewrite_2 = still firing after the first / second SURGICAL rewrite, so churn is visible per attempt. save_confirm = fired on the confirmation pass at save, i.e. the deck was edited by hand after the build."
+                ]
               },
               "timestamp": {
                 "type": "string",
@@ -386,7 +452,7 @@
         "rule_fire_counts": {
           "type": "object",
           "additionalProperties": true,
-          "description": "Per-rule fire counts for this report, so drift can be aggregated across runs without re-parsing the entries."
+          "description": "Per-rule fire counts for drift aggregation."
         }
       }
     },
@@ -404,7 +470,7 @@
     },
     "gamma_generation_id": {
       "type": "string",
-      "description": "Gamma API generation job id for the current PPTX export. Used to poll generation status."
+      "description": "Current Gamma generation job id for polling."
     },
     "gamma_export_status": {
       "type": "string",
@@ -413,21 +479,18 @@
         "generating",
         "ready",
         "failed"
-      ],
-      "description": "Lifecycle of the Gamma PPTX export for this report."
+      ]
     },
     "gamma_export_error": {
-      "type": "string",
-      "description": "Error message from the last failed Gamma export attempt."
+      "type": "string"
     },
     "gamma_export_started_at": {
       "type": "string",
-      "format": "date-time",
-      "description": "When the current Gamma export job was started."
+      "format": "date-time"
     },
     "claude_pptx_url": {
       "type": "string",
-      "description": "URL of the PPTX generated by the custom Palsgaard PowerPoint Claude skill."
+      "description": "Custom Palsgaard PowerPoint export URL."
     },
     "claude_export_status": {
       "type": "string",
@@ -437,49 +500,46 @@
         "ready",
         "failed"
       ],
-      "description": "Lifecycle of the Claude-skill PPTX export for this report. A run stuck in 'generating' for more than 5 minutes is recovered to 'failed' by checkClaudePptxExport \u2014 a platform kill leaves no code running to do it from inside."
+      "description": "Export lifecycle; stale generating jobs recovered by checkClaudePptxExport."
     },
     "claude_export_error": {
-      "type": "string",
-      "description": "Error message from the last failed Claude-skill export attempt."
+      "type": "string"
     },
     "claude_export_started_at": {
       "type": "string",
       "format": "date-time",
-      "description": "When the current Claude-skill export job was started. Basis for the stale-state recovery in checkClaudePptxExport."
+      "description": "Basis for stale-state recovery."
     },
     "claude_export_stage": {
       "type": "string",
-      "description": "Current stage of the synchronous Claude-skill export, for the UI. Values: uploading_images, building, done. Null when no export is running."
+      "description": "uploading_images, building, done, or null."
     },
     "claude_export_stage_detail": {
       "type": "string",
-      "description": "One human-readable line shown live in the UI while the export runs. Written at most once every 4 seconds (debounced) \u2014 a per-token write rate exhausted the function's memory."
+      "description": "Live progress text, debounced at most once per 4 seconds."
     },
     "claude_export_finished_at": {
       "type": "string",
-      "format": "date-time",
-      "description": "Set when claude_export_status becomes ready or failed."
+      "format": "date-time"
     },
     "claude_export_message_id": {
-      "type": "string",
-      "description": "Anthropic message.id of the synchronous export call, for debugging."
+      "type": "string"
     },
     "claude_export_usage": {
       "type": "object",
       "additionalProperties": true,
-      "description": "{ input_tokens, output_tokens } from the completed synchronous export call."
+      "description": "Completed call input_tokens and output_tokens."
     },
     "claude_batch_id": {
       "type": "string",
-      "description": "Deprecated \u2014 Message Batches path removed. Retained for historical records only. Never written by new code."
+      "description": "Deprecated, historical records only."
     },
     "claude_uploaded_file_ids": {
       "type": "array",
       "items": {
         "type": "string"
       },
-      "description": "Deprecated \u2014 pack shots are now cleaned up synchronously. Retained for historical records only."
+      "description": "Deprecated, historical records only."
     },
     "final_pptx_url": {
       "type": "string"
@@ -496,13 +556,12 @@
     },
     "final_uploads": {
       "type": "array",
-      "description": "History of final report files uploaded (PPTX, PDF) with linked Source records for knowledge extraction.",
+      "description": "Final uploaded files with linked Source records for knowledge extraction.",
       "items": {
         "type": "object",
         "properties": {
           "url": {
-            "type": "string",
-            "description": "Public file URL"
+            "type": "string"
           },
           "file_type": {
             "type": "string",
@@ -517,12 +576,10 @@
             "format": "date-time"
           },
           "uploaded_by": {
-            "type": "string",
-            "description": "Email of user who uploaded"
+            "type": "string"
           },
           "source_id": {
-            "type": "string",
-            "description": "ID of the Source record created for knowledge extraction"
+            "type": "string"
           },
           "notes": {
             "type": "string"
