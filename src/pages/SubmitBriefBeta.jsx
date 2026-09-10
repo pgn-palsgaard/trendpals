@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { base44 } from '@/api/base44Client';
 import { Link } from 'react-router-dom';
-import { FlaskConical, CheckCircle2 } from 'lucide-react';
+import { FlaskConical } from 'lucide-react';
 import ArchitectChat from '@/components/briefbeta/ArchitectChat';
 import ContractPanel from '@/components/briefbeta/ContractPanel';
 import ScopePicker from '@/components/briefbeta/ScopePicker';

@@ -277,7 +277,7 @@ export default function ReportView() {
         {report.generated_by === 'architect' && <section className="mb-8"><DeckPreview slides={report.slides || []} bindings={report.evidence_bindings} trendStatus={report.trend_status} products={report.product_shortlist || []} /></section>}
 
         {/* Briefing Context cover slide */}
-        <BriefingContextSlide slide={(report.slides || []).find(s => s.slide_type === 'briefing_context')} />
+        {report.generated_by !== 'architect' && <BriefingContextSlide slide={(report.slides || []).find(s => s.slide_type === 'briefing_context')} />}
 
         {/* Generated deck files (Claude / Gamma exports) */}
         <GeneratedExportsSection report={report} />

@@ -3,11 +3,11 @@ import { Pencil, Check } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 
-export default function SlideCard({ slide, onChange }) {
-  const [editing, setEditing] = useState(false);
+export default function SlideCard({ slide, onChange, startEditing = false, onDone }) {
+  const [editing, setEditing] = useState(startEditing);
   const [draft, setDraft] = useState(slide);
 
-  const save = () => { onChange(draft); setEditing(false); };
+  const save = () => { onChange(draft); setEditing(false); onDone?.(); };
 
   return (
     <div className="pal-card p-4">

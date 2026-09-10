@@ -2,7 +2,7 @@ import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { base44 } from '@/api/base44Client';
-import { ArrowLeft, ExternalLink, User as UserIcon } from 'lucide-react';
+import { ArrowLeft, User as UserIcon } from 'lucide-react';
 import { format } from 'date-fns';
 import ContractPanel from '@/components/briefbeta/ContractPanel';
 import TranscriptView from '@/components/architecthistory/TranscriptView';

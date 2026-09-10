@@ -15,7 +15,7 @@ export default function SaveDraftButton({ onSave, disabled }) {
       await onSave();
       setState('saved');
     } catch (e) {
-      setError(e.message || 'Udkastet kunne ikke gemmes. Prøv igen.');
+      setError(e.message || 'The draft could not be saved. Please try again.');
       setState('idle');
     }
   }
@@ -25,11 +25,11 @@ export default function SaveDraftButton({ onSave, disabled }) {
       <div className="text-right">
         <p className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: '#6F8263' }}>
           <Check className="w-4 h-4" />
-          Udkast gemt
+          Draft saved
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Fortsæt her, eller find det igen under{' '}
-          <Link to="/ArchitectHistory" className="underline">Architect history</Link>.
+          Continue here, or find it again under{' '}
+          <Link to="/ArchitectHistory" className="underline">Saved work</Link>.
         </p>
       </div>
     );
@@ -39,12 +39,12 @@ export default function SaveDraftButton({ onSave, disabled }) {
     <div><button
       onClick={handleClick}
       disabled={disabled || state === 'saving'}
-      title={disabled ? 'Skriv din første besked, før udkastet kan gemmes' : 'Gem samtalen og vend tilbage senere'}
+      title={disabled ? 'Write your first message before saving' : 'Save this workspace and return later'}
       className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
       style={{ borderColor: '#1D428A', color: '#1D428A' }}
     >
       <Save className="w-4 h-4" />
-      {state === 'saving' ? 'Gemmer…' : 'Gem udkast'}
+      {state === 'saving' ? 'Saving…' : 'Save draft'}
     </button>{error && <p role="alert" className="text-xs text-destructive mt-2">{error}</p>}</div>
   );
 }

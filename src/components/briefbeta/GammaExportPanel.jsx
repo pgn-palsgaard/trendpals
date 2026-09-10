@@ -12,15 +12,41 @@ const STEPS = [
 ];
 
 export default function GammaExportPanel({ report, slideCount }) {
-  const [phase, setPhase] = useState('idle'); // idle | running | ready | failed
-  const [stepIndex, setStepIndex] = useState(0);
+  const initialStatus = report?.gamma_export_status;
+  const [phase, setPhase] = useState(initialStatus === 'ready' ? 'ready' : initialStatus === 'failed' ? 'failed' : initialStatus === 'generating' ? 'running' : 'idle');
+  const [stepIndex, setStepIndex] = useState(initialStatus === 'ready' ? STEPS.length : initialStatus === 'generating' ? 2 : 0);
   const [elapsed, setElapsed] = useState(0);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [result, setResult] = useState(initialStatus === 'ready' ? { pptx_url: report?.gamma_pptx_url, gamma_url: report?.gamma_url } : null);
+  const [error, setError] = useState(report?.gamma_export_error || null);
   const pollRef = useRef(null);
   const tickRef = useRef(null);
 
   useEffect(() => () => { clearInterval(pollRef.current); clearInterval(tickRef.current); }, []);
+
+  function beginPolling() {
+    clearInterval(pollRef.current);
+    pollRef.current = setInterval(async () => {
+      try {
+        const poll = await base44.functions.invoke('checkGammaExport', { report_id: report.id });
+        const d = poll.data || {};
+        if (d.status === 'ready') {
+          clearInterval(pollRef.current); clearInterval(tickRef.current);
+          setStepIndex(STEPS.length); setResult(d); setPhase('ready');
+        } else if (d.status === 'failed') {
+          clearInterval(pollRef.current); clearInterval(tickRef.current);
+          setError(d.error || 'Gamma could not build the deck.'); setPhase('failed');
+        }
+      } catch { /* transient — keep polling */ }
+    }, 5000);
+  }
+
+  useEffect(() => {
+    if (report?.gamma_export_status !== 'generating') return;
+    const started = report.gamma_export_started_at ? new Date(report.gamma_export_started_at).getTime() : Date.now();
+    setElapsed(Math.max(0, Math.round((Date.now() - started) / 1000)));
+    tickRef.current = setInterval(() => setElapsed(e => e + 1), 1000);
+    beginPolling();
+  }, [report?.id]);
 
   async function startExport() {
     setPhase('running');
@@ -35,24 +61,7 @@ export default function GammaExportPanel({ report, slideCount }) {
       if (res.data?.error) throw new Error(res.data.error);
       setStepIndex(2);
 
-      pollRef.current = setInterval(async () => {
-        try {
-          const poll = await base44.functions.invoke('checkGammaExport', { report_id: report.id });
-          const d = poll.data || {};
-          if (d.status === 'ready') {
-            clearInterval(pollRef.current);
-            clearInterval(tickRef.current);
-            setStepIndex(STEPS.length);
-            setResult(d);
-            setPhase('ready');
-          } else if (d.status === 'failed') {
-            clearInterval(pollRef.current);
-            clearInterval(tickRef.current);
-            setError(d.error || 'Gamma could not build the deck.');
-            setPhase('failed');
-          }
-        } catch { /* transient — keep polling */ }
-      }, 5000);
+      beginPolling();
     } catch (e) {
       clearInterval(tickRef.current);
       setError(e.message);

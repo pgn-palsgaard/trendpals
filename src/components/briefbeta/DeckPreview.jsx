@@ -30,7 +30,7 @@ export default function DeckPreview({ slides = [], onSlideChange, onSave, saving
     <label className="block text-xs text-muted-foreground">Jump to slide
       <select value={active} onChange={e => go(Number(e.target.value))} className="mt-1 w-full rounded-lg border bg-card text-foreground p-3 text-sm">{slides.map((s, i) => <option key={i} value={i}>{i + 1}. {s.title || s.slide_name}</option>)}</select>
     </label>
-    {editing && onSlideChange ? <SlideCard key={active} slide={current} onChange={updated => onSlideChange(active, updated)} /> : <SlideCanvas slide={current} trendStatus={trendStatus} topline={buildToplines(slides)[active]} products={products} images={images} />}
+    {editing && onSlideChange ? <SlideCard key={active} slide={current} startEditing onDone={() => setEditing(false)} onChange={updated => onSlideChange(active, updated)} /> : <SlideCanvas slide={current} trendStatus={trendStatus} topline={buildToplines(slides)[active]} products={products} images={images} />}
     <div className="flex gap-3 overflow-x-auto pb-2" aria-label="Slide thumbnails">
       {slides.map((s, i) => <button key={i} onClick={() => go(i)} aria-label={`Slide ${i + 1}: ${s.title || s.slide_name}`} aria-current={i === active ? 'true' : undefined} className={`shrink-0 w-36 rounded-lg p-1 border-2 text-left transition-colors ${i === active ? 'border-primary bg-secondary' : 'border-border bg-card hover:border-primary/50'}`}><SlideThumbnail slide={s} /><p className="text-xs px-1 pt-1 truncate">{i + 1}. {s.title || s.slide_name}</p></button>)}
     </div>
