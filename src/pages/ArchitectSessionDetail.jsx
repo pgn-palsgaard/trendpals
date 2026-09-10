@@ -10,6 +10,7 @@ import SessionSlides from '@/components/architecthistory/SessionSlides';
 import ResumeSessionButton from '@/components/architecthistory/ResumeSessionButton';
 import MarkdownDownload from '@/components/briefbeta/MarkdownDownload';
 import loadWorkspaceReport from '@/components/briefbeta/loadWorkspaceReport';
+import ImagePackDownload from '@/components/briefbeta/ImagePackDownload';
 
 export default function ArchitectSessionDetail() {
   const { sessionId } = useParams();
@@ -77,7 +78,7 @@ export default function ArchitectSessionDetail() {
 
           <div className="flex items-center gap-2 shrink-0">
           <ResumeSessionButton sessionId={session.id} />
-          {report && <MarkdownDownload report={report} />}
+          {report && <><MarkdownDownload report={report} /><ImagePackDownload report={report} /></>}
           </div>
         </div>
 

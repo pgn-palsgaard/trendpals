@@ -21,6 +21,7 @@ import DeckPreview from '@/components/briefbeta/DeckPreview';
 import MarkdownDownload from '@/components/briefbeta/MarkdownDownload';
 import ReportWorkspaceLink from '@/components/briefbeta/ReportWorkspaceLink';
 import loadWorkspaceReport from '@/components/briefbeta/loadWorkspaceReport';
+import ImagePackDownload from '@/components/briefbeta/ImagePackDownload';
 
 export default function ReportView() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -265,6 +266,7 @@ export default function ReportView() {
                 </div>
               )}
               <MarkdownDownload report={report} />
+              <ImagePackDownload report={report} />
               {report.generated_by === 'architect' && <ReportWorkspaceLink reportId={report.id} />}
               <Button size="sm" variant="secondary" onClick={handleExportPrompt}>
                 <Copy className="w-4 h-4 mr-2" />
