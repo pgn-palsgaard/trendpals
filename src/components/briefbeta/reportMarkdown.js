@@ -23,7 +23,11 @@ export function buildReportMarkdown(report) {
     paragraph(s.so_what);
     (s.items || []).forEach(item => { lines.push(`### ${item.title || ''}`, ''); paragraph(item.text); });
     list('So what for manufacturers?', s.strategic_implications); list('Where Palsgaard supports', s.palsgaard_support);
-    list('Product evidence', s.gnpd_examples);
+    list('Product evidence', (s.gnpd_examples || []).map(example => {
+      const id = String(example).match(/^\s*(\d+)\s*\|/)?.[1];
+      const product = (report.product_shortlist || []).find(p => id && String(p.gnpd_record_id) === id);
+      return product ? `${[product.product_name, product.brand, product.country, product.launch_date].filter(Boolean).join(' · ')} — ${example}` : example;
+    }));
     if (s.supporting_data?.length) {
       lines.push('### Supporting evidence', '');
       s.supporting_data.forEach((d, i) => lines.push(`- ${d.stat}${d.geography ? ` (${d.geography})` : ''}${d.source ? `[^s${index + 1}-${i + 1}]` : ''}`));

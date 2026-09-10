@@ -59,8 +59,8 @@ export default function ArchitectHistory() {
           </div>
           <p className="page-subtitle">
             {isAdmin
-              ? 'Every Report Architect session across the workspace — full transcript, contract, deck and linked report.'
-              : 'Your Report Architect sessions — full transcript, contract, deck and linked report.'}
+              ? 'Open a workspace to see its report, continue the chat or download it.'
+              : 'Pick up where you left off — your chat and report open together.'}
           </p>
         </div>
 

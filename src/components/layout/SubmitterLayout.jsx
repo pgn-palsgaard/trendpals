@@ -28,6 +28,7 @@ export default function SubmitterLayout({ children }) {
           >
             Report Architect
           </Link>
+          <Link to="/ArchitectHistory" className="rounded-lg px-3 py-2 text-sm text-primary-foreground hover:bg-primary-foreground/10">Saved work</Link>
           <Link
             to="/Profile"
             className="flex items-center gap-1.5 rounded-lg transition-colors"

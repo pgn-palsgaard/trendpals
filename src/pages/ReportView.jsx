@@ -17,6 +17,10 @@ import BriefingContextSlide from '@/components/report/BriefingContextSlide';
 import AIDisclaimer from '@/components/report/AIDisclaimer';
 import ProductShortlistSection from '@/components/report/ProductShortlistSection';
 import SlidesSection from '@/components/report/SlidesSection';
+import DeckPreview from '@/components/briefbeta/DeckPreview';
+import MarkdownDownload from '@/components/briefbeta/MarkdownDownload';
+import ReportWorkspaceLink from '@/components/briefbeta/ReportWorkspaceLink';
+import loadWorkspaceReport from '@/components/briefbeta/loadWorkspaceReport';
 
 export default function ReportView() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -26,7 +30,10 @@ export default function ReportView() {
     queryKey: ['report', reportId],
     queryFn: async () => {
       const reports = await base44.entities.Report.filter({ id: reportId });
-      return reports[0];
+      const report = reports[0];
+      if (report?.generated_by !== 'architect') return report;
+      const sessions = await base44.entities.ArchitectSession.filter({ linked_report_id: reportId }, '-last_message_at', 1);
+      return sessions[0] ? loadWorkspaceReport(sessions[0]) : report;
     },
     enabled: !!reportId
   });
@@ -257,6 +264,8 @@ export default function ReportView() {
                   ))}
                 </div>
               )}
+              <MarkdownDownload report={report} />
+              {report.generated_by === 'architect' && <ReportWorkspaceLink reportId={report.id} />}
               <Button size="sm" variant="secondary" onClick={handleExportPrompt}>
                 <Copy className="w-4 h-4 mr-2" />
                 {copied ? 'Copied!' : 'Export full report prompt'}
@@ -264,6 +273,8 @@ export default function ReportView() {
             </div>
           </CardContent>
         </Card>
+
+        {report.generated_by === 'architect' && <section className="mb-8"><DeckPreview slides={report.slides || []} bindings={report.evidence_bindings} trendStatus={report.trend_status} products={report.product_shortlist || []} /></section>}
 
         {/* Briefing Context cover slide */}
         <BriefingContextSlide slide={(report.slides || []).find(s => s.slide_type === 'briefing_context')} />
@@ -282,7 +293,7 @@ export default function ReportView() {
 
         {/* Full deck content — why it may matter, formulation questions, SIGNAL
             section and the methodology slide, all rendered inline in deck order. */}
-        <SlidesSection slides={report.slides} />
+        {report.generated_by !== 'architect' && <SlidesSection slides={report.slides} />}
 
 
       </div>

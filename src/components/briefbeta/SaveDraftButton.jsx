@@ -6,13 +6,16 @@ import { Save, Check } from 'lucide-react';
 // chat runs; this makes it visible and confirms where to pick the work up again.
 export default function SaveDraftButton({ onSave, disabled }) {
   const [state, setState] = useState('idle'); // idle | saving | saved
+  const [error, setError] = useState(null);
 
   async function handleClick() {
     setState('saving');
+    setError(null);
     try {
       await onSave();
       setState('saved');
-    } catch {
+    } catch (e) {
+      setError(e.message || 'Udkastet kunne ikke gemmes. Prøv igen.');
       setState('idle');
     }
   }
@@ -33,7 +36,7 @@ export default function SaveDraftButton({ onSave, disabled }) {
   }
 
   return (
-    <button
+    <div><button
       onClick={handleClick}
       disabled={disabled || state === 'saving'}
       title={disabled ? 'Skriv din første besked, før udkastet kan gemmes' : 'Gem samtalen og vend tilbage senere'}
@@ -42,6 +45,6 @@ export default function SaveDraftButton({ onSave, disabled }) {
     >
       <Save className="w-4 h-4" />
       {state === 'saving' ? 'Gemmer…' : 'Gem udkast'}
-    </button>
+    </button>{error && <p role="alert" className="text-xs text-destructive mt-2">{error}</p>}</div>
   );
 }

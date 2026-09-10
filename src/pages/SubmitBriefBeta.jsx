@@ -13,6 +13,7 @@ import SaveDraftButton from '@/components/briefbeta/SaveDraftButton';
 import { ARCHITECT_OPENERS, jtbdFraming } from '@/components/briefbeta/architectJtbd';
 import DeckPreview from '@/components/briefbeta/DeckPreview';
 import ReportExports from '@/components/briefbeta/ReportExports';
+import loadWorkspaceReport from '@/components/briefbeta/loadWorkspaceReport';
 import { buildArchitectPrompt, CANONICAL_CATEGORIES } from '@/components/briefbeta/architectPrompt';
 import { buildEvidenceContext, extractRecordIds } from '@/components/briefbeta/evidenceContext';
 import { resolveRegionScope } from '@/components/briefbeta/regionScope';
@@ -98,7 +99,7 @@ export default function SubmitBriefBeta() {
   const { user } = useAuth();
 
   // Resuming a session from the Architect history: ?session=<id>
-  const resumeId = new URLSearchParams(window.location.search).get('session');
+  const resumeId = useRef(new URLSearchParams(window.location.search).get('session')).current;
   const [resuming, setResuming] = useState(!!resumeId);
 
   useEffect(() => {
@@ -108,7 +109,7 @@ export default function SubmitBriefBeta() {
     setRestoreError(null);
     base44.entities.ArchitectSession.get(resumeId).then(async s => {
       if (!s) throw new Error('Session not found.');
-      const report = s.linked_report_id ? await base44.entities.Report.get(s.linked_report_id) : null;
+      const report = await loadWorkspaceReport(s);
       if (cancelled) return;
       setMessages(Array.isArray(s.messages) ? s.messages : []);
       setJtbd('other');
@@ -133,7 +134,7 @@ export default function SubmitBriefBeta() {
   }, [resumeId]);
 
   // Every session is auto-saved to the Architect history as the conversation runs.
-  const { markConverted, saveDraft } = useArchitectSession({
+  const { markConverted, saveDraft, sessionIdRef } = useArchitectSession({
     messages,
     contract,
     slides,
@@ -757,6 +758,7 @@ ${items}`,
       setSlides(report.slides || finalSlides);
       setDeckState('saved'); setShowSaved(true);
       await markConverted(report.id, project.id);
+      if (sessionIdRef.current) window.history.replaceState(null, '', `/SubmitBriefBeta?session=${sessionIdRef.current}`);
     } catch (e) {
       setMessages(prev => [...prev, { role: 'assistant', content: `Saving failed: ${e.message}` }]);
     }
@@ -799,7 +801,11 @@ ${items}`,
             )}
             {deckState !== 'saved' && (
               <SaveDraftButton
-                onSave={saveDraft}
+                onSave={async () => {
+                  const id = await saveDraft();
+                  if (id) window.history.replaceState(null, '', `/SubmitBriefBeta?session=${id}`);
+                  return id;
+                }}
                 disabled={!messages.some(m => m.role === 'user')}
               />
             )}

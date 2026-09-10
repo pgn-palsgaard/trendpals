@@ -117,6 +117,8 @@ const AuthenticatedApp = () => {
       <Routes>
         <Route path="/review" element={<ReviewerLayout><SMEReviewPortal /></ReviewerLayout>} />
         <Route path="/SubmitBriefBeta" element={<ReviewerLayout wide><SubmitBriefBeta /></ReviewerLayout>} />
+        <Route path="/ArchitectHistory" element={<ReviewerLayout wide><ArchitectHistory /></ReviewerLayout>} />
+        <Route path="/ArchitectHistory/:sessionId" element={<ReviewerLayout wide><ArchitectSessionDetail /></ReviewerLayout>} />
         <Route path="*" element={<Navigate to="/review" replace />} />
       </Routes>
     );
@@ -133,6 +135,8 @@ const AuthenticatedApp = () => {
         {/* Submitters now work in the Report Architect. The classic brief form is
             hidden for now (kept in the codebase) — any visit redirects onward. */}
         <Route path="/SubmitBriefBeta" element={<SubmitterLayout><SubmitBriefBeta /></SubmitterLayout>} />
+        <Route path="/ArchitectHistory" element={<SubmitterLayout><ArchitectHistory /></SubmitterLayout>} />
+        <Route path="/ArchitectHistory/:sessionId" element={<SubmitterLayout><ArchitectSessionDetail /></SubmitterLayout>} />
         <Route path="/Profile" element={<SubmitterLayout><Profile /></SubmitterLayout>} />
         <Route path="*" element={<Navigate to="/SubmitBriefBeta" replace />} />
       </Routes>

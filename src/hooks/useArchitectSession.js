@@ -46,6 +46,7 @@ export default function useArchitectSession({ messages, contract, slides, sessio
   // Serialise writes so a change during an in-flight save is still persisted
   // (and so the create never races into two records).
   const queueRef = useRef(Promise.resolve());
+  const saveErrorRef = useRef(null);
 
   useEffect(() => {
     // The opener alone is not a session — wait for the user's first message.
@@ -68,32 +69,36 @@ export default function useArchitectSession({ messages, contract, slides, sessio
       region: toRegionCode(contract?.region),
     };
 
-    queueRef.current = queueRef.current
+    queueRef.current = queueRef.current.catch(() => {})
       .then(() => (sessionIdRef.current
         ? base44.entities.ArchitectSession.update(sessionIdRef.current, payload)
         : base44.entities.ArchitectSession.create({ ...payload, status: 'active' })
             .then(rec => { sessionIdRef.current = rec.id; })))
-      .catch(() => {});
+      .then(() => { saveErrorRef.current = null; })
+      .catch(error => { saveErrorRef.current = error; });
   }, [messages, contract, slides, sessionStart, user, deckState, enabled]);
 
   // Explicit "save draft": the auto-save effect has already queued the current
   // state, so this just waits for the queue to drain and reports the session id.
   function saveDraft() {
     queueRef.current = queueRef.current.catch(() => {});
-    return queueRef.current.then(() => sessionIdRef.current);
+    return queueRef.current.then(() => {
+      if (saveErrorRef.current) throw saveErrorRef.current;
+      if (!sessionIdRef.current) throw new Error('The session could not be saved. Please try again.');
+      return sessionIdRef.current;
+    });
   }
 
   function markConverted(reportId, projectId) {
     // Runs behind the same queue so the session record always exists first.
-    queueRef.current = queueRef.current
+    queueRef.current = queueRef.current.catch(() => {})
       .then(() => (sessionIdRef.current
         ? base44.entities.ArchitectSession.update(sessionIdRef.current, {
             status: 'converted',
             linked_report_id: reportId,
             linked_project_id: projectId,
           })
-        : null))
-      .catch(() => {});
+        : Promise.reject(new Error('The report was saved, but its chat link could not be saved.'))));
     return queueRef.current;
   }
 

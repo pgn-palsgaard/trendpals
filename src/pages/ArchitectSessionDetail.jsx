@@ -8,6 +8,8 @@ import ContractPanel from '@/components/briefbeta/ContractPanel';
 import TranscriptView from '@/components/architecthistory/TranscriptView';
 import SessionSlides from '@/components/architecthistory/SessionSlides';
 import ResumeSessionButton from '@/components/architecthistory/ResumeSessionButton';
+import MarkdownDownload from '@/components/briefbeta/MarkdownDownload';
+import loadWorkspaceReport from '@/components/briefbeta/loadWorkspaceReport';
 
 export default function ArchitectSessionDetail() {
   const { sessionId } = useParams();
@@ -17,6 +19,13 @@ export default function ArchitectSessionDetail() {
     enabled: !!sessionId,
     retry: false,
     queryFn: () => base44.entities.ArchitectSession.get(sessionId),
+  });
+
+  const { data: report, isLoading: reportLoading, isError: reportError } = useQuery({
+    queryKey: ['report', session?.linked_report_id],
+    enabled: !!session?.linked_report_id,
+    queryFn: () => loadWorkspaceReport(session),
+    retry: false,
   });
 
   if (isLoading) {
@@ -68,36 +77,20 @@ export default function ArchitectSessionDetail() {
 
           <div className="flex items-center gap-2 shrink-0">
           <ResumeSessionButton sessionId={session.id} />
-          {session.status === 'converted' && session.linked_report_id && (
-            <Link
-              to={`/ReportView?id=${session.linked_report_id}`}
-              className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shrink-0"
-              style={{ background: '#1D428A' }}
-            >
-              Open report <ExternalLink className="w-4 h-4" />
-            </Link>
-          )}
+          {report && <MarkdownDownload report={report} />}
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row gap-5">
-          <div className="lg:w-1/2">
-            <p className="section-label mb-2">Transcript</p>
-            <div className="pal-card p-5">
-              <TranscriptView messages={session.messages} />
-            </div>
-          </div>
-
-          <div className="lg:w-1/2 space-y-4">
-            <div>
-              <p className="section-label mb-2">Brief contract</p>
-              <ContractPanel contract={session.contract || {}} trendCount={0} />
-            </div>
-            <div>
-              <p className="section-label mb-2">Deck snapshot</p>
-              <SessionSlides slides={session.slides} />
-            </div>
-          </div>
+        <div className="space-y-6">
+          <section className="min-w-0">
+            <p className="section-label mb-3">{report ? 'Saved report' : 'Working draft'}</p>
+            {reportLoading ? <p role="status" className="text-sm text-muted-foreground">Loading saved report…</p> : <>
+              {reportError && <p role="alert" className="text-sm text-destructive mb-3">The linked report could not be loaded. The session snapshot is shown below.</p>}
+              <SessionSlides slides={session.slides} report={report} />
+            </>}
+          </section>
+          <details className="pal-card p-5"><summary className="cursor-pointer font-semibold text-sm text-primary">Chat transcript · {session.message_count || 0} messages</summary><div className="mt-4"><TranscriptView messages={session.messages} /></div></details>
+          <details className="pal-card p-5"><summary className="cursor-pointer font-semibold text-sm text-primary">Brief & scope</summary><div className="mt-4"><ContractPanel contract={session.contract || {}} trendCount={0} /></div></details>
         </div>
       </div>
     </div>

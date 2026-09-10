@@ -11,7 +11,7 @@ export default function ResumeSessionButton({ sessionId }) {
       style={{ borderColor: '#1D428A', color: '#1D428A' }}
     >
       <MessageSquare className="w-4 h-4" />
-      Continue this chat
+      Open chat & report
     </Link>
   );
 }

@@ -7,6 +7,7 @@ import { LogOut } from 'lucide-react';
 const REVIEWER_LINKS = [
   { label: 'Review', to: '/review' },
   { label: 'Architect', to: '/SubmitBriefBeta' },
+  { label: 'Saved work', to: '/ArchitectHistory' },
 ];
 
 // Stripped-down layout for SME reviewers — no sidebar, no admin nav.
