@@ -22,6 +22,7 @@ export function buildToplines(slides) {
 
   return list.map(s => {
     const type = s?.slide_type || 'content';
+    if (s?.preheader) return s.preheader;
     if (type === 'implications') {
       const base = stems[String(s.trend_id || '')] || 'Strategic implications';
       return `${base}  |  STRATEGIC IMPLICATIONS`;

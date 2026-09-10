@@ -6,9 +6,9 @@ import ImagePreflight from '@/components/briefbeta/ImagePreflight';
 // Builds the PPTX with the custom Palsgaard PowerPoint skill via Claude,
 // as a CVI-true alternative to the Gamma export. Polls the Report record.
 export default function ClaudePptxPanel({ report, slideCount }) {
-  const [phase, setPhase] = useState(report?.claude_export_status === 'ready' ? 'ready' : 'idle');
+  const [phase, setPhase] = useState(report?.claude_export_status === 'ready' ? 'ready' : report?.claude_export_status === 'failed' ? 'failed' : 'idle');
   const [pptxUrl, setPptxUrl] = useState(report?.claude_pptx_url || null);
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(report?.claude_export_error || null);
   const [elapsed, setElapsed] = useState(0);
   const [stageDetail, setStageDetail] = useState(null);
   const [stuck, setStuck] = useState(false);

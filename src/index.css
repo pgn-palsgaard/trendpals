@@ -193,6 +193,13 @@
     background: hsl(var(--muted) / 0.5);
   }
 
+  /* Report cards follow their available panel width, not the page viewport. */
+  .report-slide { container-type: inline-size; }
+  .report-slide-grid { display: grid; gap: 1.5rem; }
+  @container (min-width: 560px) {
+    .report-slide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
   /* Scrollbar refinement */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }

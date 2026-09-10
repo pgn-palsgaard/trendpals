@@ -1,29 +1,8 @@
 import React from 'react';
+import DeckPreview from '@/components/briefbeta/DeckPreview';
 
-export default function SessionSlides({ slides }) {
-  if (!slides?.length) {
-    return <p className="text-sm text-muted-foreground">No deck was built in this session.</p>;
-  }
-
-  return (
-    <div className="space-y-3">
-      {slides.map((s, i) => (
-        <div key={i} className="rounded-lg border border-border bg-card p-4">
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="section-label">{s.slide_name || `Slide ${s.slide_number ?? i + 1}`}</span>
-          </div>
-          <p className="font-semibold text-foreground">{s.title}</p>
-          {s.subtitle && <p className="text-sm text-muted-foreground mt-0.5">{s.subtitle}</p>}
-          {s.market_signal && (
-            <p className="text-sm text-foreground mt-2 whitespace-pre-wrap">{s.market_signal}</p>
-          )}
-          {Array.isArray(s.gnpd_examples) && s.gnpd_examples.length > 0 && (
-            <ul className="mt-2 list-disc list-inside text-sm text-muted-foreground space-y-0.5">
-              {s.gnpd_examples.map((g, j) => <li key={j}>{g}</li>)}
-            </ul>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+export default function SessionSlides({ slides, report }) {
+  const deck = report?.slides || slides;
+  if (!deck?.length) return <p className="text-sm text-muted-foreground">No deck was built in this session.</p>;
+  return <DeckPreview slides={deck} bindings={report?.evidence_bindings} trendStatus={report?.trend_status} products={report?.product_shortlist || []} />;
 }
