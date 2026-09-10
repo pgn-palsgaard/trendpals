@@ -21,7 +21,7 @@ import { coveredRegionLabel } from '@/components/briefbeta/coveredRegion';
 import { validateSlides, allowListFromBindings, unresolvableGate } from '@/components/briefbeta/outputValidator';
 import { buildTrendStatus } from '@/components/briefbeta/trendStatus';
 import { buildCitationMap, resolveSupportingData } from '@/components/briefbeta/citationMap';
-import { buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
+import { buildEvidenceSummarySlide, buildMethodologySlide } from '@/components/briefbeta/methodologyAppendix';
 import { computeRenderedSplit } from '@/components/briefbeta/renderedByCountry';
 import { stampProvenance } from '@/components/briefbeta/readAcross';
 import { runBuildWithValidation, MAX_BUILD_ATTEMPTS } from '@/components/briefbeta/validationLoop';
@@ -661,16 +661,6 @@ ${items}`,
         title: 'About this report',
         market_signal: AI_DISCLAIMER_FULL,
       };
-      const methodologySlide = buildMethodologySlide({
-        gate: snap.gate,
-        contract,
-        exclusions: snap.exclusions,
-        validatorFlags: verdict.flags,
-      });
-      // deck is already citation-resolved (above) and was validated in that state,
-      // so what is persisted is exactly what LEN measured.
-      const finalSlides = [disclaimerSlide, ...deck.map((s, i) => ({ ...s, slide_number: i + 1 }))];
-      if (methodologySlide) finalSlides.push({ ...methodologySlide, slide_number: finalSlides.length });
 
       // The deck cites products by their exact GNPD Record ID, so the shortlist is
       // built straight from the retrieved evidence — no name guessing.
@@ -688,6 +678,26 @@ ${items}`,
       // recorded as a flag instead of silently shipping an unresolvable id.
       const resolvedIds = recordIds.filter(id => evidenceById[id]);
       const unresolvedIds = recordIds.filter(id => !evidenceById[id]);
+      const evidenceSummarySlide = buildEvidenceSummarySlide({
+        gate: snap.gate,
+        namedCount: resolvedIds.length,
+      });
+      const methodologySlide = buildMethodologySlide({
+        gate: snap.gate,
+        contract,
+        exclusions: snap.exclusions,
+        validatorFlags: verdict.flags,
+      });
+      // Both evidence-readout slides are system-authored from the frozen snapshot.
+      // The summary sits immediately after the disclaimer, before architect content.
+      const systemFront = evidenceSummarySlide
+        ? [disclaimerSlide, { ...evidenceSummarySlide, slide_number: 1 }]
+        : [disclaimerSlide];
+      const finalSlides = [
+        ...systemFront,
+        ...deck.map((s, i) => ({ ...s, slide_number: i + systemFront.length })),
+      ];
+      if (methodologySlide) finalSlides.push({ ...methodologySlide, slide_number: finalSlides.length });
       for (const id of unresolvedIds) {
         validatorLog.flags.push({
           rule: 'REF-1',

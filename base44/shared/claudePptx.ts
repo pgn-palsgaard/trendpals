@@ -528,7 +528,7 @@ def classify(entry):
   """Deterministic slide-type resolution. Legacy decks carry only 'content' for the
   about, opening and closing slides \\u2014 they are recognised structurally, never by prose."""
   kind=str(entry.get('slide_type') or 'content').strip().lower()
-  if kind in ('section_header','implications','methodology','about','opening','closing','agenda',
+  if kind in ('section_header','implications','methodology','evidence_summary','about','opening','closing','agenda',
     'table','imperatives'): return kind
   if kind=='briefing_context': return 'about'
   if str(entry.get('title') or '').strip().lower().startswith('about this report'): return 'about'
@@ -625,6 +625,40 @@ def render_methodology(prs,slide_data,preheader,report):
   paras=[{'text':f'\\u2022  {l}','size':size,'color':DKBLUE} for l in lines]
   set_ph_structured(slide,BODY_IDX[layout_name],paras)
   report['methodology_lines']=len(lines); drop_empty_placeholders(slide)
+  return [slide]
+
+def render_evidence_summary(prs,slide_data,preheader,report):
+  """System-authored screening readout with two or three unboxed big-number stats."""
+  layout_name='Full page content and preheader'
+  slide=prs.slides.add_slide(get_layout(prs,layout_name))
+  head=str(slide_data.get('preheader') or preheader or '').strip()
+  if head: set_ph_simple(slide,PREHEADER_IDX[layout_name],head,size=11,bold=True,color=BLUE)
+  title=str(slide_data.get('title') or 'Evidence at a glance').strip()
+  reposition_placeholder(slide,0,0.89,0.95,11.86,1.15)
+  set_ph_simple(slide,0,title,size=26,color=DKBLUE)
+  stats=[s for s in as_list(slide_data.get('stats')) if isinstance(s,dict)][:3]
+  if len(stats) not in (2,3): report['warnings'].append('Evidence summary requires two or three stats.')
+  count=max(1,len(stats)); gap=0.55; width=(11.86-gap*(count-1))/count
+  for i,stat in enumerate(stats):
+    x=0.89+i*(width+gap)
+    raw=stat.get('value',0)
+    try: number=f'{int(float(raw)):,}'
+    except (TypeError,ValueError): number=str(raw)
+    number_box=slide.shapes.add_textbox(Inches(x),Inches(2.20),Inches(width),Inches(0.82))
+    number_box.text_frame.word_wrap=False; body=number_box.text_frame._txBody
+    for p in body.findall(qn('a:p')): body.remove(p)
+    body.append(make_para(number,bold=True,size_pt=34,color=BLUE))
+    label_box=slide.shapes.add_textbox(Inches(x),Inches(3.10),Inches(width),Inches(1.05))
+    label_box.text_frame.word_wrap=True; body=label_box.text_frame._txBody
+    for p in body.findall(qn('a:p')): body.remove(p)
+    body.append(make_para(str(stat.get('label') or ''),size_pt=12,color=DKBLUE))
+  summary=str(slide_data.get('summary') or '').strip()
+  if summary:
+    summary_box=slide.shapes.add_textbox(Inches(0.89),Inches(4.65),Inches(11.86),Inches(1.12))
+    summary_box.text_frame.word_wrap=True; body=summary_box.text_frame._txBody
+    for p in body.findall(qn('a:p')): body.remove(p)
+    body.append(make_para(summary,size_pt=12,color=GREY))
+  drop_empty_placeholders(slide)
   return [slide]
 
 def render_implications(prs,slide_data,preheader,report):
@@ -833,6 +867,8 @@ def build(data,template_path,out_path,workdir):
       made=render_implications(prs,entry,preheader,report)
     elif kind=='methodology':
       made=render_methodology(prs,entry,preheader,report)
+    elif kind=='evidence_summary':
+      made=render_evidence_summary(prs,entry,preheader,report)
     elif kind=='table':
       accent=SECTION_ACCENTS[(section_index-1)%len(SECTION_ACCENTS)] if section_index else BLUE
       made=render_table(prs,entry,preheader,report,accent)

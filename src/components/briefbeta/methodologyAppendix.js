@@ -2,6 +2,8 @@
 // requester can see the gap between what they asked for and what the data can
 // actually evidence.
 
+import { coveredRegionLabel } from './coveredRegion';
+
 const SUBREGION_LABELS = {
   europe: 'European markets',
   turkey: 'Turkey',
@@ -128,5 +130,51 @@ export function buildMethodologySlide({ gate, contract, exclusions, validatorFla
     subtitle: 'Brief constraints applied as hard filters before any analysis was written',
     market_signal: lines.join('\n'),
     gnpd_examples: sampleExclusions.length ? [`Examples of excluded records: ${sampleExclusions.join(' | ')}`] : [],
+  };
+}
+
+function titleCaseCategory(value) {
+  return String(value || '')
+    .split('_')
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+export function buildEvidenceSummarySlide({ gate, namedCount }) {
+  if (!gate) return null;
+
+  const categories = [...new Set((gate.trend_truncation || []).map(item => item.category).filter(Boolean))];
+  const categoryLabel = categories.map(titleCaseCategory).join(' & ') || 'Selected category';
+  const globalScope = gate.region_scope === 'global';
+  const regionLabel = coveredRegionLabel(gate);
+  const stats = [
+    {
+      value: Number(gate.population_total || 0),
+      label: `${categoryLabel} launches screened for this report`,
+    },
+    {
+      value: Number(namedCount || 0),
+      label: 'launches carried forward as named evidence in this report',
+    },
+  ];
+
+  if (!globalScope) {
+    stats.push({
+      value: (gate.country_allow_list || []).length,
+      label: `${regionLabel || 'Covered region'} markets inside the region gate`,
+    });
+  }
+
+  const scopeText = globalScope ? 'worldwide' : `within the ${regionLabel || 'resolved'} region gate`;
+  const months = gate.recency_months || 30;
+
+  return {
+    slide_name: 'Evidence at a glance',
+    slide_type: 'evidence_summary',
+    preheader: 'EVIDENCE BASE  |  SCREENING SUMMARY',
+    title: 'Evidence at a glance',
+    stats,
+    summary: `Screening covered ${categoryLabel.toLowerCase()} launches from the last ${months} months ${scopeText}. The named evidence products carried forward are a selected evidence set for this report, not a market-size estimate.`,
   };
 }
