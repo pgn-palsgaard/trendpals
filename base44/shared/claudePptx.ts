@@ -12,6 +12,7 @@
 // feed the generative code-authoring path.
 import { secrets } from 'base44:runtime';
 import { resolveDeckProducts } from './deckImages.ts';
+import { INTRO_LAYOUTS_PY } from './pptxIntroLayouts.ts';
 
 export const SKILL_ID = 'skill_01X6Ebs4KnmYNkUivvifnrpo';
 export const API     = 'https://api.anthropic.com';
@@ -647,16 +648,7 @@ def trend_stems(ordered):
     if key and len(parts)>=2 and key not in out: out[key]='  |  '.join(parts[:2])
   return out
 
-def render_about(prs,slide_data,preheader,report):
-  """Dedicated about / AI-notice slide. Never carries trend content."""
-  layout_name='Full page content and preheader'
-  slide=prs.slides.add_slide(get_layout(prs,layout_name))
-  if preheader: set_ph_simple(slide,PREHEADER_IDX[layout_name],preheader,size=11,color=DKBLUE)
-  set_ph_simple(slide,0,str(slide_data.get('title') or ABOUT_TITLE),size=24,color=DKBLUE)
-  notice=str(slide_data.get('market_signal') or '').strip() or AI_NOTICE
-  set_ph_structured(slide,BODY_IDX[layout_name],[{'text':notice,'size':12,'color':GREY}])
-  drop_empty_placeholders(slide)
-  return [slide]
+${INTRO_LAYOUTS_PY}
 
 def render_front_page(prs,data,report):
   slide=prs.slides.add_slide(get_layout(prs,'Alternative front page - Palsgaard blue'))
@@ -963,6 +955,8 @@ def build(data,template_path,out_path,workdir):
       render_breaking(prs,entry,section_index,report); section_index+=1; continue
     if kind=='about':
       made=render_about(prs,entry,preheader,report)
+    elif kind=='opening':
+      made=render_opening(prs,entry,preheader,report)
     elif kind=='implications':
       made=render_implications(prs,entry,preheader,report)
     elif kind=='methodology':
