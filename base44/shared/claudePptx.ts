@@ -180,7 +180,7 @@ SAGE_LIGHT=RGBColor(0xAC,0xCE,0xAE)
 TEMPLATE_NAME='Palsgaard_PP_Template.potx'
 BUDGET_FRONT_TITLE=47; BUDGET_CONTENT_TITLE=75; BUDGET_BREAKING_HEADLINE=38
 BUDGET_IMPLICATIONS_TITLE=110
-BODY_HEIGHT_IN=4.93; BODY_WIDTH_IN=11.86; BODY_WIDTH_WITH_IMAGES_IN=8.00
+BODY_HEIGHT_IN=4.93; BODY_WIDTH_IN=11.86; BODY_WIDTH_WITH_IMAGES_IN=7.40
 CHARS_PER_LINE={14:108,13:118,12:128,11:140,10:154}
 LINE_HEIGHT_IN={14:0.245,13:0.228,12:0.210,11:0.194,10:0.177}
 # One Palsgaard identity, with rhythm. Section dividers rotate through three
@@ -199,11 +199,41 @@ DOT_LEFT_IN=0.42; DOT_SIZE_IN=0.075; DOT_GAP_IN=0.16
 DOT_TOP_IN=1.55; DOT_BOTTOM_IN=6.45
 SLIDE_W_IN=13.333; SLIDE_H_IN=7.5
 CONTENT_LAYOUTS=['Full page content and preheader']
+# Archetype -> template layout. Placeholder indices differ per layout and were
+# resolved from Palsgaard_PP_Template.potx, never assumed. Writing to the wrong
+# index fails silently, so every layout used here declares its own.
+FRAMING_LAYOUT='2/3 colour with right image'
+SPLIT_LAYOUT='Content 50/50 and preheader'
 PREHEADER_IDX={'Full page content and preheader':16,
-  'Full page content and preheader, dark colours':39}
+  'Full page content and preheader, dark colours':39,
+  'Text, image and preheader':18,
+  'Content 50/50 and preheader':16,
+  '2/3 colour with right image':29}
 BODY_IDX={'Full page content and preheader':18,
-  'Full page content and preheader, dark colours':1}
+  'Full page content and preheader, dark colours':1,
+  'Text, image and preheader':16,
+  'Content 50/50 and preheader':1,
+  '2/3 colour with right image':1}
+SPLIT_BODY_RIGHT_IDX=19
+PICTURE_IDX={'Text, image and preheader':17,'2/3 colour with right image':16}
+LAYOUT_BODY_WIDTH={'Full page content and preheader':11.86,
+  'Text, image and preheader':3.88,
+  'Content 50/50 and preheader':4.88,
+  '2/3 colour with right image':5.88}
+LAYOUT_TITLE_BUDGET={'2/3 colour with right image':55}
 DARK_LAYOUTS={'Full page content and preheader, dark colours'}
+
+def layout_idx(table,layout_name,fallback=None):
+  """Resolves a placeholder index for a layout. Returns fallback when the layout
+  declares none, so an unmapped layout degrades instead of raising a KeyError."""
+  if layout_name in table: return table[layout_name]
+  return fallback
+
+def body_width_for(layout_name,default=None):
+  return LAYOUT_BODY_WIDTH.get(layout_name,default if default is not None else BODY_WIDTH_IN)
+
+def title_budget_for(layout_name):
+  return LAYOUT_TITLE_BUDGET.get(layout_name,BUDGET_CONTENT_TITLE)
 BINDINGS={}
 TREND_STATUS={}
 # Canonical deck skeleton. Every export follows this order:
@@ -212,10 +242,18 @@ ABOUT_TITLE='About this report'
 AI_NOTICE=('This content was generated with the assistance of AI and may contain errors or '
   'omissions. It is provided as a starting point only \\u2014 please review and verify all '
   'information before sharing externally or acting on it.')
-THUMB_LEFT_IN=9.15; THUMB_BOX_W_IN=3.29; THUMB_BOX_H_IN=1.55
-THUMB_TOPS_IN=[1.60,3.35,5.10]
-# Evidence cards in the right column: photo on top (when present), text below.
-CARD_IMG_H_IN=0.70; CARD_TEXT_GAP_IN=0.05; CARD_CAPTION_MAX=95; MAX_CARDS=3
+THUMB_LEFT_IN=8.60; THUMB_BOX_W_IN=3.84; THUMB_BOX_H_IN=1.62
+THUMB_TOPS_IN=[1.58,3.38,5.18]
+# Evidence cards: pack shot on the LEFT of the card, text block to its right.
+# Stacking the image above its own caption is what made the shots read as
+# floating thumbnails, so the card is two columns, both top-aligned.
+CARD_IMG_W_IN=1.15; CARD_IMG_H_IN=1.30; CARD_IMG_MIN_W_IN=0.90
+CARD_TEXT_GAP_IN=0.18; CARD_CAPTION_MAX=90; MAX_CARDS=3
+CARD_TEXT_LEFT_IN=THUMB_LEFT_IN+CARD_IMG_W_IN+CARD_TEXT_GAP_IN
+CARD_TEXT_W_IN=THUMB_BOX_W_IN-CARD_IMG_W_IN-CARD_TEXT_GAP_IN
+# Cream on content-heavy slides, white where a pack shot column is present so
+# product images sit on neutral ground.
+CREAM_BG=LGOLD
 PRODUCTS={}
 MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
 
