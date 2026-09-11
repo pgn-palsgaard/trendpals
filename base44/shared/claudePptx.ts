@@ -307,7 +307,36 @@ def patch_template(src,workdir):
         zout.write(full,os.path.relpath(full,unpacked))
   return out
 
-def esc(text): return html.escape(str(text if text is not None else ''),quote=True)
+def dedash(text):
+  """No em or en dashes anywhere, including in system-authored constants."""
+  s=str(text if text is not None else '')
+  s=s.replace(' \\u2014 ',', ').replace('\\u2014 ',', ').replace(' \\u2014',', ').replace('\\u2014',', ')
+  s=s.replace('\\u2013','-').replace('\\u2012','-')
+  s=re.sub(r',\\s*,',',',s)
+  return re.sub(r'\\s+([,.;:])',r'\\1',s)
+
+def pretty_key(text):
+  """Raw keys such as ice_cream never reach a text frame. Applied per
+  pipe-separated segment so pre-headers are cleaned without touching prose."""
+  s=str(text if text is not None else '')
+  out=[]
+  for part in s.split('|'):
+    core=part.strip()
+    if core and re.fullmatch(r'[a-z0-9]+(?:_[a-z0-9]+)+',core):
+      fixed=core.replace('_',' '); fixed=fixed[:1].upper()+fixed[1:]
+      out.append(part.replace(core,fixed))
+    else: out.append(part)
+  return '|'.join(out)
+
+def clip_words(text,limit):
+  """Word-boundary truncation. Cutting mid-word is what produced 'clean-l...'."""
+  s=str(text or '').strip()
+  if len(s)<=limit: return s
+  cut=s[:limit-1].rstrip(); space=cut.rfind(' ')
+  if space>int(limit*0.6): cut=cut[:space].rstrip()
+  return cut.rstrip(' ,;:-')+'\\u2026'
+
+def esc(text): return html.escape(dedash(pretty_key(text)),quote=True)
 def get_layout(prs,name):
   for layout in prs.slide_layouts:
     if layout.name==name: return layout
@@ -465,7 +494,7 @@ def parse_brand_line(example):
 def parse_caption(example):
   tail=strip_id_prefix(example)
   cap=tail.rsplit(':',1)[1].strip() if ':' in tail else tail
-  return cap if len(cap)<=CARD_CAPTION_MAX else cap[:CARD_CAPTION_MAX-1].rstrip()+'\\u2026'
+  return clip_words(cap,CARD_CAPTION_MAX)
 
 def fmt_launch(date):
   s=str(date or '').strip(); m=re.match(r'(\\d{4})-(\\d{2})',s)
@@ -842,10 +871,16 @@ def place_card_image(slide,fname,top,report):
     pic=slide.shapes.add_picture(fname,Inches(THUMB_LEFT_IN),Inches(top))
     nw=pic.width/914400; nh=pic.height/914400
     if nw<=0 or nh<=0: pic._element.getparent().remove(pic._element); return 0
-    scale=min(THUMB_BOX_W_IN/nw,CARD_IMG_H_IN/nh); w,h=nw*scale,nh*scale
+    scale=min(CARD_IMG_W_IN/nw,CARD_IMG_H_IN/nh); w,h=nw*scale,nh*scale
+    if w<CARD_IMG_MIN_W_IN:
+      # Too small to read. The card renders text-only rather than carrying a
+      # thumbnail that looks like a mistake.
+      pic._element.getparent().remove(pic._element)
+      report['warnings'].append(f"Pack shot '{os.path.basename(fname)}' scaled to {w:.2f}in, below the {CARD_IMG_MIN_W_IN}in floor; card rendered text-only.")
+      return 0
     pic.width=Inches(w); pic.height=Inches(h)
-    pic.left=Inches(THUMB_LEFT_IN+(THUMB_BOX_W_IN-w)/2); pic.top=Inches(top+(CARD_IMG_H_IN-h)/2)
-    report['images_placed']+=1; return CARD_IMG_H_IN+CARD_TEXT_GAP_IN
+    pic.left=Inches(THUMB_LEFT_IN); pic.top=Inches(top)
+    report['images_placed']+=1; return w
   except Exception as exc:
     report['warnings'].append(f"Pack shot '{fname}' failed: {exc}"); return 0
 
@@ -858,7 +893,7 @@ def place_cards(slide,examples,images,text_colour,report):
     prod=PRODUCTS.get(rid) if rid else None
     fname=images.get(rid) if rid else None
     if not fname: fname=images.get(parse_product_name(example).lower())
-    used=place_card_image(slide,fname,top,report) if fname else 0
+    placed=place_card_image(slide,fname,top,report) if fname else 0
     name=(prod or {}).get('name') or parse_product_name(example)
     brand=(prod or {}).get('brand_or_desc') or parse_brand_line(example)
     meta=''
@@ -866,9 +901,10 @@ def place_cards(slide,examples,images,text_colour,report):
       parts=[p for p in (str(prod.get('country') or '').strip(),fmt_launch(prod.get('launch_date'))) if p]
       meta=' \\u00b7 '.join(parts)
     caption=parse_caption(example)
-    text_top=top+used
-    tb=slide.shapes.add_textbox(Inches(THUMB_LEFT_IN),Inches(text_top),Inches(THUMB_BOX_W_IN),
-      Inches(max(0.40,THUMB_BOX_H_IN-used)))
+    text_left=CARD_TEXT_LEFT_IN if placed else THUMB_LEFT_IN
+    text_w=CARD_TEXT_W_IN if placed else THUMB_BOX_W_IN
+    tb=slide.shapes.add_textbox(Inches(text_left),Inches(top),Inches(text_w),
+      Inches(THUMB_BOX_H_IN))
     tf=tb.text_frame; tf.word_wrap=True
     tf.margin_left=tf.margin_right=Inches(0.02); tf.margin_top=tf.margin_bottom=Inches(0.01)
     body=tf._txBody
