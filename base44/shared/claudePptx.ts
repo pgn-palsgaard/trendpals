@@ -689,13 +689,21 @@ def render_methodology(prs,slide_data,preheader,report):
   lines+=[str(g) for g in as_list(slide_data.get('gnpd_examples'))]
   if not lines: report['warnings'].append('Methodology slide had no content lines.')
   size=11 if len(lines)<=18 else 10
-  paras=[{'text':f'\\u2022  {l}','size':size,'color':DKBLUE} for l in lines]
+  paras=[{'text':'Internal reference. Remove before external sharing.','bold':True,'size':size,'color':ORANGE}]
+  paras+=[{'text':f'\\u2022  {l}','size':size,'color':DKBLUE,'space_before':6 if i==0 else 0}
+    for i,l in enumerate(lines)]
   set_ph_structured(slide,BODY_IDX[layout_name],paras)
   report['methodology_lines']=len(lines); drop_empty_placeholders(slide)
   return [slide]
 
 def render_evidence_summary(prs,slide_data,preheader,report):
-  """System-authored screening readout with two or three unboxed big-number stats."""
+  """System-authored screening readout with two or three unboxed big-number stats.
+  A slide whose required content is missing is skipped, never emitted as a shell."""
+  stats=[s for s in as_list(slide_data.get('stats')) if isinstance(s,dict)][:3]
+  summary=str(slide_data.get('summary') or '').strip()
+  if len(stats)<2 and not summary:
+    report['warnings'].append('Skipped evidence_summary slide: fewer than two stats and no summary.')
+    return []
   layout_name='Full page content and preheader'
   slide=prs.slides.add_slide(get_layout(prs,layout_name))
   head=str(slide_data.get('preheader') or preheader or '').strip()
@@ -703,7 +711,6 @@ def render_evidence_summary(prs,slide_data,preheader,report):
   title=str(slide_data.get('title') or 'Evidence at a glance').strip()
   reposition_placeholder(slide,0,0.89,0.95,11.86,1.15)
   set_ph_simple(slide,0,title,size=26,color=DKBLUE)
-  stats=[s for s in as_list(slide_data.get('stats')) if isinstance(s,dict)][:3]
   if len(stats) not in (2,3): report['warnings'].append('Evidence summary requires two or three stats.')
   count=max(1,len(stats)); gap=0.55; width=(11.86-gap*(count-1))/count
   for i,stat in enumerate(stats):
@@ -719,7 +726,6 @@ def render_evidence_summary(prs,slide_data,preheader,report):
     label_box.text_frame.word_wrap=True; body=label_box.text_frame._txBody
     for p in body.findall(qn('a:p')): body.remove(p)
     body.append(make_para(str(stat.get('label') or ''),size_pt=12,color=DKBLUE))
-  summary=str(slide_data.get('summary') or '').strip()
   if summary:
     summary_box=slide.shapes.add_textbox(Inches(0.89),Inches(4.65),Inches(11.86),Inches(1.12))
     summary_box.text_frame.word_wrap=True; body=summary_box.text_frame._txBody
@@ -774,9 +780,13 @@ def render_table(prs,slide_data,preheader,report,accent=None):
   set_ph_simple(slide,0,title,size=title_size(title,BUDGET_CONTENT_TITLE,24,16),color=DKBLUE)
   cols=[str(c) for c in as_list(slide_data.get('columns'))]
   rows=[[str(c) for c in as_list(r)] for r in as_list(slide_data.get('rows'))]
+  table_bottom=2.20
   if cols and rows:
     n_rows=len(rows)+1; n_cols=len(cols)
-    height=min(3.85,0.44*n_rows+0.20)
+    # Short tables get taller rows so they read as a deliberate panel rather than
+    # a strip stranded in white space.
+    row_h=0.72 if n_rows<=4 else 0.44
+    height=min(3.85,row_h*n_rows+0.20); table_bottom=2.20+height
     table=slide.shapes.add_table(n_rows,n_cols,Inches(0.89),Inches(2.20),
       Inches(11.86),Inches(height)).table
     def fill_cell(cell,text,size,bold,colour,bg):
@@ -794,7 +804,10 @@ def render_table(prs,slide_data,preheader,report,accent=None):
     report['warnings'].append('Table slide had no columns or rows.')
   so_what=str(slide_data.get('so_what') or '').strip()
   if so_what:
-    tb=slide.shapes.add_textbox(Inches(0.89),Inches(6.14),Inches(11.86),Inches(0.40))
+    # Anchored to the table, never pinned. A one-row table previously left three
+    # inches of dead white above a bottom-pinned strip.
+    so_top=max(3.10,min(table_bottom+0.45,6.14))
+    tb=slide.shapes.add_textbox(Inches(0.89),Inches(so_top),Inches(11.86),Inches(0.40))
     tb.text_frame.word_wrap=True; body=tb.text_frame._txBody
     for p in body.findall(qn('a:p')): body.remove(p)
     body.append(make_para(so_what,bold=True,size_pt=11,color=TEAL))
@@ -815,14 +828,22 @@ def render_imperatives(prs,slide_data,preheader,report,accent=None):
   items=[i for i in as_list(slide_data.get('items')) if isinstance(i,dict)][:3]
   if not items: report['warnings'].append('Imperatives slide had no items.')
   fills=[LGOLD,SAGE_LIGHT,LGOLD]; width=3.72; gap=0.35; left=0.89
+  # Column height follows the tallest block and is applied to all three so they
+  # align. A fixed height left short imperatives floating in an oversized box.
+  inner=width-0.44; need=0.0
+  for item in items:
+    h=0.30+para_height_in({'text':str(item.get('title') or ''),'size':13},inner)
+    h+=para_height_in({'text':str(item.get('text') or ''),'size':11},inner)+0.34
+    need=max(need,h)
+  box_h=max(1.90,min(3.40,need))
   for n,item in enumerate(items):
     x=left+n*(width+gap)
     box=slide.shapes.add_shape(MSO_SHAPE.RECTANGLE,Inches(x),Inches(2.55),
-      Inches(width),Inches(3.05))
+      Inches(width),Inches(box_h))
     box.fill.solid(); box.fill.fore_color.rgb=fills[n%len(fills)]; box.line.fill.background()
     try: box.shadow.inherit=False
     except Exception: pass
-    tb=slide.shapes.add_textbox(Inches(x+0.22),Inches(2.74),Inches(width-0.44),Inches(2.66))
+    tb=slide.shapes.add_textbox(Inches(x+0.22),Inches(2.74),Inches(inner),Inches(max(1.40,box_h-0.39)))
     tb.text_frame.word_wrap=True; body=tb.text_frame._txBody
     for p in body.findall(qn('a:p')): body.remove(p)
     body.append(make_para('0%d'%(n+1),bold=True,size_pt=20,color=accent or BLUE))
