@@ -985,9 +985,6 @@ def build(data,template_path,out_path,workdir):
       # older decks that carried none.
       head=str(entry.get('preheader') or '').strip() or (stem+'  |  MARKET SIGNAL' if stem else preheader)
       made=render_content(prs,entry,head,CONTENT_LAYOUTS[0],images,report,accent,kind)
-    # Left-edge dot strip on every content card. Dividers are excluded above
-    # (they 'continue' before reaching here), so they never carry it.
-    for s in made: add_dot_strip(s)
     report['slides_out']+=len(made); report['continuations']+=max(0,len(made)-1)
     for field in ('market_signal','why_it_may_matter','supporting_data','formulation_questions',
                   'gnpd_examples','conversation_openers','customer_pains'):
