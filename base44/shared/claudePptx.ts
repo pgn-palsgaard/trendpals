@@ -864,16 +864,21 @@ def render_content(prs,slide_data,preheader,layout_name,images,report,accent=Non
   blocks,cards=build_blocks(slide_data,size,text_colour,header_colour,variant)
   pages=pack_blocks(blocks,width)
   title=(slide_data.get('title') or slide_data.get('slide_name') or 'Slide').strip()
-  if len(title)>BUDGET_CONTENT_TITLE: report['warnings'].append(f'Title {len(title)} chars.')
+  budget=title_budget_for(layout_name)
+  if len(title)>budget: report['warnings'].append(f'Title {len(title)} chars (budget {budget}).')
   # Framing slides get a larger title so the deck's hierarchy is visible at a glance.
   base_title_pt=28 if variant in ('opening','closing') else 24
   made=[]
   for page_no,paras in enumerate(pages):
     slide=prs.slides.add_slide(get_layout(prs,layout_name))
-    if preheader: set_ph_simple(slide,PREHEADER_IDX[layout_name],preheader,size=11,color=text_colour)
+    # Cream on narrative slides, white where a pack shot column is present so the
+    # product images sit on neutral ground. This is what makes consecutive
+    # content slides read differently without changing layout.
+    if not cards and not dark: paint_background(slide,CREAM_BG)
+    if preheader: set_ph_simple(slide,layout_idx(PREHEADER_IDX,layout_name,16),preheader,size=11,color=text_colour)
     shown=title if page_no==0 else f'{title} (cont.)'
-    set_ph_simple(slide,0,shown,size=title_size(shown,BUDGET_CONTENT_TITLE,base_title_pt,16),color=text_colour)
-    body_idx=BODY_IDX[layout_name]; set_ph_structured(slide,body_idx,paras)
+    set_ph_simple(slide,0,shown,size=title_size(shown,budget,base_title_pt,16),color=text_colour)
+    body_idx=layout_idx(BODY_IDX,layout_name,18); set_ph_structured(slide,body_idx,paras)
     if cards and page_no==0:
       reposition_placeholder(slide,body_idx,0.89,1.53,BODY_WIDTH_WITH_IMAGES_IN,BODY_HEIGHT_IN)
       place_cards(slide,cards,images,text_colour,report)
@@ -1023,6 +1028,37 @@ def validate(out_path,data,report):
   expected_min=1+len(data.get('slides') or [])
   if len(prs.slides)<expected_min:
     report['warnings'].append(f'Deck has {len(prs.slides)} slides, expected ≥{expected_min}.')
+  # QA gate. Structural checks that can be made from the built file alone.
+  qa={'title_only':[],'max_gap_in':0.0,'dash_or_slug':[],'small_images':[],'layouts':[]}
+  seen_layouts=set()
+  for n,slide in enumerate(prs.slides,1):
+    seen_layouts.add(slide.slide_layout.name)
+    bands=[]; texts=0; images=[]
+    for shape in slide.shapes:
+      if shape.top is None or shape.height is None or shape.width is None: continue
+      top_in=shape.top/914400; bottom_in=top_in+shape.height/914400
+      is_pic=(shape.shape_type==13)
+      if is_pic:
+        images.append(shape.width/914400); bands.append((top_in,bottom_in))
+      elif shape.has_text_frame and shape.text_frame.text.strip():
+        texts+=1; bands.append((top_in,bottom_in))
+    if texts<=1 and not images: qa['title_only'].append(n)
+    bands.sort(); cursor=None; gap=0.0
+    for top_in,bottom_in in bands:
+      if cursor is not None and top_in-cursor>gap: gap=top_in-cursor
+      cursor=bottom_in if cursor is None else max(cursor,bottom_in)
+    qa['max_gap_in']=max(qa['max_gap_in'],round(gap,2))
+    if gap>2.0: report['warnings'].append(f'Slide {n} has {gap:.2f}in of dead space.')
+    if any(w<CARD_IMG_MIN_W_IN for w in images): qa['small_images'].append(n)
+    for shape in slide.shapes:
+      if not shape.has_text_frame: continue
+      txt=shape.text_frame.text
+      if '\\u2014' in txt or '\\u2013' in txt or re.search(r'[a-z0-9]+_[a-z0-9]+',txt):
+        qa['dash_or_slug'].append(n); break
+  if qa['title_only']: report['warnings'].append(f"Title-only slides: {qa['title_only']}.")
+  if qa['dash_or_slug']: report['warnings'].append(f"Dash or raw slug on slides: {sorted(set(qa['dash_or_slug']))}.")
+  if qa['small_images']: report['warnings'].append(f"Undersized pack shots on slides: {sorted(set(qa['small_images']))}.")
+  qa['layouts']=sorted(seen_layouts); report['qa']=qa
   report['ok']=not report['warnings']; return report
 
 def main():
