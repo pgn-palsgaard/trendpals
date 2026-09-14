@@ -880,11 +880,17 @@ def render_content(prs,slide_data,preheader,layout_name,images,report,accent=Non
     if not cards and not dark: paint_background(slide,CREAM_BG)
     if preheader: set_ph_simple(slide,layout_idx(PREHEADER_IDX,layout_name,16),preheader,size=11,color=text_colour)
     shown=title if page_no==0 else f'{title} (cont.)'
-    set_ph_simple(slide,0,shown,size=title_size(shown,budget,base_title_pt,16),color=text_colour)
+    # Serif headline over Calibri body copy, with two lines of headroom at 30pt
+    # and the body dropped to clear it.
+    reposition_placeholder(slide,0,0.89,0.62,11.86,1.30)
+    set_ph_simple(slide,0,shown,size=title_size(shown,budget,base_title_pt,20),color=text_colour,font=SERIF)
     body_idx=layout_idx(BODY_IDX,layout_name,18); set_ph_structured(slide,body_idx,paras)
     if cards and page_no==0:
-      reposition_placeholder(slide,body_idx,0.89,1.53,BODY_WIDTH_WITH_IMAGES_IN,BODY_HEIGHT_IN)
-      place_cards(slide,cards,images,text_colour,report)
+      reposition_placeholder(slide,body_idx,0.89,1.98,BODY_WIDTH_WITH_IMAGES_IN,4.50)
+      place_cards(slide,cards,images,text_colour,report,header_colour,
+        str(slide_data.get('evidence_header') or EVIDENCE_HEADER_DEFAULT))
+    else:
+      reposition_placeholder(slide,body_idx,0.89,1.98,BODY_WIDTH_IN,4.50)
     footer=(slide_data.get('evidence_footer') or '').strip()
     if footer and page_no==len(pages)-1:
       add_footnote(slide,f'Sources: {footer}',color=LGOLD if dark else GREY,
@@ -914,14 +920,14 @@ def place_card_image(slide,fname,top,report):
     report['warnings'].append(f"Pack shot '{fname}' failed: {exc}"); return 0
 
 def place_cards(slide,examples,images,text_colour,report,header_colour=None,header_text=None):
+  """Up to MAX_CARDS evidence cards in the right column. Product facts come from
+  data.json's products map (exact Record ID matches only); otherwise the display
+  string is parsed. Country/date are never shown unless authoritative."""
   if header_text:
     hb=slide.shapes.add_textbox(Inches(THUMB_LEFT_IN),Inches(1.53),Inches(THUMB_BOX_W_IN),Inches(0.32))
     hb.text_frame.word_wrap=True; hbody=hb.text_frame._txBody
     for p in hbody.findall(qn('a:p')): hbody.remove(p)
     hbody.append(make_para(header_text,bold=True,size_pt=12,color=header_colour or BLUE))
-  """Up to MAX_CARDS evidence cards in the right column. Product facts come from
-  data.json's products map (exact Record ID matches only); otherwise the display
-  string is parsed. Country/date are never shown unless authoritative."""
   for i,example in enumerate(examples[:MAX_CARDS]):
     top=THUMB_TOPS_IN[i]; rid=parse_record_id(example)
     prod=PRODUCTS.get(rid) if rid else None
