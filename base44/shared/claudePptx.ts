@@ -243,12 +243,12 @@ ABOUT_TITLE='About this report'
 AI_NOTICE=('This content was generated with the assistance of AI and may contain errors or '
   'omissions. It is provided as a starting point only \\u2014 please review and verify all '
   'information before sharing externally or acting on it.')
-THUMB_LEFT_IN=7.60; THUMB_BOX_W_IN=4.84; THUMB_BOX_H_IN=1.60
-THUMB_TOPS_IN=[1.95,3.60,5.25]
+THUMB_LEFT_IN=7.60; THUMB_BOX_W_IN=4.84; THUMB_BOX_H_IN=1.50
+THUMB_TOPS_IN=[1.98,3.52,5.06]
 # Evidence cards: pack shot on the LEFT of the card, text block to its right.
 # Proportions follow the Colombia reference deck: a large readable shot, a wide
 # text column, and real space between cards.
-CARD_IMG_W_IN=1.55; CARD_IMG_H_IN=1.55; CARD_IMG_MIN_W_IN=0.90
+CARD_IMG_W_IN=1.45; CARD_IMG_H_IN=1.45; CARD_IMG_MIN_W_IN=0.90
 CARD_TEXT_GAP_IN=0.22; CARD_CAPTION_MAX=110; MAX_CARDS=3
 CARD_TEXT_LEFT_IN=THUMB_LEFT_IN+CARD_IMG_W_IN+CARD_TEXT_GAP_IN
 CARD_TEXT_W_IN=THUMB_BOX_W_IN-CARD_IMG_W_IN-CARD_TEXT_GAP_IN
@@ -539,7 +539,7 @@ def build_blocks(slide,size,text_colour=DKBLUE,header_colour=BLUE,variant='trend
     rows=[i for i in items if str(i).strip()]
     if not rows: return
     paras=[{'text':header,'bold':True,'size':size,'color':header_colour,'space_before':gap}]
-    for item in rows: paras.append({'text':f'{prefix}{item}','size':size,'color':text_colour})
+    for item in rows: paras.append({'text':f'{prefix}{item}','size':size,'color':text_colour,'space_before':4})
     blocks.append(Block(paras,splittable=splittable))
   # Agenda slide \\u2014 the deck overview list. Only present on the agenda variant.
   section('In this report',as_list(slide.get('agenda_items')),prefix='\\u2022  ')
@@ -564,7 +564,8 @@ def build_blocks(slide,size,text_colour=DKBLUE,header_colour=BLUE,variant='trend
   # The first MAX_CARDS launches become right-column cards; anything beyond stays
   # in the body as compact bullets so no retrieved evidence is silently dropped.
   cards=evidence[:MAX_CARDS]
-  section('Additional launches',[strip_id_prefix(e) for e in evidence[MAX_CARDS:]],prefix='\\u2022  ')
+  # Overflow launches are listed in the appendix launch registry rather than
+  # dumped onto the trend slide, so the slide stays readable and nothing is lost.
   section('Conversation openers',as_list(slide.get('conversation_openers')),prefix='\\u2022  ')
   return blocks,cards
 
@@ -869,7 +870,7 @@ def render_content(prs,slide_data,preheader,layout_name,images,report,accent=Non
   budget=title_budget_for(layout_name)
   if len(title)>budget: report['warnings'].append(f'Title {len(title)} chars (budget {budget}).')
   # Framing slides get a larger title so the deck's hierarchy is visible at a glance.
-  base_title_pt=28 if variant in ('opening','closing') else 24
+  base_title_pt=CONTENT_TITLE_PT
   made=[]
   for page_no,paras in enumerate(pages):
     slide=prs.slides.add_slide(get_layout(prs,layout_name))
@@ -912,7 +913,12 @@ def place_card_image(slide,fname,top,report):
   except Exception as exc:
     report['warnings'].append(f"Pack shot '{fname}' failed: {exc}"); return 0
 
-def place_cards(slide,examples,images,text_colour,report):
+def place_cards(slide,examples,images,text_colour,report,header_colour=None,header_text=None):
+  if header_text:
+    hb=slide.shapes.add_textbox(Inches(THUMB_LEFT_IN),Inches(1.53),Inches(THUMB_BOX_W_IN),Inches(0.32))
+    hb.text_frame.word_wrap=True; hbody=hb.text_frame._txBody
+    for p in hbody.findall(qn('a:p')): hbody.remove(p)
+    hbody.append(make_para(header_text,bold=True,size_pt=12,color=header_colour or BLUE))
   """Up to MAX_CARDS evidence cards in the right column. Product facts come from
   data.json's products map (exact Record ID matches only); otherwise the display
   string is parsed. Country/date are never shown unless authoritative."""
