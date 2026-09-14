@@ -687,17 +687,146 @@ def render_methodology(prs,slide_data,preheader,report):
   slide=prs.slides.add_slide(get_layout(prs,layout_name))
   if preheader: set_ph_simple(slide,PREHEADER_IDX[layout_name],preheader,size=11,color=DKBLUE)
   title=slide_data.get('title') or 'How this report was evidenced'
-  set_ph_simple(slide,0,title,size=title_size(title,BUDGET_CONTENT_TITLE,24,16),color=DKBLUE)
-  lines=[l for l in str(slide_data.get('market_signal') or '').split('\\n') if l.strip()]
-  lines+=[str(g) for g in as_list(slide_data.get('gnpd_examples'))]
-  if not lines: report['warnings'].append('Methodology slide had no content lines.')
-  size=11 if len(lines)<=18 else 10
-  paras=[{'text':'Internal reference. Remove before external sharing.','bold':True,'size':size,'color':ORANGE}]
-  paras+=[{'text':f'\\u2022  {l}','size':size,'color':DKBLUE,'space_before':6 if i==0 else 0}
-    for i,l in enumerate(lines)]
-  set_ph_structured(slide,BODY_IDX[layout_name],paras)
-  report['methodology_lines']=len(lines); drop_empty_placeholders(slide)
+  reposition_placeholder(slide,0,0.89,0.62,11.86,1.30)
+  set_ph_simple(slide,0,title,size=CONTENT_TITLE_PT,color=DKBLUE,font=SERIF)
+  raw=[l.strip() for l in str(slide_data.get('market_signal') or '').split('\\n') if l.strip()]
+  raw+=[str(g).strip() for g in as_list(slide_data.get('gnpd_examples')) if str(g).strip()]
+  if not raw: report['warnings'].append('Methodology slide had no content lines.')
+  funnel,notes=methodology_split(raw)
+  set_ph_structured(slide,BODY_IDX[layout_name],
+    [{'text':'Internal reference. Remove before external sharing.','bold':True,'size':11,'color':ORANGE}])
+  reposition_placeholder(slide,BODY_IDX[layout_name],0.89,1.98,11.86,0.30)
+  if funnel:
+    hdr=slide.shapes.add_textbox(Inches(0.89),Inches(2.50),Inches(4.60),Inches(0.30))
+    hb=hdr.text_frame._txBody
+    for p in hb.findall(qn('a:p')): hb.remove(p)
+    hb.append(make_para('Evidence funnel',bold=True,size_pt=12,color=BLUE))
+    table=slide.shapes.add_table(len(funnel)+1,2,Inches(0.89),Inches(2.90),
+      Inches(4.60),Inches(min(3.20,0.40*(len(funnel)+1)))).table
+    table.columns[0].width=Inches(3.30); table.columns[1].width=Inches(1.30)
+    fill_table_cell(table.cell(0,0),'Stage',11,True,WHITE,BLUE)
+    fill_table_cell(table.cell(0,1),'Records',11,True,WHITE,BLUE)
+    for r,(label,value) in enumerate(funnel,start=1):
+      bg=LGOLD if r%2 else WHITE
+      fill_table_cell(table.cell(r,0),label,10,False,DKBLUE,bg)
+      fill_table_cell(table.cell(r,1),value,10,False,DKBLUE,bg)
+  if notes:
+    nh=slide.shapes.add_textbox(Inches(6.10),Inches(2.50),Inches(6.65),Inches(0.30))
+    nb=nh.text_frame._txBody
+    for p in nb.findall(qn('a:p')): nb.remove(p)
+    nb.append(make_para('Scope and caveats',bold=True,size_pt=12,color=BLUE))
+    box=slide.shapes.add_textbox(Inches(6.10),Inches(2.90),Inches(6.65),Inches(3.30))
+    box.text_frame.word_wrap=True; bb=box.text_frame._txBody
+    for p in bb.findall(qn('a:p')): bb.remove(p)
+    for i,note in enumerate(notes[:8]):
+      bb.append(make_para('\\u2022  '+clip_words(note,180),size_pt=10,color=DKBLUE,
+        space_before_pt=0 if i==0 else 6))
+  report['methodology_lines']=len(raw); drop_empty_placeholders(slide)
   return [slide]
+
+def fill_table_cell(cell,text,size,bold,colour,bg):
+  cell.fill.solid(); cell.fill.fore_color.rgb=bg
+  cell.margin_left=Inches(0.10); cell.margin_right=Inches(0.08)
+  cell.margin_top=Inches(0.04); cell.margin_bottom=Inches(0.04)
+  body=cell.text_frame._txBody
+  for p in body.findall(qn('a:p')): body.remove(p)
+  body.append(make_para(text,bold=bold,size_pt=size,color=colour))
+
+def methodology_split(raw):
+  """Turns the methodology dump into a funnel table plus short notes. Debug output
+  (raw brief echo, excluded record ids, full country lists) never reaches a slide:
+  it is diagnostic, not evidence, and it is what made this slide unreadable."""
+  funnel=[]; notes=[]
+  for line in raw:
+    low=line.lower()
+    if low.startswith('examples of excluded records') or low.startswith('brief as received'):
+      continue
+    m=re.match(r'^resolved country allow-list \\((\\d+) markets?\\)',line,flags=re.I)
+    if m:
+      notes.append(f'Country scope: {m.group(1)} markets in the region allow-list'); continue
+    if 'evidence funnel' in low or 'records by sub-region' in low:
+      for label,value in re.findall(r'([A-Za-z][A-Za-z0-9 \\-]*?):\\s*([\\d,]+)',line):
+        label=label.strip().rstrip(',').strip()
+        if not label or len(label)>34: continue
+        funnel.append((label[:1].upper()+label[1:],value))
+      continue
+    notes.append(line)
+  seen=set(); deduped=[]
+  for label,value in funnel:
+    if label in seen: continue
+    seen.add(label); deduped.append((label,value))
+  return deduped[:7],notes
+
+def render_appendix_divider(prs,report,subline='Evidence base, launch registry, data coverage'):
+  """Cream opener for the appendix, matching the reference deck."""
+  layout_name='Full page content and preheader'
+  slide=prs.slides.add_slide(get_layout(prs,layout_name))
+  paint_background(slide,CREAM_BG)
+  reposition_placeholder(slide,0,0.89,1.30,11.86,0.80)
+  set_ph_simple(slide,0,'Appendix',size=32,bold=True,color=DKBLUE)
+  box=slide.shapes.add_textbox(Inches(0.89),Inches(2.20),Inches(11.86),Inches(0.40))
+  body=box.text_frame._txBody
+  for p in body.findall(qn('a:p')): body.remove(p)
+  body.append(make_para(subline,size_pt=14,color=DKBLUE))
+  drop_empty_placeholders(slide)
+  return [slide]
+
+def render_launch_registry(prs,rows,preheader,report,accent=None):
+  """Appendix launch registry. Replaces the raw Record ID paste slide: same
+  verifiability, readable as a table, and it absorbs the launches that no longer
+  fit as cards on the trend slides."""
+  if not rows:
+    report['warnings'].append('Skipped launch registry: no resolved product records.')
+    return []
+  layout_name='Full page content and preheader'
+  slide=prs.slides.add_slide(get_layout(prs,layout_name))
+  head=(preheader or 'APPENDIX  |  LAUNCH REGISTRY').strip()
+  set_ph_simple(slide,PREHEADER_IDX[layout_name],head,size=11,color=DKBLUE)
+  n=len(rows)
+  title=f'{n} launch{"" if n==1 else "es"} referenced in this report, all verifiable in GNPD'
+  reposition_placeholder(slide,0,0.89,0.62,11.86,1.30)
+  set_ph_simple(slide,0,title,size=title_size(title,BUDGET_CONTENT_TITLE,CONTENT_TITLE_PT,20),
+    color=DKBLUE,font=SERIF)
+  cols=['Brand','Product','Market','Date','GNPD ID','Trend']
+  widths=[2.30,3.70,1.35,1.15,1.30,2.06]
+  rows=rows[:14]
+  row_h=0.40 if len(rows)<=9 else 0.32
+  height=min(4.30,row_h*(len(rows)+1))
+  table=slide.shapes.add_table(len(rows)+1,len(cols),Inches(0.89),Inches(2.05),
+    Inches(11.86),Inches(height)).table
+  for c,w in enumerate(widths): table.columns[c].width=Inches(w)
+  for c,label in enumerate(cols):
+    fill_table_cell(table.cell(0,c),label,11,True,WHITE,accent or BLUE)
+  for r,row in enumerate(rows,start=1):
+    bg=LGOLD if r%2 else WHITE
+    for c in range(len(cols)):
+      fill_table_cell(table.cell(r,c),clip_words(str(row[c] if c<len(row) else ''),70),9,False,DKBLUE,bg)
+  add_footnote(slide,'Source: Mintel GNPD. Record IDs verifiable at gnpd.com/sinatra/recordpage/{id}')
+  drop_empty_placeholders(slide)
+  report['registry_rows']=len(rows)
+  return [slide]
+
+def collect_registry(ordered,stems):
+  """Every launch cited anywhere in the deck, in deck order, de-duplicated by
+  Record ID. Only authoritative product facts are used; a record that does not
+  resolve is listed by ID rather than guessed at."""
+  out=[]; seen=set()
+  for kind,entry in ordered:
+    trend=stems.get(str(entry.get('trend_id') or '')) or ''
+    trend=trend.split('|')[-1].strip() if '|' in trend else trend
+    for example in as_list(entry.get('gnpd_examples')):
+      rid=parse_record_id(example)
+      if not rid or rid in seen: continue
+      seen.add(rid)
+      prod=PRODUCTS.get(rid) or {}
+      out.append([
+        str(prod.get('brand_or_desc') or parse_brand_line(example) or ''),
+        str(prod.get('name') or parse_product_name(example) or ''),
+        str(prod.get('country') or ''),
+        fmt_launch(prod.get('launch_date')),
+        rid,
+        trend])
+  return out
 
 def render_evidence_summary(prs,slide_data,preheader,report):
   """System-authored screening readout with two or three unboxed big-number stats.
