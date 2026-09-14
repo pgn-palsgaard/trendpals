@@ -155,14 +155,14 @@ export default function SubmitBriefBeta() {
   // retrieved for exactly this key — whatever order the user filled the fields
   // in, and however often they change their mind before the deck is built.
   function bindingKey(c) {
-    return JSON.stringify([c?.categories, c?.region, c?.sub_categories || [], c?.read_across || 'strict_region', c?.excluded_countries || []]);
+    return JSON.stringify([c?.categories, c?.region, c?.sub_categories || [], c?.read_across || 'strict_region', c?.excluded_countries || [], c?.time_window_months || 18]);
   }
 
-  async function loadEvidenceFor(categories, regionText, subCategories, readAcross, excludedCountries) {
+  async function loadEvidenceFor(categories, regionText, subCategories, readAcross, excludedCountries, timeWindowMonths) {
     const valid = (Array.isArray(categories) ? categories : [categories])
       .filter(c => CANONICAL_CATEGORIES.includes(c));
     if (valid.length === 0) return null;
-    evidenceKey.current = bindingKey({ categories, region: regionText, sub_categories: subCategories, read_across: readAcross, excluded_countries: excludedCountries });
+    evidenceKey.current = bindingKey({ categories, region: regionText, sub_categories: subCategories, read_across: readAcross, excluded_countries: excludedCountries, time_window_months: timeWindowMonths });
     evidenceScope.current = { categories: valid, region: regionText, sub_categories: Array.isArray(subCategories) ? subCategories : [] };
 
     const scope = resolveRegionScope(regionText);
@@ -180,6 +180,7 @@ export default function SubmitBriefBeta() {
         sub_categories: Array.isArray(subCategories) ? subCategories : [],
         read_across: readAcross || 'strict_region',
         excluded_countries: Array.isArray(excludedCountries) ? excludedCountries : [],
+        time_window_months: timeWindowMonths,
       });
       const data = res?.data;
       if (data?.result === 'insufficient_regional_evidence') {
@@ -257,7 +258,7 @@ export default function SubmitBriefBeta() {
       if (opts.evidence !== undefined) {
         gateBlocked = !ev;
       } else if (activeContract.categories && activeContract.region && (!ev || evidenceKey.current !== bindingKey(activeContract))) {
-        ev = await loadEvidenceFor(activeContract.categories, activeContract.region, activeContract.sub_categories, activeContract.read_across, activeContract.excluded_countries);
+        ev = await loadEvidenceFor(activeContract.categories, activeContract.region, activeContract.sub_categories, activeContract.read_across, activeContract.excluded_countries, activeContract.time_window_months);
         gateBlocked = !ev;
       }
 
@@ -300,12 +301,13 @@ export default function SubmitBriefBeta() {
             JSON.stringify(next.sub_categories) !== JSON.stringify(activeContract.sub_categories) ||
             JSON.stringify(next.excluded_countries) !== JSON.stringify(activeContract.excluded_countries) ||
             next.read_across !== activeContract.read_across ||
+            next.time_window_months !== activeContract.time_window_months ||
             next.region !== activeContract.region;
           if (next.categories && next.region && bindingChanged) {
             // Awaited, so the user is told what the NEW scope actually yields in the
             // same turn — per industry — instead of the architect reasoning from the
             // evidence of the scope they just left.
-            const fresh = await loadEvidenceFor(next.categories, next.region, next.sub_categories, next.read_across, next.excluded_countries);
+            const fresh = await loadEvidenceFor(next.categories, next.region, next.sub_categories, next.read_across, next.excluded_countries, next.time_window_months);
             const cats = (Array.isArray(next.categories) ? next.categories : [next.categories]).filter(c => CANONICAL_CATEGORIES.includes(c));
             const perCat = cats.map(c => `${c}: ${(fresh?.trends || []).filter(t => t.category === c).length} verified trends`);
             scopeNote = fresh

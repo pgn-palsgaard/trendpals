@@ -15,7 +15,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { resolveAllowList } from '../../shared/regionTaxonomy.ts';
 
-const RECENCY_MONTHS = 30;
+const DEFAULT_RECENCY_MONTHS = 18;
 const PAGE = 500;
 const FULL_EVIDENCE_MIN = 3;
 const TRENDS_EVALUATED = 8;
@@ -54,6 +54,21 @@ function productText(p) {
     ...(Array.isArray(p.claims) ? p.claims : []),
     ...(Array.isArray(p.flavours) ? p.flavours : []),
   ].filter(Boolean).join(' ').toLowerCase();
+}
+
+function normalizeRecencyMonths(value) {
+  if (value === null || value === undefined || value === '') return DEFAULT_RECENCY_MONTHS;
+  const text = String(value).trim().toLowerCase();
+  let months = Number(text);
+  if (!Number.isFinite(months)) {
+    const years = text.match(/(\d+(?:\.\d+)?)\s*(?:years?|yrs?)/);
+    const statedMonths = text.match(/(\d+(?:\.\d+)?)\s*(?:months?|mos?)/);
+    months = years ? Number(years[1]) * 12 : statedMonths ? Number(statedMonths[1]) : NaN;
+  }
+  const rounded = Math.round(months);
+  return Number.isFinite(rounded) && rounded >= 6 && rounded <= 36
+    ? rounded
+    : DEFAULT_RECENCY_MONTHS;
 }
 
 // Stable pagination. '-launch_date' is NOT a unique ordering: many records share a
@@ -108,6 +123,7 @@ export default async function (req) {
 
     const body = await req.json();
     const { categories, region_text, sub_categories, test_pool } = body;
+    const recencyMonths = normalizeRecencyMonths(body.time_window_months);
     // Build C — read-across is OPT-IN. Anything other than the explicit
     // 'labelled_read_across' contract value means strict region: no cross-region
     // retrieval happens at all.
@@ -189,7 +205,7 @@ export default async function (req) {
     };
 
     const cutoff = new Date();
-    cutoff.setMonth(cutoff.getMonth() - RECENCY_MONTHS);
+    cutoff.setMonth(cutoff.getMonth() - recencyMonths);
 
     const trendsOut = [];
     const sourcesById = {};
@@ -212,7 +228,7 @@ export default async function (req) {
       // How the stated formats resolved against the real Mintel sub-categories. A
       // term that resolves to nothing is a brief/data mismatch and must be visible.
       format_resolution: { requested: subs, matched_terms: [], unmatched_terms: [], matched_sub_categories: [], per_category: [] },
-      recency_months: RECENCY_MONTHS,
+      recency_months: recencyMonths,
       population_total: 0,
       after_region_gate: 0,
       after_category_gate: 0,

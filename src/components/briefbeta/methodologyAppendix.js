@@ -33,16 +33,16 @@ export function buildMethodologySlide({ gate, contract, exclusions, validatorFla
     + ` → after region gate: ${gate.after_region_gate} (excluded ${excl0.out_of_region || 0})`
     + ` → after format gate: ${gate.after_category_gate} (excluded ${excl0.out_of_category || 0})`
     + (gate.after_recency_gate !== undefined
-      ? ` → after ${gate.recency_months || 30}-month recency window: ${gate.after_recency_gate} (excluded ${excl0.out_of_window || 0})`
+      ? ` → after ${gate.recency_months || 18}-month recency window: ${gate.after_recency_gate} (excluded ${excl0.out_of_window || 0})`
       : '')
   );
-  lines.push(`Launch window — only products launched within the last ${gate.recency_months || 30} months were considered. The window is fixed and does not widen when the pool is thin.`);
+  lines.push(`Launch window — only products launched within the last ${gate.recency_months || 18} months were considered. The window is fixed and does not widen when the pool is thin.`);
   // What the window ALLOWED vs what the data actually SPANS. A pool covering a
   // single period can show what exists in the market now, but cannot evidence that
   // anything has moved — there is no earlier period to have moved from.
   const dw = gate.data_window;
   if (dw?.earliest_launch && dw?.latest_launch) {
-    lines.push(`Actual data window — the product evidence spans ${dw.earliest_launch} to ${dw.latest_launch} (${dw.months_spanned} months), not the full ${gate.recency_months || 30}-month window.`);
+    lines.push(`Actual data window — the product evidence spans ${dw.earliest_launch} to ${dw.latest_launch} (${dw.months_spanned} months), not the full ${gate.recency_months || 18}-month window.`);
     if ((dw.months_spanned || 0) < 12) {
       lines.push(`Temporal caveat — this pool covers a single period. It shows what is on the market within that period; it cannot on its own evidence a shift over time (e.g. "X has become the baseline expectation"). Any such claim in this report rests on the market-intelligence sources, not on the product data.`);
     }
@@ -167,7 +167,7 @@ export function buildEvidenceSummarySlide({ gate, namedCount }) {
   }
 
   const scopeText = globalScope ? 'worldwide' : `within the ${regionLabel || 'resolved'} region gate`;
-  const months = gate.recency_months || 30;
+  const months = gate.recency_months || 18;
 
   return {
     slide_name: 'Evidence at a glance',
