@@ -181,7 +181,7 @@ SAGE_LIGHT=RGBColor(0xAC,0xCE,0xAE)
 TEMPLATE_NAME='Palsgaard_PP_Template.potx'
 BUDGET_FRONT_TITLE=47; BUDGET_CONTENT_TITLE=75; BUDGET_BREAKING_HEADLINE=38
 BUDGET_IMPLICATIONS_TITLE=110
-BODY_HEIGHT_IN=4.93; BODY_WIDTH_IN=11.86; BODY_WIDTH_WITH_IMAGES_IN=7.40
+BODY_HEIGHT_IN=4.93; BODY_WIDTH_IN=11.86; BODY_WIDTH_WITH_IMAGES_IN=6.20
 CHARS_PER_LINE={14:108,13:118,12:128,11:140,10:154}
 LINE_HEIGHT_IN={14:0.245,13:0.228,12:0.210,11:0.194,10:0.177}
 # One Palsgaard identity, with rhythm. Section dividers rotate through three
@@ -243,15 +243,21 @@ ABOUT_TITLE='About this report'
 AI_NOTICE=('This content was generated with the assistance of AI and may contain errors or '
   'omissions. It is provided as a starting point only \\u2014 please review and verify all '
   'information before sharing externally or acting on it.')
-THUMB_LEFT_IN=8.60; THUMB_BOX_W_IN=3.84; THUMB_BOX_H_IN=1.62
-THUMB_TOPS_IN=[1.58,3.38,5.18]
+THUMB_LEFT_IN=7.60; THUMB_BOX_W_IN=4.84; THUMB_BOX_H_IN=1.60
+THUMB_TOPS_IN=[1.95,3.60,5.25]
 # Evidence cards: pack shot on the LEFT of the card, text block to its right.
-# Stacking the image above its own caption is what made the shots read as
-# floating thumbnails, so the card is two columns, both top-aligned.
-CARD_IMG_W_IN=1.15; CARD_IMG_H_IN=1.30; CARD_IMG_MIN_W_IN=0.90
-CARD_TEXT_GAP_IN=0.18; CARD_CAPTION_MAX=90; MAX_CARDS=3
+# Proportions follow the Colombia reference deck: a large readable shot, a wide
+# text column, and real space between cards.
+CARD_IMG_W_IN=1.55; CARD_IMG_H_IN=1.55; CARD_IMG_MIN_W_IN=0.90
+CARD_TEXT_GAP_IN=0.22; CARD_CAPTION_MAX=110; MAX_CARDS=3
 CARD_TEXT_LEFT_IN=THUMB_LEFT_IN+CARD_IMG_W_IN+CARD_TEXT_GAP_IN
 CARD_TEXT_W_IN=THUMB_BOX_W_IN-CARD_IMG_W_IN-CARD_TEXT_GAP_IN
+EVIDENCE_HEADER_DEFAULT='Launch evidence, product proof'
+# The reference deck sets headlines in a serif against Calibri body copy. That
+# contrast is what makes the deck read as editorial rather than as a template.
+# The theme major font is Calibri Light, so the serif must be set explicitly.
+SERIF='Times New Roman'
+CONTENT_TITLE_PT=30
 # Cream on content-heavy slides, white where a pack shot column is present so
 # product images sit on neutral ground.
 CREAM_BG=LGOLD
@@ -343,10 +349,12 @@ def get_layout(prs,name):
     if layout.name==name: return layout
   raise ValueError(f"Layout '{name}' not found")
 
-def make_para(text,bold=False,size_pt=12,color=None,space_before_pt=0,italic=False):
+def make_para(text,bold=False,size_pt=12,color=None,space_before_pt=0,italic=False,font=None):
   if color is None: color=DKBLUE
   col=f'{color[0]:02X}{color[1]:02X}{color[2]:02X}'
   bold_attr=('b="1"' if bold else 'b="0"')+(' i="1"' if italic else '')
+  latin=('<a:latin typeface="Calibri" panose="020F0502020204030204"/>'
+    if not font else f'<a:latin typeface="{font}"/><a:cs typeface="{font}"/>')
   xml=(
     '<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
     '<a:pPr marL="0" indent="0" algn="l">'
@@ -355,7 +363,7 @@ def make_para(text,bold=False,size_pt=12,color=None,space_before_pt=0,italic=Fal
     '<a:spcAft><a:spcPts val="0"/></a:spcAft><a:buNone/></a:pPr>'
     f'<a:r><a:rPr lang="en-GB" sz="{int(size_pt*100)}" {bold_attr} dirty="0">'
     f'<a:solidFill><a:srgbClr val="{col}"/></a:solidFill>'
-    '<a:latin typeface="Calibri" panose="020F0502020204030204"/>'
+    f'{latin}'
     f'</a:rPr><a:t>{esc(text)}</a:t></a:r></a:p>'
   )
   return etree.fromstring(xml)
@@ -368,11 +376,13 @@ def set_ph_structured(slide,idx,paragraphs):
       for spec in paragraphs:
         body.append(make_para(spec.get('text',''),bold=spec.get('bold',False),
           size_pt=spec.get('size',12),color=spec.get('color',DKBLUE),
-          space_before_pt=spec.get('space_before',0)))
+          space_before_pt=spec.get('space_before',0),italic=spec.get('italic',False),
+          font=spec.get('font')))
       return ph
 
-def set_ph_simple(slide,idx,text,size=12,bold=False,color=None):
-  return set_ph_structured(slide,idx,[{'text':text,'bold':bold,'size':size,'color':color or DKBLUE}])
+def set_ph_simple(slide,idx,text,size=12,bold=False,color=None,font=None):
+  return set_ph_structured(slide,idx,[{'text':text,'bold':bold,'size':size,
+    'color':color or DKBLUE,'font':font}])
 
 def reposition_placeholder(slide,idx,left_in,top_in,width_in,height_in):
   for ph in slide.placeholders:
