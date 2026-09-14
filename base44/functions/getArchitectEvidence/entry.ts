@@ -71,6 +71,20 @@ function normalizeRecencyMonths(value) {
     : DEFAULT_RECENCY_MONTHS;
 }
 
+function productCategoryQuery(category, extra = {}) {
+  const division = category === 'personal_care'
+    ? { main_group: 'BSA' }
+    : { main_group: { $in: [null, 'Food'] } };
+  return { palsgaard_category: category, ...division, ...extra };
+}
+
+function trendCategoryQuery(category) {
+  const division = category === 'personal_care'
+    ? { main_group: 'BSA' }
+    : { main_group: { $in: [null, 'Food'] } };
+  return { category, is_active: true, ...division };
+}
+
 // Stable pagination. '-launch_date' is NOT a unique ordering: many records share a
 // launch date, so skip-based paging over it overlapped and skipped pages — a pool
 // that both double-counted and dropped rows. 'id' is unique, so the order is total
@@ -221,6 +235,7 @@ export default async function (req) {
     const gate = {
       region_text: scope.region_text || region_text || '',
       region_scope: scope.scope,
+      main_group: cats.length === 1 && cats[0] === 'personal_care' ? 'BSA' : 'Food',
       country_allow_list: scope.countries,
       excluded_countries: excludedCountries,
       resolution_log: resolved.resolution_log,
@@ -304,10 +319,8 @@ export default async function (req) {
       } else {
         // Step 1 — region gate, counted against the full category population.
         const pool = await paginate(base44, scope.scope === 'global'
-          ? (excludedCountries.length > 0
-              ? { palsgaard_category: category, country: { $nin: excludedCountries } }
-              : { palsgaard_category: category })
-          : { palsgaard_category: category, country: { $in: scope.countries } });
+          ? productCategoryQuery(category, excludedCountries.length > 0 ? { country: { $nin: excludedCountries } } : {})
+          : productCategoryQuery(category, { country: { $in: scope.countries } }));
         gate.pagination_duplicates_dropped += pool.duplicates;
         // inRegion re-applied in JS: a no-op for regional scope (same list as the
         // $in query, case-insensitive), and for global scope it enforces the
@@ -316,7 +329,7 @@ export default async function (req) {
 
         const population = scope.scope === 'global'
           ? pool.rows.length
-          : await countRows(base44, { palsgaard_category: category });
+          : await countRows(base44, productCategoryQuery(category));
         gate.population_total += population;
         gate.excluded_by_reason.out_of_region += population - regionPass.length;
 
@@ -325,7 +338,7 @@ export default async function (req) {
           // plain-language terms, not literal Mintel labels), so a database-level
           // $in on them matches nothing.
           const sample = await base44.asServiceRole.entities.GNPDProduct.filter(
-            { palsgaard_category: category, country: { $nin: scope.countries } },
+            productCategoryQuery(category, { country: { $nin: scope.countries } }),
             'id', 20, 0
           );
           for (const p of sample) {
@@ -336,9 +349,9 @@ export default async function (req) {
         // SECONDARY figure — answers "how much would read-across bring in?".
         // Deliberately kept out of the funnel: it is not complementary to any step.
         if (subs.length > 0 && scope.scope !== 'global') {
-          const readAcross = await countRows(base44, {
-            palsgaard_category: category, country: { $nin: scope.countries },
-          });
+          const readAcross = await countRows(base44, productCategoryQuery(category, {
+            country: { $nin: scope.countries },
+          }));
           const label = `${category} records outside the region allow-list, all formats (read-across potential, NOT part of the funnel)`;
           gate.secondary_counts[label] = (gate.secondary_counts[label] || 0) + readAcross;
         }
@@ -400,7 +413,7 @@ export default async function (req) {
       // on which trend was last edited, so editing trend A could silently remove
       // trend B from a report. The truncation is now logged instead of hidden.
       // Relevance ranking is a separate audit (carried open item).
-      const allTrends = await base44.asServiceRole.entities.GlobalTrend.filter({ category, is_active: true }, 'trend_name');
+      const allTrends = await base44.asServiceRole.entities.GlobalTrend.filter(trendCategoryQuery(category), 'trend_name');
       const trends = allTrends.slice(0, TRENDS_EVALUATED);
       // Group the evaluated set by primary driver (fixed MegaTrend order), name
       // second. Selection above is unchanged — this orders, it never picks.
@@ -488,7 +501,7 @@ export default async function (req) {
         } else {
           // Format scope is applied by inCategory below, not in the query — the
           // stated formats are plain-language terms, not literal Mintel labels.
-          const res = await paginate(base44, { palsgaard_category: category, country: { $nin: scope.countries } });
+          const res = await paginate(base44, productCategoryQuery(category, { country: { $nin: scope.countries } }));
           gate.pagination_duplicates_dropped += res.duplicates;
           rows = res.rows;
         }
@@ -614,6 +627,8 @@ export default async function (req) {
                 category: p.palsgaard_category || p.category || '',
                 sub_category: p.sub_category || '',
                 claims: (p.claims || []).slice(0, 6),
+                product_description: String(p.product_description || '').slice(0, 900),
+                ingredients: String(p.ingredients || '').slice(0, 1200),
                 image_url: p.image_url || '',
                 mintel_record_url: p.mintel_record_url || '',
                 // Structural tag — this is what the binding map, the validator and
@@ -626,7 +641,8 @@ export default async function (req) {
               gnpd_record_id: p.gnpd_record_id, product_name: p.product_name, brand: p.brand || '',
               company: p.company || '', country: p.country || '', launch_date: p.launch_date || '',
               category: p.palsgaard_category || p.category || '', sub_category: p.sub_category || '',
-              claims: (p.claims || []).slice(0, 6), image_url: p.image_url || '',
+              claims: (p.claims || []).slice(0, 6), product_description: String(p.product_description || '').slice(0, 900),
+              ingredients: String(p.ingredients || '').slice(0, 1200), image_url: p.image_url || '',
               mintel_record_url: p.mintel_record_url || '', read_across: true, original_country: p.country || '',
             };
             readAcrossProducts.push({ ...rec, matched_keywords: matched.slice(0, 5) });
@@ -767,6 +783,7 @@ export default async function (req) {
     const webSignals = [];
     if (!Array.isArray(test_pool)) {
       for (const category of cats) {
+        if (category === 'personal_care') continue;
         const signals = await base44.asServiceRole.entities.WebSignal.filter({ category }, '-created_date', 60);
         const usable = signals
           .filter(s => s.review_status !== 'rejected')

@@ -120,9 +120,12 @@ export function buildEvidenceContext(evidence, scope) {
       ? `Sources you may cite — cite one ONLY by copying its [SRC:…] tag verbatim into source_id, and never write a citation string yourself:\n${cites.join('\n')}`
       : 'Sources you may cite: none on record — do not invent any.');
 
-    const prods = (t.products || []).map(p =>
-      `  - ${p.gnpd_record_id} | ${p.product_name}${p.brand ? ` — ${p.brand}` : ''}${p.country ? ` (${p.country})` : ''}${p.launch_date ? `, ${p.launch_date}` : ''}${p.claims?.length ? ` | Claims: ${p.claims.join(', ')}` : ''}`
-    );
+    const prods = (t.products || []).map((p, index) => {
+      const detail = t.category === 'personal_care' && index === 0
+        ? `${p.product_description ? ` | Description: ${p.product_description}` : ''}${p.ingredients ? ` | Ingredients: ${p.ingredients}` : ''}`
+        : '';
+      return `  - ${p.gnpd_record_id} | ${p.product_name}${p.brand ? ` — ${p.brand}` : ''}${p.country ? ` (${p.country})` : ''}${p.launch_date ? `, ${p.launch_date}` : ''}${p.claims?.length ? ` | Claims: ${p.claims.join(', ')}` : ''}${detail}`;
+    });
     lines.push(prods.length ? `GNPD products that support this trend (the ONLY products allowed on its slides):\n${prods.join('\n')}` : 'GNPD products: none found — do not put product examples on this trend\'s slides.');
 
     // Build C — cross-region reference tier, shown as its OWN block after the

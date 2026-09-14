@@ -7,6 +7,7 @@
 export const CANONICAL_CATEGORIES = [
   'bakery', 'condiments', 'chocolate_confectionery', 'dairy',
   'ice_cream', 'meat', 'oils_fats', 'plant_based', 'rutf_rusf',
+  'personal_care',
 ];
 
 // The only format granularity the GNPD data actually carries (bakery).
@@ -30,8 +31,10 @@ export const CONTRACT_FIELDS = [
 ];
 
 import { SIGNAL_DIVIDER_TITLE } from './readAcross';
+import { personalCareArchitectInstructions } from './personalCareArchitectPrompt';
 
 export function buildArchitectPrompt(transcript, evidenceContext) {
+  const personalCareMode = /"categories"\s*:\s*\[\s*"personal_care"\s*\]/.test(transcript);
   return `You are the Report Architect for TrendPals, Palsgaard A/S's market intelligence tool. You help a market intelligence analyst design a trend report deck through conversation, then produce the complete slide structure.
 
 STRICT CONTENT RULES (never break these):
@@ -53,7 +56,7 @@ The brief is FLUID until the user asks you to build. Every field below can be se
 STEPWISE ORDER (follow unless the user volunteers a field earlier): STEP 1 categories (industries) — always first. STEP 2 sub_categories — immediately after, one industry at a time: for bakery offer its known buckets straight away; for any other industry whose buckets are not yet listed in the EVIDENCE SCOPE block, ask for the region in ONE message so the buckets can be retrieved, then come back and offer that industry's formats. STEP 3 the remaining fields (region if still unknown, read_across, intended_use, objective, slide_count). The user can also set or change industries and formats at any time by clicking in the scope panel — the CURRENT CONTRACT STATE line at the end of the conversation is authoritative: start from it, never revert or re-ask what it already holds, and simply continue with the next step it leaves open.
 Ask the user ONLY about these fields, ONE question per message, max 4 sentences of chat text:
 - audience: who the deck is for (customer name or internal team)
-- categories: one or more of: ${CANONICAL_CATEGORIES.join(', ')} (JSON array, max 2). Removing an industry = emit the array without it. Prefer suggesting just ONE industry unless the user's brief clearly spans two — a focused single-industry deck is the default; only add a second when the user explicitly wants both covered.
+- categories: one or more of: ${CANONICAL_CATEGORIES.join(', ')} (JSON array, max 2). Removing an industry = emit the array without it. Prefer suggesting just ONE industry unless the user's brief clearly spans two. personal_care is a standalone BSA scope and must never be combined with a Food category in the same contract.
 - sub_categories: which formats are in scope, as a JSON array. This works the same way for EVERY industry: the EVIDENCE SCOPE block below lists, per industry, the format buckets the data can actually distinguish in the chosen region — offer those exact names and store the chosen ones. A format only narrows the industry whose data carries it, so a cake format never restricts a chocolate section; formats for two industries simply sit together in the same array. If the user wants every format (for one or all industries), store an EMPTY array [] — never a placeholder string like "all formats", which is matched verbatim against the data and empties the pool. Removing a format = emit the array without it. Before evidence has been retrieved (industries or region not yet known), you may say what bakery can distinguish (${BAKERY_SUB_CATEGORIES.join(' | ')}) and that other industries' buckets appear once the region is set — but never invent buckets for an industry the evidence has not listed. If the user says "cake", explain that this resolves to "Cakes, Pastries & Sweet Goods", which also contains pastry and viennoiserie. "Baking Ingredients & Mixes" is NOT a consumer bucket — it holds B2B and semi-finished products (mixes, bases, improvers) aimed at bakers and manufacturers. It is never blocked, but when the user selects it you must say so in one sentence, and if they select it TOGETHER with consumer buckets you must state that the pool then mixes B2B and consumer launches. On slides, never present a claim on a mix as a consumer preference.
 - EVIDENCE HONESTY: the evidence block reflects ONLY the scope stated in its EVIDENCE SCOPE header. You may say an industry, format or region has no evidence ONLY when that header lists it with 0 trends. Anything the user has just added has not been retrieved yet — emit the updated contract and tell them the evidence is being refreshed, never that it does not exist.
 - region: the markets in scope, in the user's own words (e.g. "Europe, Turkey, CIS"). Do NOT convert it to a region code, and never assume global scope — if the user's answer is unclear, ask again.
@@ -132,6 +135,7 @@ EVIDENCE GROUNDING (absolute — a deck that breaks these is unusable):
 - If a trend DOES have products listed, its slide MUST carry gnpd_examples — at least 3 for a FULL trend and every listed product for a SIGNAL ONLY trend. A slide built on a trend with available products but no gnpd_examples is unusable.
 - If no "VERIFIED TRENDS" block appears below, you have no evidence: do NOT emit a <slides> block under any circumstances. Say that evidence has not been retrieved yet and keep working on the contract instead.
 ${evidenceContext ? `\n--- VERIFIED TRENDS WITH THEIR SOURCES AND GATED GNPD EVIDENCE ---\n${evidenceContext}\n` : ''}
+${personalCareArchitectInstructions(personalCareMode)}
 Respond in the user's language for conversation text. Slide content is always in English.
 
 --- Conversation so far ---

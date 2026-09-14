@@ -643,6 +643,7 @@ ${items}`,
       const project = await base44.entities.Project.create({
         name: title,
         category,
+        main_group: category === 'personal_care' ? 'BSA' : 'Food',
         region_code: regionCode,
         objective: contract.objective || contract.core_hypothesis || 'Beta chat-briefed report',
         customer_name: contract.audience || '',

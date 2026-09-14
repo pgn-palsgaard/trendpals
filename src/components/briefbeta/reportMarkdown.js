@@ -21,6 +21,7 @@ export function buildReportMarkdown(report) {
       (s.rows || []).forEach(row => lines.push(`| ${s.columns.map((_, i) => cell(row[i])).join(' | ')} |`)); lines.push('');
     }
     paragraph(s.so_what);
+    if (s.ingredients) { lines.push('### Ingredients', ''); paragraph(s.ingredients); }
     (s.items || []).forEach(item => { lines.push(`### ${item.title || ''}`, ''); paragraph(item.text); });
     list('So what for manufacturers?', s.strategic_implications); list('Where Palsgaard supports', s.palsgaard_support);
     list('Product evidence', (s.gnpd_examples || []).map(example => {

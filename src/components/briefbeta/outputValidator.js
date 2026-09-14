@@ -422,7 +422,7 @@ function budgetRejections(slides, reportTitle) {
     // Body budget depends on layout: slides carrying packshots use the
     // narrower text column beside the image slots.
     const bodyParts = [
-      slide.market_signal, slide.why_it_may_matter, slide.hypothesis_tieback,
+      slide.market_signal, slide.why_it_may_matter, slide.hypothesis_tieback, slide.ingredients,
       ...(slide.bullets || []),
       ...(slide.agenda_items || []),
       ...(slide.formulation_questions || []),
@@ -579,7 +579,7 @@ export function unresolvableGate(slides, bindings, threshold = UNRESOLVABLE_THRE
 // the opening slide and the per-trend implications slide instead of a tie-back
 // line on every slide.
 
-const TEXT_FIELDS = ['title', 'subtitle', 'preheader', 'market_signal', 'why_it_may_matter', 'hypothesis_tieback', 'so_what'];
+const TEXT_FIELDS = ['title', 'subtitle', 'preheader', 'market_signal', 'why_it_may_matter', 'hypothesis_tieback', 'so_what', 'ingredients'];
 const ARRAY_FIELDS = ['bullets', 'formulation_questions', 'conversation_openers', 'gnpd_examples', 'strategic_implications', 'palsgaard_support', 'agenda_items'];
 
 // Validates a whole deck. Returns { ok, rejections[], flags[] }.

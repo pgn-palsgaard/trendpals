@@ -118,6 +118,7 @@ export function buildGammaMarkdown(report, imageMap = {}) {
     list += group('Formulation and application questions it raises', slide.formulation_questions);
     list += group('What this creates for manufacturers', (slide.customer_pains || []).map(p => p.pain || p));
     list += group('Market evidence (Mintel GNPD)', slide.gnpd_examples);
+    list += group('Ingredients', slide.ingredients ? [slide.ingredients] : []);
     list += group('Conversation openers', slide.conversation_openers);
     s += list;
 
