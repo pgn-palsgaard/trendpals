@@ -144,6 +144,12 @@ export default async function (req) {
     const readAcrossOptIn = String(body.read_across || '') === 'labelled_read_across';
     const cats = (Array.isArray(categories) ? categories : [categories]).filter(Boolean).slice(0, 3);
     if (cats.length === 0) return Response.json({ error: 'categories is required' }, { status: 400 });
+    if (cats.includes('personal_care') && cats.length > 1) {
+      return Response.json({
+        error: 'mixed_divisions_not_allowed',
+        message: 'Beauty & Personal Care uses the BSA evidence database and cannot be combined with Food categories in one report.',
+      }, { status: 400 });
+    }
 
     // ── Region gate resolution — fails loudly, never falls back to Global ──
     // excluded_countries is an explicit, fail-closed data field: subtracted from
@@ -694,6 +700,8 @@ export default async function (req) {
               category: p.palsgaard_category || p.category || '',
               sub_category: p.sub_category || '',
               claims: (p.claims || []).slice(0, 6),
+              product_description: String(p.product_description || '').slice(0, 900),
+              ingredients: String(p.ingredients || '').slice(0, 1200),
               image_url: p.image_url || '',
               mintel_record_url: p.mintel_record_url || '',
             };

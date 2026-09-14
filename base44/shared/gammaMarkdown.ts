@@ -93,6 +93,17 @@ export function buildGammaMarkdown(report, imageMap = {}) {
       continue;
     }
 
+    if (slide.slide_type === 'table') {
+      let t = `${(slide.preheader || topline).toUpperCase()}\n\n## ${slide.title || 'Overview'}\n\n`;
+      const labels = slide.columns || [];
+      t += (slide.rows || []).map(row => `- ${row.map((cell, i) => `**${labels[i] || `Column ${i + 1}`}** — ${cell}`).join(' · ')}`).join('\n');
+      if (slide.so_what) t += `\n- **What this shows** — ${slide.so_what}`;
+      t += group('Supporting evidence', (slide.supporting_data || []).map(d => `${d.stat || ''}${d.source ? ` (${d.source})` : ''}`));
+      if (slide.evidence_footer) t += `\n*Sources: ${slide.evidence_footer}*`;
+      parts.push(t.trim());
+      continue;
+    }
+
     if (slide.slide_type === 'implications') {
       let s = `${(slide.preheader || topline).toUpperCase()}\n\n## ${slide.title || 'Strategic implications'}\n\n`;
       s += group('So what for manufacturers', slide.strategic_implications);
