@@ -618,6 +618,11 @@ def order_slides(slides,report):
   mandatory about slide when absent. Relative order of body slides is preserved:
   only the fixed-position slides (about, methodology) are moved."""
   tagged=[(classify(e),e) for e in slides]
+  # The raw Record ID paste slide is superseded by the appendix launch registry,
+  # which carries the same IDs plus brand, product, market and date. Dropped here
+  # so old and new decks render the same appendix.
+  tagged=[(k,e) for k,e in tagged
+    if not str(e.get('title') or '').strip().lower().startswith('gnpd product record id')]
   about=[e for k,e in tagged if k=='about']
   method=[e for k,e in tagged if k=='methodology']
   body=[(k,e) for k,e in tagged if k not in ('about','methodology')]
@@ -1099,9 +1104,19 @@ def build(data,template_path,out_path,workdir):
   validate_structure(ordered,report)
   report['slide_type_counts']={}
   stems=trend_stems(ordered)
+  registry=collect_registry(ordered,stems)
+  appendix_done=False
   section_index=0
   for kind,entry in ordered:
     report['slide_type_counts'][kind]=report['slide_type_counts'].get(kind,0)+1
+    if kind=='methodology' and not appendix_done:
+      # The appendix opens before the first appendix slide, never earlier: a deck
+      # that lost its methodology slide should not ship an orphan divider.
+      appendix_done=True
+      for s in render_appendix_divider(prs,report):
+        add_dot_strip(s); report['slides_out']+=1
+      for s in render_launch_registry(prs,registry,'APPENDIX  |  LAUNCH REGISTRY',report,BLUE):
+        add_dot_strip(s); report['slides_out']+=1
     if kind=='section_header':
       render_breaking(prs,entry,section_index,report); section_index+=1; continue
     if kind=='about':
@@ -1111,7 +1126,7 @@ def build(data,template_path,out_path,workdir):
     elif kind=='implications':
       made=render_implications(prs,entry,preheader,report)
     elif kind=='methodology':
-      made=render_methodology(prs,entry,preheader,report)
+      made=render_methodology(prs,entry,'APPENDIX  |  METHODOLOGY',report)
     elif kind=='evidence_summary':
       made=render_evidence_summary(prs,entry,preheader,report)
     elif kind=='table':
