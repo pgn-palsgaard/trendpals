@@ -4,7 +4,6 @@ import SlideNarrative from '@/components/briefbeta/SlideNarrative';
 import SlideProducts from '@/components/briefbeta/SlideProducts';
 import SlideTableContent from '@/components/briefbeta/SlideTableContent';
 import SlideImplicationsContent from '@/components/briefbeta/SlideImplicationsContent';
-import SlideProductIngredients from '@/components/briefbeta/SlideProductIngredients';
 import SMEAnnotationBadge from '@/components/sme/SMEAnnotationBadge';
 
 export default function SlideCanvas({ slide, trendStatus, topline, products = [], images = {}, thumbnail = false }) {
@@ -26,7 +25,6 @@ export default function SlideCanvas({ slide, trendStatus, topline, products = []
           <SlideNarrative slide={slide} />
           <SlideProducts examples={slide.gnpd_examples} products={products} images={images} />
         </div>
-        <SlideProductIngredients ingredients={slide.ingredients} />
         <SlideTableContent slide={slide} />
         <SlideImplicationsContent slide={slide} />
       </div>

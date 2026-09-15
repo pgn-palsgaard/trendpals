@@ -135,10 +135,6 @@ export function buildDeckMarkdown(report, imageMap = {}) {
       s += `\n`;
     }
 
-    if (slide.ingredients) {
-      s += `**Ingredients**\n\n${slide.ingredients}\n\n`;
-    }
-
     if ((slide.gnpd_examples || []).length > 0) {
       s += `**Market evidence (Mintel GNPD)**\n\n`;
       for (const g of slide.gnpd_examples) {

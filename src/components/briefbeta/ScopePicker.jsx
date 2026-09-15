@@ -4,7 +4,7 @@ import { CANONICAL_CATEGORIES, BAKERY_SUB_CATEGORIES } from '@/components/briefb
 const CATEGORY_LABELS = {
   bakery: 'Bakery', condiments: 'Condiments', chocolate_confectionery: 'Chocolate & confectionery',
   dairy: 'Dairy', ice_cream: 'Ice cream', meat: 'Meat', oils_fats: 'Oils & fats',
-  plant_based: 'Plant-based', rutf_rusf: 'RUTF / RUSF', personal_care: 'Beauty & Personal Care',
+  plant_based: 'Plant-based', rutf_rusf: 'RUTF / RUSF',
 };
 const MAX_CATEGORIES = 2;
 
@@ -33,13 +33,7 @@ export default function ScopePicker({ contract, formatsByCategory, disabled, onC
   const formatsFor = c => formatsByCategory?.[c] || (c === 'bakery' ? BAKERY_SUB_CATEGORIES : []);
 
   function toggleCategory(c) {
-    const selectingPersonalCare = c === 'personal_care' && !categories.includes(c);
-    const replacingPersonalCare = c !== 'personal_care' && categories.includes('personal_care');
-    const next = selectingPersonalCare
-      ? ['personal_care']
-      : replacingPersonalCare
-        ? [c]
-        : categories.includes(c) ? categories.filter(x => x !== c) : [...categories, c];
+    const next = categories.includes(c) ? categories.filter(x => x !== c) : [...categories, c];
     // Dropping an industry also drops its formats — they would otherwise match nothing.
     const stillValid = new Set(next.flatMap(formatsFor));
     onChange({ categories: next, sub_categories: subs.filter(s => stillValid.has(s)) });
