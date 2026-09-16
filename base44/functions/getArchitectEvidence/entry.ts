@@ -14,6 +14,7 @@
 // functions cannot import from src/). Change both together.
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import { resolveAllowList } from '../../shared/regionTaxonomy.ts';
+import { personalCareEvidence } from '../../shared/personalCareEvidence.ts';
 
 const DEFAULT_RECENCY_MONTHS = 18;
 const PAGE = 500;
@@ -124,6 +125,10 @@ export default async function (req) {
     const body = await req.json();
     const { categories, region_text, sub_categories, test_pool } = body;
     const recencyMonths = normalizeRecencyMonths(body.time_window_months);
+    if (body.main_group === 'BSA' || (Array.isArray(categories) && categories.includes('personal_care'))) {
+      if (!Array.isArray(categories) || categories.length !== 1 || categories[0] !== 'personal_care') return Response.json({ error: 'Personal Care cannot be mixed with Food in one brief.' }, { status: 400 });
+      return Response.json(await personalCareEvidence(base44, body, recencyMonths));
+    }
     // Build C — read-across is OPT-IN. Anything other than the explicit
     // 'labelled_read_across' contract value means strict region: no cross-region
     // retrieval happens at all.

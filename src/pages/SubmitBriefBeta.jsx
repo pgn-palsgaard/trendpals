@@ -33,6 +33,10 @@ import SubregionNotice from '@/components/briefbeta/SubregionNotice';
 import { AI_DISCLAIMER_FULL } from '@/lib/aiDisclaimer';
 import { useAuth } from '@/lib/AuthContext';
 import useArchitectSession from '@/hooks/useArchitectSession';
+import { getDivision, useDivision } from '@/lib/division';
+import PersonalCareScope from '@/components/briefbeta/PersonalCareScope';
+import { buildPersonalCarePrompt } from '@/components/briefbeta/personalCarePrompt';
+import { personalCareContract, preparePersonalCareDeck, personalCareMethodology } from '@/components/briefbeta/personalCareDeck';
 
 
 
@@ -63,7 +67,9 @@ export default function SubmitBriefBeta() {
   // Nothing is sent to the architect until an errand is chosen.
   const [jtbd, setJtbd] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [contract, setContract] = useState({});
+  const division = useDivision();
+  const [contract, setContract] = useState(() => getDivision() === 'BSA' ? personalCareContract({}) : {});
+  const personalCare = jtbd ? contract.main_group === 'BSA' : division === 'BSA';
   const [slides, setSlides] = useState(null);
   const [trends, setTrends] = useState(null); // verified trends for the contract category
   const [evidence, setEvidence] = useState(null); // sources + real GNPD products per trend
@@ -176,6 +182,7 @@ export default function SubmitBriefBeta() {
     try {
       const res = await base44.functions.invoke('getArchitectEvidence', {
         categories: valid,
+        main_group: valid.includes('personal_care') ? 'BSA' : 'Food',
         region_text: regionText,
         sub_categories: Array.isArray(subCategories) ? subCategories : [],
         read_across: readAcross || 'strict_region',
@@ -205,7 +212,8 @@ export default function SubmitBriefBeta() {
 
   function selectJtbd(id) {
     setJtbd(id);
-    setMessages([{ role: 'assistant', content: ARCHITECT_OPENERS[id], timestamp: new Date().toISOString() }]);
+    setContract(division === 'BSA' ? personalCareContract({}) : {});
+    setMessages([{ role: 'assistant', content: division === 'BSA' ? 'I will build a Personal Care trend overview directly from approved BSA research reports, without product examples or a Palsgaard capability section. Which regions or countries should it cover — or should it be global?' : ARCHITECT_OPENERS[id], timestamp: new Date().toISOString() }]);
   }
 
   // Scope changed by clicking in the scope panel (industries / formats). The
@@ -267,12 +275,14 @@ export default function SubmitBriefBeta() {
       // so the same refusal came back forever and the session was stuck. The turn
       // now runs with an explicit instruction to repair the scope instead — and no
       // deck can be emitted while the gate is blocked (enforced below).
-      const gateNote = gateBlocked
+      const gateNote = gateBlocked && personalCare
+        ? '\n\nSYSTEM NOTE: No eligible quoted BSA research was retrieved. Do not emit slides. Explain that this mode needs approved, dated Personal Care research with promoted quoted excerpts; never substitute Food or GNPD data.'
+        : gateBlocked
         ? `\n\nSYSTEM NOTE: the evidence gates returned NOTHING usable for the current brief scope (categories: ${JSON.stringify(activeContract.categories)}, region: ${JSON.stringify(activeContract.region)}, formats: ${JSON.stringify(activeContract.sub_categories || [])}). You must NOT emit a <slides> block this turn. Instead: acknowledge it in one sentence, state which part of the scope is most likely the cause, and propose 2-3 concrete adjustments (a wider region, global scope, fewer or different formats, or a different category). If the user's latest message already states an adjustment, emit an updated <contract> block reflecting it so the gates can be re-run.`
         : '';
 
       const reply = await base44.integrations.Core.InvokeLLM({
-        prompt: buildArchitectPrompt(transcript + gateNote, buildEvidenceContext(ev, evidenceScope.current)),
+        prompt: personalCare ? buildPersonalCarePrompt(transcript + gateNote, ev) : buildArchitectPrompt(transcript + gateNote, buildEvidenceContext(ev, evidenceScope.current)),
         model: 'claude_sonnet_4_6',
       });
       const rawText = typeof reply === 'string' ? reply : (reply?.content || '');
@@ -292,6 +302,7 @@ export default function SubmitBriefBeta() {
             if (Array.isArray(v)) next[k] = v;
             else if (v !== null && v !== 'null' && String(v).trim()) next[k] = v;
           }
+          if (personalCare) Object.assign(next, personalCareContract(next));
           merged = next;
           setContract(next);
           // Re-run the gates whenever the binding constraints change — categories,
@@ -309,7 +320,7 @@ export default function SubmitBriefBeta() {
             // evidence of the scope they just left.
             const fresh = await loadEvidenceFor(next.categories, next.region, next.sub_categories, next.read_across, next.excluded_countries, next.time_window_months);
             const cats = (Array.isArray(next.categories) ? next.categories : [next.categories]).filter(c => CANONICAL_CATEGORIES.includes(c));
-            const perCat = cats.map(c => `${c}: ${(fresh?.trends || []).filter(t => t.category === c).length} verified trends`);
+            const perCat = personalCare ? [`${fresh?.gate?.source_count || 0} approved BSA research reports; ${fresh?.gate?.excerpt_count || 0} quoted excerpts`] : cats.map(c => `${c}: ${(fresh?.trends || []).filter(t => t.category === c).length} verified trends`);
             scopeNote = fresh
               ? `Scope updated — evidence refreshed for ${next.region}${Array.isArray(next.sub_categories) && next.sub_categories.length ? ` (formats: ${next.sub_categories.join(', ')})` : ''}: ${perCat.join('; ')}. Nothing is locked until you ask me to build.`
               : `Scope updated, but the evidence gates returned nothing usable for ${next.region} with these categories and formats — adjust the scope and I will look again.`;
@@ -336,8 +347,9 @@ export default function SubmitBriefBeta() {
       // Any failure here must be told to the user — the architect's own text claims
       // the deck exists, so swallowing the error left the chat asserting a deck that
       // was never built.
-      const slidesMatch = gateBlocked ? null : rawText.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
-      const slidesOpened = !gateBlocked && /<slides>/.test(rawText);
+      const buildBlocked = gateBlocked || (personalCare && (!ev || bindingKey(merged) !== bindingKey(activeContract)));
+      const slidesMatch = buildBlocked ? null : rawText.match(/<slides>\s*([\s\S]*?)\s*<\/slides>/);
+      const slidesOpened = !buildBlocked && /<slides>/.test(rawText);
       let deckFailure = null;
       if (slidesMatch) {
         try {
@@ -469,7 +481,7 @@ ${items}`,
 
     setValidationStatus({ attempt: 1, total: MAX_BUILD_ATTEMPTS });
     const result = await runBuildWithValidation({
-      slides: parsedSlides,
+      slides: activeContract.main_group === 'BSA' ? preparePersonalCareDeck(parsedSlides, snapshot) : parsedSlides,
       evidence: snapshot,
       bindings: bindingMap,
       category,
@@ -553,7 +565,7 @@ ${items}`,
       // strings the reader actually gets — validating the pre-resolution deck measures
       // empty citation strings and lets a deck within ~70 chars of the ceiling through
       // to clip in front of a customer.
-      let deck = stampProvenance(slides, displayLabel).map(s => Array.isArray(s.supporting_data)
+      let deck = stampProvenance(personalCare ? preparePersonalCareDeck(slides, snap) : slides, displayLabel).map(s => Array.isArray(s.supporting_data)
         ? { ...s, supporting_data: resolveSupportingData(s.supporting_data, bindingMap) }
         : s);
       // Resolution DROPS unresolvable ids, so CITE-1 can no longer be observed by
@@ -643,6 +655,7 @@ ${items}`,
       const project = await base44.entities.Project.create({
         name: title,
         category,
+        main_group: personalCare ? 'BSA' : 'Food',
         region_code: regionCode,
         objective: contract.objective || contract.core_hypothesis || 'Beta chat-briefed report',
         customer_name: contract.audience || '',
@@ -680,11 +693,11 @@ ${items}`,
       // recorded as a flag instead of silently shipping an unresolvable id.
       const resolvedIds = recordIds.filter(id => evidenceById[id]);
       const unresolvedIds = recordIds.filter(id => !evidenceById[id]);
-      const evidenceSummarySlide = buildEvidenceSummarySlide({
+      const evidenceSummarySlide = personalCare ? null : buildEvidenceSummarySlide({
         gate: snap.gate,
         namedCount: resolvedIds.length,
       });
-      const methodologySlide = buildMethodologySlide({
+      const methodologySlide = personalCare ? personalCareMethodology(snap.gate) : buildMethodologySlide({
         gate: snap.gate,
         contract,
         exclusions: snap.exclusions,
@@ -757,7 +770,7 @@ ${items}`,
         generated_by: 'architect',
         slides: finalSlides,
         product_shortlist: shortlist,
-        selected_trends: usedTrends.map(t => t.trend_name),
+        selected_trends: personalCare ? [...new Set(deck.filter(s => s.slide_name === 'Global trend overview').flatMap(s => s.items || []).map(item => item.title))] : usedTrends.map(t => t.trend_name),
         evidence_gate: gateWithReadAcross,
         evidence_bindings: bindingMap,
         trend_status: trendStatus || buildTrendStatus(snap),
@@ -781,7 +794,7 @@ ${items}`,
   // question the brief intake asks.
   if (resuming) return <div className="page-inner"><p role="status" className="text-muted-foreground">Restoring your chat and report…</p></div>;
   if (restoreError) return <div className="page-inner"><div role="alert" className="pal-card p-6 space-y-4"><p>{restoreError}</p><Link className="text-primary underline" to="/ArchitectHistory">Back to saved work</Link><button className="ml-4 text-primary underline" onClick={() => window.location.reload()}>Retry</button></div></div>;
-  if (!jtbd) return <ArchitectStart onSelect={selectJtbd} />;
+  if (!jtbd) return <ArchitectStart onSelect={selectJtbd} personalCare={personalCare} />;
 
   return (
     <div className="page-shell">
@@ -793,7 +806,7 @@ ${items}`,
               <span className="badge-pending"><FlaskConical className="w-3 h-3 mr-1" />BETA</span>
             </div>
             <p className="page-subtitle">
-              Your chat, report and downloads — together in one workspace.
+              {personalCare ? 'Personal Care · Source-based global and regional trend overviews.' : 'Your chat, report and downloads — together in one workspace.'}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -827,7 +840,7 @@ ${items}`,
         {resuming && (
           <p className="text-sm text-muted-foreground mb-4">Restoring your saved chat…</p>
         )}
-        {!resuming && messages.filter(m => m.role === 'user').length === 0 && <ScopeIntro />}
+        {!resuming && messages.filter(m => m.role === 'user').length === 0 && (personalCare ? <PersonalCareScope /> : <ScopeIntro />)}
 
         <div className="flex flex-col lg:flex-row gap-5">
           {/* Chat */}
@@ -859,7 +872,7 @@ ${items}`,
             <details key={slides || savedReport ? 'with-deck' : 'brief-only'} open={slides || savedReport ? undefined : true} className="pal-card p-4">
               <summary className="cursor-pointer text-sm font-semibold text-primary py-1">Brief & scope</summary>
               <div className="space-y-4 mt-4">
-            <ScopePicker
+            {personalCare ? <PersonalCareScope /> : <ScopePicker
               contract={contract}
               disabled={loading}
               formatsByCategory={Object.fromEntries(
@@ -868,7 +881,7 @@ ${items}`,
                   .map(p => [p.category, p.available_formats])
               )}
               onChange={applyScopeChange}
-            />
+            />}
             <ContractPanel contract={contract} trendCount={trends?.length || 0} />
               </div>
             </details>
@@ -879,7 +892,7 @@ ${items}`,
             <GateNotice notice={gateNotice} />
             <SubregionNotice gate={evidence?.gate} />
 
-            {!savedReport && (
+            {!personalCare && !savedReport && (
               <SimilarReportsPanel query={{
                 category: Array.isArray(contract?.categories) ? contract.categories.join(' ') : contract?.categories,
                 region: contract?.region,

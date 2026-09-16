@@ -200,6 +200,12 @@
     .report-slide-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 
+  /* Source-based trend overviews follow their preview panel width. */
+  .personal-care-columns { display: grid; gap: 1.25rem; grid-template-columns: minmax(0, 1fr); }
+  @container (min-width: 520px) {
+    .personal-care-columns { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  }
+
   /* Scrollbar refinement */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }

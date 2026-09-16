@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Pencil, Check } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
+import PersonalCareSlideEditor from '@/components/briefbeta/PersonalCareSlideEditor';
 
 export default function SlideCard({ slide, onChange, startEditing = false, onDone }) {
   const [editing, setEditing] = useState(startEditing);
@@ -26,7 +27,7 @@ export default function SlideCard({ slide, onChange, startEditing = false, onDon
         <div className="space-y-2 mt-2">
           <Input value={draft.title || ''} onChange={e => setDraft({ ...draft, title: e.target.value })} placeholder="Title" />
           <Input value={draft.subtitle || ''} onChange={e => setDraft({ ...draft, subtitle: e.target.value })} placeholder="Subtitle" />
-          <Textarea rows={3} value={draft.market_signal || ''} onChange={e => setDraft({ ...draft, market_signal: e.target.value })} placeholder="Market signal" />
+          {draft.slide_type === 'trend_overview' ? <PersonalCareSlideEditor draft={draft} onChange={setDraft} /> : <Textarea rows={3} value={draft.market_signal || ''} onChange={e => setDraft({ ...draft, market_signal: e.target.value })} placeholder="Market signal" />}
         </div>
       ) : (
         <div className="mt-2">

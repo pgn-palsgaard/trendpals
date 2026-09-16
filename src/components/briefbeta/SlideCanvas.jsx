@@ -5,6 +5,7 @@ import SlideProducts from '@/components/briefbeta/SlideProducts';
 import SlideTableContent from '@/components/briefbeta/SlideTableContent';
 import SlideImplicationsContent from '@/components/briefbeta/SlideImplicationsContent';
 import SMEAnnotationBadge from '@/components/sme/SMEAnnotationBadge';
+import PersonalCareOverview from '@/components/briefbeta/PersonalCareOverview';
 
 export default function SlideCanvas({ slide, trendStatus, topline, products = [], images = {}, thumbnail = false }) {
   if (!slide) return null;
@@ -21,12 +22,14 @@ export default function SlideCanvas({ slide, trendStatus, topline, products = []
       {signalLine && <p className="text-xs italic mb-4">{signalLine}</p>}
       {!thumbnail && slide.trend_id && <div className="mb-4"><SMEAnnotationBadge trendId={slide.trend_id} /></div>}
       <div className="space-y-6 flex-1">
+        {slide.slide_type === 'trend_overview' ? <PersonalCareOverview slide={slide} /> : <>
         <div className={slide.gnpd_examples?.length ? 'report-slide-grid' : ''}>
           <SlideNarrative slide={slide} />
           <SlideProducts examples={slide.gnpd_examples} products={products} images={images} />
         </div>
         <SlideTableContent slide={slide} />
         <SlideImplicationsContent slide={slide} />
+        </>}
       </div>
       <footer className={`flex items-end justify-between gap-4 text-xs mt-8 pt-4 border-t ${divider ? 'border-primary-foreground/30 text-primary-foreground/80' : 'border-border text-muted-foreground'}`}>
         <span className="whitespace-pre-wrap">{slide.evidence_footer || 'TrendPals · Palsgaard'}</span><span className="tabular-nums shrink-0">{slide.slide_number ?? ''}</span>

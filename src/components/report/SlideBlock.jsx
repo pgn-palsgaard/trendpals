@@ -1,12 +1,14 @@
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { HelpCircle, TrendingUp, Quote, Package, AlertTriangle } from 'lucide-react';
+import SlideCanvas from '@/components/briefbeta/SlideCanvas';
 
 // One report slide, rendered with every evidence layer the deck carries.
 // why_it_may_matter and formulation_questions are first-class here: they are what
 // turns a market observation into a technical conversation, and they were
 // previously stored but never shown.
 export default function SlideBlock({ slide, index, isSignal }) {
+  if (slide.slide_type === 'trend_overview') return <div className="mb-4"><SlideCanvas slide={slide} /></div>;
   return (
     <Card className="mb-4">
       <CardContent className="pt-5">

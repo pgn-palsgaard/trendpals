@@ -33,7 +33,8 @@ export default async function (req) {
 
     // Resolve GNPD product images for every product referenced in the deck, so the
     // exported PPTX shows real pack shots next to the market evidence.
-    const imageMap = imageMapFrom(await resolveDeckProducts(base44, report, 40));
+    const personalCare = report.evidence_gate?.mode === 'personal_care_trends';
+    const imageMap = personalCare ? {} : imageMapFrom(await resolveDeckProducts(base44, report, 40));
 
     const inputText = buildGammaMarkdown(report, imageMap);
 
@@ -44,8 +45,9 @@ export default async function (req) {
       cardSplit: 'inputTextBreaks',
       exportAs: 'pptx',
       title: report.title?.slice(0, 200),
-      additionalInstructions:
-        'B2B market intelligence deck for Palsgaard. Keep all facts exactly as written — never invent data. LAYOUT: keep each card as ONE single text block — do not split paragraphs, headings or list sections into separate boxes, cards-within-cards, columns or callout panels. IMAGES: use ONLY the provided image URLs; render them as one horizontal row of SMALL uniform thumbnails (roughly 3 cm tall) at the bottom of the card — never full-width, never one image per row, never as a background or hero image. Palsgaard CVI: blue #1D428A for headings and section dividers (H1-only cards = full-bleed Palsgaard blue divider slides with white text), dark blue #1D2B47 body text, cream #F7F4EE backgrounds, sage #6F8263 and teal #22566E accents, grey #969696 source citations. Never red/green/yellow. Titles are sentence-case insight statements, not topic labels. ' +
+      additionalInstructions: personalCare
+        ? 'Personal Care trend research presentation. Preserve every supplied claim, source quotation and geography exactly. Global trend overview cards followed by regional trend overview cards: up to three equal-width, parallel text columns, each consisting of its short trend heading, summary and small source reference/quotation. Use a clean white/cream background with blue headings and generous spacing. No product images, no GNPD launches, no Palsgaard capability section, no invented trends or regional claims. Do not add divider or strategic implication cards. Evidence gaps must remain visible. Disclaimer and methodology cards use a single readable text block.'
+        : 'B2B market intelligence deck for Palsgaard. Keep all facts exactly as written — never invent data. LAYOUT: keep each card as ONE single text block — do not split paragraphs, headings or list sections into separate boxes, cards-within-cards, columns or callout panels. IMAGES: use ONLY the provided image URLs; render them as one horizontal row of SMALL uniform thumbnails (roughly 3 cm tall) at the bottom of the card — never full-width, never one image per row, never as a background or hero image. Palsgaard CVI: blue #1D428A for headings and section dividers (H1-only cards = full-bleed Palsgaard blue divider slides with white text), dark blue #1D2B47 body text, cream #F7F4EE backgrounds, sage #6F8263 and teal #22566E accents, grey #969696 source citations. Never red/green/yellow. Titles are sentence-case insight statements, not topic labels. ' +
         'LEFT EDGE: every content card carries the Palsgaard signature — a narrow vertical strip of small square dots in Palsgaard blue #1D428A along the far left edge, running the full card height, outside the text area. Same position and size on every card; never over text, never on divider cards. ' +
         'SECTION DIVIDERS: consecutive divider (H1-only) cards must NOT share a background colour — cycle them in this exact order and repeat: Palsgaard blue #1D428A, sage #6F8263, chocolate #5A361F, teal #22566E. White text on all of them, so each new trend section is visibly separated from the previous one.',
     };

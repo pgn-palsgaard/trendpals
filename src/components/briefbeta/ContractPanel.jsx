@@ -10,19 +10,20 @@ export default function ContractPanel({ contract, trendCount }) {
     if (key === 'sub_categories' && Array.isArray(raw) && raw.length === 0 && hasCategories) return 'All formats';
     return Array.isArray(raw) ? (raw.length ? raw.join(', ') : null) : raw;
   };
-  const filled = CONTRACT_FIELDS.filter(f => !!displayValue(f.key, contract[f.key])).length;
+  const fields = contract.main_group === 'BSA' ? CONTRACT_FIELDS.filter(f => !['sub_categories', 'read_across'].includes(f.key)) : CONTRACT_FIELDS;
+  const filled = fields.filter(f => !!displayValue(f.key, contract[f.key])).length;
 
   return (
     <div className="pal-card p-5">
       <div className="flex items-center justify-between mb-1">
         <p className="text-sm font-semibold text-foreground">Brief contract</p>
-        <span className="badge-blue">{filled}/{CONTRACT_FIELDS.length}</span>
+        <span className="badge-blue">{filled}/{fields.length}</span>
       </div>
       <p className="text-xs text-muted-foreground mb-4">
         The architect must fill this before it can build the deck.
       </p>
       <div className="space-y-2.5">
-        {CONTRACT_FIELDS.map(f => {
+        {fields.map(f => {
           const value = displayValue(f.key, contract[f.key]);
           return (
             <div key={f.key} className="flex items-start gap-2 text-sm">
@@ -39,7 +40,7 @@ export default function ContractPanel({ contract, trendCount }) {
       </div>
       {trendCount > 0 && (
         <p className="text-xs mt-4 pt-3 border-t border-border" style={{ color: '#1D428A' }}>
-          Grounded in {trendCount} verified trend{trendCount === 1 ? '' : 's'} from the library
+          {contract.main_group === 'BSA' ? `Grounded in ${trendCount} approved research report${trendCount === 1 ? '' : 's'}` : `Grounded in ${trendCount} verified trend${trendCount === 1 ? '' : 's'} from the library`}
         </p>
       )}
     </div>

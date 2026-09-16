@@ -13,6 +13,7 @@
 //   - ONE single nested bullet list carrying every section  -> one text box
 //   - ONE line holding all pack shots side by side          -> one thumbnail row
 import { productNameFromExample, recordIdFromExample } from './productNames.ts';
+import { personalCareMarkdown } from './personalCareMarkdown.ts';
 
 function imageFor(example, imageMap) {
   const rid = recordIdFromExample(example);
@@ -29,6 +30,7 @@ function group(label, items) {
 }
 
 export function buildGammaMarkdown(report, imageMap = {}) {
+  if (report.evidence_gate?.mode === 'personal_care_trends') return personalCareMarkdown(report);
   const parts = [];
 
   // Same topline as the Claude deck: CATEGORY | MARKET INTELLIGENCE | YEAR.

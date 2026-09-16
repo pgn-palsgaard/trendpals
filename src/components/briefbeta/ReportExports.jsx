@@ -8,7 +8,7 @@ export default function ReportExports({ report }) {
   return <section className="pal-card p-4 space-y-4">
     <div className="flex flex-wrap gap-3 items-center justify-between">
       <div><h3 className="text-sm">Download your saved report</h3><p className="text-xs text-muted-foreground">Markdown is ready now — no PowerPoint build needed.</p></div>
-      <div className="flex flex-wrap gap-3"><MarkdownDownload report={report} /><ImagePackDownload report={report} /></div>
+      <div className="flex flex-wrap gap-3"><MarkdownDownload report={report} />{report.evidence_gate?.mode !== 'personal_care_trends' && <ImagePackDownload report={report} />}</div>
     </div>
     <details className="border-t pt-3">
       <summary className="cursor-pointer text-sm font-medium text-primary py-2">PowerPoint export · Gamma</summary>

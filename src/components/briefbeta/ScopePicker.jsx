@@ -63,7 +63,7 @@ export default function ScopePicker({ contract, formatsByCategory, disabled, onC
           )}
         </div>
         <div className="flex flex-wrap gap-1.5">
-          {CANONICAL_CATEGORIES.map(c => (
+          {CANONICAL_CATEGORIES.filter(c => c !== 'personal_care').map(c => (
             <Chip
               key={c}
               active={categories.includes(c)}

@@ -137,7 +137,7 @@ export default function GammaExportPanel({ report, slideCount }) {
       <p className="text-xs text-muted-foreground mb-4">
         Sends your approved {slideCount}-slide deck to Gamma and returns a finished .pptx file.
       </p>
-      <ImagePreflight reportId={report.id} />
+      {report.evidence_gate?.mode !== 'personal_care_trends' && <ImagePreflight reportId={report.id} />}
       {phase === 'failed' && (
         <div className="flex items-start gap-2 rounded-lg p-3 mb-3" style={{ background: '#FAE9E5' }}>
           <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#C15338' }} />
