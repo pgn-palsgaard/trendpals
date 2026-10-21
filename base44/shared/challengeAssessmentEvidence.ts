@@ -1,6 +1,6 @@
 export const pick = (o, keys) => Object.fromEntries(keys.map(k => [k, o?.[k] ?? null]));
 const text = v => String(v || '').slice(0, 1800);
-const supplier = /\b(palsgaard|iff|kerry|dsm[- ]?firmenich|corbion|cargill|ingredion|givaudan|symrise|basf|bunge|roquette|ashland|puratos|zeelandia|beneo|novonesis|glanbia|cp kelco)\b/i;
+const supplier = /\b(palsgaard|iff|kerry|dsm[- ]?firmenich|corbion|cargill|adm|aak|ingredion|givaudan|symrise|basf|bunge|roquette|ashland|puratos|zeelandia|beneo|novonesis|glanbia|cp kelco|tate\s*(?:&|and)\s*lyle|sensient|itac[- ]professional)\b/i;
 const usable = s => s.review_status === 'approved' && !s.is_archived && s.usage_permission !== 'forbidden' && s.allowed_use !== 'forbidden' && !s.extraction_quality_flag && (!s.expires_at || new Date(s.expires_at).getTime() > Date.now());
 const sourceRole = s => {
   if (!usable(s) || s.visibility === 'project_only') return null;

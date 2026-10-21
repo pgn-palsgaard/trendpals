@@ -3,6 +3,7 @@ const labels = { trend_fit: 'Trend fit', customer_perspective: 'Customer perspec
 export default function AssessmentDetails({ assessment: a }) {
   return <div className="space-y-3 text-sm">
     <div className="flex flex-wrap gap-2">{Object.entries(a.scores || {}).map(([k,v]) => <span key={k} className="rounded bg-muted px-2 py-1 text-xs">{labels[k] || k}: {v}/100</span>)}</div>
+    {(a.scores?.evidence_strength ?? 0) < 60 && <p className="rounded bg-muted p-2 text-xs font-semibold">Working hypothesis: the supplied evidence does not verify this as a directly expressed customer problem.</p>}
     <p>{a.summary}</p>
     {a.causal_chain && <p><strong>Market → customer challenge:</strong> {a.causal_chain}</p>}
     <p><strong>Supplier fit hypothesis:</strong> {a.capability_fit_proposal}. {a.capability_reason}</p>
