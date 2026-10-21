@@ -1,0 +1,41 @@
+{
+  "name": "Assess new and edited challenges",
+  "description": "Evaluate new or substantively edited challenges, keeping editorial approval and field validation separate.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "IndustryChallenge",
+      "events": [
+        "create",
+        "update"
+      ]
+    },
+    "condition": "${ .trigger.event_type == \"create\" or any((.trigger.changed_fields // [])[]; . == \"name\" or . == \"description\" or . == \"global_trend_id\" or . == \"category\" or . == \"region_code\" or . == \"supporting_note\" or . == \"capability_hypothesis\" or . == \"capability_fit\" or . == \"validation_status\" or . == \"validated_date\") }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "assess_new_and_edited_challenges",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "queue_challenge": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "queueChallengeAssessment",
+            "args": {
+              "challenge_id": "${ .trigger.entity_id }",
+              "reason": "challenge_changed"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "S\u00e6t challenge til evidensvurdering"
+          }
+        }
+      }
+    ]
+  }
+}

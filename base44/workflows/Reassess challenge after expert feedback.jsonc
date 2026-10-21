@@ -1,0 +1,41 @@
+{
+  "name": "Reassess challenge after expert feedback",
+  "description": "Use human field feedback as evidence without altering the expert's verdict or market validation.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "ReviewAssignment",
+      "events": [
+        "create",
+        "update"
+      ]
+    },
+    "condition": "${ .trigger.data.status == \"responded\" and (.trigger.event_type == \"create\" or any((.trigger.changed_fields // [])[]; . == \"status\" or . == \"verdict\" or . == \"comment\" or . == \"suggested_capability_fit\" or . == \"trend_signal\" or . == \"reviewer_region\")) }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "reassess_challenge_after_expert_feedback",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "queue_feedback": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "queueChallengeAssessment",
+            "args": {
+              "assignment_id": "${ .trigger.entity_id }",
+              "reason": "expert_feedback_changed"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Inddrag ekspertens tilbagemelding"
+          }
+        }
+      }
+    ]
+  }
+}

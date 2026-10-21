@@ -4,11 +4,13 @@ import { base44 } from '@/api/base44Client';
 import ChallengesTab from '@/components/reviewqueue/ChallengesTab';
 import SourcesTab from '@/components/reviewqueue/SourcesTab';
 import ValidationsTab from '@/components/reviewqueue/ValidationsTab';
+import ChallengeAssessmentQueue from '@/components/challenges/ChallengeAssessmentQueue';
 
 const TABS = [
   { key: 'challenges', label: 'Challenges' },
   { key: 'sources',    label: 'Sources' },
   { key: 'validations', label: 'Validations' },
+  { key: 'assessments', label: 'AI assessments' },
 ];
 
 export default function ReviewQueue() {
@@ -119,6 +121,7 @@ export default function ReviewQueue() {
             {activeTab === 'sources' && (
               <SourcesTab sources={sources} />
             )}
+            {activeTab === 'assessments' && <ChallengeAssessmentQueue />}
             {activeTab === 'validations' && (
               <ValidationsTab
                 challenges={challenges}

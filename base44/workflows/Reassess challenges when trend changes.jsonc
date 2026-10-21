@@ -1,0 +1,42 @@
+{
+  "name": "Reassess challenges when trend changes",
+  "description": "Queue affected challenges only when substantive trend context or evidence links change.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "GlobalTrend",
+      "events": [
+        "create",
+        "update",
+        "delete"
+      ]
+    },
+    "condition": "${ .trigger.event_type != \"update\" or any((.trigger.changed_fields // [])[]; . == \"trend_name\" or . == \"category\" or . == \"description\" or . == \"market_signal\" or . == \"whats_changing\" or . == \"why_now\" or . == \"sources\" or . == \"source_references\" or . == \"regional_manifestations\" or . == \"is_active\") }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "reassess_challenges_on_trend_change",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "queue_trend": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "queueChallengeAssessment",
+            "args": {
+              "trend_id": "${ .trigger.entity_id }",
+              "reason": "trend_changed"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "S\u00e6t trendens challenges til genvurdering"
+          }
+        }
+      }
+    ]
+  }
+}

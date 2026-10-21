@@ -1,0 +1,74 @@
+{
+  "name": "ChallengeAssessmentJob",
+  "type": "object",
+  "description": "Resumable background evaluation queue. Bounded pages, persisted cursor and expiring worker lease.",
+  "properties": {
+    "scope_key": {
+      "type": "string"
+    },
+    "query": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "reason": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "queued",
+        "running",
+        "completed",
+        "failed"
+      ]
+    },
+    "cursor": {
+      "type": "string"
+    },
+    "processed": {
+      "type": "number",
+      "default": 0
+    },
+    "evaluated": {
+      "type": "number",
+      "default": 0
+    },
+    "unchanged": {
+      "type": "number",
+      "default": 0
+    },
+    "total": {
+      "type": "number",
+      "default": 0
+    },
+    "rerun_requested": {
+      "type": "boolean",
+      "default": false
+    },
+    "lease_token": {
+      "type": "string"
+    },
+    "lease_until": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "finished_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "last_error": {
+      "type": "string"
+    },
+    "requested_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "scope_key",
+    "status"
+  ]
+}

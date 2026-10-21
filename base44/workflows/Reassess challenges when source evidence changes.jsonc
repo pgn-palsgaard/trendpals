@@ -1,0 +1,42 @@
+{
+  "name": "Reassess challenges when source evidence changes",
+  "description": "Re-evaluate affected challenge links when source quotes, permissions or approval change. Does not loop on assessment outputs.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "Source",
+      "events": [
+        "create",
+        "update",
+        "delete"
+      ]
+    },
+    "condition": "${ .trigger.event_type != \"update\" or any((.trigger.changed_fields // [])[]; . == \"excerpts\" or . == \"review_status\" or . == \"allowed_use\" or . == \"usage_permission\" or . == \"is_archived\" or . == \"category\" or . == \"category_relevance\" or . == \"date_published\" or . == \"expires_at\" or . == \"extraction_quality_flag\" or . == \"visibility\" or . == \"source_type\" or . == \"publisher\" or . == \"url\") }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "reassess_challenges_on_source_change",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "queue_source": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "queueChallengeAssessment",
+            "args": {
+              "source_id": "${ .trigger.entity_id }",
+              "reason": "source_evidence_changed"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Find challenges med \u00e6ndret kildegrundlag"
+          }
+        }
+      }
+    ]
+  }
+}

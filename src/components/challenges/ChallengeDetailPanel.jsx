@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, CheckCircle, XCircle, Clock, AlertTriangle, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import ChallengeAssessmentHistory from '@/components/challenges/ChallengeAssessmentHistory';
 
 const CAP_FIT_STYLES = {
   strong:  { bg: '#eaf2e8', text: '#3a6b2e', label: 'Strong fit' },
@@ -112,6 +113,8 @@ export default function ChallengeDetailPanel({ challenge, onClose, onApprove, on
               <p className="text-sm text-slate-600 leading-relaxed">{challenge.supporting_note}</p>
             </div>
           )}
+
+          <ChallengeAssessmentHistory challengeId={challenge.id} />
 
           {/* ── SECTION A: Editorial Approval ── */}
           <div className="rounded-xl border-2 border-slate-200 p-4">

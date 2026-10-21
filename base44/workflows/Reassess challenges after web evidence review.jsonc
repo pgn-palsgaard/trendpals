@@ -1,0 +1,41 @@
+{
+  "name": "Reassess challenges after web evidence review",
+  "description": "Reassess linked challenges after approved supplementary web evidence is reviewed or amended. Competitor content is excluded by the evaluator.",
+  "trigger": {
+    "config": {
+      "trigger_type": "entity",
+      "entity_name": "WebSignal",
+      "events": [
+        "create",
+        "update"
+      ]
+    },
+    "condition": "${ .trigger.event_type == \"create\" or any((.trigger.changed_fields // [])[]; . == \"review_status\" or . == \"linked_trend_id\" or . == \"key_quote\" or . == \"is_competitor_content\" or . == \"source_kind\" or . == \"region\" or . == \"published_date\") }"
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "reassess_challenges_after_web_review",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "queue_web": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "queueChallengeAssessment",
+            "args": {
+              "web_signal_id": "${ .trigger.entity_id }",
+              "reason": "web_evidence_changed"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Genvurd\u00e9r efter \u00e6ndret web-evidens"
+          }
+        }
+      }
+    ]
+  }
+}

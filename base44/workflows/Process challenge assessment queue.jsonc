@@ -1,0 +1,44 @@
+{
+  "name": "Process challenge assessment queue",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "*/5 * * * *",
+      "one_time_date": null,
+      "timezone": "Europe/Copenhagen",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "process_challenge_assessment_queue",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "process_batch": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "processChallengeAssessmentJob",
+            "args": {}
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Vurd\u00e9r n\u00e6ste batch af challenges"
+          }
+        }
+      }
+    ]
+  },
+  "description": "Process one bounded, resumable assessment batch every five minutes. Expiring leases recover interrupted workers; errors remain visible in the job log."
+}

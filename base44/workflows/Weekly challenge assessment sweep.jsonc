@@ -1,0 +1,46 @@
+{
+  "name": "Weekly challenge assessment sweep",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 7 * * 1",
+      "one_time_date": null,
+      "timezone": "Europe/Copenhagen",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "weekly_challenge_assessment_sweep",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "queue_sweep": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "queueChallengeAssessment",
+            "args": {
+              "reason": "weekly_sweep"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "S\u00e6t ugentlig challenge-vurdering i k\u00f8"
+          }
+        }
+      }
+    ]
+  },
+  "description": "Queue an evidence-based review of all challenges every Monday at 07:00 Copenhagen time. Unchanged inputs are skipped; human decisions are untouched."
+}
