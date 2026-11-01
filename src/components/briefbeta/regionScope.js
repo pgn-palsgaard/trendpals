@@ -44,6 +44,8 @@ export const COUNTRY_GROUPS = {
   imea: [
     'UAE', 'Saudi Arabia', 'Kuwait', 'Qatar', 'Oman', 'Jordan', 'Lebanon', 'Israel',
     'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa',
+    // Sub-Saharan Africa → IMEA, as in src/lib/regions.js (CANONICAL_TO_COMMERCIAL).
+    'Nigeria', 'Kenya', 'Ghana', 'Ethiopia', 'Tanzania', 'Cameroon', 'Ivory Coast',
   ],
 };
 
