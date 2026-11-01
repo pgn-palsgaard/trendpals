@@ -145,26 +145,32 @@ Deno.serve(async (req) => {
       }, { status: 400 });
     }
     
+    // An unready or empty GNPD source is skipped with a note instead of failing the
+    // whole run, as long as at least one other GNPD source is usable. If none is,
+    // the first source's original error is returned unchanged.
+    const skippedGnpdSources = [];
     for (const source of gnpdSources) {
       // Check processing status
       if (source.gnpd_processing_status !== 'ready') {
-        return Response.json({ 
+        skippedGnpdSources.push({
           error: 'GNPD source not ready',
           message: `GNPD source "${source.title}" is not ready yet. Status: ${source.gnpd_processing_status || 'pending'}`,
           source_id: source.id,
           source_title: source.title,
           processing_status: source.gnpd_processing_status
-        }, { status: 400 });
+        });
+        continue;
       }
       
       // Check if data exists
       if (!source.gnpd_data || !Array.isArray(source.gnpd_data) || source.gnpd_data.length === 0) {
-        return Response.json({ 
+        skippedGnpdSources.push({
           error: 'GNPD source has no data',
           message: `GNPD source "${source.title}" has no product data. Please re-upload or process the file.`,
           source_id: source.id,
           source_title: source.title
-        }, { status: 400 });
+        });
+        continue;
       }
       
       // Validate that required mapped columns exist
@@ -220,9 +226,20 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (skippedGnpdSources.length === gnpdSources.length) {
+      return Response.json(skippedGnpdSources[0], { status: 400 });
+    }
+    const skippedSourceIds = new Set(skippedGnpdSources.map(s => s.source_id));
+    const skippedSourcesNote = skippedGnpdSources.length > 0
+      ? `Skipped ${skippedGnpdSources.length} GNPD source(s) that are not usable yet: ${skippedGnpdSources.map(s => `"${s.source_title}" (${s.error})`).join(', ')}.`
+      : null;
+    debug.skipped_gnpd_sources = skippedGnpdSources.map(s => ({ source_id: s.source_id, source_title: s.source_title, reason: s.error }));
+    if (skippedSourcesNote) debug.empty_reasons.push(skippedSourcesNote);
+
     // Get all GNPD products from sources with column mapping
     const gnpdProducts = [];
     for (const source of sources) {
+      if (skippedSourceIds.has(source.id)) continue;
       if (source.gnpd_data && Array.isArray(source.gnpd_data)) {
         // Get column mapping from source directly
         const columnMap = source.gnpd_column_mapping || {};
@@ -564,6 +581,7 @@ Task: Classify whether this product supports the trend. Output JSON with grounde
       shortlist_count: createdCandidates.length,
       products: createdCandidates,
       region_note: debug.region_filter.note || null,
+      skipped_sources_note: skippedSourcesNote,
       debug
     });
 
