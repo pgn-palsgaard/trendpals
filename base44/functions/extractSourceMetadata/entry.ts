@@ -1,6 +1,8 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
 import * as XLSX from 'npm:xlsx';
-import pdfParse from 'npm:pdf-parse';
+// Pinned: pdf-parse 2.x has no default export, so the unpinned import crashes the
+// function at boot ("does not provide an export named 'default'").
+import pdfParse from 'npm:pdf-parse@1.1.1';
 
 Deno.serve(async (req) => {
     try {
