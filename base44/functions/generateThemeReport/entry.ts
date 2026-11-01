@@ -13,12 +13,14 @@ const COMMERCIAL_OVERRIDES = {
   'india': 'imea', 'turkey': 'emec', 'iran': 'emec', 'uzbekistan': 'emec',
   'turkmenistan': 'emec', 'kazakhstan': 'emec', 'kyrgyzstan': 'emec',
   'tajikistan': 'emec', 'afghanistan': 'emec', 'azerbaijan': 'emec',
-  'georgia': 'emec', 'armenia': 'emec', 'russia': 'aspac',
+  'georgia': 'emec', 'armenia': 'emec',
+  // Russia: no commercial region (policy 2026-11-01) — explicit null, no EMEC fallback.
+  'russia': null, 'russian federation': null,
 };
 function getCommercialRegion(canonicalKey, country = null) {
   if (country) {
     const normalized = country.toLowerCase().trim();
-    if (COMMERCIAL_OVERRIDES[normalized]) return COMMERCIAL_OVERRIDES[normalized];
+    if (Object.prototype.hasOwnProperty.call(COMMERCIAL_OVERRIDES, normalized)) return COMMERCIAL_OVERRIDES[normalized];
   }
   return CANONICAL_TO_COMMERCIAL[canonicalKey] || null;
 }
