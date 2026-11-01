@@ -15,7 +15,8 @@ const MARKET_TO_REGION = {
   'norway': 'europe', 'finland': 'europe', 'poland': 'europe', 'switzerland': 'europe',
   'austria': 'europe', 'ireland': 'europe', 'czech republic': 'europe', 'czechia': 'europe',
   'portugal': 'europe', 'greece': 'europe', 'romania': 'europe', 'hungary': 'europe',
-  'russia': 'europe', 'lithuania': 'europe', 'slovenia': 'europe',
+  'lithuania': 'europe', 'slovenia': 'europe',
+  // Russia intentionally absent — no region (policy 2026-11-01) → 'unknown'.
   'latvia': 'europe', 'croatia': 'europe',
   'united states': 'north_america', 'us': 'north_america', 'usa': 'north_america',
   'u.s.': 'north_america', 'u.s.a.': 'north_america', 'canada': 'north_america',
