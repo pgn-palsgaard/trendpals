@@ -42,7 +42,9 @@ export const MARKET_TO_REGION = {
   'norway': 'europe', 'finland': 'europe', 'poland': 'europe', 'switzerland': 'europe',
   'austria': 'europe', 'ireland': 'europe', 'czech republic': 'europe', 'czechia': 'europe',
   'portugal': 'europe', 'greece': 'europe', 'romania': 'europe', 'hungary': 'europe',
-  'russia': 'europe', 'lithuania': 'europe', 'slovenia': 'europe',
+  'lithuania': 'europe', 'slovenia': 'europe',
+  // Russia intentionally absent: assigned to no region (policy 2026-11-01) →
+  // getRegionForMarket('Russia') returns 'unknown', getCommercialRegion → null.
   'latvia': 'europe', 'croatia': 'europe',
 
   // ── North America ──
@@ -133,8 +135,11 @@ const COMMERCIAL_OVERRIDES = {
   'georgia':         'emec',
   'armenia':         'emec',
 
-  // Russia excluded from EMEC — map to ASPAC as nearest Palsgaard sales region
-  'russia':          'aspac',
+  // Russia (policy 2026-11-01): assigned to NO commercial region. null is an
+  // explicit override, so legacy rows stored with region 'europe' also resolve
+  // to null instead of falling back to EMEC.
+  'russia':             null,
+  'russian federation': null,
 };
 
 // 1.4 — Resolve to a commercial region key. Country override first, then the
@@ -142,7 +147,7 @@ const COMMERCIAL_OVERRIDES = {
 export function getCommercialRegion(canonicalKey, country = null) {
   if (country) {
     const normalized = country.toLowerCase().trim();
-    if (COMMERCIAL_OVERRIDES[normalized]) {
+    if (Object.prototype.hasOwnProperty.call(COMMERCIAL_OVERRIDES, normalized)) {
       return COMMERCIAL_OVERRIDES[normalized];
     }
   }
