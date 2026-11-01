@@ -15,13 +15,19 @@ export default async function (req) {
 
     const body = await req.json().catch(() => ({}));
 
-    // ISO week number drives the rotation, so the schedule is deterministic.
-    const now = new Date();
-    const start = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
-    const week = Math.floor((now.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000));
+    // A continuous week counter drives the rotation, so the schedule is deterministic
+    // and never skips or repeats a category at the new year (a per-year week number
+    // resets every 1 January). Anchored on Monday 2026-11-02 = index 7, so the
+    // rotation carries on exactly where the old formula had it.
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+    const ANCHOR_MS = Date.UTC(2026, 10, 2);
+    const ANCHOR_INDEX = 7;
+    const n = SCOUT_CATEGORIES.length;
+    const weeksSinceAnchor = Math.floor((Date.now() - ANCHOR_MS) / WEEK_MS);
+    const index = (((ANCHOR_INDEX + weeksSinceAnchor) % n) + n) % n;
     const category = SCOUT_CATEGORIES.includes(body.category)
       ? body.category
-      : SCOUT_CATEGORIES[week % SCOUT_CATEGORIES.length];
+      : SCOUT_CATEGORIES[index];
 
     // Nested call: this wrapper is itself on a runtime budget, so the sweep gets a
     // short one. A full 240s sweep here got the wrapper killed and left the child
@@ -30,6 +36,9 @@ export default async function (req) {
       category,
       window: 'the last 4 weeks',
       time_budget_ms: 90000,
+      // The workflow runs under the owner's identity, so runMarketScout cannot tell
+      // it apart from a button press on its own.
+      triggered_by: 'schedule',
     });
 
     return Response.json({ success: true, category, result: res?.data || null });
