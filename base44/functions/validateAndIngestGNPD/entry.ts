@@ -42,14 +42,14 @@ const COUNTRY_TO_REGION = {
   'montenegro': 'EMEC', 'united kingdom': 'EMEC', 'turkey': 'EMEC', 'türkiye': 'EMEC',
   'ukraine': 'EMEC', 'belarus': 'EMEC', 'kazakhstan': 'EMEC', 'uzbekistan': 'EMEC',
   'azerbaijan': 'EMEC', 'armenia': 'EMEC', 'georgia': 'EMEC', 'kyrgyzstan': 'EMEC',
-  'tajikistan': 'EMEC', 'turkmenistan': 'EMEC', 'moldova': 'EMEC', 'iran': 'EMEC',
+  'tajikistan': 'EMEC', 'turkmenistan': 'EMEC', 'moldova': 'EMEC',
   // IMEA (India, Middle East, Africa incl. Sub-Saharan)
   'india': 'IMEA', 'uae': 'IMEA', 'saudi arabia': 'IMEA', 'kuwait': 'IMEA',
   'qatar': 'IMEA', 'oman': 'IMEA', 'jordan': 'IMEA', 'lebanon': 'IMEA', 'israel': 'IMEA',
   'egypt': 'IMEA', 'morocco': 'IMEA', 'algeria': 'IMEA', 'tunisia': 'IMEA',
   'south africa': 'IMEA', 'nigeria': 'IMEA', 'kenya': 'IMEA', 'ghana': 'IMEA',
   'ethiopia': 'IMEA', 'tanzania': 'IMEA', 'cameroon': 'IMEA', 'ivory coast': 'IMEA',
-  'united arab emirates': 'IMEA', 'iraq': 'IMEA', 'bahrain': 'IMEA',
+  'united arab emirates': 'IMEA', 'iraq': 'IMEA', 'bahrain': 'IMEA', 'iran': 'IMEA', 'afghanistan': 'IMEA',
 };
 
 // Mintel category → Palsgaard category mapping

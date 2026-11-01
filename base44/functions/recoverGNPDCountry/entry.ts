@@ -33,10 +33,11 @@ const MARKET_TO_REGION = {
   'turkey': 'mena', 'israel': 'mena', 'south africa': 'mena', 'morocco': 'mena',
   'tunisia': 'mena', 'lebanon': 'mena', 'kuwait': 'mena', 'qatar': 'mena',
   'bahrain': 'mena', 'jordan': 'mena', 'algeria': 'mena', 'oman': 'mena',
-  // Added 2026-11-01: Türkiye alias, Iran, Iraq, Caucasus and Central Asian CIS
-  // countries. Canonical 'mena' as documented on COMMERCIAL_OVERRIDES; the
-  // overrides fold Türkiye/Iran/CIS to EMEC. Afghanistan intentionally absent.
-  'türkiye': 'mena', 'iran': 'mena', 'iraq': 'mena', 'kazakhstan': 'mena',
+  // Added 2026-11-01: Türkiye alias, Iran, Iraq, Afghanistan, Caucasus and
+  // Central Asian CIS countries. Canonical 'mena' as documented on
+  // COMMERCIAL_OVERRIDES; the overrides fold Türkiye/CIS to EMEC. Iran and
+  // Afghanistan stay IMEA (policy, Peter 2026-11-01) via the mena default.
+  'türkiye': 'mena', 'iran': 'mena', 'iraq': 'mena', 'afghanistan': 'mena', 'kazakhstan': 'mena',
   'uzbekistan': 'mena', 'turkmenistan': 'mena', 'kyrgyzstan': 'mena', 'tajikistan': 'mena',
   'azerbaijan': 'mena', 'georgia': 'mena', 'armenia': 'mena',
   'nigeria': 'sub_saharan_africa', 'kenya': 'sub_saharan_africa', 'ghana': 'sub_saharan_africa',

@@ -22,7 +22,7 @@ export const REGION_COUNTRIES = {
     'Cambodia', 'Laos', 'Brunei', 'Timor-Leste',
     
     // South Asia (excluding India - India is in IMEA)
-    'Pakistan', 'Bangladesh', 'Sri Lanka', 'Nepal', 'Bhutan', 'Maldives', 'Afghanistan',
+    'Pakistan', 'Bangladesh', 'Sri Lanka', 'Nepal', 'Bhutan', 'Maldives',
     
     // Oceania
     'Australia', 'New Zealand', 'Papua New Guinea', 'Fiji', 'Solomon Islands', 'Vanuatu',
@@ -69,15 +69,16 @@ export const REGION_COUNTRIES = {
     // Central Asia (former Soviet "Stan" countries, excluding Russia)
     'Kazakhstan', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan', 'Uzbekistan',
     
-    // Turkey and Iran
-    'Turkey', 'Iran'
+    // Turkey (Iran moved to IMEA, policy 2026-11-01)
+    'Turkey'
   ],
   
   IMEA: [
     // India (special member)
     'India',
     
-    // Middle East (up to but not including Turkey and Iran)
+    // Middle East (excluding Turkey; Iran and Afghanistan are IMEA, policy 2026-11-01)
+    'Iran', 'Afghanistan',
     'Saudi Arabia', 'United Arab Emirates', 'Qatar', 'Kuwait', 'Bahrain', 'Oman', 'Yemen',
     'Iraq', 'Syria', 'Lebanon', 'Jordan', 'Israel', 'Palestine',
     

@@ -41,14 +41,14 @@ const COUNTRY_REGION = {
   'Montenegro': 'EMEC', 'United Kingdom': 'EMEC', 'Turkey': 'EMEC', 'Türkiye': 'EMEC',
   'Ukraine': 'EMEC', 'Belarus': 'EMEC', 'Kazakhstan': 'EMEC', 'Uzbekistan': 'EMEC',
   'Azerbaijan': 'EMEC', 'Armenia': 'EMEC', 'Georgia': 'EMEC', 'Kyrgyzstan': 'EMEC',
-  'Tajikistan': 'EMEC', 'Turkmenistan': 'EMEC', 'Moldova': 'EMEC', 'Iran': 'EMEC',
+  'Tajikistan': 'EMEC', 'Turkmenistan': 'EMEC', 'Moldova': 'EMEC',
   // IMEA (India, Middle East, Africa incl. Sub-Saharan)
   'India': 'IMEA', 'UAE': 'IMEA', 'Saudi Arabia': 'IMEA', 'Kuwait': 'IMEA',
   'Qatar': 'IMEA', 'Oman': 'IMEA', 'Jordan': 'IMEA', 'Lebanon': 'IMEA', 'Israel': 'IMEA',
   'Egypt': 'IMEA', 'Morocco': 'IMEA', 'Algeria': 'IMEA', 'Tunisia': 'IMEA',
   'South Africa': 'IMEA', 'Nigeria': 'IMEA', 'Kenya': 'IMEA', 'Ghana': 'IMEA',
   'Ethiopia': 'IMEA', 'Tanzania': 'IMEA', 'Cameroon': 'IMEA', 'Ivory Coast': 'IMEA',
-  'United Arab Emirates': 'IMEA', 'Iraq': 'IMEA', 'Bahrain': 'IMEA',
+  'United Arab Emirates': 'IMEA', 'Iraq': 'IMEA', 'Bahrain': 'IMEA', 'Iran': 'IMEA', 'Afghanistan': 'IMEA',
   // ASPAC (incl. Pakistan)
   'China': 'ASPAC', 'Japan': 'ASPAC', 'Indonesia': 'ASPAC', 'South Korea': 'ASPAC',
   'Australia': 'ASPAC', 'Thailand': 'ASPAC', 'Vietnam': 'ASPAC', 'Malaysia': 'ASPAC',
@@ -102,10 +102,11 @@ const MARKET_TO_REGION = {
   'turkey': 'mena', 'israel': 'mena', 'south africa': 'mena', 'morocco': 'mena',
   'tunisia': 'mena', 'lebanon': 'mena', 'kuwait': 'mena', 'qatar': 'mena',
   'bahrain': 'mena', 'jordan': 'mena', 'algeria': 'mena', 'oman': 'mena',
-  // Added 2026-11-01: Türkiye alias, Iran, Iraq, Caucasus and Central Asian CIS
-  // countries. Canonical 'mena' as documented on COMMERCIAL_OVERRIDES; the
-  // overrides fold Türkiye/Iran/CIS to EMEC. Afghanistan intentionally absent.
-  'türkiye': 'mena', 'iran': 'mena', 'iraq': 'mena', 'kazakhstan': 'mena',
+  // Added 2026-11-01: Türkiye alias, Iran, Iraq, Afghanistan, Caucasus and
+  // Central Asian CIS countries. Canonical 'mena' as documented on
+  // COMMERCIAL_OVERRIDES; the overrides fold Türkiye/CIS to EMEC. Iran and
+  // Afghanistan stay IMEA (policy, Peter 2026-11-01) via the mena default.
+  'türkiye': 'mena', 'iran': 'mena', 'iraq': 'mena', 'afghanistan': 'mena', 'kazakhstan': 'mena',
   'uzbekistan': 'mena', 'turkmenistan': 'mena', 'kyrgyzstan': 'mena', 'tajikistan': 'mena',
   'azerbaijan': 'mena', 'georgia': 'mena', 'armenia': 'mena',
   'nigeria': 'sub_saharan_africa', 'kenya': 'sub_saharan_africa', 'ghana': 'sub_saharan_africa',
@@ -123,9 +124,10 @@ const CANONICAL_TO_COMMERCIAL = {
   europe: 'emec', mena: 'imea', sub_saharan_africa: 'imea',
 };
 const COMMERCIAL_OVERRIDES = {
-  'india': 'imea', 'turkey': 'emec', 'türkiye': 'emec', 'iran': 'emec', 'uzbekistan': 'emec',
+  // Iran and Afghanistan deliberately absent → mena default → IMEA (policy 2026-11-01).
+  'india': 'imea', 'turkey': 'emec', 'türkiye': 'emec', 'uzbekistan': 'emec',
   'turkmenistan': 'emec', 'kazakhstan': 'emec', 'kyrgyzstan': 'emec',
-  'tajikistan': 'emec', 'afghanistan': 'emec', 'azerbaijan': 'emec',
+  'tajikistan': 'emec', 'azerbaijan': 'emec',
   'georgia': 'emec', 'armenia': 'emec',
   // Russia: no commercial region (policy 2026-11-01) — explicit null, no EMEC fallback.
   'russia': null, 'russian federation': null,

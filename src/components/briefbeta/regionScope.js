@@ -8,7 +8,7 @@
 // Country strings are spelled EXACTLY as they appear in GNPDProduct.country
 // (verified against the live data, 76 distinct bakery countries).
 //
-// Region policy (Peter, 2026-11-01): India → IMEA, Turkey → EMEC, Russia → no
+// Region policy (Peter, 2026-11-01): India, Iran, Afghanistan → IMEA, Turkey → EMEC, Russia → no
 // region (UNASSIGNED_COUNTRIES). Same policy as base44/shared/regionTaxonomy.ts.
 
 // Countries assigned to no region. Never reached by a region term; still
@@ -52,7 +52,7 @@ export const COUNTRY_GROUPS = {
   imea: [
     'India',
     'UAE', 'Saudi Arabia', 'Kuwait', 'Qatar', 'Oman', 'Jordan', 'Lebanon', 'Israel',
-    'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa', 'Bahrain', 'Iraq',
+    'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa', 'Bahrain', 'Iraq', 'Iran', 'Afghanistan',
     // Sub-Saharan Africa → IMEA, as in src/lib/regions.js (CANONICAL_TO_COMMERCIAL).
     'Nigeria', 'Kenya', 'Ghana', 'Ethiopia', 'Tanzania', 'Cameroon', 'Ivory Coast',
   ],

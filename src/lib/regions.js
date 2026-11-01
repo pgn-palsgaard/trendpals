@@ -67,10 +67,11 @@ export const MARKET_TO_REGION = {
   'turkey': 'mena', 'israel': 'mena', 'south africa': 'mena', 'morocco': 'mena',
   'tunisia': 'mena', 'lebanon': 'mena', 'kuwait': 'mena', 'qatar': 'mena',
   'bahrain': 'mena', 'jordan': 'mena', 'algeria': 'mena', 'oman': 'mena',
-  // Added 2026-11-01: Türkiye alias, Iran, Iraq, Caucasus and Central Asian CIS
-  // countries. Canonical 'mena' as documented on COMMERCIAL_OVERRIDES; the
-  // overrides fold Türkiye/Iran/CIS to EMEC. Afghanistan intentionally absent.
-  'türkiye': 'mena', 'iran': 'mena', 'iraq': 'mena', 'kazakhstan': 'mena',
+  // Added 2026-11-01: Türkiye alias, Iran, Iraq, Afghanistan, Caucasus and
+  // Central Asian CIS countries. Canonical 'mena' as documented on
+  // COMMERCIAL_OVERRIDES; the overrides fold Türkiye/CIS to EMEC. Iran and
+  // Afghanistan stay IMEA (policy, Peter 2026-11-01) via the mena default.
+  'türkiye': 'mena', 'iran': 'mena', 'iraq': 'mena', 'afghanistan': 'mena', 'kazakhstan': 'mena',
   'uzbekistan': 'mena', 'turkmenistan': 'mena', 'kyrgyzstan': 'mena', 'tajikistan': 'mena',
   'azerbaijan': 'mena', 'georgia': 'mena', 'armenia': 'mena',
 
@@ -124,7 +125,7 @@ export const CANONICAL_TO_COMMERCIAL = {
   north_america:      'americas',
   latam:              'americas',
   europe:             'emec',
-  mena:               'imea',      // Default; Turkey/Iran/Stan override below
+  mena:               'imea',      // Default (incl. Iran, Afghanistan); Turkey/Stan override below
   sub_saharan_africa: 'imea',
 };
 
@@ -134,16 +135,15 @@ const COMMERCIAL_OVERRIDES = {
   // India is canonical 'aspac' but commercial IMEA
   'india':           'imea',
 
-  // Turkey, Iran, Stan countries are canonical 'mena' but commercial EMEC
+  // Turkey, Stan and Caucasus countries are canonical 'mena' but commercial EMEC.
+  // Iran and Afghanistan are NOT overridden: they resolve to IMEA (policy 2026-11-01).
   'turkey':          'emec',
   'türkiye':         'emec',
-  'iran':            'emec',
   'uzbekistan':      'emec',
   'turkmenistan':    'emec',
   'kazakhstan':      'emec',
   'kyrgyzstan':      'emec',
   'tajikistan':      'emec',
-  'afghanistan':     'emec',
   'azerbaijan':      'emec',
   'georgia':         'emec',
   'armenia':         'emec',

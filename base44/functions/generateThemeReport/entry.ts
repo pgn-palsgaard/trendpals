@@ -10,9 +10,10 @@ const CANONICAL_TO_COMMERCIAL = {
   europe: 'emec', mena: 'imea', sub_saharan_africa: 'imea',
 };
 const COMMERCIAL_OVERRIDES = {
-  'india': 'imea', 'turkey': 'emec', 'türkiye': 'emec', 'iran': 'emec', 'uzbekistan': 'emec',
+  // Iran and Afghanistan deliberately absent → mena default → IMEA (policy 2026-11-01).
+  'india': 'imea', 'turkey': 'emec', 'türkiye': 'emec', 'uzbekistan': 'emec',
   'turkmenistan': 'emec', 'kazakhstan': 'emec', 'kyrgyzstan': 'emec',
-  'tajikistan': 'emec', 'afghanistan': 'emec', 'azerbaijan': 'emec',
+  'tajikistan': 'emec', 'azerbaijan': 'emec',
   'georgia': 'emec', 'armenia': 'emec',
   // Russia: no commercial region (policy 2026-11-01) — explicit null, no EMEC fallback.
   'russia': null, 'russian federation': null,

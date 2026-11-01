@@ -13,7 +13,7 @@
 // named country, or global scope.
 //
 // Region policy (Peter, 2026-11-01): India belongs to IMEA (India, Middle East,
-// Africa); Turkey belongs to EMEC; Russia belongs to NO region while the war
+// Africa); Iran and Afghanistan belong to IMEA; Turkey belongs to EMEC; Russia belongs to NO region while the war
 // lasts. Russia is listed in UNASSIGNED_COUNTRIES: no region term ever resolves
 // to it, but global scope and an explicitly named "Russia" still include it.
 
@@ -46,7 +46,7 @@ export const IMEA_COUNTRIES = [
   // India is the "I" in IMEA (policy 2026-11-01).
   'India',
   'UAE', 'Saudi Arabia', 'Kuwait', 'Qatar', 'Oman', 'Jordan', 'Lebanon', 'Israel',
-  'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa', 'Bahrain', 'Iraq',
+  'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa', 'Bahrain', 'Iraq', 'Iran', 'Afghanistan',
   // Sub-Saharan Africa → IMEA, as in src/lib/regions.js (CANONICAL_TO_COMMERCIAL).
   'Nigeria', 'Kenya', 'Ghana', 'Ethiopia', 'Tanzania', 'Cameroon', 'Ivory Coast',
 ];

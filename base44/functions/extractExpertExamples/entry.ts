@@ -84,11 +84,11 @@ const REGION_MAP = {
   'montenegro': 'EMEC', 'türkiye': 'EMEC', 'ukraine': 'EMEC', 'belarus': 'EMEC',
   'kazakhstan': 'EMEC', 'uzbekistan': 'EMEC', 'azerbaijan': 'EMEC', 'armenia': 'EMEC',
   'georgia': 'EMEC', 'kyrgyzstan': 'EMEC', 'tajikistan': 'EMEC', 'turkmenistan': 'EMEC',
-  'moldova': 'EMEC', 'iran': 'EMEC', 'kuwait': 'IMEA', 'qatar': 'IMEA', 'oman': 'IMEA',
+  'moldova': 'EMEC', 'kuwait': 'IMEA', 'qatar': 'IMEA', 'oman': 'IMEA',
   'jordan': 'IMEA', 'lebanon': 'IMEA', 'israel': 'IMEA', 'morocco': 'IMEA',
   'algeria': 'IMEA', 'tunisia': 'IMEA', 'kenya': 'IMEA', 'ghana': 'IMEA',
   'ethiopia': 'IMEA', 'tanzania': 'IMEA', 'cameroon': 'IMEA', 'ivory coast': 'IMEA',
-  'united arab emirates': 'IMEA', 'iraq': 'IMEA', 'bahrain': 'IMEA',
+  'united arab emirates': 'IMEA', 'iraq': 'IMEA', 'bahrain': 'IMEA', 'iran': 'IMEA', 'afghanistan': 'IMEA',
 };
 
 function mapRegion(country) {
