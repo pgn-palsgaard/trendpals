@@ -10,31 +10,46 @@ const REQUIRED_COLUMNS = [
   'record hyperlink'
 ];
 
-// Mintel country → Palsgaard canonical region mapping
+// Mintel country → Palsgaard sales region (legacy region_code) mapping.
+// Mirrors base44/shared/regionTaxonomy.ts. Policy 2026-11-01: India → IMEA,
+// Turkey → EMEC, Pakistan → ASPAC (the old duplicate 'pakistan': 'IMEA' key is
+// gone), Russia → no region: deliberately absent, so mapRegion() ignores it and a
+// Russia-only search resolves to 'Global'.
 const COUNTRY_TO_REGION = {
-  // ASPAC
-  'australia': 'ASPAC', 'china': 'ASPAC', 'japan': 'ASPAC', 'south korea': 'ASPAC',
-  'india': 'ASPAC', 'indonesia': 'ASPAC', 'malaysia': 'ASPAC', 'thailand': 'ASPAC',
-  'vietnam': 'ASPAC', 'philippines': 'ASPAC', 'taiwan': 'ASPAC', 'hong kong': 'ASPAC',
-  'singapore': 'ASPAC', 'new zealand': 'ASPAC', 'pakistan': 'ASPAC', 'bangladesh': 'ASPAC',
+  // ASPAC (incl. Pakistan)
+  'china': 'ASPAC', 'japan': 'ASPAC', 'indonesia': 'ASPAC', 'south korea': 'ASPAC',
+  'australia': 'ASPAC', 'thailand': 'ASPAC', 'vietnam': 'ASPAC', 'malaysia': 'ASPAC',
+  'philippines': 'ASPAC', 'singapore': 'ASPAC', 'taiwan, china': 'ASPAC',
+  'hong kong, china': 'ASPAC', 'new zealand': 'ASPAC', 'sri lanka': 'ASPAC',
+  'bangladesh': 'ASPAC', 'myanmar': 'ASPAC', 'cambodia': 'ASPAC', 'laos': 'ASPAC',
+  'pakistan': 'ASPAC', 'taiwan': 'ASPAC', 'hong kong': 'ASPAC',
   // AMERICAS
-  'united states': 'AMERICAS', 'usa': 'AMERICAS', 'us': 'AMERICAS', 'canada': 'AMERICAS',
-  'brazil': 'AMERICAS', 'mexico': 'AMERICAS', 'argentina': 'AMERICAS', 'chile': 'AMERICAS',
-  'colombia': 'AMERICAS', 'peru': 'AMERICAS',
-  // EMEC
-  'germany': 'EMEC', 'france': 'EMEC', 'united kingdom': 'EMEC', 'uk': 'EMEC',
-  'spain': 'EMEC', 'italy': 'EMEC', 'netherlands': 'EMEC', 'poland': 'EMEC',
-  'russia': 'EMEC', 'sweden': 'EMEC', 'norway': 'EMEC', 'denmark': 'EMEC',
-  'finland': 'EMEC', 'belgium': 'EMEC', 'switzerland': 'EMEC', 'austria': 'EMEC',
-  'czech republic': 'EMEC', 'hungary': 'EMEC', 'romania': 'EMEC', 'ukraine': 'EMEC',
-  'portugal': 'EMEC', 'greece': 'EMEC', 'egypt': 'EMEC', 'south africa': 'EMEC',
-  'nigeria': 'EMEC', 'kenya': 'EMEC', 'ethiopia': 'EMEC',
-  // IMEA
-  'saudi arabia': 'IMEA', 'uae': 'IMEA', 'united arab emirates': 'IMEA',
-  'iran': 'IMEA', 'iraq': 'IMEA', 'turkey': 'IMEA', 'israel': 'IMEA',
-  'jordan': 'IMEA', 'kuwait': 'IMEA', 'qatar': 'IMEA', 'bahrain': 'IMEA',
-  'oman': 'IMEA', 'morocco': 'IMEA', 'algeria': 'IMEA', 'tunisia': 'IMEA',
-  'lebanon': 'IMEA', 'pakistan': 'IMEA'
+  'mexico': 'AMERICAS', 'brazil': 'AMERICAS', 'argentina': 'AMERICAS',
+  'colombia': 'AMERICAS', 'chile': 'AMERICAS', 'peru': 'AMERICAS', 'ecuador': 'AMERICAS',
+  'puerto rico': 'AMERICAS', 'venezuela': 'AMERICAS', 'guatemala': 'AMERICAS',
+  'panama': 'AMERICAS', 'costa rica': 'AMERICAS', 'usa': 'AMERICAS', 'canada': 'AMERICAS',
+  'united states': 'AMERICAS', 'us': 'AMERICAS',
+  // EMEC (Europe + Turkey + CIS — Russia excluded)
+  'uk': 'EMEC', 'germany': 'EMEC', 'france': 'EMEC', 'italy': 'EMEC', 'spain': 'EMEC',
+  'poland': 'EMEC', 'netherlands': 'EMEC', 'belgium': 'EMEC', 'denmark': 'EMEC',
+  'sweden': 'EMEC', 'norway': 'EMEC', 'finland': 'EMEC', 'ireland': 'EMEC',
+  'portugal': 'EMEC', 'austria': 'EMEC', 'switzerland': 'EMEC', 'greece': 'EMEC',
+  'czech republic': 'EMEC', 'slovakia': 'EMEC', 'hungary': 'EMEC', 'romania': 'EMEC',
+  'bulgaria': 'EMEC', 'croatia': 'EMEC', 'slovenia': 'EMEC', 'serbia': 'EMEC',
+  'estonia': 'EMEC', 'latvia': 'EMEC', 'lithuania': 'EMEC', 'iceland': 'EMEC',
+  'luxembourg': 'EMEC', 'malta': 'EMEC', 'cyprus': 'EMEC',
+  'bosnia and herzegovina': 'EMEC', 'north macedonia': 'EMEC', 'albania': 'EMEC',
+  'montenegro': 'EMEC', 'united kingdom': 'EMEC', 'turkey': 'EMEC', 'türkiye': 'EMEC',
+  'ukraine': 'EMEC', 'belarus': 'EMEC', 'kazakhstan': 'EMEC', 'uzbekistan': 'EMEC',
+  'azerbaijan': 'EMEC', 'armenia': 'EMEC', 'georgia': 'EMEC', 'kyrgyzstan': 'EMEC',
+  'tajikistan': 'EMEC', 'turkmenistan': 'EMEC', 'moldova': 'EMEC', 'iran': 'EMEC',
+  // IMEA (India, Middle East, Africa incl. Sub-Saharan)
+  'india': 'IMEA', 'uae': 'IMEA', 'saudi arabia': 'IMEA', 'kuwait': 'IMEA',
+  'qatar': 'IMEA', 'oman': 'IMEA', 'jordan': 'IMEA', 'lebanon': 'IMEA', 'israel': 'IMEA',
+  'egypt': 'IMEA', 'morocco': 'IMEA', 'algeria': 'IMEA', 'tunisia': 'IMEA',
+  'south africa': 'IMEA', 'nigeria': 'IMEA', 'kenya': 'IMEA', 'ghana': 'IMEA',
+  'ethiopia': 'IMEA', 'tanzania': 'IMEA', 'cameroon': 'IMEA', 'ivory coast': 'IMEA',
+  'united arab emirates': 'IMEA', 'iraq': 'IMEA', 'bahrain': 'IMEA',
 };
 
 // Mintel category → Palsgaard category mapping
