@@ -56,14 +56,16 @@ Schema per section:
 }`;
 
 const REGION_MAP = {
-  china: 'ASPAC', japan: 'ASPAC', australia: 'ASPAC', india: 'ASPAC',
+  // Policy 2026-11-01: India → IMEA, Turkey → EMEC, Russia → no region (absent → null).
+  china: 'ASPAC', japan: 'ASPAC', australia: 'ASPAC', india: 'IMEA',
   'south korea': 'ASPAC', indonesia: 'ASPAC', thailand: 'ASPAC', singapore: 'ASPAC',
   'united states': 'AMERICAS', usa: 'AMERICAS', brazil: 'AMERICAS',
   mexico: 'AMERICAS', canada: 'AMERICAS', argentina: 'AMERICAS', colombia: 'AMERICAS',
   germany: 'EMEC', france: 'EMEC', 'united kingdom': 'EMEC', uk: 'EMEC',
   spain: 'EMEC', italy: 'EMEC', netherlands: 'EMEC', poland: 'EMEC',
   sweden: 'EMEC', denmark: 'EMEC', norway: 'EMEC', finland: 'EMEC',
-  'saudi arabia': 'IMEA', uae: 'IMEA', turkey: 'IMEA', egypt: 'IMEA',
+  turkey: 'EMEC',
+  'saudi arabia': 'IMEA', uae: 'IMEA', egypt: 'IMEA',
   'south africa': 'IMEA', nigeria: 'IMEA',
 };
 
