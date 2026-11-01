@@ -1,4 +1,20 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.6';
+import { resolveAllowList } from '../../shared/regionTaxonomy.ts';
+
+// Below this many keyword-matched products in the project's region, the region
+// filter is widened to all regions (and flagged in debug) instead of returning
+// a near-empty shortlist.
+const MIN_REGIONAL_CANDIDATES = 5;
+
+// Country allow-list for a project's region_code, using the same backend taxonomy
+// as the Report Architect (shared/regionTaxonomy.ts). 'Global' or a missing code
+// (a mixed scope is stored as NULL) means no region filter: returns null.
+function regionAllowList(regionCode) {
+  if (!regionCode || regionCode === 'Global') return null;
+  const resolved = resolveAllowList(regionCode);
+  if (resolved.scope === 'global' || resolved.countries.length === 0) return null;
+  return new Set(resolved.countries.map(c => c.toLowerCase()));
+}
 
 // Normalize launch date to YYYY-MM-DD string (never throws)
 function normalizeLaunchDate(value) {
@@ -296,12 +312,46 @@ Deno.serve(async (req) => {
       return isRecent;
     });
     
-    // Apply region filter
-    const regionFilteredProducts = dateFilteredProducts.filter(product => {
-      // TODO: Implement region matching based on project.region_code
-      debug.rows_after_region_filter++;
-      return true; // For now, include all
-    });
+    // Keyword matching (basic retrieval)
+    const matchesTrendKeywords = (gnpdProduct) => {
+      const searchText = [
+        gnpdProduct.product_name,
+        gnpdProduct.product_variants,
+        gnpdProduct.category,
+        gnpdProduct.sub_category
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      return keywords.length === 0 || keywords.some(kw => 
+        searchText.includes(kw.toLowerCase())
+      );
+    };
+
+    // Apply region filter: keep products whose GNPD market is in the project's region
+    const allowedCountries = regionAllowList(project.region_code);
+    debug.region_filter = {
+      region_code: project.region_code || null,
+      applied: !!allowedCountries,
+      countries_allowed: allowedCountries ? allowedCountries.size : null,
+      widened_to_all_regions: false
+    };
+
+    let regionFilteredProducts = allowedCountries
+      ? dateFilteredProducts.filter(product =>
+          allowedCountries.has(String(product.market || '').trim().toLowerCase())
+        )
+      : dateFilteredProducts;
+
+    // Too few regional matches: widen to all regions rather than return (near-)empty
+    if (allowedCountries) {
+      const regionalMatches = regionFilteredProducts.filter(matchesTrendKeywords).length;
+      debug.region_filter.regional_keyword_matches = regionalMatches;
+      if (regionalMatches < MIN_REGIONAL_CANDIDATES) {
+        regionFilteredProducts = dateFilteredProducts;
+        debug.region_filter.widened_to_all_regions = true;
+        debug.region_filter.note = `Only ${regionalMatches} matching product(s) launched in ${project.region_code} — widened to all regions.`;
+      }
+    }
+    debug.rows_after_region_filter = regionFilteredProducts.length;
     
     for (const gnpdProduct of regionFilteredProducts) {
       const recordId = gnpdProduct.record_id;
@@ -325,19 +375,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Keyword matching (basic retrieval)
-      const searchText = [
-        gnpdProduct.product_name,
-        gnpdProduct.product_variants,
-        gnpdProduct.category,
-        gnpdProduct.sub_category
-      ].filter(Boolean).join(' ').toLowerCase();
-
-      const matchesKeywords = keywords.length === 0 || keywords.some(kw => 
-        searchText.includes(kw.toLowerCase())
-      );
-
-      if (matchesKeywords) {
+      if (matchesTrendKeywords(gnpdProduct)) {
         if (recordId) {
           seenRecordIds.add(recordId);
         }
@@ -500,6 +538,9 @@ Task: Classify whether this product supports the trend. Output JSON with grounde
     // Mark hero products (top 2)
     finalShortlist.slice(0, 2).forEach(p => p.is_hero = true);
     debug.final_shortlist_size = finalShortlist.length;
+    if (debug.region_filter.widened_to_all_regions) {
+      debug.empty_reasons.push(debug.region_filter.note);
+    }
 
     // Delete existing candidates for this trend to avoid duplicates
     const existingCandidates = await base44.entities.ProductCandidate.filter({ trend_id });
@@ -522,6 +563,7 @@ Task: Classify whether this product supports the trend. Output JSON with grounde
       success: true,
       shortlist_count: createdCandidates.length,
       products: createdCandidates,
+      region_note: debug.region_filter.note || null,
       debug
     });
 
