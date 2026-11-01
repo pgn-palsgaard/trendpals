@@ -41,7 +41,8 @@ export default async function (req) {
       source_id: 'web_market_scout',
       source_title: `Market Scout sweep — ${category}${question ? `: ${question}` : ''}`.slice(0, 200),
       source_type_snapshot: 'web_scout',
-      triggered_by: user ? 'manual_button' : 'schedule',
+      // The weekly wrapper runs under the owner's identity, so it says so explicitly.
+      triggered_by: body.triggered_by === 'schedule' || !user ? 'schedule' : 'manual_button',
       triggered_by_user: user?.email || '',
       status: 'running',
       started_at: new Date().toISOString(),
