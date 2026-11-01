@@ -33,10 +33,11 @@ function isEvidenceSlide(slide) {
 //
 // COUNTRY_GROUPS is the frontend mirror of base44/shared/regionTaxonomy.ts
 // (frontend must not import backend modules). Both copies change together.
-import { COUNTRY_GROUPS } from './regionScope';
+import { COUNTRY_GROUPS, UNASSIGNED_COUNTRIES } from './regionScope';
 
+// Unassigned countries (Russia) are still real markets — known, just in no region.
 const KNOWN_COUNTRIES = new Map(
-  Object.values(COUNTRY_GROUPS).flat().map(c => [c.toLowerCase(), c])
+  [...Object.values(COUNTRY_GROUPS).flat(), ...UNASSIGNED_COUNTRIES].map(c => [c.toLowerCase(), c])
 );
 
 // Returns the canonical spelling from the taxonomy, or null when the candidate is
