@@ -47,6 +47,7 @@ export default function ProductProofPanel({ trend, projectId, project }) {
       } else {
         setState('success');
         toast.success(`Generated ${data.shortlist_count} products`);
+        if (data.skipped_sources_note) toast.info(data.skipped_sources_note);
       }
     },
     onError: (error) => {
@@ -56,7 +57,7 @@ export default function ProductProofPanel({ trend, projectId, project }) {
       if (errorData.error_code === 'MAPPING_INCOMPLETE' || errorData.error === 'GNPD column mapping incomplete') {
         setErrorMessage(`${errorData.message}\n\nSource: ${errorData.source_title || 'Unknown'}`);
       } else {
-        setErrorMessage(error.message || 'Failed to generate shortlist');
+        setErrorMessage(errorData.message || error.message || 'Failed to generate shortlist');
       }
 
       toast.error('Shortlist generation failed');
