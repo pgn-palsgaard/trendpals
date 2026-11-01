@@ -18,23 +18,56 @@ const EMULSIFIER_TERMS = [
   'maltodextrin', 'modified starch', 'hydroxypropyl'
 ];
 
+// Legacy region_code per GNPD market spelling. Mirrors the country groups in
+// base44/shared/regionTaxonomy.ts (no local imports here — keep in sync).
+// Policy 2026-11-01: India → IMEA, Turkey → EMEC, Russia → no region.
 const COUNTRY_REGION = {
-  'USA': 'AMERICAS', 'United States': 'AMERICAS', 'Canada': 'AMERICAS',
-  'Brazil': 'AMERICAS', 'Mexico': 'AMERICAS', 'Argentina': 'AMERICAS',
-  'Chile': 'AMERICAS', 'Colombia': 'AMERICAS', 'Peru': 'AMERICAS',
-  'UK': 'EMEC', 'United Kingdom': 'EMEC', 'Germany': 'EMEC',
-  'France': 'EMEC', 'Italy': 'EMEC', 'Spain': 'EMEC', 'Netherlands': 'EMEC',
-  'Poland': 'EMEC', 'Sweden': 'EMEC', 'Denmark': 'EMEC', 'Norway': 'EMEC',
-  'Finland': 'EMEC', 'Belgium': 'EMEC', 'Switzerland': 'EMEC',
-  'Austria': 'EMEC', 'Russia': 'EMEC', 'Turkey': 'IMEA',
-  'South Africa': 'IMEA', 'Nigeria': 'IMEA', 'Saudi Arabia': 'IMEA',
-  'UAE': 'IMEA', 'Egypt': 'IMEA', 'Israel': 'IMEA',
-  'China': 'ASPAC', 'Japan': 'ASPAC', 'South Korea': 'ASPAC',
-  'India': 'ASPAC', 'Australia': 'ASPAC', 'Indonesia': 'ASPAC',
-  'Thailand': 'ASPAC', 'Vietnam': 'ASPAC', 'Malaysia': 'ASPAC',
-  'Philippines': 'ASPAC', 'New Zealand': 'ASPAC', 'Taiwan': 'ASPAC',
-  'Hong Kong': 'ASPAC', 'Singapore': 'ASPAC'
+  // AMERICAS
+  'Mexico': 'AMERICAS', 'Brazil': 'AMERICAS', 'Argentina': 'AMERICAS',
+  'Colombia': 'AMERICAS', 'Chile': 'AMERICAS', 'Peru': 'AMERICAS', 'Ecuador': 'AMERICAS',
+  'Puerto Rico': 'AMERICAS', 'Venezuela': 'AMERICAS', 'Guatemala': 'AMERICAS',
+  'Panama': 'AMERICAS', 'Costa Rica': 'AMERICAS', 'USA': 'AMERICAS', 'Canada': 'AMERICAS',
+  'United States': 'AMERICAS',
+  // EMEC (Europe + Turkey + CIS — Russia excluded)
+  'UK': 'EMEC', 'Germany': 'EMEC', 'France': 'EMEC', 'Italy': 'EMEC', 'Spain': 'EMEC',
+  'Poland': 'EMEC', 'Netherlands': 'EMEC', 'Belgium': 'EMEC', 'Denmark': 'EMEC',
+  'Sweden': 'EMEC', 'Norway': 'EMEC', 'Finland': 'EMEC', 'Ireland': 'EMEC',
+  'Portugal': 'EMEC', 'Austria': 'EMEC', 'Switzerland': 'EMEC', 'Greece': 'EMEC',
+  'Czech Republic': 'EMEC', 'Slovakia': 'EMEC', 'Hungary': 'EMEC', 'Romania': 'EMEC',
+  'Bulgaria': 'EMEC', 'Croatia': 'EMEC', 'Slovenia': 'EMEC', 'Serbia': 'EMEC',
+  'Estonia': 'EMEC', 'Latvia': 'EMEC', 'Lithuania': 'EMEC', 'Iceland': 'EMEC',
+  'Luxembourg': 'EMEC', 'Malta': 'EMEC', 'Cyprus': 'EMEC',
+  'Bosnia and Herzegovina': 'EMEC', 'North Macedonia': 'EMEC', 'Albania': 'EMEC',
+  'Montenegro': 'EMEC', 'United Kingdom': 'EMEC', 'Turkey': 'EMEC', 'Türkiye': 'EMEC',
+  'Ukraine': 'EMEC', 'Belarus': 'EMEC', 'Kazakhstan': 'EMEC', 'Uzbekistan': 'EMEC',
+  'Azerbaijan': 'EMEC', 'Armenia': 'EMEC', 'Georgia': 'EMEC', 'Kyrgyzstan': 'EMEC',
+  'Tajikistan': 'EMEC', 'Turkmenistan': 'EMEC', 'Moldova': 'EMEC',
+  // IMEA (India, Middle East, Africa incl. Sub-Saharan)
+  'India': 'IMEA', 'UAE': 'IMEA', 'Saudi Arabia': 'IMEA', 'Kuwait': 'IMEA',
+  'Qatar': 'IMEA', 'Oman': 'IMEA', 'Jordan': 'IMEA', 'Lebanon': 'IMEA', 'Israel': 'IMEA',
+  'Egypt': 'IMEA', 'Morocco': 'IMEA', 'Algeria': 'IMEA', 'Tunisia': 'IMEA',
+  'South Africa': 'IMEA', 'Nigeria': 'IMEA', 'Kenya': 'IMEA', 'Ghana': 'IMEA',
+  'Ethiopia': 'IMEA', 'Tanzania': 'IMEA', 'Cameroon': 'IMEA', 'Ivory Coast': 'IMEA',
+  'United Arab Emirates': 'IMEA',
+  // ASPAC (incl. Pakistan)
+  'China': 'ASPAC', 'Japan': 'ASPAC', 'Indonesia': 'ASPAC', 'South Korea': 'ASPAC',
+  'Australia': 'ASPAC', 'Thailand': 'ASPAC', 'Vietnam': 'ASPAC', 'Malaysia': 'ASPAC',
+  'Philippines': 'ASPAC', 'Singapore': 'ASPAC', 'Taiwan, China': 'ASPAC',
+  'Hong Kong, China': 'ASPAC', 'New Zealand': 'ASPAC', 'Sri Lanka': 'ASPAC',
+  'Bangladesh': 'ASPAC', 'Myanmar': 'ASPAC', 'Cambodia': 'ASPAC', 'Laos': 'ASPAC',
+  'Pakistan': 'ASPAC', 'Taiwan': 'ASPAC', 'Hong Kong': 'ASPAC',
 };
+
+// Markets assigned to NO sales region (Russia). They get region_code 'Global' —
+// the only non-regional value the GNPDProduct.region_code enum allows — so they
+// show up in global/mixed scopes but never in a regional filter, and they never
+// inherit the source file's region.
+const UNASSIGNED_MARKETS = new Set(['russia', 'russian federation']);
+function regionCodeForCountry(country, sourceRegionCode) {
+  const key = String(country || '').trim();
+  if (UNASSIGNED_MARKETS.has(key.toLowerCase())) return 'Global';
+  return COUNTRY_REGION[key] || sourceRegionCode || 'Global';
+}
 
 // ── Canonical region layer (mirrors lib/regions.js — no local imports in Deno) ──
 const MARKET_TO_REGION = {
@@ -51,7 +84,8 @@ const MARKET_TO_REGION = {
   'norway': 'europe', 'finland': 'europe', 'poland': 'europe', 'switzerland': 'europe',
   'austria': 'europe', 'ireland': 'europe', 'czech republic': 'europe', 'czechia': 'europe',
   'portugal': 'europe', 'greece': 'europe', 'romania': 'europe', 'hungary': 'europe',
-  'russia': 'europe', 'lithuania': 'europe', 'slovenia': 'europe',
+  'lithuania': 'europe', 'slovenia': 'europe',
+  // Russia intentionally absent — no region (policy 2026-11-01) → 'unknown'.
   'latvia': 'europe', 'croatia': 'europe',
   'united states': 'north_america', 'us': 'north_america', 'usa': 'north_america',
   'u.s.': 'north_america', 'u.s.a.': 'north_america', 'canada': 'north_america',
@@ -80,12 +114,14 @@ const COMMERCIAL_OVERRIDES = {
   'india': 'imea', 'turkey': 'emec', 'iran': 'emec', 'uzbekistan': 'emec',
   'turkmenistan': 'emec', 'kazakhstan': 'emec', 'kyrgyzstan': 'emec',
   'tajikistan': 'emec', 'afghanistan': 'emec', 'azerbaijan': 'emec',
-  'georgia': 'emec', 'armenia': 'emec', 'russia': 'aspac',
+  'georgia': 'emec', 'armenia': 'emec',
+  // Russia: no commercial region (policy 2026-11-01) — explicit null, no EMEC fallback.
+  'russia': null, 'russian federation': null,
 };
 function getCommercialRegion(canonicalKey, country = null) {
   if (country) {
     const n = country.toLowerCase().trim();
-    if (COMMERCIAL_OVERRIDES[n]) return COMMERCIAL_OVERRIDES[n];
+    if (Object.prototype.hasOwnProperty.call(COMMERCIAL_OVERRIDES, n)) return COMMERCIAL_OVERRIDES[n];
   }
   return CANONICAL_TO_COMMERCIAL[canonicalKey] || null;
 }
@@ -580,7 +616,7 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
         ? rawFlavours.split(',').map(f => f.trim()).filter(Boolean) : [];
 
       const country    = sanitizeCountry(getMarket(row));
-      const regionCode = COUNTRY_REGION[country] || source.region_code || 'Global';
+      const regionCode = regionCodeForCountry(country, source.region_code);
       const region     = getRegionForMarket(country);
       const commercialKey = getCommercialRegion(region, country);
       if (commercialKey) coverageSet.add(commercialKey);
