@@ -26,12 +26,15 @@ const COMMERCIAL_OVERRIDES = {
   'azerbaijan':   'emec',
   'georgia':      'emec',
   'armenia':      'emec',
-  'russia':       'aspac',
+  // Russia: no commercial region (policy 2026-11-01). Explicit null so legacy
+  // rows stored as canonical 'europe' don't fall back to EMEC.
+  'russia':             null,
+  'russian federation': null,
 };
 function getCommercialRegion(canonicalKey, country = null) {
   if (country) {
     const normalized = country.toLowerCase().trim();
-    if (COMMERCIAL_OVERRIDES[normalized]) return COMMERCIAL_OVERRIDES[normalized];
+    if (Object.prototype.hasOwnProperty.call(COMMERCIAL_OVERRIDES, normalized)) return COMMERCIAL_OVERRIDES[normalized];
   }
   return CANONICAL_TO_COMMERCIAL[canonicalKey] || null;
 }
