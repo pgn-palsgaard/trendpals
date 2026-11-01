@@ -59,19 +59,25 @@ Your behaviour rules:
 7. Do not ask for information already provided.
 8. When all fields are filled or skipped, end your message with: "I have everything I need. Click 'Continue to review' to see the full brief."`;
 
+// Region policy 2026-11-01: India → IMEA, Turkey → EMEC, Russia → no region
+// (deliberately absent, so a Russia-only brief resolves to 'Global').
 const REGION_MAP = {
-  aspac: 'ASPAC', asia: 'ASPAC', 'asia pacific': 'ASPAC', apac: 'ASPAC', china: 'ASPAC', japan: 'ASPAC', india: 'ASPAC', 'southeast asia': 'ASPAC',
+  aspac: 'ASPAC', asia: 'ASPAC', 'asia pacific': 'ASPAC', apac: 'ASPAC', china: 'ASPAC', japan: 'ASPAC', australia: 'ASPAC', 'southeast asia': 'ASPAC',
   americas: 'AMERICAS', america: 'AMERICAS', usa: 'AMERICAS', 'us': 'AMERICAS', 'united states': 'AMERICAS', 'north america': 'AMERICAS', latam: 'AMERICAS', 'latin america': 'AMERICAS', brazil: 'AMERICAS',
-  emec: 'EMEC', europe: 'EMEC', eu: 'EMEC', emea: 'EMEC', uk: 'EMEC', germany: 'EMEC', france: 'EMEC', nordic: 'EMEC',
-  imea: 'IMEA', 'middle east': 'IMEA', africa: 'IMEA', mena: 'IMEA',
+  emec: 'EMEC', europe: 'EMEC', eu: 'EMEC', emea: 'EMEC', uk: 'EMEC', germany: 'EMEC', france: 'EMEC', nordic: 'EMEC', turkey: 'EMEC', 'türkiye': 'EMEC',
+  imea: 'IMEA', 'middle east': 'IMEA', africa: 'IMEA', mena: 'IMEA', india: 'IMEA',
   global: 'Global', worldwide: 'Global', international: 'Global',
 };
 
 function mapRegion(raw) {
   if (!raw) return 'Global';
   const lower = String(raw).toLowerCase();
+  // Keys must start at a word start: plain substring matching sent "Russia" and
+  // "Australia" to AMERICAS (both contain "us"). Suffixes still match
+  // ("European", "African", "Asian").
   for (const [key, val] of Object.entries(REGION_MAP)) {
-    if (lower.includes(key)) return val;
+    const re = new RegExp(`(^|[^\\p{L}])${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'u');
+    if (re.test(lower)) return val;
   }
   return 'Global';
 }
