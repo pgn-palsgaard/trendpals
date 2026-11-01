@@ -11,6 +11,11 @@
 // America" / "LATAM" resolve to LATAM only — never to the full americas group.
 // USA and Canada enter a scope only via "North America", bare "Americas", a
 // named country, or global scope.
+//
+// Region policy (Peter, 2026-11-01): India belongs to IMEA (India, Middle East,
+// Africa); Turkey belongs to EMEC; Russia belongs to NO region while the war
+// lasts. Russia is listed in UNASSIGNED_COUNTRIES: no region term ever resolves
+// to it, but global scope and an explicitly named "Russia" still include it.
 
 export const LATAM_COUNTRIES = [
   'Mexico', 'Brazil', 'Argentina', 'Colombia', 'Chile', 'Peru', 'Ecuador',
@@ -31,25 +36,33 @@ export const EUROPE_COUNTRIES = [
 ];
 
 export const ASPAC_COUNTRIES = [
-  'China', 'Japan', 'India', 'Indonesia', 'South Korea', 'Australia', 'Thailand',
+  'China', 'Japan', 'Indonesia', 'South Korea', 'Australia', 'Thailand',
   'Vietnam', 'Malaysia', 'Philippines', 'Singapore', 'Taiwan, China',
   'Hong Kong, China', 'New Zealand', 'Sri Lanka', 'Bangladesh', 'Myanmar',
   'Cambodia', 'Laos', 'Pakistan',
 ];
 
 export const IMEA_COUNTRIES = [
+  // India is the "I" in IMEA (policy 2026-11-01).
+  'India',
   'UAE', 'Saudi Arabia', 'Kuwait', 'Qatar', 'Oman', 'Jordan', 'Lebanon', 'Israel',
   'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa',
   // Sub-Saharan Africa → IMEA, as in src/lib/regions.js (CANONICAL_TO_COMMERCIAL).
   'Nigeria', 'Kenya', 'Ghana', 'Ethiopia', 'Tanzania', 'Cameroon', 'Ivory Coast',
 ];
 
+// Russia is deliberately NOT in CIS (and so not in EMEC) — see UNASSIGNED_COUNTRIES.
 export const CIS_COUNTRIES = [
-  'Russia', 'Ukraine', 'Belarus', 'Kazakhstan', 'Uzbekistan', 'Azerbaijan',
+  'Ukraine', 'Belarus', 'Kazakhstan', 'Uzbekistan', 'Azerbaijan',
   'Armenia', 'Georgia', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan', 'Moldova',
 ];
 
 export const TURKEY_COUNTRIES = ['Turkey', 'Türkiye'];
+
+// Countries assigned to no region (policy 2026-11-01: Russia, because of the
+// war). Not in any group, so no region term (EMEC, CIS, ASPAC …) reaches them;
+// included in ALL_COUNTRIES so global scope and explicit naming still work.
+export const UNASSIGNED_COUNTRIES = ['Russia', 'Russian Federation'];
 
 const GROUPS: Record<string, string[]> = {
   latam: LATAM_COUNTRIES,
@@ -84,7 +97,7 @@ const TERM_RULES: Array<{
   { match: /\b(turkey|türkiye|turkiye)\b/i, groups: ['turkey'], label: 'turkey / türkiye → TURKEY' },
 ];
 
-const ALL_COUNTRIES = [...new Set(Object.values(GROUPS).flat())];
+const ALL_COUNTRIES = [...new Set([...Object.values(GROUPS).flat(), ...UNASSIGNED_COUNTRIES])];
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
