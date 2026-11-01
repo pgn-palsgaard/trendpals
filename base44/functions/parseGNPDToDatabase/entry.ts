@@ -23,7 +23,7 @@ const COUNTRY_REGION = {
   'Colombia': 'AMERICAS', 'Chile': 'AMERICAS', 'Peru': 'AMERICAS', 'Ecuador': 'AMERICAS',
   'Puerto Rico': 'AMERICAS', 'Venezuela': 'AMERICAS', 'Guatemala': 'AMERICAS',
   'Panama': 'AMERICAS', 'Costa Rica': 'AMERICAS', 'USA': 'AMERICAS', 'Canada': 'AMERICAS',
-  'United States': 'AMERICAS',
+  'United States': 'AMERICAS', 'US': 'AMERICAS',
   // EMEC (Europe + Turkey + CIS — Russia excluded)
   'UK': 'EMEC', 'Germany': 'EMEC', 'France': 'EMEC', 'Italy': 'EMEC', 'Spain': 'EMEC',
   'Poland': 'EMEC', 'Netherlands': 'EMEC', 'Belgium': 'EMEC', 'Denmark': 'EMEC',
@@ -37,14 +37,14 @@ const COUNTRY_REGION = {
   'Montenegro': 'EMEC', 'United Kingdom': 'EMEC', 'Turkey': 'EMEC', 'Türkiye': 'EMEC',
   'Ukraine': 'EMEC', 'Belarus': 'EMEC', 'Kazakhstan': 'EMEC', 'Uzbekistan': 'EMEC',
   'Azerbaijan': 'EMEC', 'Armenia': 'EMEC', 'Georgia': 'EMEC', 'Kyrgyzstan': 'EMEC',
-  'Tajikistan': 'EMEC', 'Turkmenistan': 'EMEC', 'Moldova': 'EMEC',
+  'Tajikistan': 'EMEC', 'Turkmenistan': 'EMEC', 'Moldova': 'EMEC', 'Iran': 'EMEC',
   // IMEA (India, Middle East, Africa incl. Sub-Saharan)
   'India': 'IMEA', 'UAE': 'IMEA', 'Saudi Arabia': 'IMEA', 'Kuwait': 'IMEA',
   'Qatar': 'IMEA', 'Oman': 'IMEA', 'Jordan': 'IMEA', 'Lebanon': 'IMEA', 'Israel': 'IMEA',
   'Egypt': 'IMEA', 'Morocco': 'IMEA', 'Algeria': 'IMEA', 'Tunisia': 'IMEA',
   'South Africa': 'IMEA', 'Nigeria': 'IMEA', 'Kenya': 'IMEA', 'Ghana': 'IMEA',
   'Ethiopia': 'IMEA', 'Tanzania': 'IMEA', 'Cameroon': 'IMEA', 'Ivory Coast': 'IMEA',
-  'United Arab Emirates': 'IMEA',
+  'United Arab Emirates': 'IMEA', 'Iraq': 'IMEA', 'Bahrain': 'IMEA',
   // ASPAC (incl. Pakistan)
   'China': 'ASPAC', 'Japan': 'ASPAC', 'Indonesia': 'ASPAC', 'South Korea': 'ASPAC',
   'Australia': 'ASPAC', 'Thailand': 'ASPAC', 'Vietnam': 'ASPAC', 'Malaysia': 'ASPAC',

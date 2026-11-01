@@ -24,7 +24,7 @@ export const COUNTRY_GROUPS = {
     'Iceland', 'Luxembourg', 'Malta', 'Cyprus', 'Bosnia and Herzegovina',
     'North Macedonia', 'Albania', 'Montenegro',
   ],
-  turkey: ['Turkey'],
+  turkey: ['Turkey', 'Türkiye'],
   // CIS is present in the taxonomy but carries 0 bakery records in the live data —
   // the gate reports that explicitly instead of absorbing it silently.
   // Russia is deliberately not here — see UNASSIGNED_COUNTRIES.
@@ -52,7 +52,7 @@ export const COUNTRY_GROUPS = {
   imea: [
     'India',
     'UAE', 'Saudi Arabia', 'Kuwait', 'Qatar', 'Oman', 'Jordan', 'Lebanon', 'Israel',
-    'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa',
+    'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa', 'Bahrain', 'Iraq',
     // Sub-Saharan Africa → IMEA, as in src/lib/regions.js (CANONICAL_TO_COMMERCIAL).
     'Nigeria', 'Kenya', 'Ghana', 'Ethiopia', 'Tanzania', 'Cameroon', 'Ivory Coast',
   ],

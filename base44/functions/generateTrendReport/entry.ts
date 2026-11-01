@@ -16,6 +16,7 @@ const CANONICAL_TO_COMMERCIAL = {
 const COMMERCIAL_OVERRIDES = {
   'india':        'imea',
   'turkey':       'emec',
+  'türkiye':      'emec',
   'iran':         'emec',
   'uzbekistan':   'emec',
   'turkmenistan': 'emec',

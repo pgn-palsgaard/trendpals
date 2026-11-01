@@ -10,7 +10,7 @@ const CANONICAL_TO_COMMERCIAL = {
   europe: 'emec', mena: 'imea', sub_saharan_africa: 'imea',
 };
 const COMMERCIAL_OVERRIDES = {
-  'india': 'imea', 'turkey': 'emec', 'iran': 'emec', 'uzbekistan': 'emec',
+  'india': 'imea', 'turkey': 'emec', 'türkiye': 'emec', 'iran': 'emec', 'uzbekistan': 'emec',
   'turkmenistan': 'emec', 'kazakhstan': 'emec', 'kyrgyzstan': 'emec',
   'tajikistan': 'emec', 'afghanistan': 'emec', 'azerbaijan': 'emec',
   'georgia': 'emec', 'armenia': 'emec',

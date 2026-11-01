@@ -39,7 +39,7 @@ export const REGION_COUNTRIES = {
     // Caribbean
     'Cuba', 'Jamaica', 'Haiti', 'Dominican Republic', 'Bahamas', 'Trinidad and Tobago',
     'Barbados', 'Grenada', 'Saint Lucia', 'Saint Vincent and the Grenadines', 'Antigua and Barbuda',
-    'Dominica', 'Saint Kitts and Nevis',
+    'Dominica', 'Saint Kitts and Nevis', 'Puerto Rico',
     
     // South America
     'Brazil', 'Argentina', 'Colombia', 'Venezuela', 'Chile', 'Ecuador', 'Peru', 'Bolivia',

@@ -18,15 +18,27 @@ const MARKET_TO_REGION = {
   'lithuania': 'europe', 'slovenia': 'europe',
   // Russia intentionally absent — no region (policy 2026-11-01) → 'unknown'.
   'latvia': 'europe', 'croatia': 'europe',
+  // Added 2026-11-01: Europe countries present in GNPD data / shared taxonomy.
+  'slovakia': 'europe', 'bulgaria': 'europe', 'serbia': 'europe', 'estonia': 'europe',
+  'iceland': 'europe', 'luxembourg': 'europe', 'malta': 'europe', 'cyprus': 'europe',
+  'bosnia and herzegovina': 'europe', 'north macedonia': 'europe', 'albania': 'europe',
+  'montenegro': 'europe', 'ukraine': 'europe', 'belarus': 'europe', 'moldova': 'europe',
   'united states': 'north_america', 'us': 'north_america', 'usa': 'north_america',
   'u.s.': 'north_america', 'u.s.a.': 'north_america', 'canada': 'north_america',
   'brazil': 'latam', 'mexico': 'latam', 'argentina': 'latam', 'colombia': 'latam',
   'chile': 'latam', 'peru': 'latam', 'ecuador': 'latam',
   'puerto rico': 'latam', 'venezuela': 'latam', 'guatemala': 'latam', 'panama': 'latam',
+  'costa rica': 'latam',
   'uae': 'mena', 'united arab emirates': 'mena', 'saudi arabia': 'mena', 'egypt': 'mena',
   'turkey': 'mena', 'israel': 'mena', 'south africa': 'mena', 'morocco': 'mena',
   'tunisia': 'mena', 'lebanon': 'mena', 'kuwait': 'mena', 'qatar': 'mena',
   'bahrain': 'mena', 'jordan': 'mena', 'algeria': 'mena', 'oman': 'mena',
+  // Added 2026-11-01: Türkiye alias, Iran, Iraq, Caucasus and Central Asian CIS
+  // countries. Canonical 'mena' as documented on COMMERCIAL_OVERRIDES; the
+  // overrides fold Türkiye/Iran/CIS to EMEC. Afghanistan intentionally absent.
+  'türkiye': 'mena', 'iran': 'mena', 'iraq': 'mena', 'kazakhstan': 'mena',
+  'uzbekistan': 'mena', 'turkmenistan': 'mena', 'kyrgyzstan': 'mena', 'tajikistan': 'mena',
+  'azerbaijan': 'mena', 'georgia': 'mena', 'armenia': 'mena',
   'nigeria': 'sub_saharan_africa', 'kenya': 'sub_saharan_africa', 'ghana': 'sub_saharan_africa',
   'ethiopia': 'sub_saharan_africa', 'tanzania': 'sub_saharan_africa',
   'cameroon': 'sub_saharan_africa', 'ivory coast': 'sub_saharan_africa',

@@ -67,6 +67,28 @@ const REGION_MAP = {
   turkey: 'EMEC',
   'saudi arabia': 'IMEA', uae: 'IMEA', egypt: 'IMEA',
   'south africa': 'IMEA', nigeria: 'IMEA',
+  // Added 2026-11-01: rest of the GNPD country list (same as validateAndIngestGNPD).
+  'vietnam': 'ASPAC', 'malaysia': 'ASPAC', 'philippines': 'ASPAC',
+  'taiwan, china': 'ASPAC', 'hong kong, china': 'ASPAC', 'new zealand': 'ASPAC',
+  'sri lanka': 'ASPAC', 'bangladesh': 'ASPAC', 'myanmar': 'ASPAC', 'cambodia': 'ASPAC',
+  'laos': 'ASPAC', 'pakistan': 'ASPAC', 'taiwan': 'ASPAC', 'hong kong': 'ASPAC',
+  'chile': 'AMERICAS', 'peru': 'AMERICAS', 'ecuador': 'AMERICAS',
+  'puerto rico': 'AMERICAS', 'venezuela': 'AMERICAS', 'guatemala': 'AMERICAS',
+  'panama': 'AMERICAS', 'costa rica': 'AMERICAS', 'us': 'AMERICAS', 'belgium': 'EMEC',
+  'ireland': 'EMEC', 'portugal': 'EMEC', 'austria': 'EMEC', 'switzerland': 'EMEC',
+  'greece': 'EMEC', 'czech republic': 'EMEC', 'slovakia': 'EMEC', 'hungary': 'EMEC',
+  'romania': 'EMEC', 'bulgaria': 'EMEC', 'croatia': 'EMEC', 'slovenia': 'EMEC',
+  'serbia': 'EMEC', 'estonia': 'EMEC', 'latvia': 'EMEC', 'lithuania': 'EMEC',
+  'iceland': 'EMEC', 'luxembourg': 'EMEC', 'malta': 'EMEC', 'cyprus': 'EMEC',
+  'bosnia and herzegovina': 'EMEC', 'north macedonia': 'EMEC', 'albania': 'EMEC',
+  'montenegro': 'EMEC', 'türkiye': 'EMEC', 'ukraine': 'EMEC', 'belarus': 'EMEC',
+  'kazakhstan': 'EMEC', 'uzbekistan': 'EMEC', 'azerbaijan': 'EMEC', 'armenia': 'EMEC',
+  'georgia': 'EMEC', 'kyrgyzstan': 'EMEC', 'tajikistan': 'EMEC', 'turkmenistan': 'EMEC',
+  'moldova': 'EMEC', 'iran': 'EMEC', 'kuwait': 'IMEA', 'qatar': 'IMEA', 'oman': 'IMEA',
+  'jordan': 'IMEA', 'lebanon': 'IMEA', 'israel': 'IMEA', 'morocco': 'IMEA',
+  'algeria': 'IMEA', 'tunisia': 'IMEA', 'kenya': 'IMEA', 'ghana': 'IMEA',
+  'ethiopia': 'IMEA', 'tanzania': 'IMEA', 'cameroon': 'IMEA', 'ivory coast': 'IMEA',
+  'united arab emirates': 'IMEA', 'iraq': 'IMEA', 'bahrain': 'IMEA',
 };
 
 function mapRegion(country) {

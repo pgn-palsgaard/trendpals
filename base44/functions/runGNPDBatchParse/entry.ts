@@ -27,7 +27,7 @@ const COUNTRY_REGION = {
   'Colombia': 'AMERICAS', 'Chile': 'AMERICAS', 'Peru': 'AMERICAS', 'Ecuador': 'AMERICAS',
   'Puerto Rico': 'AMERICAS', 'Venezuela': 'AMERICAS', 'Guatemala': 'AMERICAS',
   'Panama': 'AMERICAS', 'Costa Rica': 'AMERICAS', 'USA': 'AMERICAS', 'Canada': 'AMERICAS',
-  'United States': 'AMERICAS',
+  'United States': 'AMERICAS', 'US': 'AMERICAS',
   // EMEC (Europe + Turkey + CIS — Russia excluded)
   'UK': 'EMEC', 'Germany': 'EMEC', 'France': 'EMEC', 'Italy': 'EMEC', 'Spain': 'EMEC',
   'Poland': 'EMEC', 'Netherlands': 'EMEC', 'Belgium': 'EMEC', 'Denmark': 'EMEC',
@@ -41,14 +41,14 @@ const COUNTRY_REGION = {
   'Montenegro': 'EMEC', 'United Kingdom': 'EMEC', 'Turkey': 'EMEC', 'Türkiye': 'EMEC',
   'Ukraine': 'EMEC', 'Belarus': 'EMEC', 'Kazakhstan': 'EMEC', 'Uzbekistan': 'EMEC',
   'Azerbaijan': 'EMEC', 'Armenia': 'EMEC', 'Georgia': 'EMEC', 'Kyrgyzstan': 'EMEC',
-  'Tajikistan': 'EMEC', 'Turkmenistan': 'EMEC', 'Moldova': 'EMEC',
+  'Tajikistan': 'EMEC', 'Turkmenistan': 'EMEC', 'Moldova': 'EMEC', 'Iran': 'EMEC',
   // IMEA (India, Middle East, Africa incl. Sub-Saharan)
   'India': 'IMEA', 'UAE': 'IMEA', 'Saudi Arabia': 'IMEA', 'Kuwait': 'IMEA',
   'Qatar': 'IMEA', 'Oman': 'IMEA', 'Jordan': 'IMEA', 'Lebanon': 'IMEA', 'Israel': 'IMEA',
   'Egypt': 'IMEA', 'Morocco': 'IMEA', 'Algeria': 'IMEA', 'Tunisia': 'IMEA',
   'South Africa': 'IMEA', 'Nigeria': 'IMEA', 'Kenya': 'IMEA', 'Ghana': 'IMEA',
   'Ethiopia': 'IMEA', 'Tanzania': 'IMEA', 'Cameroon': 'IMEA', 'Ivory Coast': 'IMEA',
-  'United Arab Emirates': 'IMEA',
+  'United Arab Emirates': 'IMEA', 'Iraq': 'IMEA', 'Bahrain': 'IMEA',
   // ASPAC (incl. Pakistan)
   'China': 'ASPAC', 'Japan': 'ASPAC', 'Indonesia': 'ASPAC', 'South Korea': 'ASPAC',
   'Australia': 'ASPAC', 'Thailand': 'ASPAC', 'Vietnam': 'ASPAC', 'Malaysia': 'ASPAC',
@@ -87,15 +87,27 @@ const MARKET_TO_REGION = {
   'lithuania': 'europe', 'slovenia': 'europe',
   // Russia intentionally absent — no region (policy 2026-11-01) → 'unknown'.
   'latvia': 'europe', 'croatia': 'europe',
+  // Added 2026-11-01: Europe countries present in GNPD data / shared taxonomy.
+  'slovakia': 'europe', 'bulgaria': 'europe', 'serbia': 'europe', 'estonia': 'europe',
+  'iceland': 'europe', 'luxembourg': 'europe', 'malta': 'europe', 'cyprus': 'europe',
+  'bosnia and herzegovina': 'europe', 'north macedonia': 'europe', 'albania': 'europe',
+  'montenegro': 'europe', 'ukraine': 'europe', 'belarus': 'europe', 'moldova': 'europe',
   'united states': 'north_america', 'us': 'north_america', 'usa': 'north_america',
   'u.s.': 'north_america', 'u.s.a.': 'north_america', 'canada': 'north_america',
   'brazil': 'latam', 'mexico': 'latam', 'argentina': 'latam', 'colombia': 'latam',
   'chile': 'latam', 'peru': 'latam', 'ecuador': 'latam',
   'puerto rico': 'latam', 'venezuela': 'latam', 'guatemala': 'latam', 'panama': 'latam',
+  'costa rica': 'latam',
   'uae': 'mena', 'united arab emirates': 'mena', 'saudi arabia': 'mena', 'egypt': 'mena',
   'turkey': 'mena', 'israel': 'mena', 'south africa': 'mena', 'morocco': 'mena',
   'tunisia': 'mena', 'lebanon': 'mena', 'kuwait': 'mena', 'qatar': 'mena',
   'bahrain': 'mena', 'jordan': 'mena', 'algeria': 'mena', 'oman': 'mena',
+  // Added 2026-11-01: Türkiye alias, Iran, Iraq, Caucasus and Central Asian CIS
+  // countries. Canonical 'mena' as documented on COMMERCIAL_OVERRIDES; the
+  // overrides fold Türkiye/Iran/CIS to EMEC. Afghanistan intentionally absent.
+  'türkiye': 'mena', 'iran': 'mena', 'iraq': 'mena', 'kazakhstan': 'mena',
+  'uzbekistan': 'mena', 'turkmenistan': 'mena', 'kyrgyzstan': 'mena', 'tajikistan': 'mena',
+  'azerbaijan': 'mena', 'georgia': 'mena', 'armenia': 'mena',
   'nigeria': 'sub_saharan_africa', 'kenya': 'sub_saharan_africa', 'ghana': 'sub_saharan_africa',
   'ethiopia': 'sub_saharan_africa', 'tanzania': 'sub_saharan_africa',
   'cameroon': 'sub_saharan_africa', 'ivory coast': 'sub_saharan_africa',
@@ -111,7 +123,7 @@ const CANONICAL_TO_COMMERCIAL = {
   europe: 'emec', mena: 'imea', sub_saharan_africa: 'imea',
 };
 const COMMERCIAL_OVERRIDES = {
-  'india': 'imea', 'turkey': 'emec', 'iran': 'emec', 'uzbekistan': 'emec',
+  'india': 'imea', 'turkey': 'emec', 'türkiye': 'emec', 'iran': 'emec', 'uzbekistan': 'emec',
   'turkmenistan': 'emec', 'kazakhstan': 'emec', 'kyrgyzstan': 'emec',
   'tajikistan': 'emec', 'afghanistan': 'emec', 'azerbaijan': 'emec',
   'georgia': 'emec', 'armenia': 'emec',

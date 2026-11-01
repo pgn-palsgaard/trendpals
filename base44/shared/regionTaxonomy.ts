@@ -46,7 +46,7 @@ export const IMEA_COUNTRIES = [
   // India is the "I" in IMEA (policy 2026-11-01).
   'India',
   'UAE', 'Saudi Arabia', 'Kuwait', 'Qatar', 'Oman', 'Jordan', 'Lebanon', 'Israel',
-  'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa',
+  'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa', 'Bahrain', 'Iraq',
   // Sub-Saharan Africa → IMEA, as in src/lib/regions.js (CANONICAL_TO_COMMERCIAL).
   'Nigeria', 'Kenya', 'Ghana', 'Ethiopia', 'Tanzania', 'Cameroon', 'Ivory Coast',
 ];
