@@ -137,9 +137,10 @@ export function getRegionByCountry(countryName) {
   
   const normalized = countryName.toLowerCase().trim();
   
-  // Reject Russia explicitly
+  // Russia is not assigned to any region (policy) — return null rather than
+  // throwing, so callers that tolerate an unmapped country never crash on it.
   if (normalized === 'russia' || normalized === 'russian federation') {
-    throw new Error('Russia is not assigned to any region (excluded by policy)');
+    return null;
   }
   
   return countryToRegionMap[normalized] || null;
