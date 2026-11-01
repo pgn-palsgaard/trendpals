@@ -7,6 +7,13 @@
 //
 // Country strings are spelled EXACTLY as they appear in GNPDProduct.country
 // (verified against the live data, 76 distinct bakery countries).
+//
+// Region policy (Peter, 2026-11-01): India → IMEA, Turkey → EMEC, Russia → no
+// region (UNASSIGNED_COUNTRIES). Same policy as base44/shared/regionTaxonomy.ts.
+
+// Countries assigned to no region. Never reached by a region term; still
+// matched when named explicitly, and included by global scope (no filter).
+export const UNASSIGNED_COUNTRIES = ['Russia', 'Russian Federation'];
 
 export const COUNTRY_GROUPS = {
   europe: [
@@ -20,12 +27,13 @@ export const COUNTRY_GROUPS = {
   turkey: ['Turkey'],
   // CIS is present in the taxonomy but carries 0 bakery records in the live data —
   // the gate reports that explicitly instead of absorbing it silently.
+  // Russia is deliberately not here — see UNASSIGNED_COUNTRIES.
   cis: [
-    'Russia', 'Ukraine', 'Belarus', 'Kazakhstan', 'Uzbekistan', 'Azerbaijan',
+    'Ukraine', 'Belarus', 'Kazakhstan', 'Uzbekistan', 'Azerbaijan',
     'Armenia', 'Georgia', 'Kyrgyzstan', 'Tajikistan', 'Turkmenistan', 'Moldova',
   ],
   aspac: [
-    'China', 'Japan', 'India', 'Indonesia', 'South Korea', 'Australia', 'Thailand',
+    'China', 'Japan', 'Indonesia', 'South Korea', 'Australia', 'Thailand',
     'Vietnam', 'Malaysia', 'Philippines', 'Singapore', 'Taiwan, China',
     'Hong Kong, China', 'New Zealand', 'Sri Lanka', 'Bangladesh', 'Myanmar',
     'Cambodia', 'Laos', 'Pakistan',
@@ -42,6 +50,7 @@ export const COUNTRY_GROUPS = {
     'Ecuador', 'Guatemala', 'Costa Rica', 'Venezuela', 'Puerto Rico', 'Panama',
   ],
   imea: [
+    'India',
     'UAE', 'Saudi Arabia', 'Kuwait', 'Qatar', 'Oman', 'Jordan', 'Lebanon', 'Israel',
     'Egypt', 'Morocco', 'Algeria', 'Tunisia', 'South Africa',
     // Sub-Saharan Africa → IMEA, as in src/lib/regions.js (CANONICAL_TO_COMMERCIAL).
@@ -91,7 +100,7 @@ export function resolveRegionScope(text) {
   }
 
   // Individually named countries, matched against the actual data spellings.
-  const allCountries = Object.values(COUNTRY_GROUPS).flat();
+  const allCountries = [...Object.values(COUNTRY_GROUPS).flat(), ...UNASSIGNED_COUNTRIES];
   const named = allCountries.filter(c => new RegExp(`\\b${c.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(raw));
 
   if (groups.length === 0 && named.length === 0) {
