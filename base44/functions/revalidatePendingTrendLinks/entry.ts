@@ -388,7 +388,7 @@ Deno.serve(async (req) => {
             const hasPending = updatedLinks.some(l => l.review_status === 'pending');
             const supportLabel = updatedLinks.length === 0 ? 'NOT_SUPPORT'
               : updatedLinks.some(l => l.confidence === 'high') ? 'SUPPORTS' : 'PARTIAL';
-            await base44.asServiceRole.entities.GNPDProduct.update(p.id, {
+            await throttledUpdate(base44.asServiceRole.entities.GNPDProduct, p.id, {
               trend_links: updatedLinks,
               linked_trend_ids: linkedTrendIds,
               processing_status: hasPending ? 'trend_linking_pending' : 'trend_linked',
@@ -453,7 +453,7 @@ Deno.serve(async (req) => {
     // Nothing to triage — close out any open job and exit cheaply
     if (pendingIds.length === 0) {
       if (activeJob) {
-        await base44.asServiceRole.entities.ProcessingJob.update(activeJob.id, {
+        await throttledUpdate(base44.asServiceRole.entities.ProcessingJob, activeJob.id, {
           status: 'completed', current_cursor: null, last_progress_at: new Date().toISOString(),
         });
       }
@@ -461,7 +461,7 @@ Deno.serve(async (req) => {
     }
 
     if (activeJob) {
-      await base44.asServiceRole.entities.ProcessingJob.update(activeJob.id, {
+      await throttledUpdate(base44.asServiceRole.entities.ProcessingJob, activeJob.id, {
         status: 'running',
         last_progress_at: new Date().toISOString(),
       });
@@ -605,7 +605,7 @@ Deno.serve(async (req) => {
         const candidates = await generateCandidates(product);
         if (candidates.length === 0) {
           // No plausible trend for this product — finalize so it leaves the queue
-          await base44.asServiceRole.entities.GNPDProduct.update(product.id, {
+          await throttledUpdate(base44.asServiceRole.entities.GNPDProduct, product.id, {
             processing_status: 'trend_linked', support_label: 'NOT_SUPPORT'
           });
           return;
@@ -723,7 +723,7 @@ Deno.serve(async (req) => {
         const hasPending = updatedLinks.some(l => l.review_status === 'pending');
         const supportLabel = updatedLinks.length === 0 ? 'NOT_SUPPORT'
           : updatedLinks.some(l => l.confidence === 'high') ? 'SUPPORTS' : 'PARTIAL';
-        await base44.asServiceRole.entities.GNPDProduct.update(product.id, {
+        await throttledUpdate(base44.asServiceRole.entities.GNPDProduct, product.id, {
           trend_links: updatedLinks,
           rejected_link_candidates: rejectedCandidates,
           linked_trend_ids: linkedTrendIds,
@@ -758,7 +758,7 @@ Deno.serve(async (req) => {
           if (processedItems % 10 === 0 && !progressWriting) {
             progressWriting = true;
             try {
-              await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+              await throttledUpdate(base44.asServiceRole.entities.ProcessingJob, job.id, {
                 processed_items: processedItems,
                 current_cursor: lastCursor,
                 last_progress_at: new Date().toISOString(),
@@ -776,7 +776,7 @@ Deno.serve(async (req) => {
     } finally {
       const finalStatus = timedOut ? 'paused_timeout' : 'completed';
       try {
-        await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+        await throttledUpdate(base44.asServiceRole.entities.ProcessingJob, job.id, {
           status: finalStatus,
           processed_items: processedItems,
           current_cursor: timedOut ? lastCursor : null,
@@ -811,7 +811,7 @@ Deno.serve(async (req) => {
     console.error('[triage] Fatal:', error.message);
     if (job?.id) {
       try {
-        await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+        await throttledUpdate(base44.asServiceRole.entities.ProcessingJob, job.id, {
           status: 'failed',
           last_error: error.message,
           last_progress_at: new Date().toISOString(),
