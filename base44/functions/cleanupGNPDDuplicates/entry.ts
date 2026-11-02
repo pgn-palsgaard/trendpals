@@ -18,6 +18,31 @@ import { createClientFromRequest } from 'npm:@base44/sdk@0.8.31';
 const MONTH_YEAR = /^[A-Z][a-z]{2} [0-9]{4}$/;
 const TIME_BUDGET_MS = 80 * 1000;
 
+// Write throttle (2 Nov 2026): Base44 allows 350 entity updates per 60 s per caller.
+// ~250/min shared slot reservation; a rate-limit error waits for Retry-After and retries.
+const MIN_UPDATE_INTERVAL_MS = 240;
+let nextUpdateAt = 0;
+async function throttledUpdate(entity, id, data) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const slot = Math.max(Date.now(), nextUpdateAt);
+    nextUpdateAt = slot + MIN_UPDATE_INTERVAL_MS;
+    const wait = slot - Date.now();
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    try { return await entity.update(id, data); }
+    catch (e) {
+      const msg = String(e?.message || '');
+      if (/rate limit/i.test(msg) && attempt < 2) {
+        const ra = msg.match(/Retry after (\d+)s/i);
+        const pause = ((ra ? Number(ra[1]) : 10) + 1) * 1000;
+        nextUpdateAt = Date.now() + pause;
+        await new Promise(r => setTimeout(r, pause));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
+
 Deno.serve(async (req) => {
   const base44 = createClientFromRequest(req);
   const started = Date.now();
@@ -143,7 +168,7 @@ Deno.serve(async (req) => {
         }
         if (Date.now() - started > TIME_BUDGET_MS) { report.timed_out = true; break; }
         if (s.p.processing_status === 'skipped') continue;
-        await E.update(s.p.id, {
+        await throttledUpdate(E, s.p.id, {
           processing_status: 'skipped',
           processing_error: `duplicate_of:${s.c.id} (gnpd_record_id ${s.p.gnpd_record_id}; ${s.population}; cleanup ${now})`,
           trend_links: [],
@@ -159,7 +184,7 @@ Deno.serve(async (req) => {
           if (o.population !== 'A_misparsed_upload') continue;
           if (Date.now() - started > TIME_BUDGET_MS) { report.timed_out = true; break; }
           if (o.p.processing_status === 'skipped') continue;
-          await E.update(o.p.id, {
+          await throttledUpdate(E, o.p.id, {
             processing_status: 'skipped',
             processing_error: `misparsed_upload_no_counterpart (source ${brokenSourceId}; columns shifted on ingest; re-upload from Mintel to restore; cleanup ${now})`,
             trend_links: [],
