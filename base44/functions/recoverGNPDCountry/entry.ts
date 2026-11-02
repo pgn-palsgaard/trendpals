@@ -30,7 +30,7 @@ const MARKET_TO_REGION = {
   'puerto rico': 'latam', 'venezuela': 'latam', 'guatemala': 'latam', 'panama': 'latam',
   'costa rica': 'latam',
   'uae': 'mena', 'united arab emirates': 'mena', 'saudi arabia': 'mena', 'egypt': 'mena',
-  'turkey': 'mena', 'israel': 'mena', 'south africa': 'mena', 'morocco': 'mena',
+  'turkey': 'mena', 'israel': 'mena', 'morocco': 'mena',
   'tunisia': 'mena', 'lebanon': 'mena', 'kuwait': 'mena', 'qatar': 'mena',
   'bahrain': 'mena', 'jordan': 'mena', 'algeria': 'mena', 'oman': 'mena',
   // Added 2026-11-01: Türkiye alias, Iran, Iraq, Afghanistan, Caucasus and
@@ -43,6 +43,8 @@ const MARKET_TO_REGION = {
   'nigeria': 'sub_saharan_africa', 'kenya': 'sub_saharan_africa', 'ghana': 'sub_saharan_africa',
   'ethiopia': 'sub_saharan_africa', 'tanzania': 'sub_saharan_africa',
   'cameroon': 'sub_saharan_africa', 'ivory coast': 'sub_saharan_africa',
+  // Fixed 2026-11-02: South Africa was mapped to 'mena'. Commercial fold (IMEA) unchanged.
+  'south africa': 'sub_saharan_africa',
 };
 
 // Normalise a few common Spanish/Portuguese country spellings to the map keys.
