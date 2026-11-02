@@ -1,0 +1,46 @@
+{
+  "name": "GNPD duplicate audit (one-off)",
+  "description": "One-off AUDIT (writes nothing): misparsed AMERICAS upload + plant_based category duplicates. Archive after use.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 1,
+      "interval_unit": "days",
+      "interval_anchor": null,
+      "ends_type": "after_count",
+      "ends_on_date": null,
+      "ends_after_count": 1
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "broken_source_id": "69e7197f2dabd96e488b1732",
+              "duplicate_category": "plant_based",
+              "mode": "audit",
+              "source": "scheduled_resume"
+            },
+            "function_name": "cleanupGNPDDuplicates"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "gnpd_duplicate_audit",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
