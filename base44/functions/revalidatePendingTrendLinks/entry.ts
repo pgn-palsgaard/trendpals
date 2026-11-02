@@ -213,6 +213,36 @@ function needsTriage(link) {
 
 const BATCH_SIZE = 5;
 const CONCURRENCY = 4; // products processed in parallel within one time-budgeted run
+
+// ── Write throttle (2 Nov 2026) ──────────────────────────────────────────────────
+// Base44 allows 350 entity updates per 60 s per caller. Products with no candidate
+// are finalised without an LLM call, so bakery runs hit that limit and every run
+// ended in HTTP 500 (workflow auto-disabled after 5 failures). All writes go through
+// one shared slot reservation (≈250/min, headroom for other writers) and a rate-limit
+// error waits for the server's Retry-After and tries again instead of failing.
+const MIN_UPDATE_INTERVAL_MS = 240;
+let nextUpdateAt = 0;
+async function throttledUpdate(entity, id, data) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const slot = Math.max(Date.now(), nextUpdateAt);
+    nextUpdateAt = slot + MIN_UPDATE_INTERVAL_MS;
+    const wait = slot - Date.now();
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    try {
+      return await entity.update(id, data);
+    } catch (e) {
+      const msg = String(e?.message || '');
+      if (/rate limit/i.test(msg) && attempt < 2) {
+        const ra = msg.match(/Retry after (\d+)s/i);
+        const pause = ((ra ? Number(ra[1]) : 10) + 1) * 1000;
+        nextUpdateAt = Date.now() + pause;
+        await new Promise(r => setTimeout(r, pause));
+        continue;
+      }
+      throw e;
+    }
+  }
+}
 const PAUSE_MS = 10000;
 // Must stay well under the platform's request gateway timeout (~2 min),
 // otherwise the run 504s even though work is still progressing.
@@ -410,6 +440,58 @@ Deno.serve(async (req) => {
         next_cursor: auditTimedOut ? skip : null,
         done: !auditTimedOut
       });
+    }
+
+    // ── Seed mode (2 Nov 2026): add candidates for ONE trend to products that
+    // already have links. Candidate generation otherwise runs only for products with
+    // zero links, so a trend that becomes product_observable later would never be
+    // tested against products already linked to other trends. Same matcher rules as
+    // generateCandidates (positioning text, keyword length > 3, category gate, trend
+    // must be active + observable). Writes only a pending candidate and flips the
+    // product back to trend_linking_pending; the normal drain then validates it.
+    // Idempotent: products that already carry or rejected this trend are skipped, so a
+    // timed-out run is simply started again (body.skip resumes from a page offset).
+    if (body.mode === 'seed_trend') {
+      const seedStart = Date.now();
+      const t = trendMap[String(body.trend_id || '')];
+      if (!t) return Response.json({ error: 'trend_id not found among active trends' }, { status: 400 });
+      if (t.product_observable !== true) return Response.json({ error: 'trend is not product_observable' }, { status: 400 });
+      const kws = (t.trend_keywords || []).map(k => String(k).toLowerCase()).filter(k => k.length > 3);
+      const q = { palsgaard_category: String(t.category || '').trim(), processing_status: { $in: ['trend_linked', 'trend_linking_pending'] } };
+      if (Array.isArray(body.regions) && body.regions.length > 0) q.region = { $in: body.regions.map(r => String(r).trim()) };
+      let skip = Number(body.skip) || 0, scanned = 0, seeded = 0, timedOutSeed = false;
+      const now = new Date().toISOString();
+      while (true) {
+        if (Date.now() - seedStart > timeBudget) { timedOutSeed = true; break; }
+        const page = await base44.asServiceRole.entities.GNPDProduct.filter(q, 'created_date', 100, skip);
+        if (page.length === 0) break;
+        for (const p of page) {
+          scanned++;
+          const links = p.trend_links || [];
+          if (links.length === 0) continue; // zero-link products get candidates from the normal drain
+          if (links.some(l => l.trend_id === t.id)) continue;
+          if ((p.rejected_link_candidates || []).some(r => r.trend_id === t.id)) continue;
+          const text = [p.product_name, p.product_description, Array.isArray(p.claims) ? p.claims.join(' ') : p.claims]
+            .filter(Boolean).join(' ').toLowerCase();
+          const matched = kws.filter(kw => text.includes(kw));
+          if (matched.length === 0) continue;
+          await throttledUpdate(base44.asServiceRole.entities.GNPDProduct, p.id, {
+            trend_links: [...links, {
+              trend_id: t.id, trend_name: t.trend_name, trend_type: 'global',
+              confidence: 'low', confidence_score: 0, matched_keywords: matched,
+              reasoning: 'Candidate (seed_trend): keyword match, awaiting LLM validation',
+              review_status: 'pending', linked_at: now
+            }],
+            processing_status: 'trend_linking_pending'
+          });
+          seeded++;
+        }
+        skip += page.length;
+        if (page.length < 100) break;
+      }
+      const seedReport = { mode: 'seed_trend', trend: t.trend_name, category: t.category, regions: body.regions || null, scanned, seeded, next_skip: timedOutSeed ? skip : null, done: !timedOutSeed };
+      console.log('[seed] ' + JSON.stringify(seedReport));
+      return Response.json(seedReport);
     }
 
     // ── Snapshot product IDs needing triage (stable against status mutations) ─
