@@ -559,7 +559,12 @@ async function processOneSource(base44, anthropic, sourceId, batchSize = 50, ski
     const hits = await base44.asServiceRole.entities.GNPDProduct.filter(
       { gnpd_record_id: { $in: chunk } }, null, chunk.length * 3
     );
-    for (const h of hits) existingById.set(String(h.gnpd_record_id), { id: h.id, image_url: h.image_url });
+    for (const h of hits) {
+      // A record quarantined as misparsed (columns shifted on an earlier ingest, see
+      // cleanupGNPDDuplicates) must NOT block a correct re-upload of the same record.
+      if (h.processing_status === 'skipped' && String(h.processing_error || '').startsWith('misparsed_')) continue;
+      existingById.set(String(h.gnpd_record_id), { id: h.id, image_url: h.image_url });
+    }
   }
   const existingIds = new Set(existingById.keys());
 
