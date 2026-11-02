@@ -47,14 +47,14 @@ Deno.serve(async (req) => {
       return out;
     }
 
-    // ── Population A: misparsed upload ────────────────────────────────────────
+    // ── Population A: misparsed upload ──
     const popA = brokenSourceId ? await pageAll({ source_id: brokenSourceId }) : [];
     const popAMisparsed = popA.filter(p => MONTH_YEAR.test(String(p.sub_category || '')));
 
-    // ── Population B: records in a category that should not hold them ─────────
+    // ── Population B: records in a category that should not hold them ──
     const popB = dupCategory ? await pageAll({ palsgaard_category: dupCategory }) : [];
 
-    // ── Find correct counterparts by gnpd_record_id ───────────────────────────
+    // ── Find correct counterparts by gnpd_record_id ──
     const suspects = [
       ...popAMisparsed.map(p => ({ p, population: 'A_misparsed_upload' })),
       ...popB.filter(p => !brokenSourceId || p.source_id !== brokenSourceId)
@@ -63,17 +63,16 @@ Deno.serve(async (req) => {
     const suspectIds = new Set(suspects.map(s => s.p.id));
     const rids = [...new Set(suspects.map(s => String(s.p.gnpd_record_id || '')).filter(Boolean))];
 
-    const counterpart = new Map(); // rid -> best correct record
+    const counterpart = new Map();
     for (let i = 0; i < rids.length; i += 100) {
       const chunk = rids.slice(i, i + 100);
       const hits = await E.filter({ gnpd_record_id: { $in: chunk } }, 'created_date', 500);
       for (const h of hits) {
-        if (suspectIds.has(h.id)) continue;                         // not another suspect
-        if (MONTH_YEAR.test(String(h.sub_category || ''))) continue; // not another misparsed copy
+        if (suspectIds.has(h.id)) continue;
+        if (MONTH_YEAR.test(String(h.sub_category || ''))) continue;
         if (h.processing_status === 'skipped') continue;
         const rid = String(h.gnpd_record_id);
         const prev = counterpart.get(rid);
-        // Prefer a counterpart already in a Palsgaard category other than the suspect's
         if (!prev || (prev.palsgaard_category === dupCategory && h.palsgaard_category !== dupCategory)) {
           counterpart.set(rid, h);
         }
