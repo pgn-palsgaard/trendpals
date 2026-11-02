@@ -419,6 +419,11 @@ Deno.serve(async (req) => {
     const scopeCategory = body.category ? String(body.category).trim() : null;
     const scanQuery = { processing_status: 'trend_linking_pending' };
     if (scopeCategory) scanQuery.palsgaard_category = scopeCategory;
+    // Optional region scope (2 Nov 2026): body.regions = canonical region keys from
+    // GNPDProduct.region, e.g. ['mena', 'sub_saharan_africa'].
+    if (Array.isArray(body.regions) && body.regions.length > 0) {
+      scanQuery.region = { $in: body.regions.map(r => String(r).trim()) };
+    }
     const pendingIds = [];
     let scanSkip = 0;
     while (true) {
