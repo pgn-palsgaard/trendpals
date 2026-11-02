@@ -61,7 +61,7 @@ function formatExpertExamples(examples) {
   return `\nREFERENCE EXAMPLES (Mintel analyst-curated evidence for this trend):\n${lines.join('\n')}\n`;
 }
 
-async function runValidation(anthropic, product, trend, matched_keywords, expertExamples = []) {
+async function runValidation(anthropic, product, trend, matched_keywords, expertExamples = [], model = DEFAULT_MODEL) {
   const validated_at = new Date().toISOString();
   try {
     const userPrompt = `PRODUCT
@@ -86,8 +86,8 @@ Matched: ${(matched_keywords || []).join(', ')}
 Is this product genuine evidence of this trend? Respond with JSON only.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 400,
+      model,
+      max_tokens: 200,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }]
     });
@@ -102,6 +102,102 @@ Is this product genuine evidence of this trend? Respond with JSON only.`;
   }
 }
 
+// ── Cost/speed settings (2 Nov 2026) ─────────────────────────────────────────
+// Haiku is the default triage model: this is a constrained classification task with
+// explicit rules and Mintel reference examples. Sonnet stays selectable via body.model
+// (e.g. for compare_models runs or a re-audit).
+const DEFAULT_MODEL = 'claude-haiku-4-5';
+const ALLOWED_MODELS = ['claude-haiku-4-5', 'claude-sonnet-4-5'];
+const INGREDIENTS_MAX = 600;   // enough to judge e.g. vegetable fat in a coating
+const DESCRIPTION_MAX = 800;
+
+// Batched variant of SYSTEM_PROMPT: identical rules, but ONE call judges every
+// candidate trend for a product, so the product context is sent once, not per trend.
+const FORMAT_MARKER = 'You will respond ONLY with a JSON object of the form:';
+const BATCH_SYSTEM_PROMPT = SYSTEM_PROMPT.slice(0, SYSTEM_PROMPT.indexOf(FORMAT_MARKER)) +
+`You may be asked to evaluate SEVERAL trends for the same product. Judge EACH trend independently, as if it were the only one. Never let one trend's verdict influence another's.
+
+You will respond ONLY with a JSON array containing exactly one object per trend, in the order the trends are numbered:
+[
+  {"trend": <trend number>, "verdict": "SUPPORTS" | "PARTIAL" | "NOT_SUPPORT", "confidence_score": <integer 0-100>, "reasoning": "<one sentence, max 30 words, why>"}
+]
+
+` + SYSTEM_PROMPT.slice(SYSTEM_PROMPT.indexOf('Scoring guidance:'));
+
+function clip(s, max, tag = '…') {
+  const v = String(s || '');
+  return v.length > max ? v.slice(0, max) + tag : v;
+}
+
+function productBlock(product) {
+  return `PRODUCT
+Name: ${product.product_name || ''}
+Brand: ${product.brand || ''} (${product.company || ''})
+Country: ${product.country || ''}
+Category: ${product.category || ''} / ${product.sub_category || ''}
+Description: ${clip(product.product_description, DESCRIPTION_MAX)}
+Claims: ${Array.isArray(product.claims) ? product.claims.join(', ') : (product.claims || '')}
+Flavours: ${Array.isArray(product.flavours) ? product.flavours.join(', ') : (product.flavours || '')}
+Ingredients: ${clip(product.ingredients, INGREDIENTS_MAX, '… [truncated]')}`;
+}
+
+// items: [{ trend: {trend_name, market_signal, description, category}, matched_keywords, examples }]
+// Returns one result per item, same order. Any parse problem marks ALL items ERROR so
+// they stay pending and are retried — never silently approved or rejected.
+async function runBatchValidation(anthropic, model, product, items, usage) {
+  const validated_at = new Date().toISOString();
+  const errAll = (msg) => items.map(() => ({ verdict: 'ERROR', confidence_score: 0, reasoning: `LLM validation failed: ${msg}`.slice(0, 140), validated_at }));
+  try {
+    const trendBlocks = items.map((it, i) => `TREND ${i + 1}
+Name: ${it.trend.trend_name || ''}
+Market signal: ${it.trend.market_signal || ''}
+Description: ${(it.trend.description || '').slice(0, 600)}
+Category: ${it.trend.category || ''}
+${formatExpertExamples(it.examples)}Keyword overlap: ${(it.matched_keywords || []).join(', ')}`).join('\n\n');
+
+    const userPrompt = `${productBlock(product)}
+
+${trendBlocks}
+
+For each of the ${items.length} trend(s) above: is this product genuine evidence of it? Respond with the JSON array only.`;
+
+    const response = await anthropic.messages.create({
+      model,
+      max_tokens: 150 * items.length + 50,
+      system: BATCH_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: userPrompt }]
+    });
+    if (usage) {
+      usage.llm_calls++;
+      usage.input_tokens += response.usage?.input_tokens || 0;
+      usage.output_tokens += response.usage?.output_tokens || 0;
+    }
+
+    const text = response.content[0]?.text?.trim() || '';
+    const start = text.indexOf('[');
+    const end = text.lastIndexOf(']');
+    if (start === -1 || end === -1) throw new Error('No JSON array in response');
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    if (!Array.isArray(parsed)) throw new Error('Response is not an array');
+
+    return items.map((_, i) => {
+      const r = parsed.find(x => Number(x?.trend) === i + 1) || (parsed.length === items.length ? parsed[i] : null);
+      if (!r || !['SUPPORTS', 'PARTIAL', 'NOT_SUPPORT'].includes(r.verdict)) {
+        return { verdict: 'ERROR', confidence_score: 0, reasoning: 'LLM validation failed: missing or invalid verdict for this trend', validated_at };
+      }
+      return {
+        verdict: r.verdict,
+        confidence_score: Math.max(0, Math.min(100, Math.round(Number(r.confidence_score) || 0))),
+        reasoning: String(r.reasoning || '').slice(0, 300),
+        validated_at
+      };
+    });
+  } catch (e) {
+    console.error('[triage] LLM batch validation error:', e.message?.slice(0, 300));
+    return errAll(e.message?.slice(0, 100) || 'unknown');
+  }
+}
+
 function isLegacyReasoning(reasoning) {
   if (!reasoning) return true;
   return /^(Backfill: )?Matched \d+ keyword/i.test(reasoning);
@@ -113,6 +209,7 @@ function needsTriage(link) {
 }
 
 const BATCH_SIZE = 5;
+const CONCURRENCY = 4; // products processed in parallel within one time-budgeted run
 const PAUSE_MS = 10000;
 // Must stay well under the platform's request gateway timeout (~2 min),
 // otherwise the run 504s even though work is still progressing.
@@ -134,6 +231,8 @@ Deno.serve(async (req) => {
     const invocationStart = Date.now();
     const timeBudget = Math.min(Number(body.time_budget_ms) || MAX_TIME_BUDGET_MS, MAX_TIME_BUDGET_MS);
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY') });
+    const model = ALLOWED_MODELS.includes(body.model) ? body.model : DEFAULT_MODEL;
+    const usage = { llm_calls: 0, input_tokens: 0, output_tokens: 0 };
 
     const globalTrends = await base44.asServiceRole.entities.GlobalTrend.filter({ is_active: true });
     const trendMap = {};
@@ -148,6 +247,81 @@ Deno.serve(async (req) => {
         } catch (_) { expertCache[trendId] = []; }
       }
       return expertCache[trendId];
+    }
+
+    // ── Compare mode: re-judge links the previous validator already decided, WITHOUT writing.
+    // Used to check a cheaper model / the batched prompt against existing verdicts before
+    // switching. Results go to the function log ([compare] lines) and the response.
+    if (body.mode === 'compare_models') {
+      const cmpStart = Date.now();
+      const since = String(body.since || '2026-11-02T00:00:00');
+      const sampleTarget = Math.min(Number(body.sample_size) || 40, 100);
+      const q = {};
+      if (body.category) q.palsgaard_category = String(body.category).trim();
+      const pool = await base44.asServiceRole.entities.GNPDProduct.filter(q, '-updated_date', 400);
+      const sample = [];
+      let pairCount = 0;
+      for (const p of pool) {
+        const items = [];
+        for (const l of (p.trend_links || [])) {
+          if (!l.llm_validated_at || l.llm_validated_at < since || !trendMap[l.trend_id]) continue;
+          items.push({ trend_id: l.trend_id, matched_keywords: l.matched_keywords || [], old: l.review_status === 'auto_applied' ? 'auto_applied' : 'pending', old_score: l.confidence_score });
+        }
+        for (const r of (p.rejected_link_candidates || [])) {
+          if (r.llm_verdict !== 'NOT_SUPPORT' || !r.rejected_at || r.rejected_at < since || !trendMap[r.trend_id]) continue;
+          if (/inactive|no longer exists/i.test(r.llm_reasoning || '')) continue;
+          items.push({ trend_id: r.trend_id, matched_keywords: r.matched_keywords || [], old: 'rejected', old_score: r.llm_score });
+        }
+        if (items.length === 0) continue;
+        sample.push({ p, items });
+        pairCount += items.length;
+        if (pairCount >= sampleTarget) break;
+      }
+
+      const bucket = (res) => res.verdict === 'ERROR' ? 'error'
+        : (res.verdict === 'SUPPORTS' && res.confidence_score >= 70) ? 'auto_applied'
+        : res.verdict === 'NOT_SUPPORT' ? 'rejected' : 'pending';
+      const rows = [];
+      let cmpIdx = 0;
+      async function cmpWorker() {
+        while (true) {
+          if (Date.now() - cmpStart > timeBudget) return;
+          const i = cmpIdx++;
+          if (i >= sample.length) return;
+          const { p, items } = sample[i];
+          const llmItems = [];
+          for (const it of items) {
+            const t = trendMap[it.trend_id];
+            llmItems.push({
+              trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '' },
+              matched_keywords: it.matched_keywords,
+              examples: await getExpertExamples(it.trend_id)
+            });
+          }
+          const results = await runBatchValidation(anthropic, model, p, llmItems, usage);
+          items.forEach((it, k) => rows.push({
+            product: p.product_name, brand: p.brand, trend: trendMap[it.trend_id].trend_name,
+            old: it.old, old_score: it.old_score,
+            new: bucket(results[k]), new_score: results[k].confidence_score, new_reasoning: results[k].reasoning
+          }));
+        }
+      }
+      await Promise.all(Array.from({ length: CONCURRENCY }, () => cmpWorker()));
+
+      const matrix = {};
+      for (const r of rows) { const key = `${r.old}->${r.new}`; matrix[key] = (matrix[key] || 0) + 1; }
+      const agree = rows.filter(r => r.old === r.new).length;
+      const hardFlips = rows.filter(r => (r.old === 'auto_applied' && r.new === 'rejected') || (r.old === 'rejected' && r.new === 'auto_applied')).length;
+      const disagreements = rows.filter(r => r.old !== r.new);
+      const report = {
+        mode: 'compare_models', model, category: body.category || null,
+        pairs: rows.length, products: sample.length,
+        agreement_pct: rows.length ? Math.round(100 * agree / rows.length) : null,
+        hard_flips: hardFlips, matrix, usage
+      };
+      console.log('[compare] SUMMARY ' + JSON.stringify(report));
+      disagreements.forEach(d => console.log('[compare] DIFF ' + JSON.stringify(d)));
+      return Response.json({ ...report, disagreements });
     }
 
     // ── Audit mode: re-validate existing keyword-only AUTO_APPLIED links ──────
@@ -330,6 +504,10 @@ Deno.serve(async (req) => {
         skipped_non_observable: skippedNonObservable,
         skipped_unresolved_category: skippedUnresolvedCategory,
         per_trend: perTrend,
+        model,
+        llm_calls: (existingSummary.llm_calls || 0) + usage.llm_calls,
+        input_tokens: (existingSummary.input_tokens || 0) + usage.input_tokens,
+        output_tokens: (existingSummary.output_tokens || 0) + usage.output_tokens,
       };
     }
 
@@ -372,11 +550,9 @@ Deno.serve(async (req) => {
         // becomes a candidate and never reaches the validator. This is the
         // contamination root (63 cross-category links, confidence 72-88).
         if (trendCategory !== productCategory) {
-          // Keywords computed for the audit line only — no candidacy follows.
-          const gateKws = (t.trend_keywords || []).map(k => String(k).toLowerCase());
-          const gateMatched = gateKws.filter(kw => kw.length > 3 && text.includes(kw));
+          // Counted, not logged per pair: per-pair audit lines produced ~30k log lines
+          // per run. The counter in the job summary still attributes every rejection.
           rejectedByCategoryGate++;
-          console.log(`[gate] category reject — product ${product.gnpd_record_id} (${productCategory}) vs trend "${t.trend_name}" (${trendCategory}); matched_keywords: ${gateMatched.join(', ') || 'none'}`);
           continue;
         }
         // ── Gate 2 — PRODUCT OBSERVABILITY. null and false BOTH skip: an unmarked
@@ -384,7 +560,6 @@ Deno.serve(async (req) => {
         // attempted and silently producing zero links.
         if (t.product_observable !== true) {
           skippedNonObservable++;
-          console.log(`[gate] skipped_non_observable — trend "${t.trend_name}" (${trendCategory}) product_observable=${t.product_observable === false ? 'false' : 'null'}`);
           continue;
         }
         const kws = (t.trend_keywords || []).map(k => String(k).toLowerCase());
@@ -436,10 +611,13 @@ Deno.serve(async (req) => {
       const rejectedCandidates = [...(product.rejected_link_candidates || [])];
       let changed = false;
 
+      // 1) Links to inactive/deleted trends are rejected without an LLM call.
+      // 2) All remaining targets for this product are judged in ONE batched call.
+      const liveTargets = [];
       for (const link of targets) {
-        if (deadlineReached()) break; // remaining links stay pending — picked up next run
         const trend = trendMap[link.trend_id];
-        if (!trend) {
+        if (trend) { liveTargets.push(link); continue; }
+        {
           // Trend is inactive or deleted — the link can never be approved; reject it
           const idxDead = updatedLinks.findIndex(l => l.trend_id === link.trend_id && l.review_status === 'pending' && !l.llm_validated_at);
           if (idxDead !== -1) {
@@ -456,16 +634,27 @@ Deno.serve(async (req) => {
             linksRejected++;
             changed = true;
           }
-          continue;
         }
+      }
 
-        const examples = await getExpertExamples(link.trend_id);
-        const result = await runValidation(anthropic, product, {
-          trend_name: trend.trend_name,
-          market_signal: trend.market_signal || '',
-          description: trend.description || '',
-          category: trend.category || ''
-        }, link.matched_keywords || [], examples);
+      let batchResults = [];
+      if (liveTargets.length > 0 && !deadlineReached()) {
+        const llmItems = [];
+        for (const link of liveTargets) {
+          const t = trendMap[link.trend_id];
+          llmItems.push({
+            trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '' },
+            matched_keywords: link.matched_keywords || [],
+            examples: await getExpertExamples(link.trend_id)
+          });
+        }
+        batchResults = await runBatchValidation(anthropic, model, product, llmItems, usage);
+      }
+
+      for (let k = 0; k < batchResults.length; k++) {
+        const link = liveTargets[k];
+        const trend = trendMap[link.trend_id];
+        const result = batchResults[k];
 
         linksRevalidated++;
         const tName = link.trend_name || trend.trend_name;
@@ -538,28 +727,44 @@ Deno.serve(async (req) => {
 
     // ── Main loop wrapped in try/finally ─────────────────────────────────────
     try {
-      for (const productId of pendingIds) {
-        if (Date.now() - invocationStart > timeBudget) { timedOut = true; break; }
+      // CONCURRENCY workers pull products from the shared snapshot. Each product is
+      // still processed atomically (one read, one batched LLM call, one write).
+      let nextIdx = 0;
+      let progressWriting = false;
+      async function worker() {
+        while (true) {
+          if (Date.now() - invocationStart > timeBudget) { timedOut = true; return; }
+          const i = nextIdx++;
+          if (i >= pendingIds.length) return;
 
-        const product = await base44.asServiceRole.entities.GNPDProduct.get(productId);
-        if (!product) continue;
-        const existingLinks = product.trend_links || [];
-        if (existingLinks.length > 0 && !existingLinks.some(needsTriage)) continue;
+          const product = await base44.asServiceRole.entities.GNPDProduct.get(pendingIds[i]);
+          if (!product) continue;
+          const existingLinks = product.trend_links || [];
+          if (existingLinks.length > 0 && !existingLinks.some(needsTriage)) continue;
 
-        await processProduct(product);
-        lastCursor = product.id;
-        processedItems++;
+          await processProduct(product);
+          lastCursor = product.id;
+          processedItems++;
 
-        // Persist progress every 5 products to stay under API rate limits
-        if (processedItems % 5 === 0) {
-          await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
-            processed_items: processedItems,
-            current_cursor: lastCursor,
-            last_progress_at: new Date().toISOString(),
-            summary: summarySnapshot(),
-          });
+          // Persist progress every 10 products; one write at a time across workers
+          if (processedItems % 10 === 0 && !progressWriting) {
+            progressWriting = true;
+            try {
+              await base44.asServiceRole.entities.ProcessingJob.update(job.id, {
+                processed_items: processedItems,
+                current_cursor: lastCursor,
+                last_progress_at: new Date().toISOString(),
+                summary: summarySnapshot(),
+              });
+            } catch (e) {
+              console.error('[triage] progress write failed:', e.message?.slice(0, 200));
+            } finally {
+              progressWriting = false;
+            }
+          }
         }
       }
+      await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
     } finally {
       const finalStatus = timedOut ? 'paused_timeout' : 'completed';
       try {
