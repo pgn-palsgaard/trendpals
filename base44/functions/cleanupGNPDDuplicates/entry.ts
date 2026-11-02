@@ -110,6 +110,14 @@ Deno.serve(async (req) => {
       timed_out: false,
     };
 
+    // Optional: quarantine population-A records that have NO correct counterpart.
+    // They are corrupt (shifted columns, no claims/launch date) and must not count as
+    // evidence. processing_error starts with 'misparsed_' so runGNPDBatchParse ignores
+    // them in its dedup check, which lets a correct re-upload create clean records.
+    // Population B orphans are never touched.
+    const quarantineA = mode === 'apply' && body.quarantine_misparsed_orphans === true;
+    report.quarantined_orphans = 0;
+
     if (mode === 'apply') {
       const now = new Date().toISOString();
       for (const s of safe) {
@@ -125,6 +133,23 @@ Deno.serve(async (req) => {
           support_label: 'NOT_SUPPORT',
         });
         report.applied++;
+      }
+      if (quarantineA) {
+        for (const o of orphans) {
+          if (o.population !== 'A_misparsed_upload') continue;
+          if (Date.now() - started > TIME_BUDGET_MS) { report.timed_out = true; break; }
+          if (o.p.processing_status === 'skipped') continue;
+          await E.update(o.p.id, {
+            processing_status: 'skipped',
+            processing_error: `misparsed_upload_no_counterpart (source ${brokenSourceId}; columns shifted on ingest; re-upload from Mintel to restore; cleanup ${now})`,
+            trend_links: [],
+            linked_trend_ids: [],
+            linked_mega_trend_ids: [],
+            rejected_link_candidates: [],
+            support_label: 'NOT_SUPPORT',
+          });
+          report.quarantined_orphans++;
+        }
       }
     }
 
