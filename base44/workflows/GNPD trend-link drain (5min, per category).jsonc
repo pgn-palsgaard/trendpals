@@ -1,6 +1,6 @@
 {
   "name": "GNPD trend-link drain (5min, per category)",
-  "description": "Drains GNPD products in trend_linking_pending through the gated LLM trend-link validator (revalidatePendingTrendLinks), one Palsgaard category at a time. Pilot: ice_cream. Since 2 Nov 2026 the function uses Haiku 4.5, one batched call per product and 4 parallel workers. Cap raised to 200 runs.",
+  "description": "Drains GNPD products in trend_linking_pending through the gated LLM trend-link validator (revalidatePendingTrendLinks), scoped by category and optional regions. Currently: bakery, Middle East & Africa (mena + sub_saharan_africa). Ice cream paused 2 Nov 2026. Haiku 4.5, batched, 4 workers.",
   "trigger": {
     "condition": null,
     "config": {
@@ -26,7 +26,11 @@
           "then": "end",
           "with": {
             "args": {
-              "category": "ice_cream",
+              "category": "bakery",
+              "regions": [
+                "mena",
+                "sub_saharan_africa"
+              ],
               "source": "scheduled_resume"
             },
             "function_name": "revalidatePendingTrendLinks"
