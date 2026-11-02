@@ -37,20 +37,10 @@ function resolvePalsgaardCategory(cat: string, sub: string): string {
 }
 
 // One-off backfill (2 Nov 2026): GNPD products created before runGNPDBatchParse
-// always set palsgaard_category have it null, which hides them from every
-// category-scoped filter, dashboard and trend-linking drain.
-//
-// Resolution = the importer's own rules (shared/palsgaardCategory.ts). Two lookups
-// the importer does not need but historical rows do:
-//   - BSA main group -> 'personal_care' (as the importer does).
-//   - A top-level category the table does not list (e.g. 'Ice Cream', 'Chocolate'
-//     from older exports) resolves through its sub-category when that sub-category
-//     appears in exactly ONE top-level map. Otherwise -> 'needs_human_review'.
-// Never guesses: anything unresolved becomes 'needs_human_review', exactly like import.
-// mode 'audit' (default) writes nothing; mode 'apply' writes, throttled, time-boxed,
-// idempotent (each run re-queries rows that are still null).
-// Products finalised with zero links because their category was unresolved are sent
-// back to trend_linking_pending when they now resolve to a canonical category.
+// always set palsgaard_category have it null. Resolution = the importer's own rules.
+// A top-level category the table does not list resolves through its sub-category when
+// that sub-category appears in exactly ONE top-level map. Otherwise needs_human_review.
+// mode 'audit' (default) writes nothing; 'apply' writes, throttled, time-boxed, idempotent.
 
 const TIME_BUDGET_MS = 80 * 1000;
 const UNRESOLVED = new Set(['out_of_scope', 'needs_human_review']);
@@ -77,7 +67,6 @@ async function throttledUpdate(entity, id, data) {
   }
 }
 
-// sub-category -> canonical key, only where the sub-category is unique across maps
 const SUB_INDEX: Record<string, string | null> = {};
 for (const top of Object.keys(MAPPING)) {
   for (const [sub, key] of Object.entries(MAPPING[top])) {
@@ -115,7 +104,6 @@ Deno.serve(async (req) => {
     let scanned = 0, applied = 0, requeued = 0, timedOut = false, skip = 0;
     while (true) {
       if (Date.now() - started > TIME_BUDGET_MS) { timedOut = true; break; }
-      // apply: always read the first page of what is still null (rows leave the query as they are fixed)
       const page = await E.filter(q, 'created_date', 100, mode === 'apply' ? 0 : skip);
       if (page.length === 0) break;
       for (const p of page) {
