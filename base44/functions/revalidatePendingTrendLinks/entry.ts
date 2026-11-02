@@ -115,7 +115,9 @@ const DESCRIPTION_MAX = 800;
 // candidate trend for a product, so the product context is sent once, not per trend.
 const FORMAT_MARKER = 'You will respond ONLY with a JSON object of the form:';
 const BATCH_SYSTEM_PROMPT = SYSTEM_PROMPT.slice(0, SYSTEM_PROMPT.indexOf(FORMAT_MARKER)) +
-`You may be asked to evaluate SEVERAL trends for the same product. Judge EACH trend independently, as if it were the only one. Never let one trend's verdict influence another's.
+`CATEGORY NOTE FOR THIS TASK: the category match has ALREADY been verified by the pipeline using Palsgaard's own category mapping, shown as "Palsgaard category" on the product and "Category" on each trend. Palsgaard's ice_cream category deliberately includes water ices, ice lollies, sorbets, frozen yogurt and other frozen desserts. Mintel's sub-category label is context only. Do NOT reject a candidate on category grounds; judge only whether the product's positioning genuinely expresses the trend.
+
+You may be asked to evaluate SEVERAL trends for the same product. Judge EACH trend independently, as if it were the only one. Never let one trend's verdict influence another's.
 
 You will respond ONLY with a JSON array containing exactly one object per trend, in the order the trends are numbered:
 [
@@ -134,7 +136,8 @@ function productBlock(product) {
 Name: ${product.product_name || ''}
 Brand: ${product.brand || ''} (${product.company || ''})
 Country: ${product.country || ''}
-Category: ${product.category || ''} / ${product.sub_category || ''}
+Palsgaard category: ${product.palsgaard_category || ''}
+Mintel category: ${product.category || ''} / ${product.sub_category || ''}
 Description: ${clip(product.product_description, DESCRIPTION_MAX)}
 Claims: ${Array.isArray(product.claims) ? product.claims.join(', ') : (product.claims || '')}
 Flavours: ${Array.isArray(product.flavours) ? product.flavours.join(', ') : (product.flavours || '')}
