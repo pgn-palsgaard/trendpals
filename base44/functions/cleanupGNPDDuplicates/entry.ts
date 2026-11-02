@@ -54,11 +54,21 @@ Deno.serve(async (req) => {
     // ── Population B: records in a category that should not hold them ──
     const popB = dupCategory ? await pageAll({ palsgaard_category: dupCategory }) : [];
 
+    // ── Population C (2 Nov 2026): every non-skipped record from one upload
+    // (body.suspect_source_id), checked for copies of the same gnpd_record_id in
+    // other uploads. Audit only unless mode 'apply'; in apply the copy with FEWER
+    // validated trend links is marked skipped (ties: the newer record goes).
+    const suspectSourceId = body.suspect_source_id ? String(body.suspect_source_id) : null;
+    const popC = suspectSourceId
+      ? (await pageAll({ source_id: suspectSourceId })).filter(p => p.processing_status !== 'skipped')
+      : [];
+
     // ── Find correct counterparts by gnpd_record_id ──
     const suspects = [
       ...popAMisparsed.map(p => ({ p, population: 'A_misparsed_upload' })),
       ...popB.filter(p => !brokenSourceId || p.source_id !== brokenSourceId)
              .map(p => ({ p, population: 'B_category_' + dupCategory })),
+      ...popC.map(p => ({ p, population: 'C_source_' + suspectSourceId })),
     ];
     const suspectIds = new Set(suspects.map(s => s.p.id));
     const rids = [...new Set(suspects.map(s => String(s.p.gnpd_record_id || '')).filter(Boolean))];
@@ -98,6 +108,8 @@ Deno.serve(async (req) => {
       population_a_misparsed: popAMisparsed.length,
       duplicate_category: dupCategory,
       population_b_total: popB.length,
+      suspect_source_id: suspectSourceId,
+      population_c_total: popC.length,
       safe_duplicates: safe.length,
       safe_by_population: countBy(safe, s => s.population),
       counterpart_categories: countBy(safe, s => String(s.c.palsgaard_category || 'none')),
@@ -120,7 +132,15 @@ Deno.serve(async (req) => {
 
     if (mode === 'apply') {
       const now = new Date().toISOString();
+      const validatedLinks = (r) => (r.trend_links || []).filter(l => l.llm_validated_at || l.review_status === 'auto_applied').length;
       for (const s of safe) {
+        if (s.population.startsWith('C_')) {
+          // Keep the better-linked copy; when the suspect copy is better, retire the other one.
+          const a = validatedLinks(s.p), b = validatedLinks(s.c);
+          if (a > b || (a === b && String(s.p.created_date) < String(s.c.created_date))) {
+            const tmp = s.p; s.p = s.c; s.c = tmp;
+          }
+        }
         if (Date.now() - started > TIME_BUDGET_MS) { report.timed_out = true; break; }
         if (s.p.processing_status === 'skipped') continue;
         await E.update(s.p.id, {
