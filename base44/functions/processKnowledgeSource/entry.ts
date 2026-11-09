@@ -355,8 +355,12 @@ Deno.serve(async (req) => {
     try {
       const jsonMatch = rawText.match(/```json\s*([\s\S]*?)```/) || rawText.match(/```\s*([\s\S]*?)```/);
       let jsonText = jsonMatch ? jsonMatch[1] : rawText.trim();
-      // Fallback: prose around an unfenced object.
-      if (!jsonMatch && !jsonText.startsWith('{')) { const a = jsonText.indexOf('{'), b = jsonText.lastIndexOf('}'); if (a !== -1 && b > a) jsonText = jsonText.slice(a, b + 1); }
+      // Fallback: prose around unfenced JSON. Respect whether it is an array (plain
+      // sources) or an object (Mintel: { insights, chunks }).
+      if (!jsonMatch && !/^[\[{]/.test(jsonText)) {
+        const a = jsonText.search(/[\[{]/);
+        if (a !== -1) { const b = jsonText.lastIndexOf(jsonText[a] === '[' ? ']' : '}'); if (b > a) jsonText = jsonText.slice(a, b + 1); }
+      }
       parsed = JSON.parse(jsonText);
     } catch (_) {
       const msg = `JSON parse error: ${rawText.substring(0, 200)}`;
