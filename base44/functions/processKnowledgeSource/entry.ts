@@ -323,7 +323,9 @@ Deno.serve(async (req) => {
       headers: claudeHeaders,
       body: JSON.stringify({
         model: 'claude-sonnet-5-5',
-        max_tokens: 8000,
+        // Sonnet 5.5 writes longer structured output than 4.5; 8000 truncated a 3 MB
+        // Mintel PDF in testing (9 Nov 2026). Only generated tokens are billed.
+        max_tokens: 16000,
         system: systemPrompt,
         messages: [{ role: 'user', content: messageContent }]
       })
