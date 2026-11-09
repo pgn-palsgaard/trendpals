@@ -107,7 +107,7 @@ Is this product genuine evidence of this trend? Respond with JSON only.`;
 // explicit rules and Mintel reference examples. Sonnet stays selectable via body.model
 // (e.g. for compare_models runs or a re-audit).
 const DEFAULT_MODEL = 'claude-haiku-4-5';
-const ALLOWED_MODELS = ['claude-haiku-4-5', 'claude-sonnet-4-5'];
+const ALLOWED_MODELS = ['claude-haiku-4-5', 'claude-haiku-5-5', 'claude-sonnet-4-5'];
 const INGREDIENTS_MAX = 600;   // enough to judge e.g. vegetable fat in a coating
 const DESCRIPTION_MAX = 800;
 
@@ -164,16 +164,22 @@ ${trendBlocks}
 
 For each of the ${items.length} trend(s) above: is this product genuine evidence of it? Respond with the JSON array only.`;
 
+    // Prompt caching (9 Nov 2026): the system prompt is identical on every call, so it
+    // carries an explicit cache breakpoint. Below a model's minimum cacheable length
+    // (Haiku 4.5: 4,096 tokens; Haiku 5.5: 512) the API silently skips caching, so this
+    // is safe on every model. Cache reads are billed at 0.1x input.
     const response = await anthropic.messages.create({
       model,
       max_tokens: 150 * items.length + 50,
-      system: BATCH_SYSTEM_PROMPT,
+      system: [{ type: 'text', text: BATCH_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userPrompt }]
     });
     if (usage) {
       usage.llm_calls++;
       usage.input_tokens += response.usage?.input_tokens || 0;
       usage.output_tokens += response.usage?.output_tokens || 0;
+      usage.cache_read_tokens = (usage.cache_read_tokens || 0) + (response.usage?.cache_read_input_tokens || 0);
+      usage.cache_write_tokens = (usage.cache_write_tokens || 0) + (response.usage?.cache_creation_input_tokens || 0);
     }
 
     const text = response.content[0]?.text?.trim() || '';
@@ -598,6 +604,8 @@ Deno.serve(async (req) => {
         llm_calls: (existingSummary.llm_calls || 0) + usage.llm_calls,
         input_tokens: (existingSummary.input_tokens || 0) + usage.input_tokens,
         output_tokens: (existingSummary.output_tokens || 0) + usage.output_tokens,
+        cache_read_tokens: (existingSummary.cache_read_tokens || 0) + (usage.cache_read_tokens || 0),
+        cache_write_tokens: (existingSummary.cache_write_tokens || 0) + (usage.cache_write_tokens || 0),
       };
     }
 
