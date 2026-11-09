@@ -513,6 +513,98 @@ Deno.serve(async (req) => {
       return Response.json(seedReport);
     }
 
+    // ── Re-audit mode (9 Nov 2026): re-judge AUTO_APPLIED links validated before
+    // body.validated_before (default: the Haiku 5.5 switch) with the current model, using
+    // the same buckets as normal triage: SUPPORTS >= 70 stays auto_applied; NOT_SUPPORT
+    // moves to rejected_link_candidates; anything else goes to pending (human review).
+    // Re-audited links get a fresh llm_validated_at, so each product leaves the query once
+    // done and a timed-out run simply continues on the next invocation. Links whose call
+    // errored are left untouched and counted as stuck so the loop moves past them.
+    if (body.mode === 'reaudit_auto_applied') {
+      const raStart = Date.now();
+      const cutoff = String(body.validated_before || '2026-11-09T00:00:00');
+      const q = { trend_links: { $elemMatch: { review_status: 'auto_applied', llm_validated_at: { $lt: cutoff } } } };
+      if (body.category) q.palsgaard_category = String(body.category).trim();
+      if (Array.isArray(body.regions) && body.regions.length > 0) q.region = { $in: body.regions.map(r => String(r).trim()) };
+      let stuck = 0, products = 0, kept = 0, demoted = 0, rejected = 0, errors = 0, timedOutRa = false;
+      const perTrendRa = {};
+      while (true) {
+        if (Date.now() - raStart > timeBudget) { timedOutRa = true; break; }
+        const page = await base44.asServiceRole.entities.GNPDProduct.filter(q, 'created_date', 40, stuck);
+        if (page.length === 0) break;
+        let pi = 0;
+        async function raWorker() {
+          while (true) {
+            if (Date.now() - raStart > timeBudget) { timedOutRa = true; return; }
+            const i = pi++;
+            if (i >= page.length) return;
+            const p = page[i];
+            const targets = (p.trend_links || []).filter(l =>
+              l.review_status === 'auto_applied' && trendMap[l.trend_id] && l.llm_validated_at && l.llm_validated_at < cutoff);
+            if (targets.length === 0) { stuck++; continue; } // only inactive-trend links match: leave them
+            products++;
+            const llmItems = [];
+            for (const l of targets) {
+              const t = trendMap[l.trend_id];
+              llmItems.push({
+                trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '' },
+                matched_keywords: l.matched_keywords || [],
+                examples: await getExpertExamples(l.trend_id)
+              });
+            }
+            const results = await runBatchValidation(anthropic, model, p, llmItems, usage);
+            const updated = [...p.trend_links];
+            const rejectedC = [...(p.rejected_link_candidates || [])];
+            let changed = false, hadError = false;
+            targets.forEach((l, k) => {
+              const r = results[k];
+              const name = trendMap[l.trend_id].trend_name;
+              perTrendRa[name] = perTrendRa[name] || { kept: 0, demoted: 0, rejected: 0 };
+              const idx = updated.findIndex(x => x.trend_id === l.trend_id && x.review_status === 'auto_applied');
+              if (idx === -1) return;
+              if (r.verdict === 'ERROR') { errors++; hadError = true; return; }
+              if (r.verdict === 'SUPPORTS' && r.confidence_score >= 70) {
+                updated[idx] = { ...updated[idx], confidence: 'high', confidence_score: r.confidence_score, reasoning: r.reasoning, llm_validated_at: r.validated_at };
+                kept++; perTrendRa[name].kept++;
+              } else if (r.verdict === 'NOT_SUPPORT') {
+                updated.splice(idx, 1);
+                rejectedC.push({ trend_id: l.trend_id, trend_name: l.trend_name || name, matched_keywords: l.matched_keywords || [],
+                  llm_verdict: 'NOT_SUPPORT', llm_reasoning: `[re-audit ${model}] ${r.reasoning}`, llm_score: r.confidence_score, rejected_at: r.validated_at });
+                rejected++; perTrendRa[name].rejected++;
+              } else {
+                updated[idx] = { ...updated[idx], review_status: 'pending', confidence: 'medium', confidence_score: r.confidence_score, reasoning: r.reasoning, llm_validated_at: r.validated_at };
+                demoted++; perTrendRa[name].demoted++;
+              }
+              changed = true;
+            });
+            if (hadError) stuck++;
+            if (changed) {
+              const hasPending = updated.some(l => l.review_status === 'pending');
+              await throttledUpdate(base44.asServiceRole.entities.GNPDProduct, p.id, {
+                trend_links: updated,
+                rejected_link_candidates: rejectedC,
+                linked_trend_ids: updated.filter(l => l.review_status === 'auto_applied').map(l => l.trend_id),
+                processing_status: hasPending ? 'trend_linking_pending' : 'trend_linked',
+                support_label: updated.length === 0 ? 'NOT_SUPPORT' : updated.some(l => l.confidence === 'high') ? 'SUPPORTS' : 'PARTIAL'
+              });
+            } else if (!hadError) {
+              stuck++;
+            }
+          }
+        }
+        await Promise.all(Array.from({ length: CONCURRENCY }, () => raWorker()));
+        if (page.length < 40 && !timedOutRa) {
+          // Last page processed; anything left is stuck (errors / inactive trends).
+          const rest = await base44.asServiceRole.entities.GNPDProduct.filter(q, 'created_date', 1, stuck);
+          if (rest.length === 0) break;
+        }
+      }
+      const raReport = { mode: 'reaudit_auto_applied', model, category: body.category || null, regions: body.regions || null, cutoff,
+        products, kept, demoted, rejected, errors, stuck, done: !timedOutRa, per_trend: perTrendRa, usage };
+      console.log('[reaudit] ' + JSON.stringify(raReport));
+      return Response.json(raReport);
+    }
+
     // ── Snapshot product IDs needing triage (stable against status mutations) ─
     // Phase 6 — the drain is run ONE CATEGORY AT A TIME (body.category, e.g. 'bakery').
     // A category's drain must not begin until its trends are individually marked
