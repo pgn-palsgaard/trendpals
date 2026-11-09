@@ -335,11 +335,13 @@ Deno.serve(async (req) => {
           if (!res.ok) return { name, model, ok: false, http: res.status, error: JSON.stringify(data).slice(0, 300), ms: Date.now() - t0 };
           const text = (data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n');
           let parse_ok = expect === 'text' ? text.trim().length > 0 : false;
+          let parse_error = null, items = null;
           if (expect !== 'text') {
             const a = text.indexOf(expect === 'array' ? '[' : '{'), b = text.lastIndexOf(expect === 'array' ? ']' : '}');
-            try { if (a !== -1 && b > a) { JSON.parse(text.slice(a, b + 1)); parse_ok = true; } } catch (_) {}
+            try { if (a !== -1 && b > a) { const v = JSON.parse(text.slice(a, b + 1)); parse_ok = true; items = Array.isArray(v) ? v.length : null; } else parse_error = 'no brackets'; }
+            catch (e) { parse_error = String(e.message).slice(0, 160); }
           }
-          return { name, model, ok: true, stop: data.stop_reason, parse_ok, blocks: (data.content || []).map(b => b.type).join(','), in: data.usage?.input_tokens, out: data.usage?.output_tokens, ms: Date.now() - t0, head: text.slice(0, 140).replace(/\s+/g, ' ') };
+          return { name, model, ok: true, stop: data.stop_reason, parse_ok, items, parse_error, blocks: (data.content || []).map(b => b.type).join(','), in: data.usage?.input_tokens, out: data.usage?.output_tokens, ms: Date.now() - t0, head: text.slice(0, 140).replace(/\s+/g, ' '), tail: parse_ok ? undefined : text.slice(-220).replace(/\s+/g, ' ') };
         } catch (e) { return { name, model, ok: false, error: String(e.message).slice(0, 200), ms: Date.now() - t0 }; }
       }
       const recatPrompt = `You are a product categorization specialist for Palsgaard (emulsifiers & stabilisers for food manufacturers).\n\nClassify this product example into exactly ONE Palsgaard solution category.\nReturn a JSON object with two fields: "category" (the key string) and "confidence" (integer 0-100).\n\nProduct: ${ex.product_name}\nBrand: ${ex.brand}\nCountry: ${ex.country}\nSub-category: ${ex.sub_category || ''}\nAnalyst framing: ${ex.analyst_framing || ''}\nReport title: ${ex.report_title || ''}\n\nValid categories (return the KEY): bakery, chocolate_confectionery, dairy, ice_cream, meat, oils_fats, plant_based, condiments, rutf_rusf, out_of_scope, needs_human_review\n\nReturn ONLY valid JSON: {"category": "key", "confidence": 90, "reasoning": "one sentence"}`;
