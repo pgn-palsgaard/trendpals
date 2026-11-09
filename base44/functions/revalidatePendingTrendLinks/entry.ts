@@ -106,7 +106,10 @@ Is this product genuine evidence of this trend? Respond with JSON only.`;
 // Haiku is the default triage model: this is a constrained classification task with
 // explicit rules and Mintel reference examples. Sonnet stays selectable via body.model
 // (e.g. for compare_models runs or a re-audit).
-const DEFAULT_MODEL = 'claude-haiku-4-5';
+// 9 Nov 2026: default moved to Haiku 5.5 after compare_models on 100 bakery pairs:
+// stricter and, on manual check of every hard flip, more faithful to trend definitions
+// than Haiku 4.5; ~85% cheaper per call with prompt caching (system prompt cached).
+const DEFAULT_MODEL = 'claude-haiku-5-5';
 const ALLOWED_MODELS = ['claude-haiku-4-5', 'claude-haiku-5-5', 'claude-sonnet-4-5'];
 const INGREDIENTS_MAX = 600;   // enough to judge e.g. vegetable fat in a coating
 const DESCRIPTION_MAX = 800;
