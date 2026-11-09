@@ -1,0 +1,199 @@
+{
+  "name": "Facit test bakery (Mintel-cited)",
+  "description": "No-write test: judges 28 Mintel-cited product/trend pairs (should pass) + 10 negative pairs (should fail) with the current linking rule. Run manually; archive when calibration is done.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 24,
+      "interval_unit": "hours",
+      "interval_anchor": null,
+      "ends_type": "after_count",
+      "ends_on_date": null,
+      "ends_after_count": 10
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "label": "bakery",
+              "mode": "facit_test",
+              "pairs": [
+                {
+                  "gnpd_record_id": "13615602",
+                  "trend_id": "6a7ae020174e988c982f8751"
+                },
+                {
+                  "gnpd_record_id": "14292868",
+                  "trend_id": "6a7ae143600daa43da1d2be7"
+                },
+                {
+                  "gnpd_record_id": "13816850",
+                  "trend_id": "6a22c9c1435c3fc217c70864"
+                },
+                {
+                  "gnpd_record_id": "13684984",
+                  "trend_id": "6a7ae143600daa43da1d2be7"
+                },
+                {
+                  "gnpd_record_id": "13921418",
+                  "trend_id": "6a7ae020174e988c982f8751"
+                },
+                {
+                  "gnpd_record_id": "14272348",
+                  "trend_id": "6a7ae143600daa43da1d2be7"
+                },
+                {
+                  "gnpd_record_id": "14287654",
+                  "trend_id": "6a7ae143600daa43da1d2be7"
+                },
+                {
+                  "gnpd_record_id": "14294258",
+                  "trend_id": "6a7ae143600daa43da1d2be7"
+                },
+                {
+                  "gnpd_record_id": "13725340",
+                  "trend_id": "6a22c9c1435c3fc217c70864"
+                },
+                {
+                  "gnpd_record_id": "13998776",
+                  "trend_id": "6a22c9c1435c3fc217c70864"
+                },
+                {
+                  "gnpd_record_id": "14174510",
+                  "trend_id": "6a7ae143473e8c8761890289"
+                },
+                {
+                  "gnpd_record_id": "13661214",
+                  "trend_id": "6a7ae020174e988c982f8751"
+                },
+                {
+                  "gnpd_record_id": "13615332",
+                  "trend_id": "6a7ae143600daa43da1d2be7"
+                },
+                {
+                  "gnpd_record_id": "13640626",
+                  "trend_id": "6a7ae020174e988c982f8751"
+                },
+                {
+                  "gnpd_record_id": "13523246",
+                  "trend_id": "6a7ae020174e988c982f8751"
+                },
+                {
+                  "gnpd_record_id": "13619354",
+                  "trend_id": "6a22c9c1435c3fc217c70863"
+                },
+                {
+                  "gnpd_record_id": "13570330",
+                  "trend_id": "6a22c9c1435c3fc217c70863"
+                },
+                {
+                  "gnpd_record_id": "14519546",
+                  "trend_id": "6a22c9c1435c3fc217c70862"
+                },
+                {
+                  "gnpd_record_id": "13545124",
+                  "trend_id": "6a22c9c1435c3fc217c70862"
+                },
+                {
+                  "gnpd_record_id": "13628936",
+                  "trend_id": "6a22c9c1435c3fc217c70864"
+                },
+                {
+                  "gnpd_record_id": "13756870",
+                  "trend_id": "6a22c9c1435c3fc217c70864"
+                },
+                {
+                  "gnpd_record_id": "14306198",
+                  "trend_id": "6a22c9c1435c3fc217c70864"
+                },
+                {
+                  "gnpd_record_id": "13580730",
+                  "trend_id": "6a7ae143600daa43da1d2be7"
+                },
+                {
+                  "gnpd_record_id": "14293156",
+                  "trend_id": "6a7ae143600daa43da1d2be7"
+                },
+                {
+                  "gnpd_record_id": "13695498",
+                  "trend_id": "6a7ae143600daa43da1d2be7"
+                },
+                {
+                  "gnpd_record_id": "13710854",
+                  "trend_id": "6a22c9c1435c3fc217c70863"
+                },
+                {
+                  "gnpd_record_id": "13728878",
+                  "trend_id": "6a22c9c1435c3fc217c70862"
+                },
+                {
+                  "gnpd_record_id": "13728880",
+                  "trend_id": "6a22c9c1435c3fc217c70862"
+                },
+                {
+                  "gnpd_record_id": "14163726",
+                  "trend_id": "6a22c9c1435c3fc217c70864"
+                },
+                {
+                  "gnpd_record_id": "13866766",
+                  "trend_id": "6a7ae143600daa43da1d2be7"
+                },
+                {
+                  "gnpd_record_id": "13607164",
+                  "trend_id": "6a22c9c1435c3fc217c70862"
+                },
+                {
+                  "gnpd_record_id": "14237840",
+                  "trend_id": "6a22c9c1435c3fc217c70863"
+                },
+                {
+                  "gnpd_record_id": "13587064",
+                  "trend_id": "6a22c9c1435c3fc217c70864"
+                },
+                {
+                  "gnpd_record_id": "13639294",
+                  "trend_id": "6a7ae143473e8c8761890289"
+                },
+                {
+                  "gnpd_record_id": "13678268",
+                  "trend_id": "6a22c9c1435c3fc217c70862"
+                },
+                {
+                  "gnpd_record_id": "14216482",
+                  "trend_id": "6a7ae020174e988c982f8751"
+                },
+                {
+                  "gnpd_record_id": "13790748",
+                  "trend_id": "6a22c9c1435c3fc217c70863"
+                },
+                {
+                  "gnpd_record_id": "13861330",
+                  "trend_id": "6a22c9c1435c3fc217c70864"
+                }
+              ],
+              "source": "scheduled_resume"
+            },
+            "function_name": "revalidatePendingTrendLinks"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "facit_test_bakery",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
