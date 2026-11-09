@@ -364,8 +364,11 @@ Deno.serve(async (req) => {
         agreement_pct: rows.length ? Math.round(100 * agree / rows.length) : null,
         hard_flips: hardFlips, matrix, usage
       };
-      console.log('[compare] SUMMARY ' + JSON.stringify(report));
+      // DIFF lines first, SUMMARY last: the logs API returns newest first, so the
+      // summary is then the first line a reader sees.
       disagreements.forEach(d => console.log('[compare] DIFF ' + JSON.stringify(d)));
+      await new Promise(r => setTimeout(r, 5));
+      console.log('[compare] SUMMARY ' + JSON.stringify(report));
       return Response.json({ ...report, disagreements });
     }
 
