@@ -1,0 +1,44 @@
+{
+  "name": "Emerging signals dry run on Haiku 5.5 (one-off)",
+  "description": "One-off DRY RUN (test_flag) of detectEmergingSignals on Haiku 5.5. No cluster writes. Archive after use.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 1,
+      "interval_unit": "days",
+      "interval_anchor": null,
+      "ends_type": "after_count",
+      "ends_on_date": null,
+      "ends_after_count": 1
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "test_flag": true,
+              "triggered_by": "schedule"
+            },
+            "function_name": "detectEmergingSignals"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "emerging_signals_dry_run",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
