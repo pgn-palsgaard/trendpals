@@ -258,6 +258,40 @@
     "image_url": {
       "type": "string"
     },
+    "mintel_citations": {
+      "type": "array",
+      "description": "Mintel reports that cite THIS GNPD record (matched exactly on the GNPD record link in the report PDF). Analyst-validated evidence: never removed by automated re-audits.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "report_title": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "page": {
+            "type": "number"
+          },
+          "section_headline": {
+            "type": "string",
+            "description": "Mintel's page headline the product sits under"
+          },
+          "analyst_text": {
+            "type": "string",
+            "description": "Mintel's own description of the product in the report"
+          },
+          "mapped_trend_id": {
+            "type": "string",
+            "description": "TrendPals trend the section maps to, if any"
+          },
+          "cited_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      }
+    },
     "mintel_record_url": {
       "type": "string"
     },
