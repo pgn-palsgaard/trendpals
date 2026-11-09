@@ -71,8 +71,8 @@ Respond ONLY with JSON:
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 200,
+        model: 'claude-haiku-5-5',
+        max_tokens: 800,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -81,7 +81,7 @@ Respond ONLY with JSON:
   }
   if (!res.ok) throw new Error(`Validation API error ${res.status}`);
   const data = await res.json();
-  const raw = (data.content?.[0]?.text || '').trim();
+  const raw = ((data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '').trim();
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) return { verdict: 'NOT_SUPPORT', confidence_score: 0, reasoning: 'Parse error' };
   return JSON.parse(match[0]);

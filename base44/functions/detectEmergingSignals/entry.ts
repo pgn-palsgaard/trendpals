@@ -70,7 +70,7 @@ async function callHaiku(prompt, maxTokens) {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-haiku-4-5',
+      model: 'claude-haiku-5-5',
       max_tokens: maxTokens,
       messages: [{ role: 'user', content: prompt }],
     }),
@@ -80,7 +80,7 @@ async function callHaiku(prompt, maxTokens) {
     throw new Error(`Haiku API ${res.status}: ${errText.slice(0, 200)}`);
   }
   const data = await res.json();
-  const rawText = data.content?.[0]?.text || '';
+  const rawText = (data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '';
   const usage = data.usage || { input_tokens: 0, output_tokens: 0 };
   return { rawText, usage };
 }

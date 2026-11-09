@@ -322,7 +322,7 @@ Deno.serve(async (req) => {
       method: 'POST',
       headers: claudeHeaders,
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-5-5',
         max_tokens: 8000,
         system: systemPrompt,
         messages: [{ role: 'user', content: messageContent }]
@@ -343,7 +343,7 @@ Deno.serve(async (req) => {
     }
 
     const claudeData = await claudeResponse.json();
-    const rawText = claudeData.content?.[0]?.text || '';
+    const rawText = (claudeData.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '';
 
     // Parse JSON — strip markdown fences if present
     let parsed;

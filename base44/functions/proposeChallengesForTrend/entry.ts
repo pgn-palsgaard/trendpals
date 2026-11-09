@@ -17,13 +17,13 @@ async function callClaude(apiKey, prompt) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-5-5',
       max_tokens: 2000,
       messages: [{ role: 'user', content: prompt }]
     })
   });
   const data = await res.json();
-  return data.content?.[0]?.text || '';
+  return (data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '';
 }
 
 Deno.serve(async (req) => {

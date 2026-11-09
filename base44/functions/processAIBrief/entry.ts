@@ -44,7 +44,7 @@ IMPORTANT RULES:
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5',
+        model: 'claude-sonnet-5-5',
         max_tokens: 1000,
         system: systemPrompt,
         messages: messages
@@ -57,7 +57,7 @@ IMPORTANT RULES:
     }
 
     const data = await response.json();
-    return Response.json({ reply: data.content?.[0]?.text || '' });
+    return Response.json({ reply: (data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '' });
 
   } catch (error) {
     return Response.json({ error: error.message }, { status: 500 });

@@ -96,13 +96,13 @@ Return ONLY valid JSON: {"category": "key", "confidence": 90, "reasoning": "one 
           method: 'POST',
           headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
           body: JSON.stringify({
-            model: 'claude-haiku-4-5',
-            max_tokens: 100,
+            model: 'claude-haiku-5-5',
+            max_tokens: 600,
             messages: [{ role: 'user', content: prompt }],
           }),
         });
         const data = await response.json();
-        const raw = (data.content?.[0]?.text || '').trim();
+        const raw = ((data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '').trim();
         const jsonText = raw.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
         const parsed = JSON.parse(jsonText);
         const key = (parsed.category || '').trim().toLowerCase().replace(/[^a-z_]/g, '');

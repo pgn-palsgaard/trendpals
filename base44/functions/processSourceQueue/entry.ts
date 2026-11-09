@@ -98,8 +98,8 @@ Return JSON: { "proceed": boolean, "confidence": "high" | "low", "reason": "one 
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 256,
+        model: 'claude-haiku-5-5',
+        max_tokens: 800,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -109,7 +109,7 @@ Return JSON: { "proceed": boolean, "confidence": "high" | "low", "reason": "one 
     }
     const data = await res.json();
     usage = data.usage || null;
-    const rawText = data.content?.[0]?.text || '';
+    const rawText = (data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '';
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return { error: 'pre_gate: no JSON in response', usage };
     let parsed;
@@ -430,7 +430,7 @@ Deno.serve(async (req) => {
           triggered_by_user: user?.email || 'automation',
           status: 'running',
           started_at: runStartedAt.toISOString(),
-          agent_model: 'claude-sonnet-4-5',
+          agent_model: 'claude-sonnet-5-5',
         });
 
         try {
@@ -518,7 +518,7 @@ Return ONLY a JSON object with this structure:
                 'content-type': 'application/json',
               },
               body: JSON.stringify({
-                model: 'claude-sonnet-4-5',
+                model: 'claude-sonnet-5-5',
                 max_tokens: 8192,
                 messages: [{ role: 'user', content: attemptPrompt }],
               }),
@@ -531,7 +531,7 @@ Return ONLY a JSON object with this structure:
             await sleep(4000);
           }
           if (!anthropicData) throw lastErr;
-          const rawText = anthropicData.content?.[0]?.text || '';
+          const rawText = (anthropicData.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '';
           const jsonMatch = rawText.match(/\{[\s\S]*\}/);
           if (!jsonMatch) throw new Error('No JSON found in Anthropic response');
           const result = JSON.parse(jsonMatch[0]);

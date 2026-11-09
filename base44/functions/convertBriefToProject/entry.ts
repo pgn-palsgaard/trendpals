@@ -39,14 +39,14 @@ async function callClaude(apiKey, systemPrompt, userContent) {
       "anthropic-version": "2023-06-01"
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5",
-      max_tokens: 400,
+      model: "claude-haiku-5-5",
+      max_tokens: 1200,
       system: systemPrompt,
       messages: [{ role: "user", content: userContent }]
     })
   });
   const data = await response.json();
-  return data.content?.[0]?.text || "";
+  return (data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || "";
 }
 
 Deno.serve(async (req) => {

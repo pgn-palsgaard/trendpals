@@ -214,13 +214,13 @@ Matched: ${matchedKeywords.join(', ')}
 Is this product genuine evidence of this trend? Respond with JSON only.`;
 
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5',
-      max_tokens: 400,
+      model: 'claude-sonnet-5-5',
+      max_tokens: 1200,
       system: LLM_SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }]
     });
 
-    const text = response.content[0]?.text?.trim() || '';
+    const text = (response.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n').trim() || '';
     const jsonText = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
     const parsed = JSON.parse(jsonText);
     return { verdict: parsed.verdict, confidence_score: parsed.confidence_score, reasoning: parsed.reasoning };

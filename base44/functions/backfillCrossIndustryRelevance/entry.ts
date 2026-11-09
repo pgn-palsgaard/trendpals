@@ -23,14 +23,14 @@ async function callClaude(prompt) {
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 400,
+      model: 'claude-sonnet-5-5',
+      max_tokens: 1200,
       messages: [{ role: 'user', content: prompt }],
     }),
   });
   if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  return data.content?.[0]?.text || '';
+  return (data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '';
 }
 
 function parseJson(text) {

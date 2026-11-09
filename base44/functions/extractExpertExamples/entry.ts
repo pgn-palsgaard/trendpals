@@ -131,7 +131,7 @@ async function callAnthropicExtraction(apiKey, content, sourceTitle) {
       'content-type': 'application/json',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5',
+      model: 'claude-sonnet-5-5',
       max_tokens: 16000,
       system: EXTRACTION_SYSTEM_PROMPT,
       messages: [{
@@ -145,7 +145,7 @@ async function callAnthropicExtraction(apiKey, content, sourceTitle) {
     throw new Error(`Anthropic API error ${res.status}: ${err.slice(0, 200)}`);
   }
   const data = await res.json();
-  const raw = data.content?.[0]?.text || '';
+  const raw = (data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '';
   const cleaned = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '').trim();
   const start = cleaned.indexOf('[');
   if (start === -1) throw new Error('No JSON array in extraction response');
@@ -213,8 +213,8 @@ Respond ONLY with JSON:
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-haiku-4-5',
-        max_tokens: 200,
+        model: 'claude-haiku-5-5',
+        max_tokens: 800,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -223,7 +223,7 @@ Respond ONLY with JSON:
   }
   if (!res.ok) throw new Error(`Validation API error ${res.status}`);
   const data = await res.json();
-  const raw = (data.content?.[0]?.text || '').trim();
+  const raw = ((data.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n') || '').trim();
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) return { verdict: 'NOT_SUPPORT', confidence_score: 0, reasoning: 'Parse error' };
   return JSON.parse(match[0]);
