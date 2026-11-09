@@ -28,9 +28,10 @@
             "args": {
               "category": "bakery",
               "mode": "compare_models",
-              "sample_size": 100,
+              "sample_size": 50,
               "since": "2026-11-02T00:00:00",
-              "source": "scheduled_resume"
+              "source": "scheduled_resume",
+              "time_budget_ms": 60000
             },
             "function_name": "revalidatePendingTrendLinks"
           }
