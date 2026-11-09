@@ -117,6 +117,10 @@
         "general"
       ]
     },
+    "evidence_test": {
+      "type": "string",
+      "description": "What a product must visibly show (in name, claims or description) to count as evidence for this trend, calibrated on the products Mintel itself cites. Used by the trend-linking validator."
+    },
     "trend_keywords": {
       "type": "array",
       "items": {
