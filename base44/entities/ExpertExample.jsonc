@@ -220,6 +220,10 @@
       "type": "string",
       "format": "date-time"
     },
+    "gnpd_record_id": {
+      "type": "string",
+      "description": "GNPD record ID of the cited product, taken from the hyperlink in the Mintel PDF. Joins to GNPDProduct.gnpd_record_id."
+    },
     "extracted_via_run_id": {
       "type": "string"
     }
