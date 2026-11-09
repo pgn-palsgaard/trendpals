@@ -1,6 +1,6 @@
 {
-  "name": "GNPD re-audit auto-applied links (Haiku 5.5)",
-  "description": "Re-audits auto-applied GNPD trend links validated before 9 Nov 2026 with Haiku 5.5 (same buckets as triage). Scoped by category/regions; change args to move on. Capped runs.",
+  "name": "GNPD rejudge bakery MEA (Mintel rule)",
+  "description": "Re-judges every bakery trend candidate in MENA + Sub-Saharan Africa against the Mintel-calibrated rule (9 Nov 2026). Approved/Mintel-cited links untouched. Resumable via trend_rejudged_at.",
   "trigger": {
     "condition": null,
     "config": {
@@ -27,12 +27,15 @@
           "with": {
             "args": {
               "category": "bakery",
-              "mode": "reaudit_auto_applied",
+              "cutoff": "2026-11-09T12:40:00",
+              "dry_run": true,
+              "mode": "rejudge_category",
               "regions": [
                 "mena",
                 "sub_saharan_africa"
               ],
-              "source": "scheduled_resume"
+              "source": "scheduled_resume",
+              "time_budget_ms": 40000
             },
             "function_name": "revalidatePendingTrendLinks"
           }
@@ -41,7 +44,7 @@
     ],
     "document": {
       "dsl": "1.0.0",
-      "name": "gnpd_reaudit_auto_applied",
+      "name": "gnpd_rejudge_bakery_mea",
       "namespace": "base44",
       "version": "1.0"
     }
