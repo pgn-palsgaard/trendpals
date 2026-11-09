@@ -258,6 +258,11 @@
     "image_url": {
       "type": "string"
     },
+    "trend_rejudged_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When rejudge_category last re-judged ALL of this product's trend candidates against the current rule (Mintel-calibrated, 9 Nov 2026). Used to resume the sweep."
+    },
     "mintel_citations": {
       "type": "array",
       "description": "Mintel reports that cite THIS GNPD record (matched exactly on the GNPD record link in the report PDF). Analyst-validated evidence: never removed by automated re-audits.",
