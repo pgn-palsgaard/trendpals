@@ -1,0 +1,987 @@
+{
+  "name": "Mintel citations bakery apply",
+  "description": "One-off: writes Mintel citations (exact GNPD record match) to 72 bakery products and locks 28 section-mapped trend links as approved (reviewed_by mintel_citation).",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 24,
+      "interval_unit": "hours",
+      "interval_anchor": null,
+      "ends_type": "after_count",
+      "ends_on_date": null,
+      "ends_after_count": 1
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "items": [
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Pistachio-flavoured beignets Moi By Mademoiselle Desserts Pistachio Mini-Beignetsreimagine the classic French beignet in a mini format filled with pistachio cream, bridging patisserie tradition with p",
+                      "page": 4,
+                      "section_headline": "Our pick of the most innovative launches in this review",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    },
+                    {
+                      "analyst_text": "Beignets Moi By Mademoiselle Desserts Pistachio Mini-Beignetsreimagine the classic French beignet in a mini format filled with pistachio cream, bridging patisserie tradition with portionable indulgenc",
+                      "mapped_trend_id": "6a7ae020174e988c982f8751",
+                      "page": 13,
+                      "section_headline": "Brands bring pistachio flavours into classic pastries",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13615602",
+                  "lock_trend_ids": [
+                    "6a7ae020174e988c982f8751"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Viral butter rice cake Billy Angel Butter Tteoktaps into the viralSouth Korean butter rice cake trend. The glutinous butter rice cake creates a chewy centre and is contained in a crisp exterior. It fe",
+                      "page": 4,
+                      "section_headline": "Our pick of the most innovative launches in this review",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    },
+                    {
+                      "analyst_text": "This modern take on South Korean rice cake combines glutinous rice cake with butter and is baked instead of traditionally steamed, creating a Billy Angel Butter Tteok crispy exterior and chewy centre.",
+                      "mapped_trend_id": "6a7ae143600daa43da1d2be7",
+                      "page": 18,
+                      "section_headline": "Brands experiment with layered and contrasting textures",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "14292868",
+                  "lock_trend_ids": [
+                    "6a7ae143600daa43da1d2be7"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "5g of protein for breakfast Evergreen Blueberry Thick & Fluffy Wafflesdeliver 5g of protein per serving. 100% wholegrain, individually wrapped frozen waffles made with hidden veggies, wild blueberries",
+                      "page": 4,
+                      "section_headline": "Our pick of the most innovative launches in this review",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    },
+                    {
+                      "analyst_text": "Waffles with 5g protein Evergreen Blueberry Thick & Fluffy Wafflesdeliver 5g of protein per serving. 100% wholegrain, individually wrapped frozen waffles made with hidden veggies, wild blueberries and",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70864",
+                      "page": 29,
+                      "section_headline": "Breakfast staples gain a protein boost",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13816850",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70864"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Pur\u00e9ed cake Care Food Co Lemon & Coconut Cakeis an IDDSI Level 4 pureed dessert for people with dysphagia. Its piping bag format helps caregivers dispense attractive, plate-ready portions with a brigh",
+                      "page": 5,
+                      "section_headline": "Other innovative launches",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "14216482"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Pistachio and raspberry pieces Black Milk Pistachio Cream & White Chocolate Cakeis a triple-layer madeira sponge filled with raspberry jam, topped with pistachio and freeze-dried raspberry pieces for ",
+                      "mapped_trend_id": "6a7ae143600daa43da1d2be7",
+                      "page": 10,
+                      "section_headline": "Brands broaden chunky textures with healthier inclusions",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13684984",
+                  "lock_trend_ids": [
+                    "6a7ae143600daa43da1d2be7"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Napoleon cakes Marlenka Napoleon Cakes with Pistachio Cream Fillingtransforms a traditional Eastern European layered pastry into modern, flavour- forward indulgence by reimagining it with a pistachio ",
+                      "mapped_trend_id": "6a7ae020174e988c982f8751",
+                      "page": 13,
+                      "section_headline": "Brands bring pistachio flavours into classic pastries",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13921418",
+                  "lock_trend_ids": [
+                    "6a7ae020174e988c982f8751"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "'Trans Fat Free Turkey' logo Geward's Cocoa Filled and Cocoa Coated Cake with Milky Figure displays the 'Trans Fat Free Turkey' logo on its packaging, offering consumers an indulgent cocoa-layered tre",
+                      "page": 14,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13533414"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Zero trans fat Wao Custard Piecontains zero trans fat and 30% egg content, delivering an indulgent, creamy custard filling in a convenient, shelf- stable individually wrapped format. Achocolatevariant",
+                      "page": 14,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13459684"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Chocolate variant of Wao Custard Pie (zero trans fat, 30% egg content)",
+                      "page": 14,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13459686"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Without hydrogenated fats G\u00e2touty Plain Ready-to-Fill Sponge Cakecontains three pre-cut cake slices made without palm oil or hydrogenated fats, allowing home bakers to customise indulgent layered cake",
+                      "page": 14,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13612352"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Multiple layers Tangjiu Convenience Chocolate Crunch Cakelayers a soft, pillowy sponge with crispy mille-feuille pastry to deliver distinct textural contrasts with a rich chocolate aroma in every bite",
+                      "mapped_trend_id": "6a7ae143600daa43da1d2be7",
+                      "page": 18,
+                      "section_headline": "Brands experiment with layered and contrasting textures",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "14272348",
+                  "lock_trend_ids": [
+                    "6a7ae143600daa43da1d2be7"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "With crispy popping beads YH Bakery Oreo Classic Cocoa Flavour and Matcha Flavour Swiss Roll Cakepairs a soft sponge roll cake with whipping cream and crispy popping beads to create a multi-textural b",
+                      "mapped_trend_id": "6a7ae143600daa43da1d2be7",
+                      "page": 18,
+                      "section_headline": "Brands experiment with layered and contrasting textures",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "14287654",
+                  "lock_trend_ids": [
+                    "6a7ae143600daa43da1d2be7"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Textures from two cultures Tokachi Cream Chocolate and Kunafa Pistachio Dorayakilayers a soft, pillowy Japanese pancake with rich chocolate cream and crispy kunafa strands studded with pistachio, crea",
+                      "mapped_trend_id": "6a7ae143600daa43da1d2be7",
+                      "page": 18,
+                      "section_headline": "Brands experiment with layered and contrasting textures",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "14294258",
+                  "lock_trend_ids": [
+                    "6a7ae143600daa43da1d2be7"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Black tea Muji Black Tea Chocolate Coated Soy Milk Baumkuchenis a limited- edition treat pairing a dense, soft soy-milk-flavoured baumkuchen with a rich, smooth black tea chocolate coating, bringing l",
+                      "page": 21,
+                      "section_headline": "Brands bring local tea flavours into sweet baked goods",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "14237840"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Matcha Hema Matcha Waterfall Cakefeatures a runny matcha centre, yogurt mousse and matcha-bamboo-flavoured cake base, made with premium Guizhou high-mountain 1,000-mesh matcha tea powder and dairy cre",
+                      "page": 21,
+                      "section_headline": "Brands bring local tea flavours into sweet baked goods",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "14163726"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Bite-sized dessert Petite Cuisine Sticky Date Bites with a Toffee Caramel Centre reinvent sticky date pudding into 30 bite-sized snacks, each with a molten toffee caramel centre. Air-fryer and oven-re",
+                      "page": 22,
+                      "section_headline": "Australia & New Zealand",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13615124"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Mardi Gras Sendik's Food Market Paczki Variety Packfeatures an assortment of traditional Polish-style donuts for Mardi Gras celebration, offering a shareable indulgence for gatherings (US).",
+                      "page": 26,
+                      "section_headline": "Cultural celebrations widen seasonal opportunities",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13866766"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "St. Patrick's Day Favorite Day Bakery St. Patrick's Day Chocolate & Vanilla Assorted Mini Cupcakesfeature festive designs for St Patrick's Day celebrations, offering a fun seasonal treat for parties a",
+                      "page": 26,
+                      "section_headline": "Cultural celebrations widen seasonal opportunities",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13861330"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "French toast with 12g protein Bettergoods Cinnamon French Toast Protein Sticksdeliver 12g of protein per serving. Naturally flavoured, microwaveable wholewheat sticks that offer the indulgent taste of",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70864",
+                      "page": 29,
+                      "section_headline": "Breakfast staples gain a protein boost",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13725340",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70864"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Pancakes with 13g protein Eggo Blueberry Protein Pancakesdeliver 13g of complete protein per serving, along with eight vitamins and minerals. These pancakes are microwaveable, offering a convenient so",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70864",
+                      "page": 29,
+                      "section_headline": "Breakfast staples gain a protein boost",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "13998776",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70864"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "d2w biodegradable plastic Marinela Ping\u00fcinos Cakefeatures new limited-edition packaging designed for the 2026 World Cup, made from d2w polypropylene plastic (Mexico).",
+                      "mapped_trend_id": "6a7ae143473e8c8761890289",
+                      "page": 31,
+                      "section_headline": "Brands step up biodegradable packaging claims",
+                      "source_id": "6a3d00041e6c69de10979059"
+                    }
+                  ],
+                  "gnpd_record_id": "14174510",
+                  "lock_trend_ids": [
+                    "6a7ae143473e8c8761890289"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Provides a taste of India Biskut-Bar Vegan Turmeric Biscuits with Candied Fennel Seedsis inspired by the traditional Indian drink Haldi dudh (turmeric milk). The biscuits retail in a plastic-free tub,",
+                      "page": 4,
+                      "section_headline": "Our pick of the most innovative launches in this review",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    },
+                    {
+                      "analyst_text": "Turmeric biscuits with candied fennel seed Biskut-Bar Vegan Turmeric Biscuits with Candied Fennel Seedsis inspired by the traditional Indian drink Haldi dudh (turmeric milk). The biscuits retail in a ",
+                      "mapped_trend_id": "6a7ae020174e988c982f8751",
+                      "page": 10,
+                      "section_headline": "Biscuit brands respond to adventurous taste buds through global flavours",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13661214",
+                  "lock_trend_ids": [
+                    "6a7ae020174e988c982f8751"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Multisensory appeal Pico Food Bubble Gum Cookies with Popping Candycomprise shortbread cookies with cream filling, bubblegum flavour milk glaze, and popping candy (Slovenia).",
+                      "mapped_trend_id": "6a7ae143600daa43da1d2be7",
+                      "page": 5,
+                      "section_headline": "Other innovative launches",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13615332",
+                  "lock_trend_ids": [
+                    "6a7ae143600daa43da1d2be7"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Innovative flavour We Sweet Coriander Flavoured Macaronis described as having an innovative flavour, and being refreshing (China).",
+                      "page": 5,
+                      "section_headline": "Other innovative launches",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13678268"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "\"Crunch time\" Ryvita Snack iT Wheat & Rye Flatbread With Prawn Cocktail Flavouring are described as \"an oh-so-perfectly prawny-flavour-packed Ryvita snack\". It features 31 calories per thin (UK).",
+                      "page": 12,
+                      "section_headline": "Brands tap into the snacking occasion",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13607164"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "\"Snack mindfully\" logo Tuc Bake Rolls with Sour Cream & Onion Flavourcomprises thin, crispy, oven-baked bread chips (Sweden).",
+                      "page": 12,
+                      "section_headline": "Brands tap into the snacking occasion",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13635410"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "\"You can take it to the table or the couch\" Gran Pavesi Salty Cracker without Grains of Salt on the Surface are said to be super-crispy and super-crunchy, with an \"with an inimitable flavour\" (Romania",
+                      "page": 12,
+                      "section_headline": "Brands tap into the snacking occasion",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13666000"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Traditional Middle Eastern biscuits Qabalan Bakery Mamoul with Olive Oilare said to be made from premium ingredients, including date paste and olive oil. The traditional biscuits are freshly baked and",
+                      "mapped_trend_id": "6a7ae020174e988c982f8751",
+                      "page": 13,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13640626",
+                  "lock_trend_ids": [
+                    "6a7ae020174e988c982f8751"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Made with local ingredients from Tanzania Cocozania Coconut Biscuitsare described as 100% yummy and local. These carefully handcrafted biscuits are said to be irresistible (Tanzania).",
+                      "mapped_trend_id": "6a7ae020174e988c982f8751",
+                      "page": 13,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13523246",
+                  "lock_trend_ids": [
+                    "6a7ae020174e988c982f8751"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Made with Traditional Chinese Medicine ingredients Dingfu/Ding Fu Goji Berry Mulberry Euryale Seed Biscuitscontain goji berry, mulberry, euryale seed and wheat. They are said to be nourishing, delicio",
+                      "page": 17,
+                      "section_headline": "Brands launch nourishing biscuits to appeal to health-conscious consumers",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13667142"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Piri-piri-flavoured biscuits Parle Monaco Piri Piri Biscuitsretail in individual packs that are suitable for \"travelling, music time, TV time, movie time or party time\" (India).",
+                      "page": 20,
+                      "section_headline": "Savoury biscuit/cracker brands cater to consumers seeking familiar flavours with a unique twist",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13575856"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Eggnog-flavoured cookies Pepperidge Farm Holiday Nog Distinctive Cookiesare crafted with rich eggnog flavour, cage-free eggs, real vanilla beans and cinnamon. They are free from artificial preservativ",
+                      "page": 25,
+                      "section_headline": "Sweet biscuits/crackers with holiday-inspired flavours",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13587064"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Limited-edition pumpkin spice crackers Lesley Stowe Raincoast Crisps Pumpkin Spice Crackersare made with care in small batches using the finest ingredients, and are said to be a \"crispy conversation s",
+                      "page": 25,
+                      "section_headline": "Sweet biscuits/crackers with holiday-inspired flavours",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13592484"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "\"Only purposeful ingredients\" Simple Mills Himalayan Salt Pita Crackersclaim to contain \"nothing artificial ever\", and are made from a nutritious veggie flour blend comprising sweet potato, parsnip, a",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70863",
+                      "page": 28,
+                      "section_headline": "Cracker brands highlight clean ingredient recipes",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13619354",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70863"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "\"Simple joys, no regrets, happy days\" Back to Nature Mini Garlic & Herb Seasoned Crackersare made with \"honest-to-goodness ingredients\", and are free from high-fructose corn syrup, artificial colours ",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70863",
+                      "page": 28,
+                      "section_headline": "Cracker brands highlight clean ingredient recipes",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13570330",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70863"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "\"Made with diet-friendly wholegrains\" Rice Up Brown Rice Cakes with Chia and Quinoaare vegan, all- natural, and only contains 26 calories per cake. They are described as \"extremely crispy\" (Venezuela)",
+                      "page": 31,
+                      "section_headline": "Vegan and plant-based crackers focus on positive nutrition",
+                      "source_id": "6a26b009388ab0a8d840d150"
+                    }
+                  ],
+                  "gnpd_record_id": "13697296"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Brands can broaden sourdough's appeal by combining its health credentials with indulgent flavour profiles. Jason's Sourdough Toastie (UK)",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70862",
+                      "page": 9,
+                      "section_headline": "Pair sourdough's health halo with convenience and fun",
+                      "source_id": "6a7b164a088bb0f6221de2f4"
+                    }
+                  ],
+                  "gnpd_record_id": "14519546",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70862"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Sch\u00e4r Gluten-Free Farmhouse Loaf with Sourdough (UK), fermented for 30 hours, aimed at 'real bread lovers'.",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70862",
+                      "page": 9,
+                      "section_headline": "Pair sourdough's health halo with convenience and fun",
+                      "source_id": "6a7b164a088bb0f6221de2f4"
+                    },
+                    {
+                      "analyst_text": "10% seeds Sch\u00e4r Gluten-Free Farmhouse Seeded Breadis a soft loaf made with 22% slowly fermented sourdough and hand-dipped in 10% crunchy seeds, including sunflower, millet, flax and poppy. This farmho",
+                      "page": 10,
+                      "section_headline": "Seeds boost fibre content in gluten-free bread",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13545124",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70862"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Kohberg Plus Balance (Denmark): cited as an example of bread highlighting fibre and protein sources.",
+                      "page": 11,
+                      "section_headline": "Both fibre and protein matter to bread consumers",
+                      "source_id": "6a7b164a088bb0f6221de2f4"
+                    }
+                  ],
+                  "gnpd_record_id": "13792938"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Misura Fibrextra Pan Avena Sesame, Beetroot and Carrot (Italy) emphasises its high fibre content sourced from vegetables.",
+                      "page": 11,
+                      "section_headline": "Both fibre and protein matter to bread consumers",
+                      "source_id": "6a7b164a088bb0f6221de2f4"
+                    }
+                  ],
+                  "gnpd_record_id": "14437384"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "M&S Food Japanese Style Half Milk Loaf (UK)",
+                      "page": 13,
+                      "section_headline": "East Meets West \u2013 and West Meets East",
+                      "source_id": "6a7b164a088bb0f6221de2f4"
+                    }
+                  ],
+                  "gnpd_record_id": "14239808"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Rowan Hill Bakery, Lidl's private label in the UK: bread packaging features a dashed line, suggesting consumers eat half the loaf now and freeze the rest.",
+                      "page": 17,
+                      "section_headline": "Leveraging freezing to extend bread freshness",
+                      "source_id": "6a7b164a088bb0f6221de2f4"
+                    }
+                  ],
+                  "gnpd_record_id": "14192276"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Ube Coconut bread from a collaboration with ice cream brand Van Leeuwen (US).",
+                      "page": 19,
+                      "section_headline": "Unexpected partnerships give bread a modern twist",
+                      "source_id": "6a7b164a088bb0f6221de2f4"
+                    }
+                  ],
+                  "gnpd_record_id": "14240854"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Wheat germ for gut health Lo Conte Le Farine Magiche Manitoba Style Pastry Flouris a premium flour with sprouted ancient wheat germ and natural vanilla, offering distinctive aroma, enhanced leavening,",
+                      "page": 5,
+                      "section_headline": "Other innovative launches",
+                      "source_id": "6a26b0097f07197f09918c1f"
+                    }
+                  ],
+                  "gnpd_record_id": "13788284"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Designed for air fryers Prymat Air Fryer Spicy Breading with Chilli for Nuggetsis a spicy breading mix designed specifically for making crispy, chilli-seasoned nuggets in an air fryer. It is also vers",
+                      "page": 5,
+                      "section_headline": "Other innovative launches",
+                      "source_id": "6a26b0097f07197f09918c1f"
+                    }
+                  ],
+                  "gnpd_record_id": "13790748"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Supports birthdays for children in need Leentjes Speculoos Flavour Cake Crumbscontain vegan and natural crispy cake crumbs with speculoos flavour. Leentjes partners with the Jarige Job Foundation to '",
+                      "page": 13,
+                      "section_headline": "Brands show support to meaningful causes",
+                      "source_id": "6a26b0097f07197f09918c1f"
+                    }
+                  ],
+                  "gnpd_record_id": "13760962"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Corn Yene Fortified Corn Flouris a premium-quality, finely milled flour that uses advanced Swiss technology and is enriched with essential vitamins and minerals to support everyday nutrition (Ethiopia",
+                      "page": 14,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a26b0097f07197f09918c1f"
+                    }
+                  ],
+                  "gnpd_record_id": "13674442"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Peanut BTC Marah Pure Crushed Peanutis a plant protein made from premium cold\u2011pressed peanuts with an intense roasted flavour. It provides high protein content and low fat content for balanced sweet o",
+                      "page": 14,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a26b0097f07197f09918c1f"
+                    }
+                  ],
+                  "gnpd_record_id": "13713836"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Sorghum Sona Agrovita Sorghum Blendis made from an organic blend of wholegrain sorghum and cassava starch. It is free from preservatives and gluten, making it an ideal natural ingredient for baking (N",
+                      "page": 14,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a26b0097f07197f09918c1f"
+                    }
+                  ],
+                  "gnpd_record_id": "13583976"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "On-the-go protein mix Premier Protein Chocolate Chip Protein Muffin Mix Cupis a single- serve muffin cup with 15g protein per serving, requiring only water and 90 seconds in the microwave. Bridges the",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70864",
+                      "page": 29,
+                      "section_headline": "Protein baking mixes expand into next-gen concepts",
+                      "source_id": "6a26b0097f07197f09918c1f"
+                    }
+                  ],
+                  "gnpd_record_id": "13628936",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70864"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Free-from protein mix Simple Truth Free From Chocolate Fudge Protein Brownie Mixdelivers 7g protein per serving from whole-grain oat flour, paired with semi- sweet chocolate chips. Its free-from claim",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70864",
+                      "page": 29,
+                      "section_headline": "Protein baking mixes expand into next-gen concepts",
+                      "source_id": "6a26b0097f07197f09918c1f"
+                    }
+                  ],
+                  "gnpd_record_id": "13756870",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70864"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Almond flour Karay Gluten-Free Bakery Flour Mixblends almond flour, rice flour, potato starch, cassava starch and plant-based protein, offering a gluten-free and plant-based mix for bakers seeking ver",
+                      "page": 32,
+                      "section_headline": "Baking mixes and sweeteners embrace plant-based ingredients",
+                      "source_id": "6a26b0097f07197f09918c1f"
+                    }
+                  ],
+                  "gnpd_record_id": "13652478"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Regenerative agriculture Pacha Organic & Gluten Free Multi-Seed Buckwheat Sourdough Bread Loafis a flourless loaf made with just six ingredients, including buckwheat. The buckwheat is sourced from a r",
+                      "page": 5,
+                      "section_headline": "Other innovative launches",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13611772"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "High-protein performance fuel Harus Protein Cheese Breadis a gluten-free, frozen cheese bread enriched with whey protein isolate, delivering 17g of protein per pack with zero trans fat, designed as a ",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70864",
+                      "page": 5,
+                      "section_headline": "Other innovative launches",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "14306198",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70864"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "8% seeds Genius Gluten Free Five Seed Loafis a natural high-fibre bread featuring 8% mixed seeds (sunflower, millet, poppy, golden and brown linseed), delivering a soft centre with a satisfying crunch",
+                      "page": 10,
+                      "section_headline": "Seeds boost fibre content in gluten-free bread",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13639294"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "88% seeds H&B High Fibre Super Seed Spinach Crispbreadsfeature nutritionist- led breads packed with 88% seeds, including pumpkin, sunflower, flax and sesame, blended with oats, psyllium husk and dried",
+                      "page": 10,
+                      "section_headline": "Seeds boost fibre content in gluten-free bread",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13650710"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Chilli Despar Premium Crispy Flatbread with Chilliis crafted by a family-run Piedmontese bakery with over 160 years of tradition, combining wheat flour, 10% extra virgin olive oil and a kick of chilli",
+                      "page": 13,
+                      "section_headline": "Private labels build premium appeal through bold flavours",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13769282"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Rich in fibre Woolworths Seeded Breadis a vegan, low-fat bread crafted with an active sourdough culture and a nutrient-rich mix of sunflower seeds, sesame seeds and linseeds, delivering 10.2g of dieta",
+                      "page": 14,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13938442"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "With antioxidants and prebiotics Earth Origin Cinnamon & Date Whole Wheat Breadis infused with antioxidant-rich dates and metabolism-supporting cinnamon, fortified with prebiotic inulin to promote dig",
+                      "page": 14,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13795358"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "3g protein Spinneys Food Free From Gluten & Wheat Free Olive Sticks are savoury vegan snack sticks made with gluten-free ingredients, delivering 3g of protein and zero sugar per serving, perfect for d",
+                      "page": 14,
+                      "section_headline": "The Middle East & Africa (MEA)",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13427508"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Smooth and soft Karachi Bakery Butter Bunturns the viralbun maska-chai cafe ritual into an on-the-go format, pairing soft bread with smooth butter for a convenient teatime snack (India).",
+                      "mapped_trend_id": "6a7ae143600daa43da1d2be7",
+                      "page": 18,
+                      "section_headline": "Textures elevate butter's indulgent appeal",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13580730",
+                  "lock_trend_ids": [
+                    "6a7ae143600daa43da1d2be7"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Gooey and dense Lawson Butter Potato Bunbrings comfort-food cues to bread, combining a realistic potato-shaped format with a soft, gooey outer layer and dense, buttery mashed potato filling. It is bes",
+                      "mapped_trend_id": "6a7ae143600daa43da1d2be7",
+                      "page": 18,
+                      "section_headline": "Textures elevate butter's indulgent appeal",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "14293156",
+                  "lock_trend_ids": [
+                    "6a7ae143600daa43da1d2be7"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Chewy A-my Chewy Butter Breadcombines butter with sweetened condensed milk, creating a dense, chewy texture that sets it apart from typical butter breads. It appeals to Thai consumers who prioritiseun",
+                      "mapped_trend_id": "6a7ae143600daa43da1d2be7",
+                      "page": 18,
+                      "section_headline": "Textures elevate butter's indulgent appeal",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13695498",
+                  "lock_trend_ids": [
+                    "6a7ae143600daa43da1d2be7"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Pasco Snack Pan Tokachi Butter Bread Stick (Japan)",
+                      "page": 19,
+                      "section_headline": "Brand renovation/innovation: Pasco lets consumers choose butter for its new launch",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13986804"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Olivoila's extra virgin olive oil Popothing Original Ciabatta Breadfeatures Olivoila's cold-pressed extra virgin olive oil and acacia honey, delivering an aromatic, subtly sweet taste with a moist, su",
+                      "page": 21,
+                      "section_headline": "Brands elevate flavour and aromatic appeal through condiment collaborations",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "14165798"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Olive oil and grain-free flours Lucy's Burger Bunscombine sorghum flour, brown rice flour, psyllium husk and olive oil, delivering the taste and texture of regular burger buns without gluten, dairy or",
+                      "page": 22,
+                      "section_headline": "Australia & New Zealand",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13672502"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Vegetable oil and pea protein Brioche Gourmet Plant-Based Brioche Burger Bunsreplace egg and butter, typical of traditional brioche, with plant-based alternatives, vegetable oil and pea protein, while",
+                      "page": 22,
+                      "section_headline": "Australia & New Zealand",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13973372"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Rice flour Promise Gluten Free Traditional Naan Breadsare gluten-free and vegan, made with a blend of rice flour and wholegrain corn flour, combined with tapioca and potato starches to create a soft, ",
+                      "page": 26,
+                      "section_headline": "Wheat-free breads lean on emerging flours",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13906504"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Buckwheat flour Heaven Gluten-Free Bakery Caraway Sourdough Loafis an artisanal loaf made with buckwheat, millet, arrowroot and tiger nut flours. Free from refined sugar, seed oils and gums, it reflec",
+                      "page": 26,
+                      "section_headline": "Wheat-free breads lean on emerging flours",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "14156938"
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Artisanal technique Izzio Artisan Bakery Organic Sprouted Seeds Sourdoughcontains 100% traceable, non-enriched flour from local farmers and millers. Crafted in small batches through slow fermentation,",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70863",
+                      "page": 29,
+                      "section_headline": "Organic launches lean into simple ingredients and artisanal methods",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13710854",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70863"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Base Culture Classic Sourdough Bread (US): minimally processed, non-GMO, certified by the Clean Label Project, positioned as both 'clean' and functionally relevant (gut-friendly).",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70862",
+                      "page": 30,
+                      "section_headline": "Brand renovation/innovation: Base Culture launches gut-friendly organic breads",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13728878",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70862"
+                  ]
+                },
+                {
+                  "citations": [
+                    {
+                      "analyst_text": "Base Culture Ancient Grain Bread (US): minimally processed, non-GMO, certified by the Clean Label Project, positioned as both 'clean' and functionally relevant (gut-friendly).",
+                      "mapped_trend_id": "6a22c9c1435c3fc217c70862",
+                      "page": 30,
+                      "section_headline": "Brand renovation/innovation: Base Culture launches gut-friendly organic breads",
+                      "source_id": "6a3d00043ee3660c35fa64c8"
+                    }
+                  ],
+                  "gnpd_record_id": "13728880",
+                  "lock_trend_ids": [
+                    "6a22c9c1435c3fc217c70862"
+                  ]
+                }
+              ],
+              "mode": "apply",
+              "source": "scheduled_resume",
+              "source_titles": {
+                "6a26b009388ab0a8d840d150": "A Year of Innovation in Biscuits, Cookies and Crackers, 2026",
+                "6a26b0097f07197f09918c1f": "A Year of Innovation in Baking Ingredients and Sugar, 2026",
+                "6a3d00041e6c69de10979059": "A Year of Innovation in Cakes, Pastries and Sweet Goods, 2026",
+                "6a3d00043ee3660c35fa64c8": "A Year of Innovation in Bread & Bread Products, 2026",
+                "6a7b164a088bb0f6221de2f4": "THE FUTURE OF BREAD & BREAD PRODUCTS: 2026"
+              }
+            },
+            "function_name": "applyMintelCitations"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "mintel_citations_bakery",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
