@@ -313,8 +313,8 @@ Deno.serve(async (req) => {
       const src = ex.source_id ? (await S.Source.filter({ id: ex.source_id }))[0] : null;
       const chunks = (src?.mintel_chunks || []).map(c => typeof c === 'string' ? c : (c.text || c.content || '')).join('\n\n').slice(0, 12000);
       const prod = (await S.GNPDProduct.filter({ gnpd_record_id: '14714124' }))[0] || {};
-      const pdfSrc = (await S.Source.filter({ file_url: { $regex: '\\.pdf$' }, source_type: { $ne: 'gnpd' } }, '-created_date', 15))
-        .find(s => s.file_url);
+      // One small record only: full Source rows carry large chunk/excerpt arrays.
+      const pdfSrc = (await S.Source.filter({ file_url: { $regex: '\\.pdf$' }, source_type: { $ne: 'gnpd' }, title: { $regex: 'patent|trending', $options: 'i' } }, '-created_date', 1))[0] || null;
       async function call(name, model, max_tokens, system, content, extraHeaders = {}, expect = 'json') {
         const t0 = Date.now();
         try {
@@ -345,7 +345,7 @@ Deno.serve(async (req) => {
         try {
           const r = await fetch(pdfSrc.file_url);
           const buf = new Uint8Array(await r.arrayBuffer());
-          if (buf.length < 4_000_000) {
+          if (buf.length < 1_500_000) {
             let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
             pdfB64 = btoa(bin); pdfNote = `${pdfSrc.title} (${Math.round(buf.length / 1024)} KB)`;
           } else pdfNote = `skipped: ${pdfSrc.title} is ${Math.round(buf.length / 1048576)} MB`;
