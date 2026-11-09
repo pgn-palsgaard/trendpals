@@ -80,7 +80,9 @@ Only include trends with relevance_score >= 50. Return an empty array [] if none
     let proposals;
     try {
       const cleaned = raw.replace(/```json|```/g, '').trim();
-      proposals = JSON.parse(cleaned);
+      // Tolerate a sentence before/after the array (newer models occasionally add one).
+      const a = cleaned.indexOf('['), b = cleaned.lastIndexOf(']');
+      proposals = JSON.parse(a !== -1 && b > a ? cleaned.slice(a, b + 1) : cleaned);
     } catch (e) {
       return Response.json({ error: 'LLM returned unparseable JSON', raw: raw.slice(0, 500) }, { status: 500 });
     }

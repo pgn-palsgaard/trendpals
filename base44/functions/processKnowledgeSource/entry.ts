@@ -349,7 +349,9 @@ Deno.serve(async (req) => {
     let parsed;
     try {
       const jsonMatch = rawText.match(/```json\s*([\s\S]*?)```/) || rawText.match(/```\s*([\s\S]*?)```/);
-      const jsonText = jsonMatch ? jsonMatch[1] : rawText.trim();
+      let jsonText = jsonMatch ? jsonMatch[1] : rawText.trim();
+      // Fallback: prose around an unfenced object.
+      if (!jsonMatch && !jsonText.startsWith('{')) { const a = jsonText.indexOf('{'), b = jsonText.lastIndexOf('}'); if (a !== -1 && b > a) jsonText = jsonText.slice(a, b + 1); }
       parsed = JSON.parse(jsonText);
     } catch (_) {
       const msg = `JSON parse error: ${rawText.substring(0, 200)}`;
