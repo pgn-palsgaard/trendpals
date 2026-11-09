@@ -311,7 +311,15 @@ Deno.serve(async (req) => {
       const heritage = trendMap['6a7ae020174e988c982f8751'] || {};
       const theme = (await S.CommunicationTheme.filter({ id: '6a3430ee2d45ab1cd3946d36' }))[0] || {};
       const src = ex.source_id ? (await S.Source.filter({ id: ex.source_id }))[0] : null;
-      const chunks = (src?.mintel_chunks || []).map(c => typeof c === 'string' ? c : (c.text || c.content || '')).join('\n\n').slice(0, 12000);
+      // Report-like text rebuilt from the examples already extracted from this report
+      // (sections, theses, cited products), since report text is read from the PDF at run time.
+      const reportExamples = ex.source_id ? await S.ExpertExample.filter({ source_id: ex.source_id }, 'mintel_section_heading', 40) : [];
+      const bySection = {};
+      for (const r of reportExamples) {
+        const h = r.mintel_section_heading || 'Other';
+        (bySection[h] = bySection[h] || { thesis: r.section_thesis || '', items: [] }).items.push(`- ${r.product_name} (${r.brand || ''}, ${r.country || ''}): ${r.analyst_framing || ''}`);
+      }
+      const chunks = Object.entries(bySection).map(([h, v]) => `## ${h}\n${v.thesis}\n${v.items.join('\n')}`).join('\n\n').slice(0, 12000);
       const prod = (await S.GNPDProduct.filter({ gnpd_record_id: '14714124' }))[0] || {};
       // One small record only: full Source rows carry large chunk/excerpt arrays.
       const pdfSrc = (await S.Source.filter({ file_url: { $regex: '\\.pdf$' }, source_type: { $ne: 'gnpd' }, title: { $regex: 'patent|trending', $options: 'i' } }, '-created_date', 1))[0] || null;
@@ -345,7 +353,7 @@ Deno.serve(async (req) => {
         try {
           const r = await fetch(pdfSrc.file_url);
           const buf = new Uint8Array(await r.arrayBuffer());
-          if (buf.length < 1_500_000) {
+          if (buf.length < 3_500_000) {
             let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
             pdfB64 = btoa(bin); pdfNote = `${pdfSrc.title} (${Math.round(buf.length / 1024)} KB)`;
           } else pdfNote = `skipped: ${pdfSrc.title} is ${Math.round(buf.length / 1048576)} MB`;
