@@ -1,0 +1,547 @@
+{
+  "name": "Mintel citations bakery expert links",
+  "description": "One-off: sets ExpertExample.gnpd_record_id for 125 bakery Mintel examples (from PDF hyperlinks).",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 24,
+      "interval_unit": "hours",
+      "interval_anchor": null,
+      "ends_type": "after_count",
+      "ends_on_date": null,
+      "ends_after_count": 1
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "expert_links": [
+                {
+                  "gnpd_record_id": "13476646",
+                  "id": "6a47801eb5533802fe81ffbf"
+                },
+                {
+                  "gnpd_record_id": "14216482",
+                  "id": "6a47801eb5533802fe81ffbe"
+                },
+                {
+                  "gnpd_record_id": "13265762",
+                  "id": "6a47801eb5533802fe81ffbd"
+                },
+                {
+                  "gnpd_record_id": "13816850",
+                  "id": "6a47801eb5533802fe81ffbc"
+                },
+                {
+                  "gnpd_record_id": "14292868",
+                  "id": "6a47801eb5533802fe81ffbb"
+                },
+                {
+                  "gnpd_record_id": "13615602",
+                  "id": "6a47801eb5533802fe81ffba"
+                },
+                {
+                  "gnpd_record_id": "13213962",
+                  "id": "6a47801eb5533802fe81ffb9"
+                },
+                {
+                  "gnpd_record_id": "14174510",
+                  "id": "6a47801eb5533802fe81ffb8"
+                },
+                {
+                  "gnpd_record_id": "12908404",
+                  "id": "6a47801eb5533802fe81ffb7"
+                },
+                {
+                  "gnpd_record_id": "13998776",
+                  "id": "6a47801dc196e2a719c3b438"
+                },
+                {
+                  "gnpd_record_id": "13816850",
+                  "id": "6a47801dc196e2a719c3b437"
+                },
+                {
+                  "gnpd_record_id": "13725340",
+                  "id": "6a47801dc196e2a719c3b436"
+                },
+                {
+                  "gnpd_record_id": "13220726",
+                  "id": "6a47801dc196e2a719c3b435"
+                },
+                {
+                  "gnpd_record_id": "13861330",
+                  "id": "6a47801dc196e2a719c3b434"
+                },
+                {
+                  "gnpd_record_id": "13866766",
+                  "id": "6a47801dc196e2a719c3b433"
+                },
+                {
+                  "gnpd_record_id": "13169230",
+                  "id": "6a47801dc196e2a719c3b432"
+                },
+                {
+                  "gnpd_record_id": "13615124",
+                  "id": "6a47801dc196e2a719c3b431"
+                },
+                {
+                  "gnpd_record_id": "13338702",
+                  "id": "6a47801dc196e2a719c3b430"
+                },
+                {
+                  "gnpd_record_id": "14163726",
+                  "id": "6a47801dc196e2a719c3b42f"
+                },
+                {
+                  "gnpd_record_id": "13113160",
+                  "id": "6a47801dc196e2a719c3b42e"
+                },
+                {
+                  "gnpd_record_id": "14237840",
+                  "id": "6a47801dc196e2a719c3b42d"
+                },
+                {
+                  "gnpd_record_id": "14292868",
+                  "id": "6a47801dc196e2a719c3b42c"
+                },
+                {
+                  "gnpd_record_id": "14294258",
+                  "id": "6a47801dc196e2a719c3b42b"
+                },
+                {
+                  "gnpd_record_id": "14287654",
+                  "id": "6a47801dc196e2a719c3b42a"
+                },
+                {
+                  "gnpd_record_id": "14272348",
+                  "id": "6a47801dc196e2a719c3b429"
+                },
+                {
+                  "gnpd_record_id": "13612352",
+                  "id": "6a47801dc196e2a719c3b428"
+                },
+                {
+                  "gnpd_record_id": "13459684",
+                  "id": "6a47801dc196e2a719c3b427"
+                },
+                {
+                  "gnpd_record_id": "13533414",
+                  "id": "6a47801dc196e2a719c3b426"
+                },
+                {
+                  "gnpd_record_id": "13033506",
+                  "id": "6a47801dc196e2a719c3b425"
+                },
+                {
+                  "gnpd_record_id": "13615602",
+                  "id": "6a47801dc196e2a719c3b424"
+                },
+                {
+                  "gnpd_record_id": "13921418",
+                  "id": "6a47801dc196e2a719c3b423"
+                },
+                {
+                  "gnpd_record_id": "13563194",
+                  "id": "6a47801dc196e2a719c3b422"
+                },
+                {
+                  "gnpd_record_id": "13684984",
+                  "id": "6a47801dc196e2a719c3b421"
+                },
+                {
+                  "gnpd_record_id": "13505672",
+                  "id": "6a47801dc196e2a719c3b420"
+                },
+                {
+                  "gnpd_record_id": "13469262",
+                  "id": "6a477db548628c48720f23f6"
+                },
+                {
+                  "gnpd_record_id": "13471404",
+                  "id": "6a477db548628c48720f23f5"
+                },
+                {
+                  "gnpd_record_id": "13439820",
+                  "id": "6a477db47ff5551c5c243ba9"
+                },
+                {
+                  "gnpd_record_id": "13166968",
+                  "id": "6a477db47ff5551c5c243ba8"
+                },
+                {
+                  "gnpd_record_id": "13710854",
+                  "id": "6a477db47ff5551c5c243ba7"
+                },
+                {
+                  "gnpd_record_id": "13513870",
+                  "id": "6a477db47ff5551c5c243ba6"
+                },
+                {
+                  "gnpd_record_id": "12836862",
+                  "id": "6a477db47ff5551c5c243ba5"
+                },
+                {
+                  "gnpd_record_id": "14156938",
+                  "id": "6a477db47ff5551c5c243ba4"
+                },
+                {
+                  "gnpd_record_id": "13906504",
+                  "id": "6a477db47ff5551c5c243ba3"
+                },
+                {
+                  "gnpd_record_id": "13973372",
+                  "id": "6a477db47ff5551c5c243ba2"
+                },
+                {
+                  "gnpd_record_id": "13672502",
+                  "id": "6a477db47ff5551c5c243ba1"
+                },
+                {
+                  "gnpd_record_id": "13456304",
+                  "id": "6a477db47ff5551c5c243ba0"
+                },
+                {
+                  "gnpd_record_id": "14165798",
+                  "id": "6a477db47ff5551c5c243b9f"
+                },
+                {
+                  "gnpd_record_id": "12864424",
+                  "id": "6a477db47ff5551c5c243b9e"
+                },
+                {
+                  "gnpd_record_id": "13485228",
+                  "id": "6a477db47ff5551c5c243b9d"
+                },
+                {
+                  "gnpd_record_id": "13695498",
+                  "id": "6a477db47ff5551c5c243b9c"
+                },
+                {
+                  "gnpd_record_id": "14293156",
+                  "id": "6a477db47ff5551c5c243b9b"
+                },
+                {
+                  "gnpd_record_id": "13580730",
+                  "id": "6a477db47ff5551c5c243b9a"
+                },
+                {
+                  "gnpd_record_id": "13427508",
+                  "id": "6a477db47ff5551c5c243b99"
+                },
+                {
+                  "gnpd_record_id": "13795358",
+                  "id": "6a477db47ff5551c5c243b98"
+                },
+                {
+                  "gnpd_record_id": "13938442",
+                  "id": "6a477db47ff5551c5c243b97"
+                },
+                {
+                  "gnpd_record_id": "13769282",
+                  "id": "6a477db47ff5551c5c243b96"
+                },
+                {
+                  "gnpd_record_id": "13579676",
+                  "id": "6a477db47ff5551c5c243b95"
+                },
+                {
+                  "gnpd_record_id": "13498398",
+                  "id": "6a477db47ff5551c5c243b94"
+                },
+                {
+                  "gnpd_record_id": "13545124",
+                  "id": "6a477db47ff5551c5c243b93"
+                },
+                {
+                  "gnpd_record_id": "13650710",
+                  "id": "6a477db47ff5551c5c243b92"
+                },
+                {
+                  "gnpd_record_id": "13639294",
+                  "id": "6a477db47ff5551c5c243b91"
+                },
+                {
+                  "gnpd_record_id": "13524702",
+                  "id": "6a29a77e63a12ebff2bd5ad1"
+                },
+                {
+                  "gnpd_record_id": "13678268",
+                  "id": "6a29a77e63a12ebff2bd5ad0"
+                },
+                {
+                  "gnpd_record_id": "13615332",
+                  "id": "6a29a77e63a12ebff2bd5acf"
+                },
+                {
+                  "gnpd_record_id": "12914368",
+                  "id": "6a29a77e63a12ebff2bd5ace"
+                },
+                {
+                  "gnpd_record_id": "13170564",
+                  "id": "6a29a77e63a12ebff2bd5acd"
+                },
+                {
+                  "gnpd_record_id": "13697296",
+                  "id": "6a29a77e63a12ebff2bd5acc"
+                },
+                {
+                  "gnpd_record_id": "12869356",
+                  "id": "6a29a77e63a12ebff2bd5acb"
+                },
+                {
+                  "gnpd_record_id": "13570330",
+                  "id": "6a29a77e515a6d0886a854b6"
+                },
+                {
+                  "gnpd_record_id": "13619354",
+                  "id": "6a29a77e515a6d0886a854b5"
+                },
+                {
+                  "gnpd_record_id": "13473184",
+                  "id": "6a29a77e515a6d0886a854b4"
+                },
+                {
+                  "gnpd_record_id": "12774196",
+                  "id": "6a29a77e515a6d0886a854b3"
+                },
+                {
+                  "gnpd_record_id": "13592484",
+                  "id": "6a29a77e515a6d0886a854b2"
+                },
+                {
+                  "gnpd_record_id": "13587064",
+                  "id": "6a29a77e515a6d0886a854b1"
+                },
+                {
+                  "gnpd_record_id": "13107854",
+                  "id": "6a29a77e515a6d0886a854b0"
+                },
+                {
+                  "gnpd_record_id": "13270534",
+                  "id": "6a29a77e515a6d0886a854af"
+                },
+                {
+                  "gnpd_record_id": "13561544",
+                  "id": "6a29a77e515a6d0886a854ae"
+                },
+                {
+                  "gnpd_record_id": "12690156",
+                  "id": "6a29a77e515a6d0886a854ad"
+                },
+                {
+                  "gnpd_record_id": "13362204",
+                  "id": "6a29a77e515a6d0886a854ac"
+                },
+                {
+                  "gnpd_record_id": "13575856",
+                  "id": "6a29a77e515a6d0886a854ab"
+                },
+                {
+                  "gnpd_record_id": "13219452",
+                  "id": "6a29a77e515a6d0886a854aa"
+                },
+                {
+                  "gnpd_record_id": "13520654",
+                  "id": "6a29a77e515a6d0886a854a9"
+                },
+                {
+                  "gnpd_record_id": "13667142",
+                  "id": "6a29a77e515a6d0886a854a8"
+                },
+                {
+                  "gnpd_record_id": "13160750",
+                  "id": "6a29a77e515a6d0886a854a7"
+                },
+                {
+                  "gnpd_record_id": "13523246",
+                  "id": "6a29a77e515a6d0886a854a6"
+                },
+                {
+                  "gnpd_record_id": "13640626",
+                  "id": "6a29a77e515a6d0886a854a5"
+                },
+                {
+                  "gnpd_record_id": "13666000",
+                  "id": "6a29a77e515a6d0886a854a3"
+                },
+                {
+                  "gnpd_record_id": "13635410",
+                  "id": "6a29a77e515a6d0886a854a2"
+                },
+                {
+                  "gnpd_record_id": "13607164",
+                  "id": "6a29a77e515a6d0886a854a1"
+                },
+                {
+                  "gnpd_record_id": "13147690",
+                  "id": "6a29a77e515a6d0886a854a0"
+                },
+                {
+                  "gnpd_record_id": "13053294",
+                  "id": "6a29a77e515a6d0886a8549f"
+                },
+                {
+                  "gnpd_record_id": "13661214",
+                  "id": "6a29a77e515a6d0886a8549e"
+                },
+                {
+                  "gnpd_record_id": "13639942",
+                  "id": "6a29a76fe89c772436d22d7d"
+                },
+                {
+                  "gnpd_record_id": "13322698",
+                  "id": "6a29a76fe89c772436d22d7c"
+                },
+                {
+                  "gnpd_record_id": "13407108",
+                  "id": "6a29a76fe89c772436d22d7b"
+                },
+                {
+                  "gnpd_record_id": "13214844",
+                  "id": "6a29a76fe89c772436d22d7a"
+                },
+                {
+                  "gnpd_record_id": "13278062",
+                  "id": "6a29a76fe89c772436d22d79"
+                },
+                {
+                  "gnpd_record_id": "13642720",
+                  "id": "6a29a76fe89c772436d22d78"
+                },
+                {
+                  "gnpd_record_id": "13623412",
+                  "id": "6a29a76fe89c772436d22d77"
+                },
+                {
+                  "gnpd_record_id": "13121482",
+                  "id": "6a29a76fe89c772436d22d76"
+                },
+                {
+                  "gnpd_record_id": "13336214",
+                  "id": "6a29a76fe89c772436d22d75"
+                },
+                {
+                  "gnpd_record_id": "13048892",
+                  "id": "6a29a76fe89c772436d22d74"
+                },
+                {
+                  "gnpd_record_id": "13583976",
+                  "id": "6a29a76fe89c772436d22d73"
+                },
+                {
+                  "gnpd_record_id": "13713836",
+                  "id": "6a29a76fe89c772436d22d72"
+                },
+                {
+                  "gnpd_record_id": "13674442",
+                  "id": "6a29a76fe89c772436d22d71"
+                },
+                {
+                  "gnpd_record_id": "13467480",
+                  "id": "6a29a76fe89c772436d22d70"
+                },
+                {
+                  "gnpd_record_id": "13760962",
+                  "id": "6a29a76fe89c772436d22d6f"
+                },
+                {
+                  "gnpd_record_id": "13418518",
+                  "id": "6a29a76fe89c772436d22d6e"
+                },
+                {
+                  "gnpd_record_id": "13082096",
+                  "id": "6a29a76fe89c772436d22d6d"
+                },
+                {
+                  "gnpd_record_id": "13234486",
+                  "id": "6a29a76fe89c772436d22d6c"
+                },
+                {
+                  "gnpd_record_id": "13272316",
+                  "id": "6a29a76fe89c772436d22d6b"
+                },
+                {
+                  "gnpd_record_id": "13502086",
+                  "id": "6a29a76fe89c772436d22d6a"
+                },
+                {
+                  "gnpd_record_id": "13790748",
+                  "id": "6a29a76fe89c772436d22d69"
+                },
+                {
+                  "gnpd_record_id": "13788284",
+                  "id": "6a29a76fe89c772436d22d68"
+                },
+                {
+                  "gnpd_record_id": "12947282",
+                  "id": "6a29a76fe89c772436d22d67"
+                },
+                {
+                  "gnpd_record_id": "13055790",
+                  "id": "6a29a76fe89c772436d22d66"
+                },
+                {
+                  "gnpd_record_id": "12942166",
+                  "id": "6a29a76fe89c772436d22d65"
+                },
+                {
+                  "gnpd_record_id": "13652478",
+                  "id": "6a29a76f30179713ba52c72a"
+                },
+                {
+                  "gnpd_record_id": "13512990",
+                  "id": "6a29a76f30179713ba52c729"
+                },
+                {
+                  "gnpd_record_id": "12925110",
+                  "id": "6a29a76f30179713ba52c728"
+                },
+                {
+                  "gnpd_record_id": "13756870",
+                  "id": "6a29a76f30179713ba52c726"
+                },
+                {
+                  "gnpd_record_id": "13505778",
+                  "id": "6a29a76f30179713ba52c725"
+                },
+                {
+                  "gnpd_record_id": "13628936",
+                  "id": "6a29a76f30179713ba52c724"
+                },
+                {
+                  "gnpd_record_id": "13823558",
+                  "id": "6a29a76f30179713ba52c723"
+                },
+                {
+                  "gnpd_record_id": "13400020",
+                  "id": "6a29a76f30179713ba52c722"
+                }
+              ],
+              "items": [],
+              "mode": "apply",
+              "source": "scheduled_resume"
+            },
+            "function_name": "applyMintelCitations"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "mintel_expert_links_bakery",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
