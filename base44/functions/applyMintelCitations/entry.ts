@@ -63,6 +63,14 @@ Deno.serve(async (req) => {
       trendName[tid] = t?.trend_name || tid;
     }
 
+    // compact payload support: citations may omit report_title -> looked up from Source
+    const srcTitle = {};
+    for (const sid of [...new Set(items.flatMap(i => (i.citations || []).map(c => c.source_id)).filter(Boolean))]) {
+      const s = (await sr.Source.filter({ id: sid }, null, 1, ['title']))[0];
+      srcTitle[sid] = s?.title || '';
+    }
+    for (const it of items) for (const c of it.citations || []) if (!c.report_title) c.report_title = srcTitle[c.source_id] || '';
+
     const stats = { items: items.length, rows_updated: 0, rows_missing: 0, links_added: 0, links_upgraded: 0, already_approved: 0, expert_updated: 0, timed_out: false };
 
     for (const it of items) {
