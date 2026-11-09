@@ -1,0 +1,49 @@
+{
+  "name": "GNPD re-audit auto-applied links (Haiku 5.5)",
+  "description": "Re-audits auto-applied GNPD trend links validated before 9 Nov 2026 with Haiku 5.5 (same buckets as triage). Scoped by category/regions; change args to move on. Capped runs.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 5,
+      "interval_unit": "minutes",
+      "interval_anchor": null,
+      "ends_type": "after_count",
+      "ends_on_date": null,
+      "ends_after_count": 60
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "category": "bakery",
+              "mode": "reaudit_auto_applied",
+              "regions": [
+                "mena",
+                "sub_saharan_africa"
+              ],
+              "source": "scheduled_resume"
+            },
+            "function_name": "revalidatePendingTrendLinks"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "gnpd_reaudit_auto_applied",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
