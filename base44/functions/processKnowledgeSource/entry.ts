@@ -107,7 +107,7 @@ quality_score: Integer 0-100 — specificity/evidence strength of the excerpt (0
 
 Set has_direct_role to false when the insight represents valuable expert industry framing but does not require a Palsgaard product to address. This is intentional and valuable.
 
-Return at most 25 insights: the most commercially relevant ones (highest relevance_score), merging near-duplicates rather than listing each separately.
+Return at most 15 insights: the most commercially relevant ones (highest relevance_score), merging near-duplicates rather than listing each separately.
 
 Return only a JSON array of insight objects. No explanatory text, no markdown, no preamble.`;
 
@@ -327,7 +327,7 @@ Deno.serve(async (req) => {
         model: 'claude-sonnet-5-5',
         // Sonnet 5.5 is more exhaustive than 4.5: uncapped, a 3 MB Mintel PDF exceeded 8000
         // output tokens, and 16000 ran past the ~2 min function limit (tested 9 Nov 2026).
-        // The prompt now caps insights at 25; 10000 leaves headroom within the time limit.
+        // The prompt caps insights at 15 (~400 tokens each on Sonnet 5.5); 10000 leaves headroom within the time limit.
         max_tokens: 10000,
         system: systemPrompt,
         messages: [{ role: 'user', content: messageContent }]

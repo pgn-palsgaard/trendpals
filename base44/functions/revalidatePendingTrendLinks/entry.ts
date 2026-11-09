@@ -370,7 +370,7 @@ Deno.serve(async (req) => {
         call('S_trend_verdict', 'claude-sonnet-5-5', 1200, PROBE_VERDICT, verdictUser),
         call('S_brief_chat', 'claude-sonnet-5-5', 1000, 'You help Palsgaard sales colleagues submit a trend brief. Ask for any missing required field in one short sentence.', 'I need trend input for a bakery customer in Saudi Arabia next month.', {}, 'text'),
       ];
-      if (pdfB64) cases.push(call('S_pdf_document', 'claude-sonnet-5-5', 10000, PROBE_BASE.replace('Return only a JSON array of insight objects.', 'Return at most 25 insights: the most commercially relevant ones (highest relevance_score), merging near-duplicates rather than listing each separately.\n\nReturn only a JSON array of insight objects.'), [
+      if (pdfB64) cases.push(call('S_pdf_document', 'claude-sonnet-5-5', 10000, PROBE_BASE.replace('Return only a JSON array of insight objects.', 'Return at most 15 insights: the most commercially relevant ones (highest relevance_score), merging near-duplicates rather than listing each separately.\n\nReturn only a JSON array of insight objects.'), [
         { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfB64 } },
         { type: 'text', text: `Extract structured insights from this document titled: "${pdfSrc.title}". Return only valid JSON, no markdown fences.` }
       ], { 'anthropic-beta': 'pdfs-2024-09-25' }));
