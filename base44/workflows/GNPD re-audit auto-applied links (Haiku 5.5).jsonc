@@ -28,14 +28,12 @@
             "args": {
               "category": "bakery",
               "cutoff": "2026-11-09T12:40:00",
-              "dry_run": true,
               "mode": "rejudge_category",
               "regions": [
                 "mena",
                 "sub_saharan_africa"
               ],
-              "source": "scheduled_resume",
-              "time_budget_ms": 40000
+              "source": "scheduled_resume"
             },
             "function_name": "revalidatePendingTrendLinks"
           }
