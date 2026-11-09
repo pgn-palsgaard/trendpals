@@ -1,0 +1,47 @@
+{
+  "name": "GNPD compare Haiku 4.5 baseline (one-off)",
+  "description": "One-off: Haiku 4.5 re-run vs its own stored verdicts on bakery links (noise baseline). Writes nothing. Archive after use.",
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "interval",
+      "cron_expression": null,
+      "one_time_date": null,
+      "timezone": "UTC",
+      "interval_value": 1,
+      "interval_unit": "days",
+      "interval_anchor": null,
+      "ends_type": "after_count",
+      "ends_on_date": null,
+      "ends_after_count": 1
+    }
+  },
+  "definition": {
+    "do": [
+      {
+        "run_function": {
+          "call": "invoke_backend_function",
+          "then": "end",
+          "with": {
+            "args": {
+              "category": "bakery",
+              "mode": "compare_models",
+              "model": "claude-haiku-4-5",
+              "sample_size": 100,
+              "source": "scheduled_resume"
+            },
+            "function_name": "revalidatePendingTrendLinks"
+          }
+        }
+      }
+    ],
+    "document": {
+      "dsl": "1.0.0",
+      "name": "gnpd_compare_haiku45",
+      "namespace": "base44",
+      "version": "1.0"
+    }
+  }
+}
