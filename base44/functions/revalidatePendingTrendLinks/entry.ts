@@ -13,7 +13,11 @@ import Anthropic from 'npm:@anthropic-ai/sdk@0.27.3';
 // lib/). The CATEGORY CONSTRAINT block below must be kept identical in both files.
 const SYSTEM_PROMPT = `You are validating whether a GNPD product launch is genuine evidence of a market trend, or whether the keyword overlap is incidental.
 
-A product GENUINELY EXPRESSES a trend when the product's positioning, formulation, or claims actively embody what the trend describes — not merely when the same words happen to appear.
+THE STANDARD — read the product the way a Mintel analyst does (calibrated 9 Nov 2026 on products Mintel itself cites):
+A product is evidence of a trend when it VISIBLY CARRIES the trend's marker in its name, description, claims or format, so that an analyst could cite it as an example of the trend. Mintel cites a product for ONE clear, deliberate attribute: a pistachio-cream filling in a classic pastry illustrates a flavour-twist/heritage trend; freeze-dried fruit pieces on a cake illustrate a chunky-texture trend; '13g protein' on pancakes illustrates a protein trend.
+The product does NOT have to be built around the trend, make it its primary or only positioning, or match every element of the trend description. The description explains WHY the trend matters (market data, drivers, regulation, supplier strategy); you judge only whether THIS product visibly shows the trend's marker.
+If an 'Evidence test' is given for a trend, it defines the observable marker: apply it as written.
+Does NOT count: a word that matches but means something else; or a property every product of this type has that this product does not call out (every cracker is crisp, plain bread is soft) — unless the product makes it a selling point in its name, description or claims.
 
 HARD RULE — CATEGORY CONSTRAINT:
 The product's category and the trend's category must be the same category. A product from one category is NEVER evidence for a trend belonging to another category, however strong the wording overlap is. A biscuit is not evidence of an ice cream trend; a chocolate bar is not evidence of a dairy trend. If the two categories shown below differ, the verdict is NOT_SUPPORT with a score of 0 — no exceptions, no partial credit.
@@ -27,6 +31,9 @@ Example of genuine evidence:
 - Trend: "Plant-based indulgence parity"
 - Product: "Oatly Oat-Based Ice Cream Stick with Belgian Chocolate Coating", claims include "vegan, no animal ingredients"
 - Verdict: SUPPORTS — the product is explicitly a plant-based version of an indulgent format
+- Trend: "Texture as primary driver of bakery indulgence"
+- Product: "Pistachio Cream & White Chocolate Cake" — triple-layer sponge with jam, topped with pistachio and freeze-dried raspberry pieces
+- Verdict: SUPPORTS — the layered build and visible crunchy inclusions are a deliberate texture feature (Mintel cites this product for chunky textures), even though flavour is also a selling point
 
 Examples of incidental matches:
 - Trend: "Plant-based indulgence parity"
@@ -36,7 +43,7 @@ Examples of incidental matches:
 - Product: "Dark Chocolate Coated Coconut Chips" (ingredients mention "crunchy")
 - Verdict: NOT_SUPPORT — crunch is a passive property of coconut chips, not an innovation the product is built around
 
-If REFERENCE EXAMPLES are provided, they are products Mintel analysts themselves cited as evidence for this trend. Use them to calibrate what genuinely qualifies — a candidate should express the trend in a comparable way.
+If REFERENCE EXAMPLES are provided, they are products Mintel analysts themselves cited as evidence for this trend. Use them to calibrate what genuinely qualifies — a candidate qualifies when it shows the same KIND of marker, not when it is as strongly or exclusively positioned on the trend.
 
 You will respond ONLY with a JSON object of the form:
 {
@@ -46,10 +53,10 @@ You will respond ONLY with a JSON object of the form:
 }
 
 Scoring guidance:
-- SUPPORTS, score 70-95: product clearly and primarily expresses the trend
-- SUPPORTS, score 40-69: product expresses the trend but not as its primary positioning
+- SUPPORTS, score 70-95: the trend's marker is clearly and deliberately visible in the product's name, description or claims (it need not be the only or primary selling point)
+- SUPPORTS, score 40-69: the marker is present but implicit or minor (e.g. only in the ingredient list or one passing word)
 - PARTIAL, score 40-69: some elements align but the evidence is mixed
-- NOT_SUPPORT, score 0-39: the keyword overlap is incidental or contradicts the trend; the product does not express it
+- NOT_SUPPORT, score 0-39: the keyword overlap is incidental or contradicts the trend; the product shows no marker of it
 
 No prose outside the JSON. No markdown. No commentary.`;
 
