@@ -377,7 +377,7 @@ Deno.serve(async (req) => {
       if (pdfB64) cases.push(call('S_pdf_document', 'claude-sonnet-5-5', 10000, PROBE_BASE.replace('Return only a JSON array of insight objects.', 'Return at most 15 insights: the most commercially relevant ones (highest relevance_score), merging near-duplicates rather than listing each separately.\n\nReturn only a JSON array of insight objects.'), [
         { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdfB64 } },
         { type: 'text', text: `Extract structured insights from this document titled: "${pdfSrc.title}". Return only valid JSON, no markdown fences.` }
-      ], { 'anthropic-beta': 'pdfs-2024-09-25' }));
+      ], { 'anthropic-beta': 'pdfs-2024-09-25' }, 'array'));
       const results = await Promise.all(cases);
       results.forEach(r => console.log('[probe] RESULT ' + JSON.stringify(r)));
       await new Promise(r => setTimeout(r, 5));
