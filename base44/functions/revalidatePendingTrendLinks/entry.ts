@@ -362,6 +362,7 @@ Deno.serve(async (req) => {
       const sample = [];
       let pairCount = 0;
       for (const p of pool) {
+        if (Array.isArray(p.mintel_citations) && p.mintel_citations.length) continue; // facit products are tested separately
         const items = [];
         for (const l of (p.trend_links || [])) {
           if (!l.llm_validated_at || l.llm_validated_at < since || !trendMap[l.trend_id]) continue;
