@@ -339,7 +339,11 @@ Deno.serve(async (req) => {
           if (expect !== 'text') {
             const a = text.indexOf(expect === 'array' ? '[' : '{'), b = text.lastIndexOf(expect === 'array' ? ']' : '}');
             try { if (a !== -1 && b > a) { const v = JSON.parse(text.slice(a, b + 1)); parse_ok = true; items = Array.isArray(v) ? v.length : null; } else parse_error = 'no brackets'; }
-            catch (e) { parse_error = String(e.message).slice(0, 160); }
+            catch (e) {
+              parse_error = String(e.message).slice(0, 160);
+              const pos = Number((String(e.message).match(/position (\d+)/) || [])[1]);
+              if (!Number.isNaN(pos)) parse_error += ' | around: ' + text.slice(a + Math.max(0, pos - 160), a + pos + 80).replace(/\n/g, '\\n');
+            }
           }
           return { name, model, ok: true, stop: data.stop_reason, parse_ok, items, parse_error, blocks: (data.content || []).map(b => b.type).join(','), in: data.usage?.input_tokens, out: data.usage?.output_tokens, ms: Date.now() - t0, head: text.slice(0, 140).replace(/\s+/g, ' '), tail: parse_ok ? undefined : text.slice(-220).replace(/\s+/g, ' ') };
         } catch (e) { return { name, model, ok: false, error: String(e.message).slice(0, 200), ms: Date.now() - t0 }; }
