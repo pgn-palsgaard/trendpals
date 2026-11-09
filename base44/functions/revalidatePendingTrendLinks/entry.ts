@@ -159,7 +159,7 @@ Name: ${it.trend.trend_name || ''}
 Market signal: ${it.trend.market_signal || ''}
 Description: ${(it.trend.description || '').slice(0, 600)}
 Category: ${it.trend.category || ''}
-${formatExpertExamples(it.examples)}Keyword overlap: ${(it.matched_keywords || []).join(', ')}`).join('\n\n');
+${it.trend.evidence_test ? `Evidence test: ${it.trend.evidence_test}\n` : ''}${formatExpertExamples(it.examples)}Keyword overlap: ${(it.matched_keywords || []).join(', ')}`).join('\n\n');
 
     const userPrompt = `${productBlock(product)}
 
@@ -298,6 +298,50 @@ Deno.serve(async (req) => {
     }
 
 
+    // ── Facit test (9 Nov 2026): judge given product/trend pairs WITHOUT writing. Used to
+    // measure how many Mintel-cited products (the analyst 'facit') the current rule accepts.
+    // body.pairs: [{ gnpd_record_id, trend_id }]. Reference examples that ARE the product
+    // itself (same gnpd_record_id) are removed so the test is not leaked.
+    if (body.mode === 'facit_test') {
+      const fStart = Date.now();
+      const pairs = Array.isArray(body.pairs) ? body.pairs : [];
+      const byRec = {};
+      for (const pr of pairs) { (byRec[String(pr.gnpd_record_id)] ||= []).push(String(pr.trend_id)); }
+      const recs = Object.keys(byRec);
+      const bucket = (res) => res.verdict === 'ERROR' ? 'error'
+        : (res.verdict === 'SUPPORTS' && res.confidence_score >= 70) ? 'auto_applied'
+        : res.verdict === 'NOT_SUPPORT' ? 'rejected' : 'pending';
+      const rows = [];
+      let fi = 0;
+      async function fWorker() {
+        while (true) {
+          if (Date.now() - fStart > timeBudget) return;
+          const i = fi++;
+          if (i >= recs.length) return;
+          const p = (await base44.asServiceRole.entities.GNPDProduct.filter({ gnpd_record_id: recs[i], processing_status: { $ne: 'skipped' } }, null, 1))[0];
+          if (!p) { rows.push({ rec: recs[i], missing: true }); continue; }
+          const tids = byRec[recs[i]].filter(tid => trendMap[tid]);
+          const llmItems = [];
+          for (const tid of tids) {
+            const t = trendMap[tid];
+            const ex = (await getExpertExamples(tid)).filter(e => String(e.gnpd_record_id || '') !== recs[i]);
+            llmItems.push({ trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '', evidence_test: t.evidence_test || '' }, matched_keywords: [], examples: ex });
+          }
+          if (!llmItems.length) continue;
+          const res = await runBatchValidation(anthropic, model, p, llmItems, usage);
+          tids.forEach((tid, k) => rows.push({ rec: recs[i], product: p.product_name, trend: trendMap[tid].trend_name, bucket: bucket(res[k]), score: res[k].confidence_score, reasoning: res[k].reasoning }));
+        }
+      }
+      await Promise.all(Array.from({ length: CONCURRENCY }, () => fWorker()));
+      const counts = {};
+      for (const r of rows) if (!r.missing) counts[r.bucket] = (counts[r.bucket] || 0) + 1;
+      rows.filter(r => !r.missing).forEach(r => console.log('[facit] ROW ' + JSON.stringify(r)));
+      await new Promise(r => setTimeout(r, 5));
+      const summary = { mode: 'facit_test', model, label: body.label || null, pairs: pairs.length, judged: rows.filter(r => !r.missing).length, missing: rows.filter(r => r.missing).length, counts, usage, timed_out: fi < recs.length };
+      console.log('[facit] SUMMARY ' + JSON.stringify(summary));
+      return Response.json(summary);
+    }
+
     // ── Compare mode: re-judge links the previous validator already decided, WITHOUT writing.
     // Used to check a cheaper model / the batched prompt against existing verdicts before
     // switching. Results go to the function log ([compare] lines) and the response.
@@ -342,7 +386,7 @@ Deno.serve(async (req) => {
           for (const it of items) {
             const t = trendMap[it.trend_id];
             llmItems.push({
-              trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '' },
+              trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '', evidence_test: t.evidence_test || '' },
               matched_keywords: it.matched_keywords,
               examples: await getExpertExamples(it.trend_id)
             });
@@ -547,7 +591,7 @@ Deno.serve(async (req) => {
             for (const l of targets) {
               const t = trendMap[l.trend_id];
               llmItems.push({
-                trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '' },
+                trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '', evidence_test: t.evidence_test || '' },
                 matched_keywords: l.matched_keywords || [],
                 examples: await getExpertExamples(l.trend_id)
               });
@@ -846,7 +890,7 @@ Deno.serve(async (req) => {
         for (const link of liveTargets) {
           const t = trendMap[link.trend_id];
           llmItems.push({
-            trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '' },
+            trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '', evidence_test: t.evidence_test || '' },
             matched_keywords: link.matched_keywords || [],
             examples: await getExpertExamples(link.trend_id)
           });
