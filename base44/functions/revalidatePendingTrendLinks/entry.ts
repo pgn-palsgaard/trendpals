@@ -170,7 +170,9 @@ For each of the ${items.length} trend(s) above: is this product genuine evidence
     // is safe on every model. Cache reads are billed at 0.1x input.
     const response = await anthropic.messages.create({
       model,
-      max_tokens: 150 * items.length + 50,
+      // Newer models may spend part of the budget before the JSON (e.g. thinking), so
+      // they get more headroom; output is only billed for what is actually generated.
+      max_tokens: model === 'claude-haiku-4-5' ? 150 * items.length + 50 : 400 * items.length + 600,
       system: [{ type: 'text', text: BATCH_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: userPrompt }]
     });
@@ -182,10 +184,14 @@ For each of the ${items.length} trend(s) above: is this product genuine evidence
       usage.cache_write_tokens = (usage.cache_write_tokens || 0) + (response.usage?.cache_creation_input_tokens || 0);
     }
 
-    const text = response.content[0]?.text?.trim() || '';
+    // Read every text block (a response can start with a non-text block, e.g. thinking).
+    const text = (response.content || []).filter(b => b?.type === 'text').map(b => b.text || '').join('\n').trim();
     const start = text.indexOf('[');
     const end = text.lastIndexOf(']');
-    if (start === -1 || end === -1) throw new Error('No JSON array in response');
+    if (start === -1 || end === -1) {
+      const kinds = (response.content || []).map(b => b?.type).join(',');
+      throw new Error(`No JSON array in response (stop_reason=${response.stop_reason}; blocks=${kinds}; head=${text.slice(0, 60).replace(/\s+/g, ' ')})`);
+    }
     const parsed = JSON.parse(text.slice(start, end + 1));
     if (!Array.isArray(parsed)) throw new Error('Response is not an array');
 
