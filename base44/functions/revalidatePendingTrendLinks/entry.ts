@@ -572,6 +572,118 @@ Deno.serve(async (req) => {
     // Re-audited links get a fresh llm_validated_at, so each product leaves the query once
     // done and a timed-out run simply continues on the next invocation. Links whose call
     // errored are left untouched and counted as stuck so the loop moves past them.
+    // ── Rejudge (9 Nov 2026): re-judge EVERY trend candidate of every product in a category
+    // (+ optional regions) against the current, Mintel-calibrated rule. Candidates =
+    // existing auto_applied/pending links + earlier LLM rejections + new keyword matches,
+    // limited to active, product-observable trends of the product's own category.
+    // Approved links (human or mintel_citation) are never touched. Resumable: each product
+    // gets trend_rejudged_at; products already re-judged after body.cutoff are skipped.
+    // body.dry_run = true -> judge and log, no writes.
+    if (body.mode === 'rejudge_category') {
+      const rjStart = Date.now();
+      const category = String(body.category || '').trim();
+      if (!category) return Response.json({ error: 'category required' }, { status: 400 });
+      const cutoff = String(body.cutoff || '2026-11-09T12:00:00');
+      const dry = body.dry_run === true;
+      const q = { palsgaard_category: category, processing_status: { $ne: 'skipped' },
+        $or: [{ trend_rejudged_at: { $exists: false } }, { trend_rejudged_at: null }, { trend_rejudged_at: { $lt: cutoff } }] };
+      if (Array.isArray(body.regions) && body.regions.length > 0) q.region = { $in: body.regions.map(r => String(r).trim()) };
+      const catTrends = globalTrends.filter(t => String(t.category || '').trim() === category && t.product_observable === true);
+      const catIds = new Set(catTrends.map(t => t.id));
+      const stats = { scanned: 0, judged_products: 0, no_candidates: 0, auto: 0, pending: 0, rejected: 0, errors: 0,
+        transitions: {}, per_trend: {} };
+      let skipRj = 0, timedOutRj = false;
+      while (true) {
+        if (Date.now() - rjStart > timeBudget) { timedOutRj = true; break; }
+        const page = await base44.asServiceRole.entities.GNPDProduct.filter(q, 'created_date', 40, skipRj);
+        if (page.length === 0) break;
+        let pi = 0;
+        async function rjWorker() {
+          while (true) {
+            if (Date.now() - rjStart > timeBudget) { timedOutRj = true; return; }
+            const i = pi++;
+            if (i >= page.length) return;
+            const p = page[i];
+            stats.scanned++;
+            const links = Array.isArray(p.trend_links) ? p.trend_links : [];
+            const rejectedOld = Array.isArray(p.rejected_link_candidates) ? p.rejected_link_candidates : [];
+            const approvedIds = new Set(links.filter(l => l.review_status === 'approved').map(l => l.trend_id));
+            const text = [p.product_name, p.product_description, Array.isArray(p.claims) ? p.claims.join(' ') : p.claims]
+              .filter(Boolean).join(' ').toLowerCase();
+            const prior = {};
+            for (const l of links) if (catIds.has(l.trend_id) && !approvedIds.has(l.trend_id)) prior[l.trend_id] = l.review_status;
+            for (const r of rejectedOld) if (catIds.has(r.trend_id) && !approvedIds.has(r.trend_id) && !prior[r.trend_id]) prior[r.trend_id] = 'rejected';
+            const kwHits = {};
+            for (const t of catTrends) {
+              if (approvedIds.has(t.id)) continue;
+              const m = (t.trend_keywords || []).map(k => String(k).toLowerCase()).filter(k => k.length > 3 && text.includes(k));
+              if (m.length) { kwHits[t.id] = m; if (!prior[t.id]) prior[t.id] = 'new'; }
+            }
+            const targetIds = Object.keys(prior);
+            const now = new Date().toISOString();
+            if (targetIds.length === 0) {
+              stats.no_candidates++;
+              if (!dry) await throttledUpdate(base44.asServiceRole.entities.GNPDProduct, p.id, { trend_rejudged_at: now });
+              else skipRj++;
+              continue;
+            }
+            stats.judged_products++;
+            const llmItems = [];
+            for (const tid of targetIds) {
+              const t = trendMap[tid];
+              llmItems.push({ trend: { trend_name: t.trend_name, market_signal: t.market_signal || '', description: t.description || '', category: t.category || '', evidence_test: t.evidence_test || '' },
+                matched_keywords: kwHits[tid] || [], examples: await getExpertExamples(tid) });
+            }
+            const res = await runBatchValidation(anthropic, model, p, llmItems, usage);
+            if (res.some(r => r.verdict === 'ERROR')) { stats.errors++; skipRj++; continue; }
+            const target = new Set(targetIds);
+            const newLinks = links.filter(l => !target.has(l.trend_id)).map(l => (trendMap[l.trend_id] ? { ...l, trend_name: trendMap[l.trend_id].trend_name } : l));
+            const newRejected = rejectedOld.filter(r => !target.has(r.trend_id));
+            targetIds.forEach((tid, k) => {
+              const r = res[k];
+              const t = trendMap[tid];
+              const bucket = (r.verdict === 'SUPPORTS' && r.confidence_score >= 70) ? 'auto_applied' : r.verdict === 'NOT_SUPPORT' ? 'rejected' : 'pending';
+              const tr = `${prior[tid]}->${bucket}`;
+              stats.transitions[tr] = (stats.transitions[tr] || 0) + 1;
+              const pt = (stats.per_trend[t.trend_name] ||= { auto: 0, pending: 0, rejected: 0 });
+              pt[bucket === 'auto_applied' ? 'auto' : bucket]++;
+              stats[bucket === 'auto_applied' ? 'auto' : bucket]++;
+              const old = links.find(l => l.trend_id === tid);
+              const kw = kwHits[tid] || old?.matched_keywords || [];
+              if (bucket === 'rejected') {
+                newRejected.push({ trend_id: tid, trend_name: t.trend_name, matched_keywords: kw, llm_verdict: 'NOT_SUPPORT',
+                  llm_reasoning: `[rejudge ${model}] ${r.reasoning}`, llm_score: r.confidence_score, rejected_at: r.validated_at });
+              } else {
+                newLinks.push({ trend_id: tid, trend_name: t.trend_name, trend_type: 'global',
+                  confidence: bucket === 'auto_applied' ? 'high' : 'medium', confidence_score: r.confidence_score, reasoning: r.reasoning,
+                  matched_keywords: kw, review_status: bucket, linked_at: old?.linked_at || now, llm_validated_at: r.validated_at,
+                  reviewed_at: null, reviewed_by: null });
+              }
+            });
+            if (dry) { console.log('[rejudge] DRY ' + JSON.stringify({ product: p.product_name, region: p.region, prior, result: targetIds.map((tid, k) => ({ t: trendMap[tid].trend_name, v: res[k].verdict, s: res[k].confidence_score })) })); skipRj++; continue; }
+            const live = newLinks.filter(l => ['auto_applied', 'approved'].includes(l.review_status));
+            await throttledUpdate(base44.asServiceRole.entities.GNPDProduct, p.id, {
+              trend_links: newLinks, rejected_link_candidates: newRejected,
+              linked_trend_ids: [...new Set(live.map(l => l.trend_id))],
+              processing_status: newLinks.some(l => l.review_status === 'pending') ? 'trend_linking_pending' : 'trend_linked',
+              support_label: live.length ? 'SUPPORTS' : newLinks.length ? 'PARTIAL' : 'NOT_SUPPORT',
+              trend_rejudged_at: now
+            });
+          }
+        }
+        await Promise.all(Array.from({ length: CONCURRENCY }, () => rjWorker()));
+        if (page.length < 40 && !timedOutRj) {
+          const rest = await base44.asServiceRole.entities.GNPDProduct.filter(q, 'created_date', 1, skipRj);
+          if (rest.length === 0) break;
+        }
+      }
+      const remaining = (await base44.asServiceRole.entities.GNPDProduct.filter(q, 'created_date', 1, skipRj)).length;
+      const rjReport = { mode: 'rejudge_category', dry, model, category, regions: body.regions || null, cutoff, ...stats,
+        done: !timedOutRj && remaining === 0, usage };
+      console.log('[rejudge] SUMMARY ' + JSON.stringify(rjReport));
+      return Response.json(rjReport);
+    }
+
     if (body.mode === 'reaudit_auto_applied') {
       const raStart = Date.now();
       const cutoff = String(body.validated_before || '2026-11-09T00:00:00');
