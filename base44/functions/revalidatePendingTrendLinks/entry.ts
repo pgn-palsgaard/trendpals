@@ -32,8 +32,8 @@ Example of genuine evidence:
 - Product: "Oatly Oat-Based Ice Cream Stick with Belgian Chocolate Coating", claims include "vegan, no animal ingredients"
 - Verdict: SUPPORTS — the product is explicitly a plant-based version of an indulgent format
 - Trend: "Texture as primary driver of bakery indulgence"
-- Product: "Pistachio Cream & White Chocolate Cake" — triple-layer sponge with jam, topped with pistachio and freeze-dried raspberry pieces
-- Verdict: SUPPORTS — the layered build and visible crunchy inclusions are a deliberate texture feature (Mintel cites this product for chunky textures), even though flavour is also a selling point
+- Product: "Tre Marie Panettone with Semi Candied Pineapple" — naturally leavened panettone; semi-candied pineapple pieces add a fresh taste to the soft dough
+- Verdict: SUPPORTS — visible fruit-piece inclusions in a soft dough are a deliberate texture contrast (Mintel cites this product for chunky textures), even though the product leads on heritage and flavour
 
 Examples of incidental matches:
 - Trend: "Plant-based indulgence parity"
